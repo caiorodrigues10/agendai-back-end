@@ -1,0 +1,43 @@
+services:
+  database:
+    image: postgres:16-alpine
+    container_name: barberqueue_db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: barberqueue
+      POSTGRES_PASSWORD: barberqueue123
+      POSTGRES_DB: barberqueue_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barberqueue -d barberqueue_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: barberqueue_api
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://barberqueue:barberqueue123@database:5432/barberqueue_db
+      JWT_SECRET: CorinthiansCampeao
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key
+      PORT: 3333
+      NODE_ENV: development
+      ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:5173"
+    ports:
+      - "3333:3333"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      database:
+        condition: service_healthy
+    command: sh -c "npx prisma generate && npx prisma db push && npm run prisma:seed && npm run dev:docker"
+
+volumes:
+  pgdata:
+    driver: local

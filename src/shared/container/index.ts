@@ -1,0 +1,16 @@
+import "reflect-metadata";
+import { container } from "tsyringe";
+import "@/shared/container/providers";
+import { IUserRepository } from "@/modules/users/repositories/IUserRepository";
+import { UserRepository } from "@/modules/users/infra/repositories/UserRepository";
+import { IServiceRepository } from "@/modules/services/repositories/IServiceRepository";
+import { ServiceRepository } from "@/modules/services/infra/repositories/ServiceRepository";
+import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
+import { BarbershopRepository } from "@/modules/barbershops/infra/repositories/BarbershopRepository";
+import { IQueueRepository } from "@/modules/queue/repositories/IQueueRepository";
+import { QueueRepository } from "@/modules/queue/infra/repositories/QueueRepository";
+
+container.registerSingleton<IUserRepository>("UserRepository", UserRepository);
+container.registerSingleton<IServiceRepository>("ServiceRepository", ServiceRepository);
+container.registerSingleton<IBarbershopRepository>("BarbershopRepository", BarbershopRepository);
+container.registerSingleton<IQueueRepository>("QueueRepository", QueueRepository);

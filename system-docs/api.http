@@ -1,0 +1,173 @@
+@baseUrl = http://localhost:3333
+@json = application/json
+
+### Health
+GET {{baseUrl}}/health
+
+### Create Admin User
+# @name createAdmin
+POST {{baseUrl}}/api/users
+Content-Type: {{json}}
+
+{
+  "name": "Administrador",
+  "email": "admin@barberqueue.local",
+  "password": "admin123",
+  "role": "MASTER_ADMIN"
+}
+
+### Login (Admin)
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{json}}
+
+{
+  "email": "admin@barberqueue.local",
+  "password": "admin123"
+}
+
+### Me
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Refresh Token
+# @name refresh
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: {{json}}
+
+{
+  "refreshToken": "{{login.response.body.$.refreshToken}}"
+}
+
+### Create Barbershop
+# @name createBarbershop
+POST {{baseUrl}}/api/barbershops
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+{
+  "name": "Barbearia Central",
+  "whatsapp": "5599999999999",
+  "logoUrl": "http://example.com/logo.png"
+}
+
+### List Barbershops
+# @name listBarbershops
+GET {{baseUrl}}/api/barbershops
+
+### Get Barbershop by ID
+GET {{baseUrl}}/api/barbershops/{{createBarbershop.response.body.$.data.id}}
+
+### Update Barbershop
+PUT {{baseUrl}}/api/barbershops/{{createBarbershop.response.body.$.data.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+{
+  "name": "Barbearia Central Renovada"
+}
+
+### Update Schedule
+PUT {{baseUrl}}/api/barbershops/{{createBarbershop.response.body.$.data.id}}/schedule
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+[
+  {
+    "dayOfWeek": 1,
+    "isOpen": true,
+    "openTime": "09:00",
+    "closeTime": "18:00"
+  }
+]
+
+### Get Schedule
+GET {{baseUrl}}/api/barbershops/{{createBarbershop.response.body.$.data.id}}/schedule
+
+### Create Service
+# @name createService
+POST {{baseUrl}}/api/services
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+{
+  "barbershopId": "{{createBarbershop.response.body.$.data.id}}",
+  "name": "Corte Masculino",
+  "price": 50,
+  "avgTimeMinutes": 30,
+  "icon": "scissors"
+}
+
+### List Services (by barbershop)
+GET {{baseUrl}}/api/services?barbershopId={{createBarbershop.response.body.$.data.id}}
+
+### Get Service by ID
+GET {{baseUrl}}/api/services/{{createService.response.body.$.data.id}}
+
+### Create Owner User (requires barbershopId)
+# @name createOwner
+POST {{baseUrl}}/api/users
+Content-Type: {{json}}
+
+{
+  "name": "Owner 1",
+  "email": "owner1@example.com",
+  "password": "123456",
+  "role": "OWNER",
+  "barbershopId": "{{createBarbershop.response.body.$.data.id}}"
+}
+
+### Update Service
+PUT {{baseUrl}}/api/services/{{createService.response.body.$.data.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+{
+  "price": 60
+}
+
+### Join Queue
+# @name joinQueue
+POST {{baseUrl}}/api/queue
+Content-Type: {{json}}
+
+{
+  "barbershopId": "{{createBarbershop.response.body.$.data.id}}",
+  "serviceId": "{{createService.response.body.$.data.id}}",
+  "customerId": "customer-1",
+  "customerName": "João",
+  "whatsapp": "5599999999999"
+}
+
+### List Queue (all)
+GET {{baseUrl}}/api/queue
+
+### List Queue (by barbershop)
+GET {{baseUrl}}/api/queue?barbershopId={{createBarbershop.response.body.$.data.id}}
+
+### Update Queue Item to in_chair
+PATCH {{baseUrl}}/api/queue/{{joinQueue.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+{
+  "status": "in_chair"
+}
+
+### Update Queue Item to completed
+PATCH {{baseUrl}}/api/queue/{{joinQueue.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+{
+  "status": "completed",
+  "completedBy": "{{login.response.body.$.user.id}}",
+  "finalPrice": 60
+}
+
+### Delete Queue Item
+DELETE {{baseUrl}}/api/queue/{{joinQueue.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Queue Metrics
+GET {{baseUrl}}/api/queue/metrics?barbershopId={{createBarbershop.response.body.$.data.id}}
