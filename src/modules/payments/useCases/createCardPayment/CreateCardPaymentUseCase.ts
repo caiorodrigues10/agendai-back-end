@@ -1,0 +1,62 @@
+import { injectable } from "tsyringe";
+import { MercadoPagoService } from "../../services/MercadoPagoService";
+import { PaymentRepository } from "../../repositories/infra/repositories/PaymentRepository"
+import { ICreateCardPaymentDTO, IPaymentResponseDTO, PaymentMethod } from "../../dtos/IPaymentDTO";
+import { AppError } from "@/shared/errors/AppError";
+
+@injectable()
+export class CreateCardPaymentUseCase {
+  private mpService: MercadoPagoService;
+  private paymentRepo: PaymentRepository;
+
+  constructor() {
+    this.mpService = new MercadoPagoService();
+    this.paymentRepo = new PaymentRepository();
+  }
+
+  async execute(data: ICreateCardPaymentDTO): Promise<IPaymentResponseDTO> {
+    if (data.transactionAmount < 0.5) {
+      throw new AppError("O valor mínimo de pagamento é R$ 0,50", 400);
+    }
+
+    let mpResponse: Awaited<ReturnType<MercadoPagoService["createCardPayment"]>>;
+
+    try {
+      mpResponse = await this.mpService.createCardPayment(
+        data,
+        data.barbershopId,
+        data.serviceId,
+        data.appointmentId,
+        data.queueItemId
+      );
+    } catch (error: any) {
+      throw new AppError(
+        `Pagamento recusado: ${error.message ?? "Erro desconhecido"}`,
+        422
+      );
+    }
+
+    const paymentMethod: PaymentMethod =
+      mpResponse.payment_type_id === "debit_card"
+        ? "debit_card"
+        : "credit_card";
+
+    const payment = await this.paymentRepo.create({
+      mpPaymentId: mpResponse.id,
+      status: mpResponse.status as any,
+      statusDetail: mpResponse.status_detail,
+      paymentMethod,
+      transactionAmount: mpResponse.transaction_amount,
+      currency: mpResponse.currency_id,
+      description: mpResponse.description || data.description,
+      barbershopId: data.barbershopId,
+      serviceId: data.serviceId,
+      appointmentId: data.appointmentId,
+      queueItemId: data.queueItemId,
+      externalReference: mpResponse.external_reference,
+      rawResponse: JSON.stringify(mpResponse)
+    });
+
+    return payment;
+  }
+}

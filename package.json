@@ -28,6 +28,7 @@
     "dayjs": "^1.11.13",
     "fastify": "^4.26.2",
     "jsonwebtoken": "^9.0.2",
+    "mercadopago": "^3.1.0",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "tsconfig-paths": "^4.2.0",

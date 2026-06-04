@@ -22,6 +22,8 @@ services:
     container_name: barberqueue_api
     restart: always
     environment:
+      MERCADOPAGO_ACCESS_TOKEN: "TEST-SEU-ACCESS-TOKEN-AQUI"
+      MERCADOPAGO_WEBHOOK_SECRET: "seu-segredo-webhook"
       DATABASE_URL: postgresql://barberqueue:barberqueue123@database:5432/barberqueue_db
       JWT_SECRET: CorinthiansCampeao
       JWT_REFRESH_SECRET: your-super-secret-refresh-key

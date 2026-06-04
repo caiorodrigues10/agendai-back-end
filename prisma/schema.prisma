@@ -45,6 +45,54 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+enum PaymentMethodEnum {
+  credit_card
+  debit_card
+  pix
+}
+
+enum PaymentStatusEnum {
+  pending
+  approved
+  authorized
+  in_process
+  in_mediation
+  rejected
+  cancelled
+  refunded
+  charged_back
+}
+
+model Payment {
+  id                String            @id @default(uuid()) @db.Uuid
+  mpPaymentId       BigInt            @unique
+  status            PaymentStatusEnum @default(pending)
+  statusDetail      String            @db.VarChar(100)
+  paymentMethod     PaymentMethodEnum
+  transactionAmount Float             @db.Real
+  currency          String            @default("BRL") @db.VarChar(5)
+  description       String            @db.VarChar(256)
+  barbershopId      String            @db.Uuid
+  serviceId         String?           @db.Uuid
+  appointmentId     String?           @db.Uuid
+  queueItemId       String?           @db.Uuid
+  externalReference String?           @db.VarChar(128)
+  pixQrCode         String?           @db.Text
+  pixQrCodeBase64   String?           @db.Text
+  pixExpirationDate DateTime?
+  rawResponse       String?           @db.Text
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+  @@index([barbershopId])
+  @@index([status])
+  @@index([mpPaymentId])
+  @@index([externalReference])
+}
+
 model Barbershop {
   id          String   @id @default(uuid()) @db.Uuid
   name        String   @db.VarChar(200)
@@ -66,6 +114,7 @@ model Barbershop {
   appointments  Appointment[]
   feedPosts     FeedPost[]
   subscriptions Subscription[]
+  payments      Payment[]  
 
   @@map("barbershops")
   @@index([approvalStatus])
