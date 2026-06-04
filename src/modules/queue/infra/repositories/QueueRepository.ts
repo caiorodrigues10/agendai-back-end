@@ -77,14 +77,20 @@ export class QueueRepository implements IQueueRepository {
       customerId: item.customerId,
       customerName: item.customerName,
       whatsapp: item.whatsapp,
-      joinedAt: item.joinedAt,
+      joinedAt: item.joinedAt instanceof Date
+        ? item.joinedAt.getTime()
+        : Number(item.joinedAt),
       status: item.status,
-      estimatedStartAt: item.estimatedStartAt,
+      estimatedStartAt: item.estimatedStartAt instanceof Date
+        ? item.estimatedStartAt.getTime()
+        : item.estimatedStartAt ?? null,
       addedByStaff: item.addedByStaff,
-      completedAt: item.completedAt,
-      completedBy: item.completedBy,
-      finalPrice: item.finalPrice,
-      serviceName: item.service?.name
+      completedAt: item.completedAt instanceof Date
+        ? item.completedAt.getTime()
+        : item.completedAt ?? null,
+      completedBy: item.completedBy ?? null,
+      finalPrice: item.finalPrice ?? null,
+      serviceName: item.service?.name ?? null
     };
   }
 }

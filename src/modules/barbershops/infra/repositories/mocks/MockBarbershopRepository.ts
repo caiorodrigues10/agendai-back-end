@@ -18,6 +18,8 @@ export class MockBarbershopRepository implements IBarbershopRepository {
       name: payload.name,
       whatsapp: payload.whatsapp,
       logoUrl: payload.logoUrl ?? null,
+      cnpj: null,
+      address: null,
       createdAt: now,
       active: true
     };

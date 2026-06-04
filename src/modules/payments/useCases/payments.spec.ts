@@ -216,6 +216,48 @@ describe("GetPaymentStatusUseCase", () => {
       new GetPaymentStatusUseCase(repo as any, mpServiceMock).execute("not-found")
     ).rejects.toBeInstanceOf(AppError);
   });
+}
+  it("[SEC] lança 403 quando EMPLOYEE tenta consultar pagamento de outra barbearia", async () => {
+    mockMpCard.mockResolvedValue(makeMpCardResponse());
+    const created = await new CreateCardPaymentUseCase(repo as any, mpServiceMock).execute({
+      token: "t", transactionAmount: 50, description: "x",
+      installments: 1, paymentMethodId: "visa",
+      payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
+      barbershopId: "shop-1"
+    });
+    const err: AppError = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+      .execute(created.id, false, undefined, { role: "EMPLOYEE", barbershopId: "shop-2" })
+      .catch(e => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.statusCode).toBe(403);
+  });
+
+  it("[SEC] permite EMPLOYEE consultar pagamento da própria barbearia", async () => {
+    mockMpCard.mockResolvedValue(makeMpCardResponse());
+    const created = await new CreateCardPaymentUseCase(repo as any, mpServiceMock).execute({
+      token: "t", transactionAmount: 50, description: "x",
+      installments: 1, paymentMethodId: "visa",
+      payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
+      barbershopId: "shop-1"
+    });
+    const result = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+      .execute(created.id, false, undefined, { role: "EMPLOYEE", barbershopId: "shop-1" });
+    expect(result.id).toBe(created.id);
+  });
+
+  it("[SEC] permite MASTER_ADMIN consultar pagamento de qualquer barbearia", async () => {
+    mockMpCard.mockResolvedValue(makeMpCardResponse());
+    const created = await new CreateCardPaymentUseCase(repo as any, mpServiceMock).execute({
+      token: "t", transactionAmount: 50, description: "x",
+      installments: 1, paymentMethodId: "visa",
+      payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
+      barbershopId: "shop-1"
+    });
+    const result = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+      .execute(created.id, false, undefined, { role: "MASTER_ADMIN" });
+    expect(result.id).toBe(created.id);
+  });
+
 });
 
 describe("ListPaymentsUseCase", () => {
@@ -296,6 +338,42 @@ describe("CancelPaymentUseCase", () => {
       new CancelPaymentUseCase(repo as any, mpServiceMock).execute("not-found")
     ).rejects.toBeInstanceOf(AppError);
   });
+}
+  it("[SEC] lança 403 quando EMPLOYEE tenta cancelar pagamento", async () => {
+    mockMpPix.mockResolvedValue(makeMpPixResponse());
+    const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
+      transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
+    });
+    const err: AppError = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+      .execute(created.id, { role: "EMPLOYEE", barbershopId: "shop-1" })
+      .catch(e => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.statusCode).toBe(403);
+  });
+
+  it("[SEC] lança 403 quando OWNER tenta cancelar pagamento de outra barbearia", async () => {
+    mockMpPix.mockResolvedValue(makeMpPixResponse());
+    const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
+      transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
+    });
+    const err: AppError = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+      .execute(created.id, { role: "OWNER", barbershopId: "shop-2" })
+      .catch(e => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.statusCode).toBe(403);
+  });
+
+  it("[SEC] permite OWNER cancelar pagamento da própria barbearia", async () => {
+    mockMpPix.mockResolvedValue(makeMpPixResponse());
+    const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
+      transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
+    });
+    mockMpCancel.mockResolvedValue({ ...makeMpPixResponse(), status: "cancelled", status_detail: "by_collector" });
+    const result = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+      .execute(created.id, { role: "OWNER", barbershopId: "shop-1" });
+    expect(result.status).toBe("cancelled");
+  });
+
 });
 
 describe("ProcessWebhookUseCase", () => {
@@ -303,6 +381,19 @@ describe("ProcessWebhookUseCase", () => {
     await new ProcessWebhookUseCase(repo as any, mpServiceMock)
       .execute({ type: "subscription", data: { id: "1" } } as any);
     expect(mockMpGet).not.toHaveBeenCalled();
+  });
+
+it("[SEC] processa webhook com data.id numérico (sem perda de precisão)", async () => {
+    mockMpPix.mockResolvedValue(makeMpPixResponse());
+    await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
+      transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
+    });
+    mockMpGet.mockResolvedValue({ ...makeMpPixResponse(), status: "approved", status_detail: "accredited" });
+    // MP envia data.id como número em alguns eventos
+    await new ProcessWebhookUseCase(repo as any, mpServiceMock)
+      .execute({ type: "payment", data: { id: 789012 as any } } as any);
+    const payment = await repo.findByMpPaymentId("789012");
+    expect(payment?.status).toBe("approved");
   });
 
   it("atualiza status ao receber webhook válido", async () => {

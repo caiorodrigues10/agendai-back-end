@@ -16,12 +16,22 @@ export class GetPaymentStatusUseCase {
   async execute(
     id: string,
     syncWithMp = false,
-    logger?: { warn: (msg: string, ...args: any[]) => void }
+    logger?: { warn: (msg: string, ...args: any[]) => void },
+    requestingUser?: { role: string; barbershopId?: string }
   ): Promise<IPaymentResponseDTO> {
     const payment = await this.paymentRepo.findById(id);
 
     if (!payment) {
       throw new AppError("Pagamento não encontrado", 404);
+    }
+
+    // Ownership check — não-admins só podem consultar pagamentos da própria barbearia
+    if (
+      requestingUser &&
+      requestingUser.role !== "MASTER_ADMIN" &&
+      payment.barbershopId !== requestingUser.barbershopId
+    ) {
+      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
     }
 
     const shouldSync =

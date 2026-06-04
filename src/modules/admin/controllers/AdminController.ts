@@ -98,39 +98,32 @@ export class AdminController {
       ? (((newInPeriod - newInPrevPeriod) / newInPrevPeriod) * 100).toFixed(1)
       : newInPeriod > 0 ? '+100' : '0';
 
-    const barbershopsInPeriod = await prisma.barbershop.findMany({
-      where: { createdAt: { gte: startDate } },
-      select: { createdAt: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    const appointmentsInPeriod = await prisma.appointment.findMany({
-      where: { createdAt: { gte: startDate } },
-      select: { createdAt: true, status: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    const queueCompletedInPeriod = await prisma.queueItem.findMany({
-      where: { joinedAt: { gte: startDate }, status: 'COMPLETED' },
-      select: { joinedAt: true },
-      orderBy: { joinedAt: 'asc' },
-    });
-
     const slots = generateTimeSlots(startDate, groupByFormat);
 
-    const chartData = slots.map(({ label: slotLabel, date: slotStart }) => {
-      const slotEnd = new Date(slotStart);
-      if (groupByFormat === 'day') slotEnd.setDate(slotStart.getDate() + 1);
-      else if (groupByFormat === 'week') slotEnd.setDate(slotStart.getDate() + 7);
-      else if (groupByFormat === 'month') slotEnd.setMonth(slotStart.getMonth() + 1);
-      else slotEnd.setFullYear(slotStart.getFullYear() + 1);
+    // Queries agregadas por slot — evita carregar todos os registros em memória
+    const chartData = await Promise.all(
+      slots.map(async ({ label: slotLabel, date: slotStart }) => {
+        const slotEnd = new Date(slotStart);
+        if (groupByFormat === 'day') slotEnd.setDate(slotStart.getDate() + 1);
+        else if (groupByFormat === 'week') slotEnd.setDate(slotStart.getDate() + 7);
+        else if (groupByFormat === 'month') slotEnd.setMonth(slotStart.getMonth() + 1);
+        else slotEnd.setFullYear(slotStart.getFullYear() + 1);
 
-      const newShops = barbershopsInPeriod.filter(b => b.createdAt >= slotStart && b.createdAt < slotEnd).length;
-      const appointments = appointmentsInPeriod.filter(a => a.createdAt >= slotStart && a.createdAt < slotEnd).length;
-      const completedQueue = queueCompletedInPeriod.filter(q => q.joinedAt >= slotStart && q.joinedAt < slotEnd).length;
+        const [newShops, appointments, completedQueue] = await Promise.all([
+          prisma.barbershop.count({
+            where: { createdAt: { gte: slotStart, lt: slotEnd } }
+          }),
+          prisma.appointment.count({
+            where: { createdAt: { gte: slotStart, lt: slotEnd } }
+          }),
+          prisma.queueItem.count({
+            where: { joinedAt: { gte: slotStart, lt: slotEnd }, status: 'COMPLETED' }
+          }),
+        ]);
 
-      return { label: slotLabel, newShops, appointments, completedQueue };
-    });
+        return { label: slotLabel, newShops, appointments, completedQueue };
+      })
+    );
 
     const recentBarbershops = await prisma.barbershop.findMany({
       take: 5,

@@ -41,19 +41,19 @@ export async function paymentRoutes(app: FastifyInstance) {
 
   app.get(
     "/payments/:id",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"])] },
     getStatus.handle.bind(getStatus)
   );
 
   app.patch(
     "/payments/:id/cancel",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] },
     cancelPayment.handle.bind(cancelPayment)
   );
 
   app.get(
     "/payments",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] },
     listPayments.handle.bind(listPayments)
   );
 }

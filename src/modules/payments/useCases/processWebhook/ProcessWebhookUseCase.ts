@@ -21,8 +21,11 @@ export class ProcessWebhookUseCase {
     let mpData: Awaited<ReturnType<MercadoPagoService["getPaymentById"]>>;
 
     try {
-      mpData = await this.mpService.getPaymentById(Number(mpPaymentIdStr));
-    } catch {
+      mpData = await this.mpService.getPaymentById(mpPaymentIdStr);
+    } catch (err: any) {
+      console.warn(
+        `[ProcessWebhook] Falha ao buscar mpPaymentId=${mpPaymentIdStr} no Mercado Pago: ${err?.message ?? err}`
+      );
       return;
     }
 

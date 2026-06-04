@@ -13,6 +13,11 @@ export class ListPaymentsController {
 
     const user = request.user!;
 
+    // Defense in depth: EMPLOYEE não tem acesso a dados financeiros
+    if (user.role === "EMPLOYEE") {
+      throw new AppError("Acesso negado: apenas proprietários podem visualizar pagamentos", 403);
+    }
+
     let resolvedBarbershopId: string | undefined;
 
     if (user.role === "MASTER_ADMIN") {
@@ -30,11 +35,14 @@ export class ListPaymentsController {
       }
     }
 
+    const parsedPage  = Math.max(1, Number(page)  || 1);
+    const parsedLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
+
     const useCase = container.resolve(ListPaymentsUseCase);
     const result = await useCase.execute(
       resolvedBarbershopId,
-      Number(page),
-      Math.min(Number(limit), 100)
+      parsedPage,
+      parsedLimit
     );
 
     reply.send({

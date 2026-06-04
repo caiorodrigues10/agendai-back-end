@@ -5,9 +5,10 @@ import { sign, Secret, SignOptions } from "jsonwebtoken";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
 
-function mapRole(role: string): "admin" | "owner" | "employee" {
+function mapRole(role: string): "admin" | "owner" | "employee" | "customer" {
   if (role === "MASTER_ADMIN") return "admin";
   if (role === "OWNER") return "owner";
+  if (role === "CUSTOMER") return "customer";
   return "employee";
 }
 
@@ -33,6 +34,11 @@ export class LoginUseCase {
     const expiresAt = new Date(Date.now() + parseDuration(auth.refreshExpiresIn));
     const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
     const refreshToken = sign({ sub: user.id }, auth.refreshSecret as Secret, refreshOpts);
+    // Remove tokens expirados do usuário antes de criar um novo
+    await prisma.refreshToken.deleteMany({
+      where: { userId: user.id, expiresAt: { lt: new Date() } }
+    });
+
     await prisma.refreshToken.create({
       data: { token: refreshToken, userId: user.id, expiresAt }
     });

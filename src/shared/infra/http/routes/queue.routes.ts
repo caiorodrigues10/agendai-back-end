@@ -13,7 +13,9 @@ export async function queueRoutes(app: FastifyInstance) {
   const del = new DeleteQueueItemController();
   const metrics = new GetQueueMetricsController();
 
-  app.get("/queue", list.handle.bind(list));
+  // GET /queue: autenticado — sem barbershopId só MASTER_ADMIN pode listar tudo
+  app.get("/queue", { preHandler: [authenticate] }, list.handle.bind(list));
+  // POST /queue: público — cliente entra na fila sem precisar de conta
   app.post("/queue", join.handle.bind(join));
   app.patch("/queue/:id", { preHandler: [authenticate] }, update.handle.bind(update));
   app.delete("/queue/:id", { preHandler: [authenticate] }, del.handle.bind(del));

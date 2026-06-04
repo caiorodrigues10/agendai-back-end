@@ -24,9 +24,14 @@ export class RefreshController {
       const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined }, auth.secret as Secret, accessOpts);
       const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
       const newRefreshToken = sign({ sub: user.id }, auth.refreshSecret as Secret, refreshOpts);
-      await prisma.refreshToken.updateMany({
-        where: { token: refreshToken },
-        data: { token: newRefreshToken, expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn)) }
+      // Rotaciona: apaga o token antigo e cria um novo (evita acúmulo no banco)
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+      await prisma.refreshToken.create({
+        data: {
+          token: newRefreshToken,
+          userId: decoded.sub,
+          expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn))
+        }
       });
       return reply.status(200).send({
         user: {
@@ -54,8 +59,9 @@ function parseDuration(input: string): number {
   return value * multipliers[unit];
 }
 
-function mapRole(role: string): "admin" | "owner" | "employee" {
+function mapRole(role: string): "admin" | "owner" | "employee" | "customer" {
   if (role === "MASTER_ADMIN") return "admin";
   if (role === "OWNER") return "owner";
+  if (role === "CUSTOMER") return "customer";
   return "employee";
 }

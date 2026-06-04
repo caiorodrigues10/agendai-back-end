@@ -13,6 +13,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         name: true,
         whatsapp: true,
         logoUrl: true,
+        cnpj: true,
+        address: true,
         createdAt: true,
         active: true
       }
@@ -26,6 +28,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         name: true,
         whatsapp: true,
         logoUrl: true,
+        cnpj: true,
+        address: true,
         createdAt: true,
         active: true
       }
@@ -39,6 +43,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         name: true,
         whatsapp: true,
         logoUrl: true,
+        cnpj: true,
+        address: true,
         createdAt: true,
         active: true
       }
@@ -53,6 +59,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         name: true,
         whatsapp: true,
         logoUrl: true,
+        cnpj: true,
+        address: true,
         createdAt: true,
         active: true
       }

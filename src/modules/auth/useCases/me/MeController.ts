@@ -23,8 +23,9 @@ export class MeController {
   }
 }
 
-function mapRole(role: string): "admin" | "owner" | "employee" {
+function mapRole(role: string): "admin" | "owner" | "employee" | "customer" {
   if (role === "MASTER_ADMIN") return "admin";
   if (role === "OWNER") return "owner";
+  if (role === "CUSTOMER") return "customer";
   return "employee";
 }

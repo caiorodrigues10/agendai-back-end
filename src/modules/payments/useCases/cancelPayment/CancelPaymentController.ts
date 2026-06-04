@@ -6,7 +6,7 @@ export class CancelPaymentController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { id } = request.params as { id: string };
     const useCase = container.resolve(CancelPaymentUseCase);
-    const payment = await useCase.execute(id);
+    const payment = await useCase.execute(id, request.user);
     reply.send({ success: true, data: payment });
   }
 }

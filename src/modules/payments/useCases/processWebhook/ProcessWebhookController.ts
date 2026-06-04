@@ -17,7 +17,7 @@ const webhookBodySchema = z.object({
   api_version: z.string().optional(),
   action: z.string().optional(),
   data: z.object({
-    id: z.string()
+    id: z.union([z.string(), z.number()]).transform(String)
   })
 });
 

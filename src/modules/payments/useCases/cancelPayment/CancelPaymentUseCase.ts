@@ -13,11 +13,26 @@ export class CancelPaymentUseCase {
     private mpService: MercadoPagoService
   ) {}
 
-  async execute(id: string): Promise<IPaymentResponseDTO> {
+  async execute(
+    id: string,
+    requestingUser?: { role: string; barbershopId?: string }
+  ): Promise<IPaymentResponseDTO> {
     const payment = await this.paymentRepo.findById(id);
 
     if (!payment) {
       throw new AppError("Pagamento não encontrado", 404);
+    }
+
+    // Ownership check — somente MASTER_ADMIN e OWNER podem cancelar pagamentos
+    if (requestingUser && requestingUser.role === "EMPLOYEE") {
+      throw new AppError("Acesso negado: apenas proprietários podem cancelar pagamentos", 403);
+    }
+    if (
+      requestingUser &&
+      requestingUser.role !== "MASTER_ADMIN" &&
+      payment.barbershopId !== requestingUser.barbershopId
+    ) {
+      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
     }
 
     // FIX-1: "cancelled" retorna idempotentemente em vez de 400
