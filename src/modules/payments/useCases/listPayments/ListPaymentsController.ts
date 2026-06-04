@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { container } from "tsyringe";
 import { ListPaymentsUseCase } from "./ListPaymentsUseCase";
 import { AppError } from "@/shared/errors/AppError";
 
@@ -8,17 +9,11 @@ export class ListPaymentsController {
       barbershopId,
       page = "1",
       limit = "20"
-    } = request.query as {
-      barbershopId?: string;
-      page?: string;
-      limit?: string;
-    };
+    } = request.query as { barbershopId?: string; page?: string; limit?: string };
 
     const user = request.user!;
     const resolvedBarbershopId =
-      user.role === "MASTER_ADMIN"
-        ? barbershopId
-        : user.barbershopId;
+      user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId;
 
     if (!resolvedBarbershopId) {
       throw new AppError(
@@ -27,7 +22,7 @@ export class ListPaymentsController {
       );
     }
 
-    const useCase = new ListPaymentsUseCase();
+    const useCase = container.resolve(ListPaymentsUseCase);
     const result = await useCase.execute(
       resolvedBarbershopId,
       Number(page),

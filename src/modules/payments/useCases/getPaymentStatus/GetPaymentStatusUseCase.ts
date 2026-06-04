@@ -1,18 +1,17 @@
-import { injectable } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { MercadoPagoService } from "../../services/MercadoPagoService";
-import { PaymentRepository } from "../../repositories/infra/repositories/PaymentRepository"
+import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { IPaymentResponseDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
 import { AppError } from "@/shared/errors/AppError";
 
 @injectable()
 export class GetPaymentStatusUseCase {
-  private mpService: MercadoPagoService;
-  private paymentRepo: PaymentRepository;
-
-  constructor() {
-    this.mpService = new MercadoPagoService();
-    this.paymentRepo = new PaymentRepository();
-  }
+  constructor(
+    @inject("PaymentRepository")
+    private paymentRepo: IPaymentRepository,
+    @inject("MercadoPagoService")
+    private mpService: MercadoPagoService
+  ) {}
 
   async execute(id: string, syncWithMp = false): Promise<IPaymentResponseDTO> {
     const payment = await this.paymentRepo.findById(id);
@@ -27,7 +26,6 @@ export class GetPaymentStatusUseCase {
     if (shouldSync) {
       try {
         const mpData = await this.mpService.getPaymentById(payment.mpPaymentId);
-
         if (mpData.status !== payment.status) {
           return this.paymentRepo.updateStatus(payment.id, {
             status: mpData.status as PaymentStatus,
@@ -36,7 +34,7 @@ export class GetPaymentStatusUseCase {
           });
         }
       } catch {
-        // Silently ignore MP sync errors — retorna status em cache
+        // Silently ignore — retorna status em cache
       }
     }
 

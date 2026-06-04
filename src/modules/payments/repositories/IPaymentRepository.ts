@@ -17,11 +17,9 @@ export interface ICreatePaymentRecordDTO {
   appointmentId?: string | null;
   queueItemId?: string | null;
   externalReference?: string | null;
-  // PIX specific
   pixQrCode?: string | null;
   pixQrCodeBase64?: string | null;
   pixExpirationDate?: Date | null;
-  // Raw MP response (for audit/debugging)
   rawResponse?: string | null;
 }
 

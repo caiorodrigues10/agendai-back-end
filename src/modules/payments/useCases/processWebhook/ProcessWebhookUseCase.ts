@@ -1,27 +1,22 @@
-import { injectable } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { MercadoPagoService } from "../../services/MercadoPagoService";
-import { PaymentRepository } from "../../repositories/infra/repositories/PaymentRepository"
+import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { IMercadoPagoWebhookDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
 
 @injectable()
 export class ProcessWebhookUseCase {
-  private mpService: MercadoPagoService;
-  private paymentRepo: PaymentRepository;
-
-  constructor() {
-    this.mpService = new MercadoPagoService();
-    this.paymentRepo = new PaymentRepository();
-  }
+  constructor(
+    @inject("PaymentRepository")
+    private paymentRepo: IPaymentRepository,
+    @inject("MercadoPagoService")
+    private mpService: MercadoPagoService
+  ) {}
 
   async execute(payload: IMercadoPagoWebhookDTO): Promise<void> {
-    if (payload.type !== "payment") {
-      return;
-    }
+    if (payload.type !== "payment") return;
 
     const mpPaymentId = Number(payload.data.id);
-    if (!mpPaymentId || isNaN(mpPaymentId)) {
-      return;
-    }
+    if (!mpPaymentId || isNaN(mpPaymentId)) return;
 
     let mpData: Awaited<ReturnType<MercadoPagoService["getPaymentById"]>>;
 
@@ -32,14 +27,9 @@ export class ProcessWebhookUseCase {
     }
 
     const localPayment = await this.paymentRepo.findByMpPaymentId(mpPaymentId);
+    if (!localPayment) return;
 
-    if (!localPayment) {
-      return;
-    }
-
-    if (localPayment.status === (mpData.status as PaymentStatus)) {
-      return;
-    }
+    if (localPayment.status === (mpData.status as PaymentStatus)) return;
 
     await this.paymentRepo.updateStatus(localPayment.id, {
       status: mpData.status as PaymentStatus,

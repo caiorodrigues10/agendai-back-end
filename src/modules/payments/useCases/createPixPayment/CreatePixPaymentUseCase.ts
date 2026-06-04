@@ -1,18 +1,17 @@
-import { injectable } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { MercadoPagoService } from "../../services/MercadoPagoService";
-import { PaymentRepository } from "../../repositories/infra/repositories/PaymentRepository"
+import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { ICreatePixPaymentDTO, IPaymentResponseDTO } from "../../dtos/IPaymentDTO";
 import { AppError } from "@/shared/errors/AppError";
 
 @injectable()
 export class CreatePixPaymentUseCase {
-  private mpService: MercadoPagoService;
-  private paymentRepo: PaymentRepository;
-
-  constructor() {
-    this.mpService = new MercadoPagoService();
-    this.paymentRepo = new PaymentRepository();
-  }
+  constructor(
+    @inject("PaymentRepository")
+    private paymentRepo: IPaymentRepository,
+    @inject("MercadoPagoService")
+    private mpService: MercadoPagoService
+  ) {}
 
   async execute(data: ICreatePixPaymentDTO): Promise<IPaymentResponseDTO> {
     if (data.transactionAmount < 0.5) {
@@ -39,7 +38,7 @@ export class CreatePixPaymentUseCase {
       );
     }
 
-    const payment = await this.paymentRepo.create({
+    return this.paymentRepo.create({
       mpPaymentId: mpResponse.id,
       status: mpResponse.status as any,
       statusDetail: mpResponse.status_detail,
@@ -59,7 +58,5 @@ export class CreatePixPaymentUseCase {
         : null,
       rawResponse: JSON.stringify(mpResponse)
     });
-
-    return payment;
   }
 }

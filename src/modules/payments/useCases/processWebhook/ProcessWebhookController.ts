@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { container } from "tsyringe";
 import { ProcessWebhookUseCase } from "./ProcessWebhookUseCase";
 import { IMercadoPagoWebhookDTO } from "../../dtos/IPaymentDTO";
 import crypto from "node:crypto";
@@ -32,10 +33,14 @@ export class ProcessWebhookController {
       .update(manifest)
       .digest("hex");
 
-    return crypto.timingSafeEqual(
-      Buffer.from(v1, "hex"),
-      Buffer.from(expected, "hex")
-    );
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(v1, "hex"),
+        Buffer.from(expected, "hex")
+      );
+    } catch {
+      return false;
+    }
   }
 
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -43,13 +48,11 @@ export class ProcessWebhookController {
       return reply.status(401).send({ message: "Assinatura inválida" });
     }
 
-    const payload = request.body as IMercadoPagoWebhookDTO;
-
     reply.status(200).send({ received: true });
 
-    const useCase = new ProcessWebhookUseCase();
-    useCase.execute(payload).catch(() => {
-      /* noop — MP vai retentar */
-    });
+    const useCase = container.resolve(ProcessWebhookUseCase);
+    useCase
+      .execute(request.body as IMercadoPagoWebhookDTO)
+      .catch(() => { /* MP vai retentar */ });
   }
 }

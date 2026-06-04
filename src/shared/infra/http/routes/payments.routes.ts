@@ -6,13 +6,15 @@ import { CreatePixPaymentController } from "@/modules/payments/useCases/createPi
 import { GetPaymentStatusController } from "@/modules/payments/useCases/getPaymentStatus/GetPaymentStatusController";
 import { ListPaymentsController } from "@/modules/payments/useCases/listPayments/ListPaymentsController";
 import { ProcessWebhookController } from "@/modules/payments/useCases/processWebhook/ProcessWebhookController";
+import { CancelPaymentController } from "@/modules/payments/useCases/cancelPayment/CancelPaymentController";
 
 export async function paymentRoutes(app: FastifyInstance) {
-  const cardPayment = new CreateCardPaymentController();
-  const pixPayment = new CreatePixPaymentController();
-  const getStatus = new GetPaymentStatusController();
-  const listPayments = new ListPaymentsController();
-  const webhook = new ProcessWebhookController();
+  const cardPayment   = new CreateCardPaymentController();
+  const pixPayment    = new CreatePixPaymentController();
+  const getStatus     = new GetPaymentStatusController();
+  const listPayments  = new ListPaymentsController();
+  const webhook       = new ProcessWebhookController();
+  const cancelPayment = new CancelPaymentController();
 
   // Público — o Mercado Pago não envia Bearer token
   app.post("/payments/webhook", webhook.handle.bind(webhook));
@@ -35,14 +37,15 @@ export async function paymentRoutes(app: FastifyInstance) {
     getStatus.handle.bind(getStatus)
   );
 
+  app.patch(
+    "/payments/:id/cancel",
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"])] },
+    cancelPayment.handle.bind(cancelPayment)
+  );
+
   app.get(
     "/payments",
-    {
-      preHandler: [
-        authenticate,
-        authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"])
-      ]
-    },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"])] },
     listPayments.handle.bind(listPayments)
   );
 }

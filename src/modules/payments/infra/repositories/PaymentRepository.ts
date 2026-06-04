@@ -3,13 +3,13 @@ import {
   IPaymentRepository,
   ICreatePaymentRecordDTO,
   IUpdatePaymentStatusDTO
-} from "./IPaymentRepository"
-import { IPaymentResponseDTO, PaymentStatus } from "../../../payments/dtos/IPaymentDTO"
+} from "../../repositories/IPaymentRepository";
+import { IPaymentResponseDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
 
 function mapToDTO(record: any): IPaymentResponseDTO {
   return {
     id: record.id,
-    mpPaymentId: record.mpPaymentId,
+    mpPaymentId: Number(record.mpPaymentId),
     status: record.status as PaymentStatus,
     statusDetail: record.statusDetail,
     paymentMethod: record.paymentMethod,
@@ -17,18 +17,18 @@ function mapToDTO(record: any): IPaymentResponseDTO {
     currency: record.currency,
     description: record.description,
     barbershopId: record.barbershopId,
-    serviceId: record.serviceId,
-    appointmentId: record.appointmentId,
-    queueItemId: record.queueItemId,
-    externalReference: record.externalReference,
+    serviceId: record.serviceId ?? null,
+    appointmentId: record.appointmentId ?? null,
+    queueItemId: record.queueItemId ?? null,
+    externalReference: record.externalReference ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     pixQrCode: record.pixQrCode
       ? {
-        qrCode: record.pixQrCode,
-        qrCodeBase64: record.pixQrCodeBase64,
-        expirationDate: record.pixExpirationDate?.toISOString() ?? ""
-      }
+          qrCode: record.pixQrCode,
+          qrCodeBase64: record.pixQrCodeBase64 ?? "",
+          expirationDate: record.pixExpirationDate?.toISOString() ?? ""
+        }
       : null
   };
 }
@@ -55,7 +55,6 @@ export class PaymentRepository implements IPaymentRepository {
         rawResponse: data.rawResponse ?? null
       }
     });
-
     return mapToDTO(record);
   }
 
@@ -64,9 +63,7 @@ export class PaymentRepository implements IPaymentRepository {
     return record ? mapToDTO(record) : null;
   }
 
-  async findByMpPaymentId(
-    mpPaymentId: number
-  ): Promise<IPaymentResponseDTO | null> {
+  async findByMpPaymentId(mpPaymentId: number): Promise<IPaymentResponseDTO | null> {
     const record = await prisma.payment.findFirst({
       where: { mpPaymentId }
     });
@@ -79,7 +76,6 @@ export class PaymentRepository implements IPaymentRepository {
     limit = 20
   ): Promise<{ data: IPaymentResponseDTO[]; total: number }> {
     const skip = (page - 1) * limit;
-
     const [records, total] = await Promise.all([
       prisma.payment.findMany({
         where: { barbershopId },
@@ -89,8 +85,7 @@ export class PaymentRepository implements IPaymentRepository {
       }),
       prisma.payment.count({ where: { barbershopId } })
     ]);
-
-    return { data: records.map(mapToDTO), total };  
+    return { data: records.map(mapToDTO), total };
   }
 
   async updateStatus(
@@ -105,7 +100,6 @@ export class PaymentRepository implements IPaymentRepository {
         ...(data.rawResponse !== undefined && { rawResponse: data.rawResponse })
       }
     });
-
     return mapToDTO(record);
   }
 }

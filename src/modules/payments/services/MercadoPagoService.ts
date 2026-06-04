@@ -1,3 +1,4 @@
+import { injectable } from "tsyringe";
 import {
   ICreateCardPaymentDTO,
   ICreatePixPaymentDTO,
@@ -29,6 +30,7 @@ interface MPPaymentResponse {
   date_of_expiration?: string;
 }
 
+@injectable()
 export class MercadoPagoService {
   private readonly accessToken: string;
   private readonly baseUrl = "https://api.mercadopago.com";
@@ -73,7 +75,6 @@ export class MercadoPagoService {
         error?: string;
         cause?: Array<{ code: number; description: string }>;
       };
-
       const cause = mpError.cause?.map((c) => c.description).join("; ");
       throw new Error(
         `Mercado Pago API error ${response.status}: ${mpError.message || mpError.error}${cause ? " — " + cause : ""}`
@@ -85,21 +86,6 @@ export class MercadoPagoService {
 
   private idempotencyKey(...parts: string[]): string {
     return parts.join(":") + ":" + Date.now().toString(36);
-  }
-
-  private resolvePaymentMethod(
-    paymentMethodId: string,
-    paymentTypeId: string
-  ): PaymentMethod {
-    if (paymentTypeId === "account_money") return "credit_card";
-    if (paymentTypeId === "bank_transfer") return "pix";
-    if (paymentTypeId === "debit_card") return "debit_card";
-    return "credit_card";
-  }
-
-  private buildExpirationDate(minutes: number): string {
-    const d = new Date(Date.now() + minutes * 60 * 1000);
-    return d.toISOString();
   }
 
   async createCardPayment(
@@ -148,7 +134,7 @@ export class MercadoPagoService {
     };
 
     if (data.billingAddress) {
-      (payload.payer as Record<string, unknown>).address = {
+      (payload.payer as Record<string, unknown>)["address"] = {
         zip_code: data.billingAddress.zipCode,
         street_name: data.billingAddress.streetName,
         street_number: data.billingAddress.streetNumber,
@@ -166,16 +152,13 @@ export class MercadoPagoService {
     );
   }
 
-  async createPixPayment(
-    data: ICreatePixPaymentDTO
-  ): Promise<MPPaymentResponse> {
+  async createPixPayment(data: ICreatePixPaymentDTO): Promise<MPPaymentResponse> {
     const externalReference =
-      data.externalReference ||
-      `bq-pix-${data.barbershopId}-${Date.now()}`;
+      data.externalReference || `bq-pix-${data.barbershopId}-${Date.now()}`;
 
-    const expirationDate = this.buildExpirationDate(
-      data.expirationMinutes ?? 30
-    );
+    const expirationDate = new Date(
+      Date.now() + (data.expirationMinutes ?? 30) * 60 * 1000
+    ).toISOString();
 
     const payload: Record<string, unknown> = {
       transaction_amount: data.transactionAmount,
@@ -221,10 +204,7 @@ export class MercadoPagoService {
   }
 
   async getPaymentById(mpPaymentId: number): Promise<MPPaymentResponse> {
-    return this.request<MPPaymentResponse>(
-      "GET",
-      `/v1/payments/${mpPaymentId}`
-    );
+    return this.request<MPPaymentResponse>("GET", `/v1/payments/${mpPaymentId}`);
   }
 
   async cancelPayment(mpPaymentId: number): Promise<MPPaymentResponse> {
