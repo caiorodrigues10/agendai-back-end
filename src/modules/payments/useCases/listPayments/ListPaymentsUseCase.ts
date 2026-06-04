@@ -9,8 +9,9 @@ export class ListPaymentsUseCase {
     private paymentRepo: IPaymentRepository
   ) {}
 
+  // FIX-3: barbershopId agora é opcional — undefined = listar todos (só para MASTER_ADMIN)
   async execute(
-    barbershopId: string,
+    barbershopId: string | undefined,
     page = 1,
     limit = 20
   ): Promise<{ data: IPaymentResponseDTO[]; total: number; page: number; limit: number }> {

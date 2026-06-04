@@ -5,7 +5,7 @@ import {
 } from "../dtos/IPaymentDTO";
 
 export interface ICreatePaymentRecordDTO {
-  mpPaymentId: number;
+  mpPaymentId: number | string;
   status: PaymentStatus;
   statusDetail: string;
   paymentMethod: PaymentMethod;
@@ -32,9 +32,10 @@ export interface IUpdatePaymentStatusDTO {
 export interface IPaymentRepository {
   create(data: ICreatePaymentRecordDTO): Promise<IPaymentResponseDTO>;
   findById(id: string): Promise<IPaymentResponseDTO | null>;
-  findByMpPaymentId(mpPaymentId: number): Promise<IPaymentResponseDTO | null>;
+  findByMpPaymentId(mpPaymentId: string): Promise<IPaymentResponseDTO | null>;
+  // FIX-3: barbershopId opcional — undefined lista todos os pagamentos (uso exclusivo do MASTER_ADMIN)
   findByBarbershopId(
-    barbershopId: string,
+    barbershopId: string | undefined,
     page?: number,
     limit?: number
   ): Promise<{ data: IPaymentResponseDTO[]; total: number }>;

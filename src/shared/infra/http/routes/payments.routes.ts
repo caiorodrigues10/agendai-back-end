@@ -16,8 +16,16 @@ export async function paymentRoutes(app: FastifyInstance) {
   const webhook       = new ProcessWebhookController();
   const cancelPayment = new CancelPaymentController();
 
-  // Público — o Mercado Pago não envia Bearer token
-  app.post("/payments/webhook", webhook.handle.bind(webhook));
+  // BUG-4: Rate-limit mais restritivo no webhook público
+  // O MP envia no máximo poucos eventos por segundo — 30/min é mais que suficiente
+  app.post("/payments/webhook", {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: "1 minute"
+      }
+    }
+  }, webhook.handle.bind(webhook));
 
   app.post(
     "/payments/card",

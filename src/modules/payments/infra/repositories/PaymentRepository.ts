@@ -6,10 +6,12 @@ import {
 } from "../../repositories/IPaymentRepository";
 import { IPaymentResponseDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
 
+// mpPaymentId é BigInt no banco. Serializamos como string para evitar
+// truncamento silencioso de IDs acima de Number.MAX_SAFE_INTEGER (2^53-1).
 function mapToDTO(record: any): IPaymentResponseDTO {
   return {
     id: record.id,
-    mpPaymentId: Number(record.mpPaymentId),
+    mpPaymentId: record.mpPaymentId.toString(),
     status: record.status as PaymentStatus,
     statusDetail: record.statusDetail,
     paymentMethod: record.paymentMethod,
@@ -33,11 +35,18 @@ function mapToDTO(record: any): IPaymentResponseDTO {
   };
 }
 
+const MAX_RAW_RESPONSE_CHARS = 10_000;
+function truncateRaw(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (raw.length <= MAX_RAW_RESPONSE_CHARS) return raw;
+  return raw.slice(0, MAX_RAW_RESPONSE_CHARS) + "...[truncated]";
+}
+
 export class PaymentRepository implements IPaymentRepository {
   async create(data: ICreatePaymentRecordDTO): Promise<IPaymentResponseDTO> {
     const record = await prisma.payment.create({
       data: {
-        mpPaymentId: data.mpPaymentId,
+        mpPaymentId: BigInt(data.mpPaymentId),
         status: data.status,
         statusDetail: data.statusDetail,
         paymentMethod: data.paymentMethod,
@@ -52,7 +61,7 @@ export class PaymentRepository implements IPaymentRepository {
         pixQrCode: data.pixQrCode ?? null,
         pixQrCodeBase64: data.pixQrCodeBase64 ?? null,
         pixExpirationDate: data.pixExpirationDate ?? null,
-        rawResponse: data.rawResponse ?? null
+        rawResponse: truncateRaw(data.rawResponse)
       }
     });
     return mapToDTO(record);
@@ -63,27 +72,29 @@ export class PaymentRepository implements IPaymentRepository {
     return record ? mapToDTO(record) : null;
   }
 
-  async findByMpPaymentId(mpPaymentId: number): Promise<IPaymentResponseDTO | null> {
-    const record = await prisma.payment.findFirst({
-      where: { mpPaymentId }
+  async findByMpPaymentId(mpPaymentId: string): Promise<IPaymentResponseDTO | null> {
+    const record = await prisma.payment.findUnique({
+      where: { mpPaymentId: BigInt(mpPaymentId) }
     });
     return record ? mapToDTO(record) : null;
   }
 
+  // FIX-3: barbershopId undefined = sem filtro (listagem global para admin)
   async findByBarbershopId(
-    barbershopId: string,
+    barbershopId: string | undefined,
     page = 1,
     limit = 20
   ): Promise<{ data: IPaymentResponseDTO[]; total: number }> {
     const skip = (page - 1) * limit;
+    const where = barbershopId ? { barbershopId } : {};
     const [records, total] = await Promise.all([
       prisma.payment.findMany({
-        where: { barbershopId },
+        where,
         orderBy: { createdAt: "desc" },
         skip,
         take: limit
       }),
-      prisma.payment.count({ where: { barbershopId } })
+      prisma.payment.count({ where })
     ]);
     return { data: records.map(mapToDTO), total };
   }
@@ -97,7 +108,9 @@ export class PaymentRepository implements IPaymentRepository {
       data: {
         status: data.status,
         statusDetail: data.statusDetail,
-        ...(data.rawResponse !== undefined && { rawResponse: data.rawResponse })
+        ...(data.rawResponse !== undefined && {
+          rawResponse: truncateRaw(data.rawResponse)
+        })
       }
     });
     return mapToDTO(record);

@@ -7,7 +7,8 @@ export class GetPaymentStatusController {
     const { id } = request.params as { id: string };
     const { sync } = request.query as { sync?: string };
     const useCase = container.resolve(GetPaymentStatusUseCase);
-    const payment = await useCase.execute(id, sync === "true");
+    // IMP-4: passa o logger do Fastify para rastreabilidade
+    const payment = await useCase.execute(id, sync === "true", request.log);
     reply.send({ success: true, data: payment });
   }
 }

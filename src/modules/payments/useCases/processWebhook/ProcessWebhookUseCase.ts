@@ -15,18 +15,19 @@ export class ProcessWebhookUseCase {
   async execute(payload: IMercadoPagoWebhookDTO): Promise<void> {
     if (payload.type !== "payment") return;
 
-    const mpPaymentId = Number(payload.data.id);
-    if (!mpPaymentId || isNaN(mpPaymentId)) return;
+    const mpPaymentIdStr = String(payload.data.id);
+    if (!mpPaymentIdStr || mpPaymentIdStr === "0") return;
 
     let mpData: Awaited<ReturnType<MercadoPagoService["getPaymentById"]>>;
 
     try {
-      mpData = await this.mpService.getPaymentById(mpPaymentId);
+      mpData = await this.mpService.getPaymentById(Number(mpPaymentIdStr));
     } catch {
       return;
     }
 
-    const localPayment = await this.paymentRepo.findByMpPaymentId(mpPaymentId);
+    // BUG-2: findByMpPaymentId agora recebe string
+    const localPayment = await this.paymentRepo.findByMpPaymentId(mpPaymentIdStr);
     if (!localPayment) return;
 
     if (localPayment.status === (mpData.status as PaymentStatus)) return;

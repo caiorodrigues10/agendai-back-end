@@ -25,12 +25,24 @@ const billingAddressSchema = z.object({
   federalUnit: z.string().length(2).optional()
 });
 
+// FIX-2: .multipleOf(0.01) falha para valores como 49.99 por imprecisão
+// de ponto flutuante em JS (49.99 % 0.01 !== 0 em binário).
+// Solução: validar que o valor tem no máximo 2 casas decimais via refine().
+function hasAtMostTwoDecimals(value: number): boolean {
+  return Math.round(value * 100) / 100 === value ||
+    Number(value.toFixed(2)) === value;
+}
+
+const transactionAmountSchema = z
+  .number()
+  .positive("Valor deve ser positivo")
+  .refine(hasAtMostTwoDecimals, {
+    message: "Valor deve ter no máximo 2 casas decimais"
+  });
+
 export const createCardPaymentSchema = z.object({
   token: z.string().min(1, "Token do cartão é obrigatório"),
-  transactionAmount: z
-    .number()
-    .positive("Valor deve ser positivo")
-    .multipleOf(0.01),
+  transactionAmount: transactionAmountSchema,
   description: z.string().min(1).max(256),
   installments: z.number().int().min(1).max(12),
   paymentMethodId: z.string().min(1, "Método de pagamento obrigatório"),
@@ -45,10 +57,7 @@ export const createCardPaymentSchema = z.object({
 });
 
 export const createPixPaymentSchema = z.object({
-  transactionAmount: z
-    .number()
-    .positive("Valor deve ser positivo")
-    .multipleOf(0.01),
+  transactionAmount: transactionAmountSchema,
   description: z.string().min(1).max(256),
   payer: z.object({
     email: z.string().email("E-mail inválido"),

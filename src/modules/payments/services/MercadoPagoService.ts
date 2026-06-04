@@ -1,9 +1,7 @@
 import { injectable } from "tsyringe";
 import {
   ICreateCardPaymentDTO,
-  ICreatePixPaymentDTO,
-  PaymentMethod,
-  PaymentStatus
+  ICreatePixPaymentDTO
 } from "../dtos/IPaymentDTO";
 
 interface MPPaymentResponse {
@@ -32,17 +30,18 @@ interface MPPaymentResponse {
 
 @injectable()
 export class MercadoPagoService {
-  private readonly accessToken: string;
   private readonly baseUrl = "https://api.mercadopago.com";
 
-  constructor() {
+  // FIX-4 + IMP-3: getter lazy — não lê a env no construtor,
+  // então o servidor sobe mesmo sem o token definido
+  private get accessToken(): string {
     const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
     if (!token) {
       throw new Error(
         "MERCADOPAGO_ACCESS_TOKEN não configurado nas variáveis de ambiente"
       );
     }
-    this.accessToken = token;
+    return token;
   }
 
   private async request<T>(
@@ -203,11 +202,13 @@ export class MercadoPagoService {
     );
   }
 
-  async getPaymentById(mpPaymentId: number): Promise<MPPaymentResponse> {
+  // FIX-4: aceita string para manter consistência com mpPaymentId: string no DTO.
+  // A API do MP usa número na URL, então convertemos internamente.
+  async getPaymentById(mpPaymentId: string | number): Promise<MPPaymentResponse> {
     return this.request<MPPaymentResponse>("GET", `/v1/payments/${mpPaymentId}`);
   }
 
-  async cancelPayment(mpPaymentId: number): Promise<MPPaymentResponse> {
+  async cancelPayment(mpPaymentId: string | number): Promise<MPPaymentResponse> {
     return this.request<MPPaymentResponse>(
       "PUT",
       `/v1/payments/${mpPaymentId}`,

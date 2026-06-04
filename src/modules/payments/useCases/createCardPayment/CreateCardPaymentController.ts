@@ -7,7 +7,8 @@ export class CreateCardPaymentController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const data = createCardPaymentSchema.parse(request.body);
     const useCase = container.resolve(CreateCardPaymentUseCase);
-    const payment = await useCase.execute(data);
+    // IMP-1: passa o usuário autenticado para autorização no UseCase
+    const payment = await useCase.execute(data, request.user);
     reply.status(201).send({ success: true, data: payment });
   }
 }

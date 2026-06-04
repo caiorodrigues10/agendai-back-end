@@ -20,6 +20,11 @@ export class CancelPaymentUseCase {
       throw new AppError("Pagamento não encontrado", 404);
     }
 
+    // FIX-1: "cancelled" retorna idempotentemente em vez de 400
+    if (payment.status === "cancelled") {
+      return payment;
+    }
+
     const cancellableStatuses = ["pending", "in_process", "authorized"];
     if (!cancellableStatuses.includes(payment.status)) {
       throw new AppError(
@@ -31,6 +36,7 @@ export class CancelPaymentUseCase {
     let mpResponse: Awaited<ReturnType<MercadoPagoService["cancelPayment"]>>;
 
     try {
+      // FIX-4: passa string diretamente — sem Number()
       mpResponse = await this.mpService.cancelPayment(payment.mpPaymentId);
     } catch (error: any) {
       throw new AppError(

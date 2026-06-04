@@ -12,14 +12,22 @@ export class ListPaymentsController {
     } = request.query as { barbershopId?: string; page?: string; limit?: string };
 
     const user = request.user!;
-    const resolvedBarbershopId =
-      user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId;
 
-    if (!resolvedBarbershopId) {
-      throw new AppError(
-        "barbershopId é obrigatório ou o usuário deve pertencer a uma barbearia",
-        400
-      );
+    let resolvedBarbershopId: string | undefined;
+
+    if (user.role === "MASTER_ADMIN") {
+      // FIX-3: admin pode passar ?barbershopId= para filtrar uma barbearia específica,
+      // ou omitir para listar todos os pagamentos da plataforma
+      resolvedBarbershopId = barbershopId; // pode ser undefined — isso é intencional
+    } else {
+      // Não-admin: obrigatoriamente usa a barbearia do próprio token
+      resolvedBarbershopId = user.barbershopId;
+      if (!resolvedBarbershopId) {
+        throw new AppError(
+          "Usuário não está vinculado a nenhuma barbearia",
+          400
+        );
+      }
     }
 
     const useCase = container.resolve(ListPaymentsUseCase);

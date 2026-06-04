@@ -13,9 +13,21 @@ export class CreatePixPaymentUseCase {
     private mpService: MercadoPagoService
   ) {}
 
-  async execute(data: ICreatePixPaymentDTO): Promise<IPaymentResponseDTO> {
+  async execute(
+    data: ICreatePixPaymentDTO,
+    requestingUser?: { role: string; barbershopId?: string }
+  ): Promise<IPaymentResponseDTO> {
     if (data.transactionAmount < 0.5) {
       throw new AppError("O valor mínimo de pagamento é R$ 0,50", 400);
+    }
+
+    // IMP-1: Garante que não-admins só criem pagamentos para sua própria barbearia
+    if (
+      requestingUser &&
+      requestingUser.role !== "MASTER_ADMIN" &&
+      data.barbershopId !== requestingUser.barbershopId
+    ) {
+      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
     }
 
     let mpResponse: Awaited<ReturnType<MercadoPagoService["createPixPayment"]>>;

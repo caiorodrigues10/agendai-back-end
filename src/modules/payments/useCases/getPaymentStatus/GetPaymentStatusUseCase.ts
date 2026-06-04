@@ -13,7 +13,11 @@ export class GetPaymentStatusUseCase {
     private mpService: MercadoPagoService
   ) {}
 
-  async execute(id: string, syncWithMp = false): Promise<IPaymentResponseDTO> {
+  async execute(
+    id: string,
+    syncWithMp = false,
+    logger?: { warn: (msg: string, ...args: any[]) => void }
+  ): Promise<IPaymentResponseDTO> {
     const payment = await this.paymentRepo.findById(id);
 
     if (!payment) {
@@ -25,6 +29,7 @@ export class GetPaymentStatusUseCase {
 
     if (shouldSync) {
       try {
+        // FIX-4: passa string diretamente — sem Number(), sem risco de truncamento
         const mpData = await this.mpService.getPaymentById(payment.mpPaymentId);
         if (mpData.status !== payment.status) {
           return this.paymentRepo.updateStatus(payment.id, {
@@ -33,8 +38,14 @@ export class GetPaymentStatusUseCase {
             rawResponse: JSON.stringify(mpData)
           });
         }
-      } catch {
-        // Silently ignore — retorna status em cache
+      } catch (err: any) {
+        // IMP-4: loga em vez de silenciar completamente
+        const msg = `[GetPaymentStatus] Falha ao sincronizar mpPaymentId=${payment.mpPaymentId} com Mercado Pago: ${err?.message ?? err}`;
+        if (logger) {
+          logger.warn(msg);
+        } else {
+          console.warn(msg);
+        }
       }
     }
 

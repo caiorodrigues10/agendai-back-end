@@ -13,7 +13,7 @@ export class MockPaymentRepository implements IPaymentRepository {
     const now = new Date();
     const entity: IPaymentResponseDTO = {
       id: `payment-${this.seq++}`,
-      mpPaymentId: payload.mpPaymentId,
+      mpPaymentId: String(payload.mpPaymentId),
       status: payload.status,
       statusDetail: payload.statusDetail,
       paymentMethod: payload.paymentMethod,
@@ -43,16 +43,19 @@ export class MockPaymentRepository implements IPaymentRepository {
     return this.data.find((p) => p.id === id) ?? null;
   }
 
-  async findByMpPaymentId(mpPaymentId: number): Promise<IPaymentResponseDTO | null> {
-    return this.data.find((p) => p.mpPaymentId === mpPaymentId) ?? null;
+  async findByMpPaymentId(mpPaymentId: string): Promise<IPaymentResponseDTO | null> {
+    return this.data.find((p) => p.mpPaymentId === String(mpPaymentId)) ?? null;
   }
 
+  // FIX-3: undefined = listar todos
   async findByBarbershopId(
-    barbershopId: string,
+    barbershopId: string | undefined,
     page = 1,
     limit = 20
   ): Promise<{ data: IPaymentResponseDTO[]; total: number }> {
-    const filtered = this.data.filter((p) => p.barbershopId === barbershopId);
+    const filtered = barbershopId
+      ? this.data.filter((p) => p.barbershopId === barbershopId)
+      : [...this.data];
     const start = (page - 1) * limit;
     return {
       data: filtered.slice(start, start + limit),
