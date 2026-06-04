@@ -3,8 +3,8 @@ import {
   IPaymentRepository,
   ICreatePaymentRecordDTO,
   IUpdatePaymentStatusDTO
-} from "../../IPaymentRepository"
-import { IPaymentResponseDTO, PaymentStatus } from "../../../dtos/IPaymentDTO"
+} from "./IPaymentRepository"
+import { IPaymentResponseDTO, PaymentStatus } from "../../../payments/dtos/IPaymentDTO"
 
 function mapToDTO(record: any): IPaymentResponseDTO {
   return {
