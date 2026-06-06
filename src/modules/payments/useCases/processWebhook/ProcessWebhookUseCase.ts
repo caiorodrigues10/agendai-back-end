@@ -2,6 +2,7 @@ import { inject, injectable } from "tsyringe";
 import { MercadoPagoService } from "../../services/MercadoPagoService";
 import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { IMercadoPagoWebhookDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
+import { handleSubscriptionPaymentWebhook } from "@/modules/subscriptions/services/handleSubscriptionPaymentWebhook";
 
 @injectable()
 export class ProcessWebhookUseCase {
@@ -10,7 +11,7 @@ export class ProcessWebhookUseCase {
     private paymentRepo: IPaymentRepository,
     @inject("MercadoPagoService")
     private mpService: MercadoPagoService
-  ) {}
+  ) { }
 
   async execute(payload: IMercadoPagoWebhookDTO): Promise<void> {
     if (payload.type !== "payment") return;
@@ -24,21 +25,28 @@ export class ProcessWebhookUseCase {
       mpData = await this.mpService.getPaymentById(mpPaymentIdStr);
     } catch (err: any) {
       console.warn(
-        `[ProcessWebhook] Falha ao buscar mpPaymentId=${mpPaymentIdStr} no Mercado Pago: ${err?.message ?? err}`
+        `[ProcessWebhook] Falha ao buscar mpPaymentId=${mpPaymentIdStr}: ${err?.message ?? err}`
       );
       return;
     }
 
-    // BUG-2: findByMpPaymentId agora recebe string
     const localPayment = await this.paymentRepo.findByMpPaymentId(mpPaymentIdStr);
     if (!localPayment) return;
 
     if (localPayment.status === (mpData.status as PaymentStatus)) return;
 
-    await this.paymentRepo.updateStatus(localPayment.id, {
+    const updatedPayment = await this.paymentRepo.updateStatus(localPayment.id, {
       status: mpData.status as PaymentStatus,
       statusDetail: mpData.status_detail,
       rawResponse: JSON.stringify(mpData)
+    });
+
+    // Atualiza Invoice + Subscription se for pagamento de assinatura
+    await handleSubscriptionPaymentWebhook(
+      updatedPayment.externalReference,
+      mpData.status
+    ).catch((err) => {
+      console.warn(`[ProcessWebhook] Falha ao atualizar subscription: ${err?.message ?? err}`);
     });
   }
 }

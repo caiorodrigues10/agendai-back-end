@@ -4,6 +4,7 @@ import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashPr
 import { sign, Secret, SignOptions } from "jsonwebtoken";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
+import { checkBarbershopAccess } from "../../../../modules/subscriptions/utils/checkBarbershopAccess";
 
 function mapRole(role: string): "admin" | "owner" | "employee" | "customer" {
   if (role === "MASTER_ADMIN") return "admin";
@@ -19,22 +20,36 @@ export class LoginUseCase {
     private userRepository: IUserRepository,
     @inject("HashProvider")
     private hashProvider: IHashProvider
-  ) {}
+  ) { }
+
   async execute(email: string, password: string) {
     const user = await this.userRepository.findByEmail(email);
     if (!user || !user.active) {
       throw new Error("Credenciais inválidas");
     }
+
     const passwordOk = await this.hashProvider.compare(password, user.password!);
     if (!passwordOk) {
       throw new Error("Credenciais inválidas");
     }
+
+    // Verifica se a barbearia do usuário tem acesso ativo
+    // MASTER_ADMIN não tem barbershopId então é ignorado automaticamente
+    if (user.barbershopId) {
+      await checkBarbershopAccess(user.barbershopId);
+    }
+
     const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
-    const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined }, auth.secret as Secret, accessOpts);
+    const accessToken = sign(
+      { role: user.role, barbershopId: user.barbershopId ?? undefined },
+      auth.secret as Secret,
+      accessOpts
+    );
+
     const expiresAt = new Date(Date.now() + parseDuration(auth.refreshExpiresIn));
     const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
     const refreshToken = sign({ sub: user.id }, auth.refreshSecret as Secret, refreshOpts);
-    // Remove tokens expirados do usuário antes de criar um novo
+
     await prisma.refreshToken.deleteMany({
       where: { userId: user.id, expiresAt: { lt: new Date() } }
     });
@@ -42,6 +57,7 @@ export class LoginUseCase {
     await prisma.refreshToken.create({
       data: { token: refreshToken, userId: user.id, expiresAt }
     });
+
     return {
       user: {
         id: user.id,

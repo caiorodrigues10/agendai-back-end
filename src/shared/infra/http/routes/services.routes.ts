@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
+import { checkSubscription } from "../middlewares/checkSubscription";
 import { CreateServiceController } from "@/modules/services/useCases/createService/CreateServiceController";
 import { ListServicesController } from "@/modules/services/useCases/listServices/ListServicesController";
 import { GetServiceController } from "@/modules/services/useCases/getService/GetServiceController";
@@ -14,9 +15,11 @@ export async function servicesRoutes(app: FastifyInstance) {
   const update = new UpdateServiceController();
   const del = new DeleteServiceController();
 
-  app.post("/services", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] }, create.handle.bind(create));
   app.get("/services", list.handle.bind(list));
   app.get("/services/:id", get.handle.bind(get));
-  app.put("/services/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] }, update.handle.bind(update));
-  app.delete("/services/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] }, del.handle.bind(del));
+
+  // checkSubscription adicionado nas rotas de escrita
+  app.post("/services", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, create.handle.bind(create));
+  app.put("/services/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
+  app.delete("/services/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, del.handle.bind(del));
 }
