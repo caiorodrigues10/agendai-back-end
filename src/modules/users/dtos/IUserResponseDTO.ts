@@ -6,6 +6,7 @@ export interface IUserResponseDTO {
   email: string;
   role: RoleLiteral;
   barbershopId?: string | null;
+  cpf?: string | null;  
   createdAt: Date;
   active: boolean;
   password?: string;

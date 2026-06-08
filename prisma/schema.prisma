@@ -14,16 +14,18 @@ model User {
   password      String    @db.VarChar(500)
   role          Role      @default(EMPLOYEE)
   barbershopId  String?   @db.Uuid
+  cpf           String   @unique @db.VarChar(11)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   active        Boolean   @default(true)
 
-  barbershop    Barbershop?  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barbershop    Barbershop?   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
   appointments  Appointment[] @relation("staff")
   feedPosts     FeedPost[]
 
   @@map("users")
+  @@index([cpf])
 }
 
 enum Role {
@@ -34,11 +36,11 @@ enum Role {
 }
 
 model RefreshToken {
-  id          String   @id @default(uuid()) @db.Uuid
-  token       String   @db.VarChar(500)
-  userId      String   @db.Uuid
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid()) @db.Uuid
+  token     String   @db.VarChar(500)
+  userId    String   @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -94,16 +96,15 @@ model Payment {
 }
 
 model Barbershop {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(200)
-  whatsapp    String   @db.VarChar(20)
-  logoUrl     String?  @db.VarChar(500)
-  cnpj        String?  @db.VarChar(20)
-  address     String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  active      Boolean  @default(true)
-  
+  id              String         @id @default(uuid()) @db.Uuid
+  name            String         @db.VarChar(200)
+  whatsapp        String         @db.VarChar(20)
+  logoUrl         String?        @db.VarChar(500)
+  cnpj            String?        @db.VarChar(20)
+  address         String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  active          Boolean        @default(true)
   approvalStatus  ApprovalStatus @default(PENDING)
   rejectionReason String?        @db.Text
 
@@ -114,7 +115,7 @@ model Barbershop {
   appointments  Appointment[]
   feedPosts     FeedPost[]
   subscriptions Subscription[]
-  payments      Payment[]  
+  payments      Payment[]
 
   @@map("barbershops")
   @@index([approvalStatus])
@@ -128,12 +129,12 @@ enum ApprovalStatus {
 }
 
 model Schedule {
-  id            String     @id @default(uuid()) @db.Uuid
-  barbershopId  String     @db.Uuid
-  dayOfWeek     Int
-  isOpen        Boolean    @default(false)
-  openTime      String     @db.VarChar(5)
-  closeTime     String     @db.VarChar(5)
+  id           String     @id @default(uuid()) @db.Uuid
+  barbershopId String     @db.Uuid
+  dayOfWeek    Int
+  isOpen       Boolean    @default(false)
+  openTime     String     @db.VarChar(5)
+  closeTime    String     @db.VarChar(5)
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
@@ -142,15 +143,15 @@ model Schedule {
 }
 
 model Service {
-  id              String   @id @default(uuid()) @db.Uuid
-  barbershopId    String   @db.Uuid
-  name            String   @db.VarChar(100)
-  price           Float    @db.Real
-  avgTimeMinutes  Int
-  icon            String   @db.VarChar(50)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  active          Boolean  @default(true)
+  id             String   @id @default(uuid()) @db.Uuid
+  barbershopId   String   @db.Uuid
+  name           String   @db.VarChar(100)
+  price          Float    @db.Real
+  avgTimeMinutes Int
+  icon           String   @db.VarChar(50)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  active         Boolean  @default(true)
 
   barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   queue        QueueItem[]
@@ -160,19 +161,19 @@ model Service {
 }
 
 model QueueItem {
-  id                String       @id @default(uuid()) @db.Uuid
-  barbershopId      String       @db.Uuid
-  serviceId         String       @db.Uuid
-  customerId        String       @db.Uuid
-  customerName      String       @db.VarChar(200)
-  whatsapp          String       @db.VarChar(20)
-  joinedAt          DateTime     @default(now())
-  status            QueueStatus  @default(WAITING)
-  estimatedStartAt  DateTime?
-  addedByStaff      Boolean      @default(false)
-  completedAt       DateTime?
-  completedBy       String?      @db.Uuid
-  finalPrice        Float?       @db.Real
+  id               String      @id @default(uuid()) @db.Uuid
+  barbershopId     String      @db.Uuid
+  serviceId        String      @db.Uuid
+  customerId       String      @db.Uuid
+  customerName     String      @db.VarChar(200)
+  whatsapp         String      @db.VarChar(20)
+  joinedAt         DateTime    @default(now())
+  status           QueueStatus @default(WAITING)
+  estimatedStartAt DateTime?
+  addedByStaff     Boolean     @default(false)
+  completedAt      DateTime?
+  completedBy      String?     @db.Uuid
+  finalPrice       Float?      @db.Real
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service    Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
@@ -188,17 +189,17 @@ enum QueueStatus {
 }
 
 model Appointment {
-  id            String            @id @default(uuid()) @db.Uuid
-  barbershopId  String            @db.Uuid
-  serviceId     String            @db.Uuid
-  staffId       String?           @db.Uuid
-  customerName  String            @db.VarChar(200)
-  whatsapp      String            @db.VarChar(20)
-  date          DateTime          @db.Date
-  time          String            @db.VarChar(5)
-  status        AppointmentStatus @default(CONFIRMED)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id           String            @id @default(uuid()) @db.Uuid
+  barbershopId String            @db.Uuid
+  serviceId    String            @db.Uuid
+  staffId      String?           @db.Uuid
+  customerName String            @db.VarChar(200)
+  whatsapp     String            @db.VarChar(20)
+  date         DateTime          @db.Date
+  time         String            @db.VarChar(5)
+  status       AppointmentStatus @default(CONFIRMED)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service    Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
@@ -214,16 +215,16 @@ enum AppointmentStatus {
 }
 
 model FeedPost {
-  id            String     @id @default(uuid()) @db.Uuid
-  barbershopId  String     @db.Uuid
-  authorId      String?    @db.Uuid
-  type          FeedType
-  title         String?    @db.VarChar(200)
-  content       String     @db.Text
-  imageUrl      String?    @db.VarChar(500)
-  likes         Int        @default(0)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String   @id @default(uuid()) @db.Uuid
+  barbershopId String   @db.Uuid
+  authorId     String?  @db.Uuid
+  type         FeedType
+  title        String?  @db.VarChar(200)
+  content      String   @db.Text
+  imageUrl     String?  @db.VarChar(500)
+  likes        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   author     User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
@@ -238,15 +239,15 @@ enum FeedType {
 }
 
 model Plan {
-  id              String   @id @default(uuid()) @db.Uuid
-  name            String   @db.VarChar(100)
-  description     String?  @db.Text
-  price           Float    @db.Real
-  maxEmployees    Int      @default(1)
-  features        String[] 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  active          Boolean  @default(true)
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(100)
+  description  String?  @db.Text
+  price        Float    @db.Real
+  maxEmployees Int      @default(1)
+  features     String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  active       Boolean  @default(true)
 
   subscriptions Subscription[]
 
@@ -254,15 +255,15 @@ model Plan {
 }
 
 model Subscription {
-  id            String   @id @default(uuid()) @db.Uuid
-  barbershopId  String   @db.Uuid
-  planId        String   @db.Uuid
-  status        SubscriptionStatus @default(TRIALING)
-  startDate     DateTime @default(now())
-  endDate       DateTime?
-  cancelDate    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String             @id @default(uuid()) @db.Uuid
+  barbershopId String             @db.Uuid
+  planId       String             @db.Uuid
+  status       SubscriptionStatus @default(TRIALING)
+  startDate    DateTime           @default(now())
+  endDate      DateTime?
+  cancelDate   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   plan       Plan       @relation(fields: [planId], references: [id], onDelete: Restrict)
@@ -282,15 +283,15 @@ enum SubscriptionStatus {
 }
 
 model Invoice {
-  id             String   @id @default(uuid()) @db.Uuid
-  subscriptionId String   @db.Uuid
-  amount         Float    @db.Real
+  id             String        @id @default(uuid()) @db.Uuid
+  subscriptionId String        @db.Uuid
+  amount         Float         @db.Real
   dueDate        DateTime
   paidAt         DateTime?
   status         InvoiceStatus @default(PENDING)
-  paymentMethod  String?  @db.VarChar(50)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  paymentMethod  String?       @db.VarChar(50)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
@@ -306,15 +307,73 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+// ─── BlockedEntity ────────────────────────────────────────────────────────────
+// CPFs (e futuramente CNPJs) bloqueados por inadimplência.
+// Criado automaticamente no vencimento; removido pelo webhook MP ou pelo admin.
+
+model BlockedEntity {
+  id           String            @id @default(uuid()) @db.Uuid
+  type         BlockedEntityType
+  value        String            @db.VarChar(20)   // CPF sem máscara (11 dígitos)
+  reason       String            @db.VarChar(500)
+  blockedAt    DateTime          @default(now())
+  unblockedAt  DateTime?
+  isActive     Boolean           @default(true)
+  barbershopId String?           @db.Uuid          // barbearia que originou o bloqueio
+  blockedBy    String?           @db.VarChar(50)   // "system" | userId do admin
+  unblockedBy  String?           @db.VarChar(50)   // "system" (webhook) | userId do admin
+  externalRef  String?           @db.VarChar(128)  // externalReference do pagamento MP
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("blocked_entities")
+  @@unique([type, value, isActive])  // evita duplicatas de bloqueios ativos
+  @@index([type, value])
+  @@index([isActive])
+  @@index([barbershopId])
+}
+
+enum BlockedEntityType {
+  CPF
+  CNPJ
+}
+
+// ─── AdminNotification ────────────────────────────────────────────────────────
+// Notificações internas para o painel admin (desbloqueios, pagamentos, etc).
+
+model AdminNotification {
+  id        String                @id @default(uuid()) @db.Uuid
+  type      AdminNotificationType
+  title     String                @db.VarChar(200)
+  message   String                @db.Text
+  read      Boolean               @default(false)
+  metadata  String?               @db.Text          // JSON com dados extras
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@map("admin_notifications")
+  @@index([read])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum AdminNotificationType {
+  BLOCK_AUTO           // CPF bloqueado automaticamente pelo sistema
+  UNBLOCK_AUTO         // desbloqueio automático via webhook MP
+  UNBLOCK_MANUAL       // desbloqueio manual pelo admin
+  SUBSCRIPTION_EXPIRED // assinatura expirada / pagamento rejeitado
+  PAYMENT_RECEIVED     // pagamento de assinatura confirmado
+}
+
 model AuditLog {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @db.Uuid
-  action       String   @db.VarChar(100)
-  resource     String   @db.VarChar(100)
-  resourceId   String?  @db.VarChar(100)
-  details      String?  @db.Text
-  ipAddress    String?  @db.VarChar(50)
-  createdAt    DateTime @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  action     String   @db.VarChar(100)
+  resource   String   @db.VarChar(100)
+  resourceId String?  @db.VarChar(100)
+  details    String?  @db.Text
+  ipAddress  String?  @db.VarChar(50)
+  createdAt  DateTime @default(now())
 
   @@map("audit_logs")
   @@index([userId])

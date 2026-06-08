@@ -4,12 +4,11 @@ import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashPr
 import { sign, Secret, SignOptions } from "jsonwebtoken";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
-import { checkBarbershopAccess } from "../../../../modules/subscriptions/utils/checkBarbershopAccess";
+import { checkBarbershopAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 
-function mapRole(role: string): "admin" | "owner" | "employee" | "customer" {
+function mapRole(role: string): "admin" | "owner" | "employee" {
   if (role === "MASTER_ADMIN") return "admin";
   if (role === "OWNER") return "owner";
-  if (role === "CUSTOMER") return "customer";
   return "employee";
 }
 
@@ -33,10 +32,10 @@ export class LoginUseCase {
       throw new Error("Credenciais inválidas");
     }
 
-    // Verifica se a barbearia do usuário tem acesso ativo
-    // MASTER_ADMIN não tem barbershopId então é ignorado automaticamente
+    // Verifica assinatura da barbearia e bloqueio do CPF.
+    // MASTER_ADMIN não tem barbershopId então é ignorado automaticamente.
     if (user.barbershopId) {
-      await checkBarbershopAccess(user.barbershopId);
+      await checkBarbershopAccess(user.barbershopId, user.cpf ?? undefined);
     }
 
     const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };

@@ -28,6 +28,7 @@ export class UserRepository implements IUserRepository {
         email: true,
         role: true,
         barbershopId: true,
+        cpf: true,     
         createdAt: true,
         active: true
       }
@@ -43,6 +44,7 @@ export class UserRepository implements IUserRepository {
         email: true,
         role: true,
         barbershopId: true,
+        cpf: true,       
         password: true,
         createdAt: true,
         active: true
