@@ -16,6 +16,7 @@ export class MockUserRepository implements IUserRepository {
       email: payload.email,
       role,
       barbershopId: payload.barbershopId ?? null,
+      cpf: payload.cpf ?? null,
       createdAt: now,
       active: true,
       password: payload.password
@@ -30,5 +31,9 @@ export class MockUserRepository implements IUserRepository {
 
   async findByEmail(email: string): Promise<IUserResponseDTO | null> {
     return this.data.find((u) => u.email === email) ?? null;
+  }
+
+  async findByCpf(cpf: string): Promise<IUserResponseDTO | null> {
+    return this.data.find((u) => u.cpf === cpf) ?? null;
   }
 }

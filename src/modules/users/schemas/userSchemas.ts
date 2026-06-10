@@ -1,4 +1,12 @@
 import { z } from "zod";
+import { isValidCpf, normalizeCpf } from "@/shared/utils/cpfUtils";
+
+const cpfSchema = z
+  .string()
+  .min(11, "CPF deve ter no mínimo 11 dígitos")
+  .max(14, "CPF inválido")
+  .refine((v) => isValidCpf(v), { message: "CPF inválido (dígitos verificadores incorretos)" })
+  .transform((v) => normalizeCpf(v));
 
 export const createUserSchema = z.object({
   name: z
@@ -11,25 +19,34 @@ export const createUserSchema = z.object({
     .min(6, "Senha deve ter no mínimo 6 caracteres")
     .max(100, "Senha muito longa"),
   role: z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]).optional(),
-  barbershopId: z.string().uuid("ID de barbearia inválido").optional()
+  barbershopId: z.string().uuid("ID de barbearia inválido").optional(),
+  cpf: cpfSchema.optional()
 }).superRefine((data, ctx) => {
   const role = data.role ?? "EMPLOYEE";
-  if (role === "MASTER_ADMIN") {
-    if (data.barbershopId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["barbershopId"],
-        message: "Admins não devem possuir barbearia vinculada"
-      });
-    }
-  } else {
-    if (!data.barbershopId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["barbershopId"],
-        message: "barbershopId é obrigatório para OWNER e EMPLOYEE"
-      });
-    }
+
+  // Regras de barbershopId
+  if (role === "MASTER_ADMIN" && data.barbershopId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["barbershopId"],
+      message: "Admins não devem possuir barbearia vinculada"
+    });
+  }
+  if (role !== "MASTER_ADMIN" && !data.barbershopId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["barbershopId"],
+      message: "barbershopId é obrigatório para OWNER e EMPLOYEE"
+    });
+  }
+
+  // CPF obrigatório para OWNER e EMPLOYEE
+  if (role !== "MASTER_ADMIN" && !data.cpf) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["cpf"],
+      message: "CPF é obrigatório para OWNER e EMPLOYEE"
+    });
   }
 });
 
@@ -39,7 +56,8 @@ export const updateUserSchema = z
     email: z.string().email().max(100).optional(),
     password: z.string().min(6).max(100).optional(),
     role: z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]).optional(),
-    barbershopId: z.string().uuid().optional()
+    barbershopId: z.string().uuid().optional(),
+    cpf: cpfSchema.optional()
   })
   .superRefine((data, ctx) => {
     if (data.role && data.role !== "MASTER_ADMIN" && !data.barbershopId) {

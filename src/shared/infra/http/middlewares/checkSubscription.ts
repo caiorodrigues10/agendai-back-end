@@ -5,6 +5,7 @@ import {
   SUBSCRIPTION_STATUS_CONFIG,
   SUBSCRIPTION_MESSAGES
 } from "@/shared/constants/subscriptionMessages";
+import { blockOwnerCpfs } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 
 const TRIAL_DAYS = 30;
 
@@ -52,6 +53,8 @@ export async function checkSubscription(
   const subscription = barbershop.subscriptions[0];
 
   if (!subscription) {
+    // Trial expirou e não há assinatura → bloqueia CPFs dos owners
+    await blockOwnerCpfs(user.barbershopId);
     throw new AppError(SUBSCRIPTION_MESSAGES.TRIAL_EXPIRED, 402);
   }
 
@@ -59,6 +62,8 @@ export async function checkSubscription(
   const message = config?.message ?? SUBSCRIPTION_MESSAGES.NO_SUBSCRIPTION;
 
   if (!config?.allowed) {
+    // Assinatura inativa → bloqueia CPFs dos owners
+    await blockOwnerCpfs(user.barbershopId);
     throw new AppError(message, 402);
   }
 }

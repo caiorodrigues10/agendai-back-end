@@ -6,4 +6,5 @@ export interface ICreateUserDTO {
   password: string;
   role?: RoleLiteral;
   barbershopId?: string;
+  cpf?: string;
 }

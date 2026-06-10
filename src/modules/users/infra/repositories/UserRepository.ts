@@ -3,35 +3,29 @@ import { IUserRepository } from "../../repositories/IUserRepository";
 import { ICreateUserDTO } from "../../dtos/ICreateUserDTO";
 import { IUserResponseDTO } from "../../dtos/IUserResponseDTO";
 
+const publicSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  barbershopId: true,
+  cpf: true,
+  createdAt: true,
+  active: true
+} as const;
+
 export class UserRepository implements IUserRepository {
   async create(data: ICreateUserDTO): Promise<IUserResponseDTO> {
     return prisma.user.create({
       data,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        barbershopId: true,
-        createdAt: true,
-        active: true
-      }
+      select: publicSelect
     });
   }
 
   async findById(id: string): Promise<IUserResponseDTO | null> {
     return prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        barbershopId: true,
-        cpf: true,     
-        createdAt: true,
-        active: true
-      }
+      select: publicSelect
     });
   }
 
@@ -39,15 +33,8 @@ export class UserRepository implements IUserRepository {
     return prisma.user.findUnique({
       where: { email },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        barbershopId: true,
-        cpf: true,       
-        password: true,
-        createdAt: true,
-        active: true
+        ...publicSelect,
+        password: true
       }
     });
   }
