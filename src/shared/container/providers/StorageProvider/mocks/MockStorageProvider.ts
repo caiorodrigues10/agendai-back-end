@@ -1,6 +1,7 @@
 import {
   IStorageProvider,
   ISignedUploadUrlResult,
+  IUploadBufferResult,
 } from "../IStorageProvider";
 
 /**
@@ -11,10 +12,15 @@ export class MockStorageProvider implements IStorageProvider {
   /** Objetos "deletados" durante os testes */
   public deletedObjects: string[] = [];
 
-  /** URLs geradas durante os testes */
-  public generatedUrls: Array<{
+  /** URLs geradas por signed URL durante os testes */
+  public generatedUrls: Array<{ objectName: string; publicUrl: string }> = [];
+
+  /** Buffers enviados durante os testes */
+  public uploadedBuffers: Array<{
     objectName: string;
     publicUrl: string;
+    size: number;
+    mimeType: string;
   }> = [];
 
   private bucketName = "mock-bucket";
@@ -26,7 +32,7 @@ export class MockStorageProvider implements IStorageProvider {
     expiresInSeconds = 900
   ): Promise<ISignedUploadUrlResult> {
     const objectName = `${folder}/${fileName}`;
-    const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${objectName}`;
+    const publicUrl  = `https://storage.googleapis.com/${this.bucketName}/${objectName}`;
 
     this.generatedUrls.push({ objectName, publicUrl });
 
@@ -35,6 +41,24 @@ export class MockStorageProvider implements IStorageProvider {
       publicUrl,
       objectName,
       expiresInSeconds,
+    };
+  }
+
+  async uploadBuffer(
+    folder: string,
+    fileName: string,
+    buffer: Buffer,
+    mimeType: string
+  ): Promise<IUploadBufferResult> {
+    const objectName = `${folder}/${fileName}`;
+    const publicUrl  = `https://storage.googleapis.com/${this.bucketName}/${objectName}`;
+
+    this.uploadedBuffers.push({ objectName, publicUrl, size: buffer.byteLength, mimeType });
+
+    return {
+      publicUrl,
+      objectName,
+      size: buffer.byteLength,
     };
   }
 

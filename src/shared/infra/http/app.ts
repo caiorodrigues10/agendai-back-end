@@ -2,6 +2,7 @@ import fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import multipart from "@fastify/multipart";
 import { registerRoutes } from "./routes";
 import { apiRoutes } from "./routes/api";
 import { prisma } from "@/libs/prismaClient";
@@ -42,6 +43,16 @@ export async function buildApp() {
       success: false,
       message: "Muitas requisições. Tente novamente em alguns instantes."
     })
+  });
+
+  
+  // Multipart/form-data — suporte a upload de arquivos (logos, etc.)
+  await app.register(multipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5 MB máximo por arquivo
+      files: 1,                   // apenas 1 arquivo por requisição
+      fields: 5,                  // máximo de campos de texto extras
+    },
   });
 
   await registerRoutes(app);

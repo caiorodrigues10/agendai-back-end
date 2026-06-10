@@ -9,14 +9,23 @@ export interface ISignedUploadUrlResult {
   expiresInSeconds: number;
 }
 
+export interface IUploadBufferResult {
+  /** URL pública do objeto recém-enviado */
+  publicUrl: string;
+  /** Nome do objeto dentro do bucket */
+  objectName: string;
+  /** Tamanho em bytes do arquivo enviado */
+  size: number;
+}
+
 export interface IStorageProvider {
   /**
    * Gera uma signed URL de upload (PUT).
    * O cliente faz PUT direto no GCS sem passar pelo backend.
    *
-   * @param folder   Pasta lógica dentro do bucket (ex: "logos")
-   * @param fileName Nome do arquivo (ex: "barbershop-uuid.jpg")
-   * @param mimeType MIME type do arquivo (ex: "image/jpeg")
+   * @param folder          Pasta lógica dentro do bucket (ex: "logos")
+   * @param fileName        Nome do arquivo (ex: "barbershop-uuid.jpg")
+   * @param mimeType        MIME type do arquivo (ex: "image/jpeg")
    * @param expiresInSeconds Tempo de validade da URL (padrão: 900s = 15 min)
    */
   generateSignedUploadUrl(
@@ -25,6 +34,22 @@ export interface IStorageProvider {
     mimeType: string,
     expiresInSeconds?: number
   ): Promise<ISignedUploadUrlResult>;
+
+  /**
+   * Faz upload de um Buffer diretamente para o GCS.
+   * Usado no endpoint multipart (upload via backend).
+   *
+   * @param folder    Pasta lógica dentro do bucket (ex: "logos")
+   * @param fileName  Nome do arquivo
+   * @param buffer    Conteúdo do arquivo em Buffer
+   * @param mimeType  MIME type do arquivo
+   */
+  uploadBuffer(
+    folder: string,
+    fileName: string,
+    buffer: Buffer,
+    mimeType: string
+  ): Promise<IUploadBufferResult>;
 
   /**
    * Deleta um objeto do storage pelo nome completo do objeto.

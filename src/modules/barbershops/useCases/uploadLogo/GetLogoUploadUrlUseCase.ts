@@ -6,8 +6,9 @@ import { IBarbershopRepository } from "../../repositories/IBarbershopRepository"
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/png": "png",
+  "image/jpg":  "jpg",
+  "image/png":  "png",
+  "image/webp": "webp",
 };
 
 const LOGO_FOLDER = "logos";
@@ -18,7 +19,6 @@ export interface IGetLogoUploadUrlDTO {
 }
 
 export interface IGetLogoUploadUrlResult extends ISignedUploadUrlResult {
-  /** Campo extra para facilitar depuração no front */
   barbershopId: string;
 }
 
@@ -29,7 +29,7 @@ export class GetLogoUploadUrlUseCase {
     private barbershopRepository: IBarbershopRepository,
     @inject("StorageProvider")
     private storageProvider: IStorageProvider
-  ) { }
+  ) {}
 
   async execute(
     data: IGetLogoUploadUrlDTO,
@@ -40,29 +40,23 @@ export class GetLogoUploadUrlUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError(
-        "Acesso negado: você não pertence a esta barbearia",
-        403
-      );
+      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
     }
 
     const extension = ALLOWED_MIME_TYPES[data.mimeType];
     if (!extension) {
       throw new AppError(
-        `Tipo de arquivo não permitido: ${data.mimeType}. Aceitos: JPEG, PNG`,
+        `Tipo de arquivo não permitido: ${data.mimeType}. Aceitos: JPEG, PNG, WebP`,
         400
       );
     }
 
-    const barbershop = await this.barbershopRepository.findById(
-      data.barbershopId
-    );
+    const barbershop = await this.barbershopRepository.findById(data.barbershopId);
     if (!barbershop) {
       throw new AppError("Barbearia não encontrada", 404);
     }
 
-    // Nome único: logos/barbershop-{uuid}-{timestamp}.{ext}
-    // Evita colisões e invalida cache automaticamente
+    // Nome único: logos/barbershop-{uuid}-{timestamp}-{random}.{ext}
     const fileName = `barbershop-${data.barbershopId}-${Date.now()}-${randomUUID().slice(0, 8)}.${extension}`;
 
     const result = await this.storageProvider.generateSignedUploadUrl(
@@ -72,9 +66,6 @@ export class GetLogoUploadUrlUseCase {
       900 // 15 minutos
     );
 
-    return {
-      ...result,
-      barbershopId: data.barbershopId,
-    };
+    return { ...result, barbershopId: data.barbershopId };
   }
 }
