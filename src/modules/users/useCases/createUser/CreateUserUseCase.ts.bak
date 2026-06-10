@@ -38,9 +38,11 @@ export class CreateUserUseCase {
     const normalizedCpf = data.cpf ? normalizeCpf(data.cpf) : undefined;
 
     if (normalizedCpf) {
+      // CPF já cadastrado? — usa o repositório, respeita a arquitetura
       const cpfInUse = await this.userRepository.findByCpf(normalizedCpf);
       if (cpfInUse) throw new AppError("CPF já cadastrado", 400);
 
+      // CPF bloqueado por inadimplência?
       await assertCpfNotBlocked(normalizedCpf);
     }
 
@@ -51,7 +53,7 @@ export class CreateUserUseCase {
     return this.userRepository.create({
       ...data,
       role,
-      cpf: normalizedCpf,   // undefined quando não informado (compatível com ICreateUserDTO)
+      cpf: normalizedCpf ?? null,
       password: hashedPassword
     });
   }

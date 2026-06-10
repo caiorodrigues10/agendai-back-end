@@ -5,16 +5,31 @@ import {
   IUploadBufferResult,
 } from "../IStorageProvider";
 
+/**
+ * Google Cloud Storage Provider
+ *
+ * Variáveis de ambiente necessárias:
+ *   GCS_BUCKET_NAME     — nome do bucket (ex: barberqueue-assets)
+ *   GCS_PROJECT_ID      — ID do projeto GCP (opcional com ADC)
+ *   GCS_KEY_FILE_PATH   — caminho para o JSON de credenciais
+ *                         (omita quando usar ADC / Workload Identity)
+ *
+ * Nota: buckets com Uniform Bucket-Level Access ignoram ACLs por objeto.
+ * A visibilidade pública é configurada no bucket via IAM pelo setup-gcs.sh.
+ */
 export class GcsStorageProvider implements IStorageProvider {
   private _storage: Storage | null = null;
   private _bucketName: string | null = null;
+
+  // ── Getters lazy ──────────────────────────────────────────────────────────
 
   private get bucketName(): string {
     if (!this._bucketName) {
       const name = process.env.GCS_BUCKET_NAME;
       if (!name) {
         throw new Error(
-          "GCS_BUCKET_NAME não configurado nas variáveis de ambiente."
+          "GCS_BUCKET_NAME não configurado nas variáveis de ambiente. " +
+          "Defina a variável e reinicie o servidor."
         );
       }
       this._bucketName = name;
@@ -26,6 +41,7 @@ export class GcsStorageProvider implements IStorageProvider {
     if (!this._storage) {
       const keyFilePath = process.env.GCS_KEY_FILE_PATH;
       const projectId   = process.env.GCS_PROJECT_ID;
+
       if (keyFilePath) {
         this._storage = new Storage({ keyFilename: keyFilePath, projectId });
       } else {
@@ -34,6 +50,8 @@ export class GcsStorageProvider implements IStorageProvider {
     }
     return this._storage;
   }
+
+  // ── Signed URL de upload (PUT direto cliente → GCS) ──────────────────────
 
   async generateSignedUploadUrl(
     folder: string,
@@ -45,6 +63,7 @@ export class GcsStorageProvider implements IStorageProvider {
     const file       = this.storage.bucket(this.bucketName).file(objectName);
     const expires    = Date.now() + expiresInSeconds * 1000;
 
+    // SDK @google-cloud/storage v7+: getSignedUrl (não generateSignedUrl)
     const [uploadUrl] = await file.getSignedUrl({
       version:     "v4",
       action:      "write",
@@ -59,6 +78,8 @@ export class GcsStorageProvider implements IStorageProvider {
       expiresInSeconds,
     };
   }
+
+  // ── Upload de Buffer (multipart via backend → GCS) ────────────────────────
 
   async uploadBuffer(
     folder: string,
@@ -84,6 +105,8 @@ export class GcsStorageProvider implements IStorageProvider {
     };
   }
 
+  // ── Deleção (idempotente) ─────────────────────────────────────────────────
+
   async deleteObject(objectName: string): Promise<void> {
     try {
       await this.storage
@@ -97,17 +120,23 @@ export class GcsStorageProvider implements IStorageProvider {
     }
   }
 
+  // ── Extração de objectName a partir de URL pública ────────────────────────
+
   extractObjectName(publicUrl: string): string | null {
     const patterns = [
       new RegExp(`^https://storage\\.googleapis\\.com/${this.bucketName}/(.+)$`),
       new RegExp(`^https://${this.bucketName}\\.storage\\.googleapis\\.com/(.+)$`),
     ];
+
     for (const pattern of patterns) {
       const match = publicUrl.match(pattern);
       if (match) return decodeURIComponent(match[1]);
     }
+
     return null;
   }
+
+  // ── Helpers privados ──────────────────────────────────────────────────────
 
   private buildPublicUrl(objectName: string): string {
     return `https://storage.googleapis.com/${this.bucketName}/${objectName}`;

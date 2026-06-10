@@ -2,13 +2,14 @@ import { prisma } from "@/libs/prismaClient";
 import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO, QueueStatus } from "../../dtos/IQueueItemResponseDTO";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
+import { QueueStatus as PrismaQueueStatus } from "@prisma/client";
 
-type PrismaQueueStatus = "WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED";
-
+/** Prisma enum (UPPERCASE) → DTO type (lowercase) */
 function toDTO(s: PrismaQueueStatus): QueueStatus {
   return s.toLowerCase() as QueueStatus;
 }
 
+/** DTO type (lowercase) → Prisma enum (UPPERCASE) */
 function toPrisma(s: string): PrismaQueueStatus {
   return s.toUpperCase() as PrismaQueueStatus;
 }
@@ -36,7 +37,7 @@ export class QueueRepository implements IQueueRepository {
       orderBy: { joinedAt: "asc" },
       include: { service: true }
     });
-    return items.map((i: any) => this.mapToDTO(i));
+    return items.map((i) => this.mapToDTO(i));
   }
 
   async findById(id: string): Promise<IQueueItemResponseDTO | null> {
