@@ -12,7 +12,7 @@ const defaultPlans = [
   {
     name: "Mensal",
     description: "Acesso completo à plataforma com cobrança mensal.",
-    price: 20.00,
+    price: 20.0,
     maxEmployees: 5,
     features: [
       "Fila digital ilimitada",
@@ -25,7 +25,7 @@ const defaultPlans = [
   {
     name: "Anual",
     description: "Acesso completo à plataforma com cobrança anual. Economia de R$ 40,00 por ano.",
-    price: 200.00,
+    price: 200.0,
     maxEmployees: 5,
     features: [
       "Fila digital ilimitada",
@@ -38,42 +38,46 @@ const defaultPlans = [
   }
 ];
 
-// UUID fixo usado pelo serviço de bloqueio automático em AuditLogs
-const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
-
 async function main() {
   const hashProvider = new BcryptHashProvider();
 
-  // Usuário admin real
+  // ── Admin real ──────────────────────────────────────────────────────────────
   const adminEmail = "admin@barberqueue.local";
-  const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
-  if (!existing) {
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!existingAdmin) {
     const password = await hashProvider.hash("admin123");
     await prisma.user.create({
       data: {
-        name: "Administrador",
-        email: adminEmail,
+        name:     "Administrador",
+        email:    adminEmail,
         password,
-        role: Role.MASTER_ADMIN,
-        active: true
+        role:     Role.MASTER_ADMIN,
+        cpf:      null,  // MASTER_ADMIN não precisa de CPF
+        active:   true
       }
     });
     console.log("✅ Admin criado");
   }
 
-  // Usuário-sistema para AuditLogs de ações automáticas (bloqueio/desbloqueio de CPF)
-  // UUID fixo — não tem senha real, não pode fazer login
-  const systemUser = await prisma.user.findUnique({ where: { email: "system@barberqueue.internal" } });
+  // ── Usuário-sistema para AuditLogs de ações automáticas ─────────────────────
+  // UUID fixo 00000000-...-0000 — não tem senha real, não pode fazer login.
+  // $executeRaw porque o UUID fixo não pode ser gerado pelo @default(uuid()).
+  const systemUser = await prisma.user.findUnique({
+    where: { email: "system@barberqueue.internal" }
+  });
   if (!systemUser) {
-    const fakePassword = await hashProvider.hash(`system-${Date.now()}-${Math.random()}`);
+    const fakePassword = await hashProvider.hash(
+      `system-${Date.now()}-${Math.random()}`
+    );
     await prisma.$executeRaw`
-      INSERT INTO users (id, name, email, password, role, active, created_at, updated_at)
+      INSERT INTO users (id, name, email, password, role, cpf, active, created_at, updated_at)
       VALUES (
         '00000000-0000-0000-0000-000000000000'::uuid,
         'Sistema',
         'system@barberqueue.internal',
         ${fakePassword},
         'MASTER_ADMIN'::"Role",
+        NULL,
         false,
         NOW(),
         NOW()
@@ -83,7 +87,7 @@ async function main() {
     console.log("✅ Usuário-sistema criado");
   }
 
-  // Planos padrão
+  // ── Planos padrão ────────────────────────────────────────────────────────────
   for (const plan of defaultPlans) {
     const existingPlan = await prisma.plan.findFirst({ where: { name: plan.name } });
     if (!existingPlan) {
@@ -96,7 +100,7 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
-    console.log("Seed concluído");
+    console.log("✅ Seed concluído");
   })
   .catch(async (e) => {
     console.error(e);

@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
-import { createPlanSchema, updatePlanSchema } from "../plans/schemas/planSchemas"
+import { createPlanSchema, updatePlanSchema } from "@/modules/plans/schemas/planSchemas";
 
 export class PlansController {
   async list(request: FastifyRequest, reply: FastifyReply) {
@@ -79,6 +79,20 @@ export class PlansController {
       }
     });
 
+    // Corrigido: auditLog faltava no update
+    if (request.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: request.user.id,
+          action: "UPDATE_PLAN",
+          resource: "Plan",
+          resourceId: id,
+          details: JSON.stringify(data),
+          ipAddress: request.ip
+        }
+      });
+    }
+
     return reply.send({ success: true, data: plan });
   }
 
@@ -88,18 +102,26 @@ export class PlansController {
     const existing = await prisma.plan.findUnique({ where: { id } });
     if (!existing) throw new AppError("Plano não encontrado", 404);
 
-    // Desativa o plano — ninguém novo pode assinar
-    // mas quem já assinou continua até o endDate
     await prisma.plan.update({ where: { id }, data: { active: false } });
 
-    // Conta quantas assinaturas ainda estão ativas nesse plano
-    // só para informar o admin no retorno
     const activeCount = await prisma.subscription.count({
       where: {
         planId: id,
         status: { in: ["TRIALING", "ACTIVE", "PAST_DUE"] }
       }
     });
+
+    if (request.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: request.user.id,
+          action: "DEACTIVATE_PLAN",
+          resource: "Plan",
+          resourceId: id,
+          ipAddress: request.ip
+        }
+      });
+    }
 
     return reply.send({
       success: true,

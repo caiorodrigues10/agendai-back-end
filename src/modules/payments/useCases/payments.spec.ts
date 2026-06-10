@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { MockPaymentRepository } from "@/modules/payments/infra/repositories/mocks/MockPaymentRepository";
-import { CreateCardPaymentUseCase } from "./createCardPayment/CreateCardPaymentUseCase";
-import { CreatePixPaymentUseCase } from "./createPixPayment/CreatePixPaymentUseCase";
-import { GetPaymentStatusUseCase } from "./getPaymentStatus/GetPaymentStatusUseCase";
-import { ListPaymentsUseCase } from "./listPayments/ListPaymentsUseCase";
-import { CancelPaymentUseCase } from "./cancelPayment/CancelPaymentUseCase";
-import { ProcessWebhookUseCase } from "./processWebhook/ProcessWebhookUseCase";
-import { AppError } from "@/shared/errors/AppError";
+import { MockPaymentRepository }     from "@/modules/payments/infra/repositories/mocks/MockPaymentRepository";
+import { CreateCardPaymentUseCase }  from "./createCardPayment/CreateCardPaymentUseCase";
+import { CreatePixPaymentUseCase }   from "./createPixPayment/CreatePixPaymentUseCase";
+import { GetPaymentStatusUseCase }   from "./getPaymentStatus/GetPaymentStatusUseCase";
+import { ListPaymentsUseCase }       from "./listPayments/ListPaymentsUseCase";
+import { CancelPaymentUseCase }      from "./cancelPayment/CancelPaymentUseCase";
+import { ProcessWebhookUseCase }     from "./processWebhook/ProcessWebhookUseCase";
+import { AppError }                  from "@/shared/errors/AppError";
 
-// ── Mock do MercadoPagoService ───────────────────────────────────────────────
+// ── Mock do MercadoPagoService ─────────────────────────────────────────────────
 const mockMpCard   = vi.fn();
 const mockMpPix    = vi.fn();
 const mockMpGet    = vi.fn();
@@ -16,13 +16,13 @@ const mockMpCancel = vi.fn();
 
 const mpServiceMock = {
   createCardPayment: mockMpCard,
-  createPixPayment: mockMpPix,
-  getPaymentById: mockMpGet,
-  cancelPayment: mockMpCancel
+  createPixPayment:  mockMpPix,
+  getPaymentById:    mockMpGet,
+  cancelPayment:     mockMpCancel
 } as any;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function makeMpCardResponse(overrides = {}) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function makeMpCardResponse(overrides: Record<string, unknown> = {}) {
   return {
     id: 123456,
     status: "approved",
@@ -37,7 +37,7 @@ function makeMpCardResponse(overrides = {}) {
   };
 }
 
-function makeMpPixResponse(overrides = {}) {
+function makeMpPixResponse(overrides: Record<string, unknown> = {}) {
   return {
     id: 789012,
     status: "pending",
@@ -56,7 +56,7 @@ function makeMpPixResponse(overrides = {}) {
   };
 }
 
-// ── Setup ────────────────────────────────────────────────────────────────────
+// ── Setup ─────────────────────────────────────────────────────────────────────
 let repo: MockPaymentRepository;
 
 beforeEach(() => {
@@ -64,13 +64,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// ── Testes ───────────────────────────────────────────────────────────────────
-
+// ─────────────────────────────────────────────────────────────────────────────
 describe("CreateCardPaymentUseCase", () => {
   it("cria pagamento com cartão com sucesso", async () => {
     mockMpCard.mockResolvedValue(makeMpCardResponse());
     const useCase = new CreateCardPaymentUseCase(repo as any, mpServiceMock);
-    const result = await useCase.execute({
+    const result  = await useCase.execute({
       token: "card-token", transactionAmount: 50, description: "Corte",
       installments: 1, paymentMethodId: "visa",
       payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
@@ -82,7 +81,7 @@ describe("CreateCardPaymentUseCase", () => {
     expect(result.mpPaymentId).toBe("123456");
   });
 
-  it("lança erro quando valor menor que R$ 0,50", async () => {
+  it("lança AppError quando valor menor que R$ 0,50", async () => {
     const useCase = new CreateCardPaymentUseCase(repo as any, mpServiceMock);
     await expect(useCase.execute({
       token: "t", transactionAmount: 0.3, description: "x",
@@ -103,9 +102,9 @@ describe("CreateCardPaymentUseCase", () => {
     })).rejects.toBeInstanceOf(AppError);
   });
 
-  it("[IMP-1] lança 403 quando EMPLOYEE tenta criar pagamento para outra barbearia", async () => {
+  it("[IMP-1] lança 403 quando não-admin tenta criar pagamento para outra barbearia", async () => {
     const useCase = new CreateCardPaymentUseCase(repo as any, mpServiceMock);
-    const err: AppError = await useCase.execute(
+    const err = await useCase.execute(
       {
         token: "t", transactionAmount: 50, description: "Corte",
         installments: 1, paymentMethodId: "visa",
@@ -113,15 +112,15 @@ describe("CreateCardPaymentUseCase", () => {
         barbershopId: "shop-2"
       },
       { role: "EMPLOYEE", barbershopId: "shop-1" }
-    ).catch(e => e);
+    ).catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
-    expect(err.statusCode).toBe(403);
+    expect((err as AppError).statusCode).toBe(403);
   });
 
   it("[IMP-1] permite MASTER_ADMIN criar pagamento para qualquer barbearia", async () => {
     mockMpCard.mockResolvedValue(makeMpCardResponse());
     const useCase = new CreateCardPaymentUseCase(repo as any, mpServiceMock);
-    const result = await useCase.execute(
+    const result  = await useCase.execute(
       {
         token: "t", transactionAmount: 50, description: "Corte",
         installments: 1, paymentMethodId: "visa",
@@ -134,11 +133,12 @@ describe("CreateCardPaymentUseCase", () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 describe("CreatePixPaymentUseCase", () => {
   it("cria pagamento PIX com QR code", async () => {
     mockMpPix.mockResolvedValue(makeMpPixResponse());
     const useCase = new CreatePixPaymentUseCase(repo as any, mpServiceMock);
-    const result = await useCase.execute({
+    const result  = await useCase.execute({
       transactionAmount: 40, description: "Barba",
       payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
@@ -161,15 +161,16 @@ describe("CreatePixPaymentUseCase", () => {
 
   it("[IMP-1] lança 403 quando OWNER tenta criar PIX para outra barbearia", async () => {
     const useCase = new CreatePixPaymentUseCase(repo as any, mpServiceMock);
-    const err: AppError = await useCase.execute(
+    const err = await useCase.execute(
       { transactionAmount: 40, description: "Barba", payer: { email: "a@b.com" }, barbershopId: "shop-2" },
       { role: "OWNER", barbershopId: "shop-1" }
-    ).catch(e => e);
+    ).catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
-    expect(err.statusCode).toBe(403);
+    expect((err as AppError).statusCode).toBe(403);
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 describe("GetPaymentStatusUseCase", () => {
   it("retorna pagamento sem sync quando status é aprovado", async () => {
     mockMpCard.mockResolvedValue(makeMpCardResponse());
@@ -189,10 +190,12 @@ describe("GetPaymentStatusUseCase", () => {
     const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    mockMpGet.mockResolvedValue({ ...makeMpPixResponse(), status: "approved", status_detail: "accredited" });
+    mockMpGet.mockResolvedValue({
+      ...makeMpPixResponse(), status: "approved", status_detail: "accredited"
+    });
     const updated = await new GetPaymentStatusUseCase(repo as any, mpServiceMock).execute(created.id);
     expect(mockMpGet).toHaveBeenCalledOnce();
-    // FIX-4: verifica que getPaymentById recebeu string, não Number
+    // FIX-4: getPaymentById deve receber string, não Number
     expect(mockMpGet).toHaveBeenCalledWith("789012");
     expect(updated.status).toBe("approved");
   });
@@ -216,7 +219,7 @@ describe("GetPaymentStatusUseCase", () => {
       new GetPaymentStatusUseCase(repo as any, mpServiceMock).execute("not-found")
     ).rejects.toBeInstanceOf(AppError);
   });
-}
+
   it("[SEC] lança 403 quando EMPLOYEE tenta consultar pagamento de outra barbearia", async () => {
     mockMpCard.mockResolvedValue(makeMpCardResponse());
     const created = await new CreateCardPaymentUseCase(repo as any, mpServiceMock).execute({
@@ -225,11 +228,11 @@ describe("GetPaymentStatusUseCase", () => {
       payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
       barbershopId: "shop-1"
     });
-    const err: AppError = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+    const err = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
       .execute(created.id, false, undefined, { role: "EMPLOYEE", barbershopId: "shop-2" })
-      .catch(e => e);
+      .catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
-    expect(err.statusCode).toBe(403);
+    expect((err as AppError).statusCode).toBe(403);
   });
 
   it("[SEC] permite EMPLOYEE consultar pagamento da própria barbearia", async () => {
@@ -257,9 +260,9 @@ describe("GetPaymentStatusUseCase", () => {
       .execute(created.id, false, undefined, { role: "MASTER_ADMIN" });
     expect(result.id).toBe(created.id);
   });
-
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 describe("ListPaymentsUseCase", () => {
   it("lista pagamentos por barbearia", async () => {
     mockMpCard.mockResolvedValue(makeMpCardResponse());
@@ -286,23 +289,26 @@ describe("ListPaymentsUseCase", () => {
     await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-2"
     });
-    // undefined = sem filtro de barbearia (acesso de admin)
+    // undefined = sem filtro de barbearia (acesso global de admin)
     const result = await new ListPaymentsUseCase(repo as any).execute(undefined);
     expect(result.data.length).toBe(2);
     expect(result.total).toBe(2);
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 describe("CancelPaymentUseCase", () => {
   it("cancela pagamento pendente", async () => {
     mockMpPix.mockResolvedValue(makeMpPixResponse());
     const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    mockMpCancel.mockResolvedValue({ ...makeMpPixResponse(), status: "cancelled", status_detail: "by_collector" });
+    mockMpCancel.mockResolvedValue({
+      ...makeMpPixResponse(), status: "cancelled", status_detail: "by_collector"
+    });
     const cancelled = await new CancelPaymentUseCase(repo as any, mpServiceMock).execute(created.id);
     expect(cancelled.status).toBe("cancelled");
-    // FIX-4: cancelPayment recebeu string
+    // FIX-4: cancelPayment deve receber string
     expect(mockMpCancel).toHaveBeenCalledWith("789012");
   });
 
@@ -313,7 +319,6 @@ describe("CancelPaymentUseCase", () => {
     });
     // Simula webhook chegando antes: atualiza status para cancelled
     await repo.updateStatus(created.id, { status: "cancelled", statusDetail: "by_collector" });
-
     // Chamada de cancel não deve ir ao MP nem lançar erro
     const result = await new CancelPaymentUseCase(repo as any, mpServiceMock).execute(created.id);
     expect(result.status).toBe("cancelled");
@@ -338,17 +343,17 @@ describe("CancelPaymentUseCase", () => {
       new CancelPaymentUseCase(repo as any, mpServiceMock).execute("not-found")
     ).rejects.toBeInstanceOf(AppError);
   });
-}
+
   it("[SEC] lança 403 quando EMPLOYEE tenta cancelar pagamento", async () => {
     mockMpPix.mockResolvedValue(makeMpPixResponse());
     const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    const err: AppError = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+    const err = await new CancelPaymentUseCase(repo as any, mpServiceMock)
       .execute(created.id, { role: "EMPLOYEE", barbershopId: "shop-1" })
-      .catch(e => e);
+      .catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
-    expect(err.statusCode).toBe(403);
+    expect((err as AppError).statusCode).toBe(403);
   });
 
   it("[SEC] lança 403 quando OWNER tenta cancelar pagamento de outra barbearia", async () => {
@@ -356,11 +361,11 @@ describe("CancelPaymentUseCase", () => {
     const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    const err: AppError = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+    const err = await new CancelPaymentUseCase(repo as any, mpServiceMock)
       .execute(created.id, { role: "OWNER", barbershopId: "shop-2" })
-      .catch(e => e);
+      .catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
-    expect(err.statusCode).toBe(403);
+    expect((err as AppError).statusCode).toBe(403);
   });
 
   it("[SEC] permite OWNER cancelar pagamento da própria barbearia", async () => {
@@ -368,14 +373,16 @@ describe("CancelPaymentUseCase", () => {
     const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    mockMpCancel.mockResolvedValue({ ...makeMpPixResponse(), status: "cancelled", status_detail: "by_collector" });
+    mockMpCancel.mockResolvedValue({
+      ...makeMpPixResponse(), status: "cancelled", status_detail: "by_collector"
+    });
     const result = await new CancelPaymentUseCase(repo as any, mpServiceMock)
       .execute(created.id, { role: "OWNER", barbershopId: "shop-1" });
     expect(result.status).toBe("cancelled");
   });
-
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 describe("ProcessWebhookUseCase", () => {
   it("ignora payload que não é do tipo payment", async () => {
     await new ProcessWebhookUseCase(repo as any, mpServiceMock)
@@ -383,13 +390,15 @@ describe("ProcessWebhookUseCase", () => {
     expect(mockMpGet).not.toHaveBeenCalled();
   });
 
-it("[SEC] processa webhook com data.id numérico (sem perda de precisão)", async () => {
+  it("[SEC] processa webhook com data.id numérico (sem perda de precisão)", async () => {
     mockMpPix.mockResolvedValue(makeMpPixResponse());
     await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    mockMpGet.mockResolvedValue({ ...makeMpPixResponse(), status: "approved", status_detail: "accredited" });
-    // MP envia data.id como número em alguns eventos
+    mockMpGet.mockResolvedValue({
+      ...makeMpPixResponse(), status: "approved", status_detail: "accredited"
+    });
+    // MP pode enviar data.id como número em alguns eventos
     await new ProcessWebhookUseCase(repo as any, mpServiceMock)
       .execute({ type: "payment", data: { id: 789012 as any } } as any);
     const payment = await repo.findByMpPaymentId("789012");
@@ -401,7 +410,9 @@ it("[SEC] processa webhook com data.id numérico (sem perda de precisão)", asyn
     await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    mockMpGet.mockResolvedValue({ ...makeMpPixResponse(), status: "approved", status_detail: "accredited" });
+    mockMpGet.mockResolvedValue({
+      ...makeMpPixResponse(), status: "approved", status_detail: "accredited"
+    });
     await new ProcessWebhookUseCase(repo as any, mpServiceMock)
       .execute({ type: "payment", data: { id: "789012" } } as any);
     const payment = await repo.findByMpPaymentId("789012");
@@ -409,12 +420,12 @@ it("[SEC] processa webhook com data.id numérico (sem perda de precisão)", asyn
   });
 });
 
-// ── FIX-2: Validação de transactionAmount ───────────────────────────────────
-describe("[FIX-2] paymentSchemas — transactionAmount", () => {
-  // Importamos aqui para não poluir o topo do arquivo
-  const { createCardPaymentSchema, createPixPaymentSchema } = await import(
-    "@/modules/payments/schemas/paymentSchemas"
-  );
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX-2: Validação de transactionAmount com ponto flutuante
+// ─────────────────────────────────────────────────────────────────────────────
+describe("[FIX-2] paymentSchemas — transactionAmount", async () => {
+  const { createCardPaymentSchema, createPixPaymentSchema } =
+    await import("@/modules/payments/schemas/paymentSchemas");
 
   const baseCard = {
     token: "t", description: "x", installments: 1, paymentMethodId: "visa",

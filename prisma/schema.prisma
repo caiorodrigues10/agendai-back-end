@@ -14,7 +14,7 @@ model User {
   password      String    @db.VarChar(500)
   role          Role      @default(EMPLOYEE)
   barbershopId  String?   @db.Uuid
-  cpf           String   @unique @db.VarChar(11)
+  cpf           String?   @unique @db.VarChar(11)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   active        Boolean   @default(true)

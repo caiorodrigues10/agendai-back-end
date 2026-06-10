@@ -5,4 +5,6 @@ export interface IUserRepository {
   create(data: ICreateUserDTO): Promise<IUserResponseDTO>;
   findById(id: string): Promise<IUserResponseDTO | null>;
   findByEmail(email: string): Promise<IUserResponseDTO | null>;
+  /** Busca por CPF normalizado (somente dígitos). */
+  findByCpf(cpf: string): Promise<IUserResponseDTO | null>;
 }

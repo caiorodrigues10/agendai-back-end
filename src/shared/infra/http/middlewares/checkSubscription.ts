@@ -11,10 +11,11 @@ const TRIAL_DAYS = 30;
 
 export async function checkSubscription(
   request: FastifyRequest,
-  reply: FastifyReply
+  _reply: FastifyReply
 ): Promise<void> {
   const user = request.user;
 
+  // MASTER_ADMIN bypassa a checagem de assinatura
   if (!user || user.role === "MASTER_ADMIN") return;
 
   if (!user.barbershopId) {
@@ -24,15 +25,15 @@ export async function checkSubscription(
   const barbershop = await prisma.barbershop.findUnique({
     where: { id: user.barbershopId },
     select: {
-      id: true,
+      id:        true,
       createdAt: true,
-      active: true,
+      active:    true,
       subscriptions: {
         select: {
-          status: true,
-          endDate: true,
+          status:     true,
+          endDate:    true,
           cancelDate: true,
-          plan: { select: { name: true } }
+          plan:       { select: { name: true } }
         },
         orderBy: { createdAt: "desc" },
         take: 1
@@ -44,26 +45,31 @@ export async function checkSubscription(
     throw new AppError("Barbearia inativa ou não encontrada", 403);
   }
 
-  const now = new Date();
+  const now      = new Date();
   const trialEnd = new Date(barbershop.createdAt);
   trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
 
+  // Dentro do trial — acesso liberado
   if (now <= trialEnd) return;
 
   const subscription = barbershop.subscriptions[0];
 
   if (!subscription) {
-    // Trial expirou e não há assinatura → bloqueia CPFs dos owners
-    await blockOwnerCpfs(user.barbershopId);
+    // Trial expirou sem assinatura.
+    // Bloqueio de CPF é fire-and-forget: falha no bloqueio nunca impede o 402.
+    blockOwnerCpfs(user.barbershopId).catch((err) =>
+      request.log.warn({ err }, "checkSubscription: falha ao bloquear CPFs dos owners")
+    );
     throw new AppError(SUBSCRIPTION_MESSAGES.TRIAL_EXPIRED, 402);
   }
 
-  const config = SUBSCRIPTION_STATUS_CONFIG[subscription.status];
+  const config  = SUBSCRIPTION_STATUS_CONFIG[subscription.status];
   const message = config?.message ?? SUBSCRIPTION_MESSAGES.NO_SUBSCRIPTION;
 
   if (!config?.allowed) {
-    // Assinatura inativa → bloqueia CPFs dos owners
-    await blockOwnerCpfs(user.barbershopId);
+    blockOwnerCpfs(user.barbershopId).catch((err) =>
+      request.log.warn({ err }, "checkSubscription: falha ao bloquear CPFs dos owners")
+    );
     throw new AppError(message, 402);
   }
 }

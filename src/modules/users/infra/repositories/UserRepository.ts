@@ -16,26 +16,21 @@ const publicSelect = {
 
 export class UserRepository implements IUserRepository {
   async create(data: ICreateUserDTO): Promise<IUserResponseDTO> {
-    return prisma.user.create({
-      data,
-      select: publicSelect
-    });
+    return prisma.user.create({ data, select: publicSelect });
   }
 
   async findById(id: string): Promise<IUserResponseDTO | null> {
-    return prisma.user.findUnique({
-      where: { id },
-      select: publicSelect
-    });
+    return prisma.user.findUnique({ where: { id }, select: publicSelect });
   }
 
   async findByEmail(email: string): Promise<IUserResponseDTO | null> {
     return prisma.user.findUnique({
       where: { email },
-      select: {
-        ...publicSelect,
-        password: true
-      }
+      select: { ...publicSelect, password: true }
     });
+  }
+
+  async findByCpf(cpf: string): Promise<IUserResponseDTO | null> {
+    return prisma.user.findFirst({ where: { cpf }, select: publicSelect });
   }
 }

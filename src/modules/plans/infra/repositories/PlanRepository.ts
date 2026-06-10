@@ -1,6 +1,6 @@
 import { prisma } from "@/libs/prismaClient";
-import { IPlanRepository } from "../repositories/IPlanRepository"
-import { ICreatePlanDTO, IUpdatePlanDTO, IPlanResponseDTO } from "../dtos/IPlanDTO";
+import { IPlanRepository } from "../../repositories/IPlanRepository";
+import { ICreatePlanDTO, IUpdatePlanDTO, IPlanResponseDTO } from "../../dtos/IPlanDTO";
 
 const select = {
   id: true,
@@ -11,7 +11,7 @@ const select = {
   features: true,
   active: true,
   createdAt: true
-};
+} as const;
 
 export class PlanRepository implements IPlanRepository {
   async create(data: ICreatePlanDTO): Promise<IPlanResponseDTO> {
