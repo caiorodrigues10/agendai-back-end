@@ -21,36 +21,28 @@ services:
     build: .
     container_name: barberqueue_api
     restart: always
-    # env_file carrega o .env automaticamente; environment abaixo tem precedência
-    env_file:
-      - .env
     environment:
-      # Sobrescreve DATABASE_URL para apontar para o container interno
+      MERCADOPAGO_ACCESS_TOKEN: "TEST-SEU-ACCESS-TOKEN-AQUI"
+      MERCADOPAGO_WEBHOOK_SECRET: "seu-segredo-webhook"
+      GCS_BUCKET_NAME: "barberqueue-assets"
+      GCS_PROJECT_ID: "seu-project-id-aqui"
+      GCS_KEY_FILE_PATH: "/run/secrets/gcs-key.json"
       DATABASE_URL: postgresql://barberqueue:barberqueue123@database:5432/barberqueue_db
+      JWT_SECRET: CorinthiansCampeao
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key
+      PORT: 3333
       NODE_ENV: development
-      PORT: "3333"
       ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:5173"
-      # Dentro do container, a chave GCS fica em /run/secrets/gcs-key.json
-      GCS_KEY_FILE_PATH: /run/secrets/gcs-key.json
     ports:
       - "3333:3333"
     volumes:
       - .:/app
       - /app/node_modules
-      # gcs-key.json montado como read-only.
-      # Execute `bash scripts/ensure-gcs-key.sh` para criar o placeholder
-      # caso ainda não tenha a chave real do GCP.
       - ./gcs-key.json:/run/secrets/gcs-key.json:ro
     depends_on:
       database:
         condition: service_healthy
-    command: >
-      sh -c "
-        npx prisma generate &&
-        npx prisma db push &&
-        npm run prisma:seed &&
-        npm run dev:docker
-      "
+    command: sh -c "npx prisma generate && npx prisma db push && npm run prisma:seed && npm run dev:docker"
 
 volumes:
   pgdata:
