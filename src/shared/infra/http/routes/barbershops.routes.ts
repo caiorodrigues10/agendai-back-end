@@ -10,6 +10,9 @@ import { DeleteBarbershopController } from "@/modules/barbershops/useCases/delet
 import { GetScheduleController } from "@/modules/barbershops/useCases/getSchedule/GetScheduleController";
 import { UpdateScheduleController } from "@/modules/barbershops/useCases/updateSchedule/UpdateScheduleController";
 
+import { LogoController } from "@/modules/barbershops/useCases/uploadLogo/LogoController";
+
+
 export async function barbershopsRoutes(app: FastifyInstance) {
   const create = new CreateBarbershopController();
   const list = new ListBarbershopsController();
@@ -18,6 +21,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const del = new DeleteBarbershopController();
   const getSchedule = new GetScheduleController();
   const updateSchedule = new UpdateScheduleController();
+  const logo = new LogoController();
 
   // Admin — sem checkSubscription (operação de plataforma)
   app.post("/barbershops", { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] }, create.handle.bind(create));
@@ -31,4 +35,48 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   // Edição — checkSubscription adicionado
   app.put("/barbershops/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
   app.put("/barbershops/:id/schedule", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, updateSchedule.handle.bind(updateSchedule));
+
+  // 3. Rotas de logo (adicionar ao final da função, antes do fechamento):
+
+  // Gera signed URL para upload direto no GCS
+  // Query: ?mimeType=image/jpeg|image/png
+  app.get(
+    "/barbershops/:id/logo/upload-url",
+    {
+      preHandler: [
+        authenticate,
+        authorize(["MASTER_ADMIN", "OWNER"]),
+        checkSubscription,
+      ],
+    },
+    logo.getUploadUrl.bind(logo)
+  );
+
+  // Confirma o upload salvando a URL pública no banco
+  // Body: { logoUrl: string }
+  app.patch(
+    "/barbershops/:id/logo",
+    {
+      preHandler: [
+        authenticate,
+        authorize(["MASTER_ADMIN", "OWNER"]),
+        checkSubscription,
+      ],
+    },
+    logo.confirmLogo.bind(logo)
+  );
+
+  // Remove a logo do GCS e limpa o banco
+  app.delete(
+    "/barbershops/:id/logo",
+    {
+      preHandler: [
+        authenticate,
+        authorize(["MASTER_ADMIN", "OWNER"]),
+        checkSubscription,
+      ],
+    },
+    logo.deleteLogo.bind(logo)
+  );
+
 }

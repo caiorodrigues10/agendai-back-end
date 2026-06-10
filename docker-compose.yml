@@ -24,6 +24,9 @@ services:
     environment:
       MERCADOPAGO_ACCESS_TOKEN: "TEST-SEU-ACCESS-TOKEN-AQUI"
       MERCADOPAGO_WEBHOOK_SECRET: "seu-segredo-webhook"
+      GCS_BUCKET_NAME: "barberqueue-assets"
+      GCS_PROJECT_ID: "seu-project-id-aqui"
+      GCS_KEY_FILE_PATH: "/run/secrets/gcs-key.json"
       DATABASE_URL: postgresql://barberqueue:barberqueue123@database:5432/barberqueue_db
       JWT_SECRET: CorinthiansCampeao
       JWT_REFRESH_SECRET: your-super-secret-refresh-key
@@ -35,6 +38,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+      - ./gcs-key.json:/run/secrets/gcs-key.json:ro
     depends_on:
       database:
         condition: service_healthy
