@@ -108,14 +108,17 @@ model Barbershop {
   approvalStatus  ApprovalStatus @default(PENDING)
   rejectionReason String?        @db.Text
 
-  schedules     Schedule[]
-  services      Service[]
-  users         User[]
-  queue         QueueItem[]
-  appointments  Appointment[]
-  feedPosts     FeedPost[]
-  subscriptions Subscription[]
-  payments      Payment[]
+  schedules         Schedule[]
+  services          Service[]
+  users             User[]
+  queue             QueueItem[]
+  appointments      Appointment[]
+  feedPosts         FeedPost[]
+  subscriptions     Subscription[]
+  payments          Payment[]
+  serviceCategories ServiceCategory[]
+  expenseCategories ExpenseCategory[]
+  expenses          Expense[]
 
   @@map("barbershops")
   @@index([approvalStatus])
@@ -129,12 +132,12 @@ enum ApprovalStatus {
 }
 
 model Schedule {
-  id           String     @id @default(uuid()) @db.Uuid
-  barbershopId String     @db.Uuid
+  id           String @id @default(uuid()) @db.Uuid
+  barbershopId String @db.Uuid
   dayOfWeek    Int
-  isOpen       Boolean    @default(false)
-  openTime     String     @db.VarChar(5)
-  closeTime    String     @db.VarChar(5)
+  isOpen       Boolean  @default(false)
+  openTime     String   @db.VarChar(5)
+  closeTime    String   @db.VarChar(5)
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
@@ -145,6 +148,7 @@ model Schedule {
 model Service {
   id             String   @id @default(uuid()) @db.Uuid
   barbershopId   String   @db.Uuid
+  categoryId     String?  @db.Uuid
   name           String   @db.VarChar(100)
   price          Float    @db.Real
   avgTimeMinutes Int
@@ -153,7 +157,8 @@ model Service {
   updatedAt      DateTime @updatedAt
   active         Boolean  @default(true)
 
-  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barbershop   Barbershop       @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  category     ServiceCategory? @relation("ServiceToCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   queue        QueueItem[]
   appointments Appointment[]
 
@@ -307,27 +312,23 @@ enum InvoiceStatus {
   CANCELLED
 }
 
-// ─── BlockedEntity ────────────────────────────────────────────────────────────
-// CPFs (e futuramente CNPJs) bloqueados por inadimplência.
-// Criado automaticamente no vencimento; removido pelo webhook MP ou pelo admin.
-
 model BlockedEntity {
   id           String            @id @default(uuid()) @db.Uuid
   type         BlockedEntityType
-  value        String            @db.VarChar(20)   // CPF sem máscara (11 dígitos)
+  value        String            @db.VarChar(20)
   reason       String            @db.VarChar(500)
   blockedAt    DateTime          @default(now())
   unblockedAt  DateTime?
   isActive     Boolean           @default(true)
-  barbershopId String?           @db.Uuid          // barbearia que originou o bloqueio
-  blockedBy    String?           @db.VarChar(50)   // "system" | userId do admin
-  unblockedBy  String?           @db.VarChar(50)   // "system" (webhook) | userId do admin
-  externalRef  String?           @db.VarChar(128)  // externalReference do pagamento MP
+  barbershopId String?           @db.Uuid
+  blockedBy    String?           @db.VarChar(50)
+  unblockedBy  String?           @db.VarChar(50)
+  externalRef  String?           @db.VarChar(128)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
   @@map("blocked_entities")
-  @@unique([type, value, isActive])  // evita duplicatas de bloqueios ativos
+  @@unique([type, value, isActive])
   @@index([type, value])
   @@index([isActive])
   @@index([barbershopId])
@@ -338,16 +339,13 @@ enum BlockedEntityType {
   CNPJ
 }
 
-// ─── AdminNotification ────────────────────────────────────────────────────────
-// Notificações internas para o painel admin (desbloqueios, pagamentos, etc).
-
 model AdminNotification {
   id        String                @id @default(uuid()) @db.Uuid
   type      AdminNotificationType
   title     String                @db.VarChar(200)
   message   String                @db.Text
   read      Boolean               @default(false)
-  metadata  String?               @db.Text          // JSON com dados extras
+  metadata  String?               @db.Text
   createdAt DateTime              @default(now())
   updatedAt DateTime              @updatedAt
 
@@ -358,11 +356,11 @@ model AdminNotification {
 }
 
 enum AdminNotificationType {
-  BLOCK_AUTO           // CPF bloqueado automaticamente pelo sistema
-  UNBLOCK_AUTO         // desbloqueio automático via webhook MP
-  UNBLOCK_MANUAL       // desbloqueio manual pelo admin
-  SUBSCRIPTION_EXPIRED // assinatura expirada / pagamento rejeitado
-  PAYMENT_RECEIVED     // pagamento de assinatura confirmado
+  BLOCK_AUTO
+  UNBLOCK_AUTO
+  UNBLOCK_MANUAL
+  SUBSCRIPTION_EXPIRED
+  PAYMENT_RECEIVED
 }
 
 model AuditLog {
@@ -379,4 +377,94 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+// ─── ServiceCategory ─────────────────────────────────────────────────────────
+// barbershopId null = categoria global visível por todas as barbearias
+
+model ServiceCategory {
+  id           String   @id @default(uuid()) @db.Uuid
+  barbershopId String?  @db.Uuid
+  name         String   @db.VarChar(100)
+  description  String?  @db.Text
+  icon         String?  @db.VarChar(50)
+  color        String?  @db.VarChar(7)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  barbershop Barbershop? @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  services   Service[]   @relation("ServiceToCategory")
+
+  @@map("service_categories")
+  @@index([barbershopId])
+  @@index([active])
+}
+
+// ─── ExpenseCategory ─────────────────────────────────────────────────────────
+// barbershopId null = categoria global visível por todas as barbearias
+
+model ExpenseCategory {
+  id           String   @id @default(uuid()) @db.Uuid
+  barbershopId String?  @db.Uuid
+  name         String   @db.VarChar(100)
+  description  String?  @db.Text
+  icon         String?  @db.VarChar(50)
+  color        String?  @db.VarChar(7)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  barbershop Barbershop? @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  expenses   Expense[]
+
+  @@map("expense_categories")
+  @@index([barbershopId])
+}
+
+// ─── Expense ─────────────────────────────────────────────────────────────────
+
+model Expense {
+  id            String            @id @default(uuid()) @db.Uuid
+  barbershopId  String            @db.Uuid
+  categoryId    String?           @db.Uuid
+  title         String            @db.VarChar(200)
+  description   String?           @db.Text
+  amount        Float             @db.Real
+  type          ExpenseType       @default(VARIABLE)
+  recurrence    ExpenseRecurrence @default(ONCE)
+  referenceDate DateTime
+  paidAt        DateTime?
+  dueDate       DateTime?
+  paymentMethod String?           @db.VarChar(50)
+  supplierName  String?           @db.VarChar(200)
+  receiptUrl    String?           @db.VarChar(500)
+  notes         String?           @db.Text
+  createdById   String            @db.Uuid
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  barbershop Barbershop       @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@map("expenses")
+  @@index([barbershopId])
+  @@index([categoryId])
+  @@index([referenceDate])
+  @@index([paidAt])
+  @@index([type])
+}
+
+enum ExpenseType {
+  FIXED
+  VARIABLE
+  INVESTMENT
+}
+
+enum ExpenseRecurrence {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
 }
