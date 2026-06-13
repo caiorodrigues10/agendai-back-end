@@ -1,4 +1,4 @@
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { Prisma } from "@/libs/prismaClient";
 import { IFiadoResponseDTO, IFiadoPaymentResponseDTO, FiadoStatus } from "../dtos/IFiadoDTO";
 
 export type FiadoWithPayments = Prisma.FiadoGetPayload<{
