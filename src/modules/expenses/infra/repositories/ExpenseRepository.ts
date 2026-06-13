@@ -1,4 +1,4 @@
-import { prisma } from "@/libs/prismaClient";
+import { prisma, Prisma } from "@/libs/prismaClient"; 
 import { IExpenseRepository } from "../../repositories/IExpenseRepository";
 import {
   ICreateExpenseDTO,

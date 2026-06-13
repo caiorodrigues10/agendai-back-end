@@ -25,6 +25,9 @@ import { PlanRepository } from "@/modules/plans/infra/repositories/PlanRepositor
 import { IFiadoRepository } from "../../modules/fiado/repositories/IFiadoRepository";
 import { FiadoRepository } from "../../modules/fiado/repositories/FiadoRepository";
 
+import { IExpenseRepository } from "@/modules/expenses/repositories/IExpenseRepository";
+import { ExpenseRepository } from "@/modules/expenses/infra/repositories/ExpenseRepository";
+
 container.registerSingleton<IUserRepository>("UserRepository", UserRepository);
 container.registerSingleton<IServiceRepository>("ServiceRepository", ServiceRepository);
 container.registerSingleton<IBarbershopRepository>("BarbershopRepository", BarbershopRepository);
@@ -33,3 +36,5 @@ container.registerSingleton<IPaymentRepository>("PaymentRepository", PaymentRepo
 container.registerSingleton<MercadoPagoService>("MercadoPagoService", MercadoPagoService);
 container.registerSingleton<IPlanRepository>("PlanRepository", PlanRepository);
 container.registerSingleton<IFiadoRepository>("FiadoRepository", FiadoRepository);
+container.registerSingleton<IExpenseRepository>("ExpenseRepository", ExpenseRepository);
+

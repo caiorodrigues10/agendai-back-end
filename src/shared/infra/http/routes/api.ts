@@ -8,6 +8,7 @@ import { adminRoutes } from "./admin.routes";
 import { paymentRoutes } from "./payments.routes";
 import { plansRoutes } from "./plans.routes";
 import { fiadoRoutes } from "./fiado.routes";
+import { expensesRoutes } from "./expenses.routes";
 
 export async function apiRoutes(app: FastifyInstance) {
   await authRoutes(app);
@@ -19,4 +20,5 @@ export async function apiRoutes(app: FastifyInstance) {
   await paymentRoutes(app);
   await plansRoutes(app);
   await fiadoRoutes(app); 
+  await expensesRoutes(app);
 }
