@@ -9,6 +9,7 @@ import { paymentRoutes } from "./payments.routes";
 import { plansRoutes } from "./plans.routes";
 import { fiadoRoutes } from "./fiado.routes";
 import { expensesRoutes } from "./expenses.routes";
+import { barbershopFinancialRoutes } from "./barbershopFinancialRoutes";
 
 export async function apiRoutes(app: FastifyInstance) {
   await authRoutes(app);
@@ -21,4 +22,5 @@ export async function apiRoutes(app: FastifyInstance) {
   await plansRoutes(app);
   await fiadoRoutes(app); 
   await expensesRoutes(app);
+  await barbershopFinancialRoutes(app);
 }
