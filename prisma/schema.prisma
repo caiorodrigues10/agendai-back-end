@@ -119,6 +119,7 @@ model Barbershop {
   serviceCategories ServiceCategory[]
   expenseCategories ExpenseCategory[]
   expenses          Expense[]
+  fiados            Fiado[]
 
   @@map("barbershops")
   @@index([approvalStatus])
@@ -132,12 +133,12 @@ enum ApprovalStatus {
 }
 
 model Schedule {
-  id           String @id @default(uuid()) @db.Uuid
-  barbershopId String @db.Uuid
+  id           String  @id @default(uuid()) @db.Uuid
+  barbershopId String  @db.Uuid
   dayOfWeek    Int
-  isOpen       Boolean  @default(false)
-  openTime     String   @db.VarChar(5)
-  closeTime    String   @db.VarChar(5)
+  isOpen       Boolean @default(false)
+  openTime     String  @db.VarChar(5)
+  closeTime    String  @db.VarChar(5)
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
@@ -379,9 +380,6 @@ model AuditLog {
   @@index([createdAt])
 }
 
-// ─── ServiceCategory ─────────────────────────────────────────────────────────
-// barbershopId null = categoria global visível por todas as barbearias
-
 model ServiceCategory {
   id           String   @id @default(uuid()) @db.Uuid
   barbershopId String?  @db.Uuid
@@ -401,9 +399,6 @@ model ServiceCategory {
   @@index([active])
 }
 
-// ─── ExpenseCategory ─────────────────────────────────────────────────────────
-// barbershopId null = categoria global visível por todas as barbearias
-
 model ExpenseCategory {
   id           String   @id @default(uuid()) @db.Uuid
   barbershopId String?  @db.Uuid
@@ -421,8 +416,6 @@ model ExpenseCategory {
   @@map("expense_categories")
   @@index([barbershopId])
 }
-
-// ─── Expense ─────────────────────────────────────────────────────────────────
 
 model Expense {
   id            String            @id @default(uuid()) @db.Uuid
@@ -467,4 +460,52 @@ enum ExpenseRecurrence {
   WEEKLY
   MONTHLY
   YEARLY
+}
+
+// ─── Fiado ────────────────────────────────────────────────────────────────────
+
+model Fiado {
+  id             String      @id @default(uuid()) @db.Uuid
+  barbershopId   String      @db.Uuid
+  customerName   String      @db.VarChar(200)
+  whatsapp       String      @db.VarChar(20)
+  description    String      @db.VarChar(500)
+  originalAmount Float       @db.Real
+  paidAmount     Float       @default(0) @db.Real
+  status         FiadoStatus @default(PENDING)
+  dueDate        DateTime?
+  notes          String?     @db.Text
+  createdById    String      @db.Uuid
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  barbershop Barbershop     @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  payments   FiadoPayment[]
+
+  @@map("fiados")
+  @@index([barbershopId])
+  @@index([status])
+  @@index([whatsapp])
+  @@index([dueDate])
+}
+
+enum FiadoStatus {
+  PENDING
+  PARTIAL
+  PAID
+  FORGIVEN
+}
+
+model FiadoPayment {
+  id             String   @id @default(uuid()) @db.Uuid
+  fiadoId        String   @db.Uuid
+  amount         Float    @db.Real
+  notes          String?  @db.Text
+  registeredById String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  fiado Fiado @relation(fields: [fiadoId], references: [id], onDelete: Cascade)
+
+  @@map("fiado_payments")
+  @@index([fiadoId])
 }

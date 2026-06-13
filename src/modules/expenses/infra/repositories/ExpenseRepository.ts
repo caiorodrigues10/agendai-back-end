@@ -8,7 +8,7 @@ import {
   IExpenseSummary,
   ExpenseType,
 } from "../../dtos/IExpenseDTO";
-import { mapExpenseToDTO } from "./expenseMapper";
+import { mapExpenseToDTO, ExpenseWithCategory } from "./expenseMapper";
 
 const include = {
   category: { select: { name: true } },
@@ -124,13 +124,13 @@ export class ExpenseRepository implements IExpenseRepository {
       };
     }
 
-    const expenses = await prisma.expense.findMany({
+    const expenses: ExpenseWithCategory[] = await prisma.expense.findMany({
       where,
-      include: { category: { select: { name: true } } },
+      include,
     });
 
-    const totalAmount = expenses.reduce((s, e) => s + e.amount, 0);
-    const totalPaid = expenses.filter(e => e.paidAt).reduce((s, e) => s + e.amount, 0);
+    const totalAmount = expenses.reduce((s: number, e: ExpenseWithCategory) => s + e.amount, 0);
+    const totalPaid = expenses.filter((e: ExpenseWithCategory) => e.paidAt).reduce((s: number, e: ExpenseWithCategory) => s + e.amount, 0);
     const totalPending = totalAmount - totalPaid;
 
     // Por categoria
