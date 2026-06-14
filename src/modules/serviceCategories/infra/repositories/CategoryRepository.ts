@@ -11,7 +11,7 @@ import {
   ICreateExpenseCategoryDTO,
   IUpdateExpenseCategoryDTO,
   IExpenseCategoryResponseDTO,
-} from "../../../services/dtos/ICategoryDTO"
+} from "@/modules/services/dtos/ICategoryDTO";
 import {
   mapServiceCategoryToDTO,
   mapExpenseCategoryToDTO,
@@ -43,7 +43,6 @@ export class ServiceCategoryRepository implements IServiceCategoryRepository {
 
     if (onlyActive) where.active = true;
 
-    // Retorna globais (barbershopId null) + as da barbearia específica
     if (barbershopId) {
       where.OR = [
         { barbershopId: null },

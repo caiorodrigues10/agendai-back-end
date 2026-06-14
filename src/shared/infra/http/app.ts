@@ -5,13 +5,14 @@ import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { registerRoutes } from "./routes";
 import { apiRoutes } from "./routes/api";
+import { setupSwagger } from "@/config/swagger";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 
 export async function buildApp() {
   const app = fastify({ logger: true });
 
-  // BUG-3: CORS habilitado com whitelist de origens
+  // CORS com whitelist de origens configurável via env
   await app.register(cors, {
     origin: (origin, cb) => {
       const allowed = (process.env.ALLOWED_ORIGINS || "")
@@ -25,42 +26,52 @@ export async function buildApp() {
       cb(new Error("Origin not allowed"), false);
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Signature", "X-Request-Id"]
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Signature",
+      "X-Request-Id",
+    ],
   });
 
-  // BUG-3: Helmet para headers de segurança
+  // Headers de segurança via Helmet
   await app.register(helmet, {
-    // contentSecurityPolicy false para não quebrar o Swagger UI em dev
-    contentSecurityPolicy: process.env.NODE_ENV === "production"
+    contentSecurityPolicy: process.env.NODE_ENV === "production",
   });
 
-  // BUG-3: Rate-limit global — mais permissivo para APIs internas, mais rígido para público
+  // Rate-limit global
   await app.register(rateLimit, {
     global: true,
     max: 120,
     timeWindow: "1 minute",
     errorResponseBuilder: () => ({
       success: false,
-      message: "Muitas requisições. Tente novamente em alguns instantes."
-    })
+      message: "Muitas requisições. Tente novamente em alguns instantes.",
+    }),
   });
 
-  
-  // Multipart/form-data — suporte a upload de arquivos (logos, etc.)
+  // Suporte a upload multipart/form-data
   await app.register(multipart, {
     limits: {
       fileSize: 5 * 1024 * 1024, // 5 MB máximo por arquivo
-      files: 1,                   // apenas 1 arquivo por requisição
-      fields: 5,                  // máximo de campos de texto extras
+      files: 1,
+      fields: 5,
     },
   });
 
+  // Swagger (documentação automática da API)
+  await setupSwagger(app);
+
+  // Rotas
   await registerRoutes(app);
   await app.register(apiRoutes, { prefix: "/api" });
 
-  // Global Audit Log Hook for all API mutations
+  // Hook de auditoria global para mutações autenticadas
   app.addHook("preHandler", async (request) => {
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) && request.user) {
+    if (
+      ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
+      request.user
+    ) {
       if (request.url.includes("/api/admin/audit-logs")) return;
 
       try {
@@ -71,8 +82,8 @@ export async function buildApp() {
             resource: request.url.split("/")[2] || "API",
             resourceId: (request.params as any)?.id || null,
             details: JSON.stringify(request.body).substring(0, 500),
-            ipAddress: request.ip
-          }
+            ipAddress: request.ip,
+          },
         });
       } catch (err) {
         request.log.error(err as any, "Failed to create audit log");
@@ -80,12 +91,13 @@ export async function buildApp() {
     }
   });
 
+  // Handler global de erros
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
       reply.status(error.statusCode).send({
         success: false,
         message: error.message,
-        errors: error.errors
+        errors: error.errors,
       });
       return;
     }
@@ -93,14 +105,14 @@ export async function buildApp() {
     if ((error as any).statusCode === 429) {
       reply.status(429).send({
         success: false,
-        message: "Muitas requisições. Tente novamente em alguns instantes."
+        message: "Muitas requisições. Tente novamente em alguns instantes.",
       });
       return;
     }
     request.log.error(error);
     reply.status(500).send({
       success: false,
-      message: "Erro interno do servidor"
+      message: "Erro interno do servidor",
     });
   });
 

@@ -3,6 +3,7 @@ import { CreateUserController } from "@/modules/users/useCases/createUser/Create
 
 export async function usersRoutes(app: FastifyInstance) {
   const createUserController = new CreateUserController();
+
   app.post("/users", {
     schema: {
       tags: ["Users"],
@@ -14,9 +15,12 @@ export async function usersRoutes(app: FastifyInstance) {
           name: { type: "string", minLength: 3, maxLength: 200 },
           email: { type: "string", format: "email", maxLength: 100 },
           password: { type: "string", minLength: 6, maxLength: 100 },
-          role: { type: "string", enum: ["MASTER_ADMIN", "OWNER", "EMPLOYEE"] },
-          barbershopId: { type: "string", format: "uuid" }
-        }
+          role: {
+            type: "string",
+            enum: ["MASTER_ADMIN", "OWNER", "EMPLOYEE"],
+          },
+          barbershopId: { type: "string", format: "uuid" },
+        },
       },
       response: {
         201: {
@@ -32,13 +36,17 @@ export async function usersRoutes(app: FastifyInstance) {
                 name: { type: "string" },
                 email: { type: "string" },
                 role: { type: "string" },
-                barbershopId: { type: "string", format: "uuid", nullable: true },
-                createdAt: { type: "string", format: "date-time" }
-              }
-            }
-          }
-        }
-      }
-    }
-  }, createUserController.handle);
+                barbershopId: {
+                  type: "string",
+                  format: "uuid",
+                  nullable: true,
+                },
+                createdAt: { type: "string", format: "date-time" },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, createUserController.handle.bind(createUserController));
 }

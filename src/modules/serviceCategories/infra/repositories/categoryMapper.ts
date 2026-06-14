@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import {
   IServiceCategoryResponseDTO,
   IExpenseCategoryResponseDTO,
-} from "../../../services/dtos/ICategoryDTO"
+} from "@/modules/services/dtos/ICategoryDTO";
 
 export type ServiceCategoryRecord = Prisma.ServiceCategoryGetPayload<Record<string, never>>;
 export type ExpenseCategoryRecord = Prisma.ExpenseCategoryGetPayload<Record<string, never>>;

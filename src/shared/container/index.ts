@@ -22,11 +22,20 @@ import { MercadoPagoService } from "@/modules/payments/services/MercadoPagoServi
 import { IPlanRepository } from "@/modules/plans/repositories/IPlanRepository";
 import { PlanRepository } from "@/modules/plans/infra/repositories/PlanRepository";
 
-import { IFiadoRepository } from "../../modules/fiado/repositories/IFiadoRepository";
-import { FiadoRepository } from "../../modules/fiado/repositories/FiadoRepository";
+import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
+import { FiadoRepository } from "@/modules/fiado/repositories/FiadoRepository";
 
 import { IExpenseRepository } from "@/modules/expenses/repositories/IExpenseRepository";
 import { ExpenseRepository } from "@/modules/expenses/infra/repositories/ExpenseRepository";
+
+import {
+  IServiceCategoryRepository,
+  IExpenseCategoryRepository,
+} from "@/modules/serviceCategories/repositories/ICategoryRepository";
+import {
+  ServiceCategoryRepository,
+  ExpenseCategoryRepository,
+} from "@/modules/serviceCategories/infra/repositories/CategoryRepository";
 
 container.registerSingleton<IUserRepository>("UserRepository", UserRepository);
 container.registerSingleton<IServiceRepository>("ServiceRepository", ServiceRepository);
@@ -37,4 +46,11 @@ container.registerSingleton<MercadoPagoService>("MercadoPagoService", MercadoPag
 container.registerSingleton<IPlanRepository>("PlanRepository", PlanRepository);
 container.registerSingleton<IFiadoRepository>("FiadoRepository", FiadoRepository);
 container.registerSingleton<IExpenseRepository>("ExpenseRepository", ExpenseRepository);
-
+container.registerSingleton<IServiceCategoryRepository>(
+  "ServiceCategoryRepository",
+  ServiceCategoryRepository
+);
+container.registerSingleton<IExpenseCategoryRepository>(
+  "ExpenseCategoryRepository",
+  ExpenseCategoryRepository
+);
