@@ -15,7 +15,7 @@ export class SubscribeUseCase {
     private mpService: MercadoPagoService,
     @inject("PaymentRepository")
     private paymentRepo: IPaymentRepository
-  ) { }
+  ) {}
 
   async execute(
     data: ISubscribeDTO,
@@ -30,7 +30,7 @@ export class SubscribeUseCase {
 
     const barbershop = await prisma.barbershop.findUnique({
       where: { id: data.barbershopId },
-      select: { id: true, name: true, active: true, createdAt: true }
+      select: { id: true, name: true, active: true, createdAt: true },
     });
 
     if (!barbershop || !barbershop.active) {
@@ -39,7 +39,7 @@ export class SubscribeUseCase {
 
     const plan = await prisma.plan.findUnique({
       where: { id: data.planId },
-      select: { id: true, name: true, price: true, active: true }
+      select: { id: true, name: true, price: true, active: true },
     });
 
     if (!plan || !plan.active) {
@@ -47,7 +47,7 @@ export class SubscribeUseCase {
     }
 
     const existing = await prisma.subscription.findUnique({
-      where: { barbershopId: data.barbershopId }
+      where: { barbershopId: data.barbershopId },
     });
 
     if (existing && ["TRIALING", "ACTIVE"].includes(existing.status)) {
@@ -60,22 +60,27 @@ export class SubscribeUseCase {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
 
+    // Para PIX: subscription inicia como PAST_DUE e só ativa via webhook.
+    // Para cartão aprovado: ACTIVE imediatamente.
+    // Isso evita que usuários com PIX pendente tenham acesso antes de pagar.
+    const initialStatus = data.paymentMethod === "pix" ? "PAST_DUE" : "ACTIVE";
+
     const subscription = await prisma.subscription.upsert({
       where: { barbershopId: data.barbershopId },
       update: {
         planId: plan.id,
-        status: "ACTIVE",
+        status: initialStatus,
         startDate: new Date(),
-        endDate: dueDate,
-        cancelDate: null
+        endDate: data.paymentMethod === "pix" ? null : dueDate,
+        cancelDate: null,
       },
       create: {
         barbershopId: data.barbershopId,
         planId: plan.id,
-        status: "ACTIVE",
+        status: initialStatus,
         startDate: new Date(),
-        endDate: dueDate
-      }
+        endDate: data.paymentMethod === "pix" ? null : dueDate,
+      },
     });
 
     const invoice = await prisma.invoice.create({
@@ -84,8 +89,8 @@ export class SubscribeUseCase {
         amount: plan.price,
         dueDate,
         status: "PENDING",
-        paymentMethod: data.paymentMethod
-      }
+        paymentMethod: data.paymentMethod,
+      },
     });
 
     const externalReference = `bq-sub-${subscription.id}-inv-${invoice.id}`;
@@ -100,11 +105,12 @@ export class SubscribeUseCase {
             email: data.payerEmail,
             firstName: data.payerFirstName,
             lastName: data.payerLastName,
-            identification: data.payerIdentification
+            identification: data.payerIdentification,
           },
           barbershopId: data.barbershopId,
           externalReference,
-          expirationMinutes: 60 * 24
+          // PIX de assinatura expira em 24h
+          expirationMinutes: 60 * 24,
         });
 
         await this.paymentRepo.create({
@@ -117,20 +123,28 @@ export class SubscribeUseCase {
           description,
           barbershopId: data.barbershopId,
           externalReference,
-          pixQrCode: mpResponse.point_of_interaction?.transaction_data?.qr_code ?? null,
-          pixQrCodeBase64: mpResponse.point_of_interaction?.transaction_data?.qr_code_base64 ?? null,
+          pixQrCode:
+            mpResponse.point_of_interaction?.transaction_data?.qr_code ?? null,
+          pixQrCodeBase64:
+            mpResponse.point_of_interaction?.transaction_data?.qr_code_base64 ?? null,
           pixExpirationDate: mpResponse.date_of_expiration
             ? new Date(mpResponse.date_of_expiration)
             : null,
-          rawResponse: JSON.stringify(mpResponse)
+          rawResponse: JSON.stringify(mpResponse),
         });
-
       } else {
+        // Cartão de crédito/débito
         if (!data.cardToken || !data.cardPaymentMethodId) {
-          throw new AppError("Token e método de pagamento do cartão são obrigatórios", 400);
+          throw new AppError(
+            "Token e método de pagamento do cartão são obrigatórios",
+            400
+          );
         }
         if (!data.payerIdentification) {
-          throw new AppError("Identificação (CPF/CNPJ) é obrigatória para cartão", 400);
+          throw new AppError(
+            "Identificação (CPF/CNPJ) é obrigatória para cartão",
+            400
+          );
         }
 
         const mpResponse = await this.mpService.createCardPayment(
@@ -144,16 +158,18 @@ export class SubscribeUseCase {
               email: data.payerEmail,
               firstName: data.payerFirstName,
               lastName: data.payerLastName,
-              identification: data.payerIdentification
+              identification: data.payerIdentification,
             },
             barbershopId: data.barbershopId,
-            externalReference
+            externalReference,
           },
           data.barbershopId
         );
 
         const paymentMethod =
-          mpResponse.payment_type_id === "debit_card" ? "debit_card" : "credit_card";
+          mpResponse.payment_type_id === "debit_card"
+            ? "debit_card"
+            : "credit_card";
 
         await this.paymentRepo.create({
           mpPaymentId: mpResponse.id,
@@ -165,21 +181,36 @@ export class SubscribeUseCase {
           description,
           barbershopId: data.barbershopId,
           externalReference,
-          rawResponse: JSON.stringify(mpResponse)
+          rawResponse: JSON.stringify(mpResponse),
         });
 
+        // Cartão aprovado imediatamente → marca invoice como paga e subscription ACTIVE
         if (mpResponse.status === "approved") {
-          await prisma.invoice.update({
-            where: { id: invoice.id },
-            data: { status: "PAID", paidAt: new Date(), paymentMethod }
+          await prisma.$transaction([
+            prisma.invoice.update({
+              where: { id: invoice.id },
+              data: { status: "PAID", paidAt: new Date(), paymentMethod },
+            }),
+            prisma.subscription.update({
+              where: { id: subscription.id },
+              data: { status: "ACTIVE", endDate: dueDate },
+            }),
+          ]);
+        } else {
+          // Cartão não aprovado imediatamente (raro) → marca PAST_DUE
+          await prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { status: "PAST_DUE" },
           });
         }
       }
     } catch (error: any) {
+      // Falha no pagamento → reverte subscription para PAST_DUE
       await prisma.subscription.update({
         where: { id: subscription.id },
-        data: { status: "PAST_DUE" }
-      });
+        data: { status: "PAST_DUE" },
+      }).catch(() => {}); // não mascara o erro original
+
       throw new AppError(
         `Erro ao processar pagamento: ${error.message ?? "Erro desconhecido"}`,
         422
@@ -190,8 +221,8 @@ export class SubscribeUseCase {
       where: { id: subscription.id },
       include: {
         plan: true,
-        invoices: { orderBy: { createdAt: "desc" }, take: 1 }
-      }
+        invoices: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
     });
 
     return buildSubscriptionResponse(full, barbershop.createdAt, TRIAL_DAYS);

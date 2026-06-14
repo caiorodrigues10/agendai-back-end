@@ -37,6 +37,9 @@ import {
   ExpenseCategoryRepository,
 } from "@/modules/serviceCategories/infra/repositories/CategoryRepository";
 
+import { IAppointmentRepository } from "@/modules/appointments/repositories/IAppointmentRepository";
+import { AppointmentRepository } from "@/modules/appointments/infra/repositories/AppointmentRepository";
+
 container.registerSingleton<IUserRepository>("UserRepository", UserRepository);
 container.registerSingleton<IServiceRepository>("ServiceRepository", ServiceRepository);
 container.registerSingleton<IBarbershopRepository>("BarbershopRepository", BarbershopRepository);
@@ -53,4 +56,8 @@ container.registerSingleton<IServiceCategoryRepository>(
 container.registerSingleton<IExpenseCategoryRepository>(
   "ExpenseCategoryRepository",
   ExpenseCategoryRepository
+);
+container.registerSingleton<IAppointmentRepository>(
+  "AppointmentRepository",
+  AppointmentRepository
 );

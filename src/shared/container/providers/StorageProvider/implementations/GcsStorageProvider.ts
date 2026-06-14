@@ -20,22 +20,37 @@ import {
  *
  * Opcional:
  *   GCS_PUBLIC_BASE_URL      — URL base pública (padrão: https://storage.googleapis.com/<bucket>)
+ *
+ * NOTA: A inicialização do Storage é lazy (ocorre na primeira chamada) para permitir
+ * que o servidor suba mesmo sem as variáveis GCS configuradas em desenvolvimento.
+ * O erro só ocorrerá ao tentar usar efetivamente o storage.
  */
 @injectable()
 export class GcsStorageProvider implements IStorageProvider {
-  private storage: Storage;
-  private bucket: ReturnType<Storage["bucket"]>;
-  private bucketName: string;
-  private publicBaseUrl: string;
+  private _storage: Storage | null = null;
+  private _bucket: ReturnType<Storage["bucket"]> | null = null;
 
-  constructor() {
-    const bucketName = process.env.GCS_BUCKET_NAME;
-    if (!bucketName) {
+  // ── Lazy getters ────────────────────────────────────────────────────────────
+
+  private get bucketName(): string {
+    const name = process.env.GCS_BUCKET_NAME;
+    if (!name) {
       throw new Error(
-        'GCS_BUCKET_NAME não configurado nas variáveis de ambiente.'
+        "GCS_BUCKET_NAME não configurado nas variáveis de ambiente."
       );
     }
-    this.bucketName = bucketName;
+    return name;
+  }
+
+  private get publicBaseUrl(): string {
+    return (
+      (process.env.GCS_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") ||
+      `https://storage.googleapis.com/${this.bucketName}`
+    );
+  }
+
+  private get storage(): Storage {
+    if (this._storage) return this._storage;
 
     const projectId = process.env.GCS_PROJECT_ID;
     const keyFilePath = process.env.GCS_KEY_FILE_PATH;
@@ -58,12 +73,14 @@ export class GcsStorageProvider implements IStorageProvider {
       }
     }
 
-    this.storage = new Storage(storageOptions);
-    this.bucket = this.storage.bucket(this.bucketName);
+    this._storage = new Storage(storageOptions);
+    return this._storage;
+  }
 
-    this.publicBaseUrl =
-      (process.env.GCS_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") ||
-      `https://storage.googleapis.com/${this.bucketName}`;
+  private get bucket(): ReturnType<Storage["bucket"]> {
+    if (this._bucket) return this._bucket;
+    this._bucket = this.storage.bucket(this.bucketName);
+    return this._bucket;
   }
 
   // ── Signed URL de upload (PUT direto cliente → GCS) ──────────────────────
@@ -124,7 +141,6 @@ export class GcsStorageProvider implements IStorageProvider {
     try {
       await this.bucket.file(objectName).delete();
     } catch (err: any) {
-      // 404 = objeto já não existe — comportamento idempotente esperado
       if (err?.code === 404) return;
       throw err;
     }

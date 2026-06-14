@@ -8,16 +8,7 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["src/tests/setup.ts"],
     coverage: {
-      provider: "v8",
       reporter: ["text", "json", "html"],
-      exclude: [
-        "node_modules/**",
-        "dist/**",
-        "prisma/**",
-        "**/*.spec.ts",
-        "**/*.d.ts",
-        "src/tests/**"
-      ]
-    }
-  }
+    },
+  },
 });
