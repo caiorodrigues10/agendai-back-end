@@ -1,5 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
+import { container } from "tsyringe";
+import { CreateBarbershopUseCase } from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopUseCase";
 
 export class AdminBarbershopController {
   async list(request: FastifyRequest, reply: FastifyReply) {
@@ -71,8 +73,14 @@ export class AdminBarbershopController {
   async create(request: FastifyRequest, reply: FastifyReply) {
     const { name, whatsapp, cnpj, address, active = true } = request.body as any;
 
-    const barbershop = await prisma.barbershop.create({
-      data: { name, whatsapp, cnpj, address, active, approvalStatus: 'APPROVED' },
+    // Usa o UseCase para garantir que checkCnpjAccess() seja executado
+    const useCase = container.resolve(CreateBarbershopUseCase);
+    const barbershopData = await useCase.execute({ name, whatsapp, cnpj });
+
+    // Aplica campos extras que só o admin pode definir (address, active, approvalStatus)
+    const barbershop = await prisma.barbershop.update({
+      where: { id: barbershopData.id },
+      data: { address, active, approvalStatus: 'APPROVED' },
     });
 
     if (request.user) {

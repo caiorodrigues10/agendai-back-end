@@ -90,17 +90,29 @@ export async function blockEntity(opts: BlockOptions) {
     throw new AppError(`${opts.type} ${value} já está bloqueado`, 409);
   }
 
-  const blocked = await prisma.blockedEntity.create({
-    data: {
-      type: opts.type,
-      value,
-      reason: opts.reason,
-      barbershopId: opts.barbershopId ?? null,
-      blockedBy: opts.blockedBy ?? "system",
-      externalRef: opts.externalRef ?? null,
-      isActive: true
+  let blocked: Awaited<ReturnType<typeof prisma.blockedEntity.create>>;
+  try {
+    blocked = await prisma.blockedEntity.create({
+      data: {
+        type: opts.type,
+        value,
+        reason: opts.reason,
+        barbershopId: opts.barbershopId ?? null,
+        blockedBy: opts.blockedBy ?? "system",
+        externalRef: opts.externalRef ?? null,
+        isActive: true
+      }
+    });
+  } catch (err: any) {
+    // P2002 = Unique constraint — race condition: outro processo criou antes
+    if (err?.code === "P2002") {
+      const race = await prisma.blockedEntity.findFirst({
+        where: { type: opts.type, value, isActive: true }
+      });
+      if (race) return race;
     }
-  });
+    throw err;
+  }
 
   // UUID fixo do usuário-sistema (criado no seed)
   const auditUserId =

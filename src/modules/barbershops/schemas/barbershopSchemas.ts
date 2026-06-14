@@ -3,7 +3,8 @@ import { z } from "zod";
 export const createBarbershopSchema = z.object({
   name: z.string().min(2).max(200),
   whatsapp: z.string().min(8).max(20),
-  logoUrl: z.string().url().max(500).optional()
+  logoUrl: z.string().url().max(500).optional(),
+  cnpj: z.string().min(14).max(18).optional()
 });
 
 export const updateBarbershopSchema = z.object({

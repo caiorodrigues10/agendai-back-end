@@ -33,7 +33,7 @@ enum Role {
   MASTER_ADMIN
   OWNER
   EMPLOYEE
-  CUSTOMER
+  CUSTOMER  // TODO: reservado para uso futuro (app de clientes). Não usado em lógicas atuais.
 }
 
 model RefreshToken {
@@ -330,7 +330,6 @@ model BlockedEntity {
   updatedAt    DateTime          @updatedAt
 
   @@map("blocked_entities")
-  @@unique([type, value, isActive])
   @@index([type, value])
   @@index([isActive])
   @@index([barbershopId])

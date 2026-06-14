@@ -7,6 +7,7 @@ interface JwtPayload {
   sub: string;
   role: string;
   barbershopId?: string;
+  cpf?: string;
 }
 
 export async function authenticate(
@@ -30,7 +31,8 @@ export async function authenticate(
     request.user = {
       id: decoded.sub,
       role: decoded.role,
-      barbershopId: decoded.barbershopId
+      barbershopId: decoded.barbershopId,
+      cpf: decoded.cpf
     };
   } catch {
     throw new AppError("Token inválido", 401);

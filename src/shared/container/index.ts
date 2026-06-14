@@ -23,7 +23,7 @@ import { IPlanRepository } from "@/modules/plans/repositories/IPlanRepository";
 import { PlanRepository } from "@/modules/plans/infra/repositories/PlanRepository";
 
 import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
-import { FiadoRepository } from "@/modules/fiado/repositories/FiadoRepository";
+import { FiadoRepository } from "@/modules/fiado/infra/repositories/FiadoRepository";
 
 import { IExpenseRepository } from "@/modules/expenses/repositories/IExpenseRepository";
 import { ExpenseRepository } from "@/modules/expenses/infra/repositories/ExpenseRepository";

@@ -21,7 +21,7 @@ export class RefreshController {
       const user = await userRepo.findById(decoded.sub);
       if (!user) return reply.status(401).send({ message: "Usuário inválido" });
       const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
-      const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined }, auth.secret as Secret, accessOpts);
+      const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: (user as any).cpf ?? undefined }, auth.secret as Secret, accessOpts);
       const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
       const newRefreshToken = sign({ sub: user.id }, auth.refreshSecret as Secret, refreshOpts);
       // Rotaciona: apaga o token antigo e cria um novo (evita acúmulo no banco)

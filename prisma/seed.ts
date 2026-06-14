@@ -69,21 +69,25 @@ async function main() {
     const fakePassword = await hashProvider.hash(
       `system-${Date.now()}-${Math.random()}`
     );
-    await prisma.$executeRaw`
-      INSERT INTO users (id, name, email, password, role, cpf, active, created_at, updated_at)
-      VALUES (
-        '00000000-0000-0000-0000-000000000000'::uuid,
-        'Sistema',
-        'system@barberqueue.internal',
-        ${fakePassword},
-        'MASTER_ADMIN'::"Role",
-        NULL,
-        false,
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT (id) DO NOTHING
-    `;
+    // Usa $executeRaw com Prisma.sql para evitar cast frágil de enum
+    const { Prisma: PrismaNamespace } = await import("@prisma/client");
+    await prisma.$executeRaw(
+      PrismaNamespace.sql`
+        INSERT INTO users (id, name, email, password, role, cpf, active, created_at, updated_at)
+        VALUES (
+          '00000000-0000-0000-0000-000000000000'::uuid,
+          'Sistema',
+          'system@barberqueue.internal',
+          ${fakePassword},
+          ${Role.MASTER_ADMIN}::"Role",
+          NULL,
+          false,
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (id) DO NOTHING
+      `
+    );
     console.log("✅ Usuário-sistema criado");
   }
 

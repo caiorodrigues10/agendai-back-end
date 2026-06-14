@@ -40,7 +40,7 @@ export class LoginUseCase {
 
     const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
     const accessToken = sign(
-      { role: user.role, barbershopId: user.barbershopId ?? undefined },
+      { role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: user.cpf ?? undefined },
       auth.secret as Secret,
       accessOpts
     );

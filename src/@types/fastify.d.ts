@@ -6,6 +6,7 @@ declare module "fastify" {
       id: string;
       role: string;
       barbershopId?: string;
+      cpf?: string;
     };
   }
 }
