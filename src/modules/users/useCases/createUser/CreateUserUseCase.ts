@@ -24,7 +24,7 @@ export class CreateUserUseCase {
     // 2. Regras de role
     const role = data.role ?? "EMPLOYEE";
     if (role === "MASTER_ADMIN" && data.barbershopId) {
-      throw new AppError("Admins não devem possuir barbearia vinculada", 400);
+      throw new AppError("Admins não devem possuir salão vinculado", 400);
     }
     if (role !== "MASTER_ADMIN" && !data.barbershopId) {
       throw new AppError("barbershopId é obrigatório para OWNER e EMPLOYEE", 400);

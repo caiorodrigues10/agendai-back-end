@@ -1,6 +1,10 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { AppError } from "@/shared/errors/AppError";
 import { prisma, Prisma } from "@/libs/prismaClient";
+import {
+  GetBarbershopInsightsUseCase,
+  type InsightsPeriod,
+} from "../useCases/getBarbershopInsights/GetBarbershopInsightsUseCase";
 
 type ExpenseRow = { amount: number; paidAt: Date | null; type: string };
 type FiadoRow = { originalAmount: number; paidAmount: number; dueDate: Date | null };
@@ -14,11 +18,27 @@ type FiadoWithPayments = Prisma.FiadoGetPayload<{
 }>;
 
 export class BarbershopFinancialController {
+  // GET /barbershop/insights?period=7d|30d|90d
+  async insights(request: FastifyRequest, reply: FastifyReply) {
+    const barbershopId = request.user?.barbershopId;
+    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
+
+    const { period: raw } = request.query as { period?: string };
+    const period = (["7d", "30d", "90d"].includes(raw ?? "")
+      ? raw
+      : "30d") as InsightsPeriod;
+
+    const data = await new GetBarbershopInsightsUseCase().execute(
+      barbershopId,
+      period
+    );
+    return reply.send({ success: true, data });
+  }
 
   // GET /barbershop/financial/summary
   async summary(request: FastifyRequest, reply: FastifyReply) {
     const barbershopId = request.user?.barbershopId;
-    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhuma barbearia", 400);
+    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
 
     const { from, to } = request.query as { from?: string; to?: string };
     const fromDate = from ? new Date(from) : undefined;
@@ -98,7 +118,7 @@ export class BarbershopFinancialController {
   // GET /barbershop/financial/expenses
   async expenses(request: FastifyRequest, reply: FastifyReply) {
     const barbershopId = request.user?.barbershopId;
-    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhuma barbearia", 400);
+    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
 
     const { from, to, page = "1", limit = "20" } = request.query as {
       from?: string; to?: string; page?: string; limit?: string;
@@ -157,7 +177,7 @@ export class BarbershopFinancialController {
   // GET /barbershop/financial/fiados
   async fiados(request: FastifyRequest, reply: FastifyReply) {
     const barbershopId = request.user?.barbershopId;
-    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhuma barbearia", 400);
+    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
 
     const { page = "1", limit = "20", status } = request.query as {
       page?: string; limit?: string; status?: string;

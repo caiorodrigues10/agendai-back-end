@@ -1,11 +1,15 @@
 import {
   IPaymentResponseDTO,
   PaymentMethod,
+  PaymentProvider,
   PaymentStatus
 } from "../dtos/IPaymentDTO";
 
 export interface ICreatePaymentRecordDTO {
-  mpPaymentId: number | string;
+  mpPaymentId?: number | string | null;
+  provider?: PaymentProvider;
+  providerPaymentId?: string | null;
+  checkoutUrl?: string | null;
   status: PaymentStatus;
   statusDetail: string;
   paymentMethod: PaymentMethod;
@@ -33,6 +37,12 @@ export interface IPaymentRepository {
   create(data: ICreatePaymentRecordDTO): Promise<IPaymentResponseDTO>;
   findById(id: string): Promise<IPaymentResponseDTO | null>;
   findByMpPaymentId(mpPaymentId: string): Promise<IPaymentResponseDTO | null>;
+  findByProviderPaymentId(
+    providerPaymentId: string
+  ): Promise<IPaymentResponseDTO | null>;
+  findByExternalReference(
+    externalReference: string
+  ): Promise<IPaymentResponseDTO | null>;
   // FIX-3: barbershopId opcional — undefined lista todos os pagamentos (uso exclusivo do MASTER_ADMIN)
   findByBarbershopId(
     barbershopId: string | undefined,

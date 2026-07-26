@@ -171,3 +171,44 @@ Authorization: Bearer {{login.response.body.$.accessToken}}
 
 ### Queue Metrics
 GET {{baseUrl}}/api/queue/metrics?barbershopId={{createBarbershop.response.body.$.data.id}}
+
+### ─── Appointments ───────────────────────────────────────────────────────────
+
+### Get Availability (public)
+GET {{baseUrl}}/api/appointments/availability?barbershopId={{createBarbershop.response.body.$.data.id}}&date=2026-06-11
+
+### Book Appointment (public)
+# @name bookAppointment
+POST {{baseUrl}}/api/appointments
+Content-Type: {{json}}
+
+{
+  "barbershopId": "{{createBarbershop.response.body.$.data.id}}",
+  "serviceId": "{{createService.response.body.$.data.id}}",
+  "staffId": null,
+  "customerName": "João Silva",
+  "whatsapp": "55999998888",
+  "date": "2026-06-11",
+  "time": "10:00"
+}
+
+### List Appointments (staff)
+GET {{baseUrl}}/api/appointments?barbershopId={{createBarbershop.response.body.$.data.id}}&from=2026-06-01&to=2026-06-30
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### List Appointments by date and staff
+GET {{baseUrl}}/api/appointments?barbershopId={{createBarbershop.response.body.$.data.id}}&date=2026-06-11&staffId={{createUser.response.body.$.data.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Update Appointment
+PATCH {{baseUrl}}/api/appointments/{{bookAppointment.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}
+Content-Type: {{json}}
+
+{
+  "status": "completed"
+}
+
+### Cancel Appointment
+DELETE {{baseUrl}}/api/appointments/{{bookAppointment.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.accessToken}}

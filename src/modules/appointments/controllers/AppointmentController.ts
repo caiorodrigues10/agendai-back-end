@@ -5,6 +5,7 @@ import {
   createAppointmentSchema,
   updateAppointmentSchema,
   listAppointmentsQuerySchema,
+  availabilityQuerySchema,
 } from "../schemas/appointmentSchemas";
 import {
   CreateAppointmentUseCase,
@@ -12,6 +13,7 @@ import {
   ListAppointmentsUseCase,
   UpdateAppointmentUseCase,
   CancelAppointmentUseCase,
+  GetAvailabilityUseCase,
 } from "../useCases/appointmentUseCases";
 
 export class AppointmentController {
@@ -71,6 +73,14 @@ export class AppointmentController {
     const useCase = container.resolve(UpdateAppointmentUseCase);
     const appointment = await useCase.execute(id, data, request.user!);
     reply.send({ success: true, data: appointment });
+  }
+
+  /** Rota pública — retorna array de slots ocupados (formato esperado pelo front). */
+  async availability(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const query = availabilityQuerySchema.parse(request.query);
+    const useCase = container.resolve(GetAvailabilityUseCase);
+    const slots = await useCase.execute(query.barbershopId, query.date);
+    reply.send(slots);
   }
 
   async cancel(request: FastifyRequest, reply: FastifyReply): Promise<void> {

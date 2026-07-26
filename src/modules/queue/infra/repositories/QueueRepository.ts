@@ -14,6 +14,28 @@ function toPrisma(s: string): PrismaQueueStatus {
 }
 
 export class QueueRepository implements IQueueRepository {
+  async findActiveDuplicate(
+    barbershopId: string,
+    customerId: string,
+    whatsappDigits: string
+  ): Promise<IQueueItemResponseDTO | null> {
+    const items = await prisma.queueItem.findMany({
+      where: {
+        barbershopId,
+        status: { in: ["WAITING", "IN_CHAIR"] },
+      },
+      include: { service: true },
+    });
+
+    const duplicate = items.find(
+      (i) =>
+        i.customerId === customerId ||
+        i.whatsapp.replace(/\D/g, "") === whatsappDigits
+    );
+
+    return duplicate ? this.mapToDTO(duplicate) : null;
+  }
+
   async create(data: IJoinQueueDTO): Promise<IQueueItemResponseDTO> {
     const item = await prisma.queueItem.create({
       data: {

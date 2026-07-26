@@ -18,8 +18,9 @@ export async function servicesRoutes(app: FastifyInstance) {
   app.get("/services", list.handle.bind(list));
   app.get("/services/:id", get.handle.bind(get));
 
-  // checkSubscription adicionado nas rotas de escrita
+  // checkSubscription adicionado nas rotas de escrita (PUT e PATCH aceitos — o front usa PATCH)
   app.post("/services", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, create.handle.bind(create));
   app.put("/services/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
+  app.patch("/services/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
   app.delete("/services/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, del.handle.bind(del));
 }

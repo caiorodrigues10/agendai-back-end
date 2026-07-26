@@ -6,6 +6,7 @@ import { SubscribeController } from "@/modules/subscriptions/useCases/subscribe/
 import { GetSubscriptionController } from "@/modules/subscriptions/useCases/getSubscription/GetSubscriptionController";
 import { CancelSubscriptionController } from "@/modules/subscriptions/useCases/cancelSubscription/CancelSubscriptionController";
 import { ListSubscriptionsController } from "@/modules/subscriptions/useCases/listSubscriptions/ListSubscriptionsController";
+import { SubscriptionEconomicsController } from "@/modules/subscriptions/useCases/subscriptionEconomics/SubscriptionEconomicsController";
 
 export async function plansRoutes(app: FastifyInstance) {
   const plans = new PlansController();
@@ -13,6 +14,7 @@ export async function plansRoutes(app: FastifyInstance) {
   const getSubscription = new GetSubscriptionController();
   const cancelSubscription = new CancelSubscriptionController();
   const listSubscriptions = new ListSubscriptionsController();
+  const subscriptionEconomics = new SubscriptionEconomicsController();
 
   // Planos — leitura pública
   app.get("/plans", plans.list.bind(plans));
@@ -28,7 +30,8 @@ export async function plansRoutes(app: FastifyInstance) {
   app.get("/subscriptions/me", { preHandler: [authenticate] }, getSubscription.handle.bind(getSubscription));
   app.delete("/subscriptions/me", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] }, cancelSubscription.handle.bind(cancelSubscription));
 
-  // Assinaturas — admin
+  // Assinaturas — admin (economics antes de :id)
+  app.get("/admin/subscriptions/economics", { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] }, subscriptionEconomics.handle.bind(subscriptionEconomics));
   app.get("/admin/subscriptions", { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] }, listSubscriptions.handle.bind(listSubscriptions));
   app.get("/admin/subscriptions/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] }, getSubscription.handle.bind(getSubscription));
   app.delete("/admin/subscriptions/:barbershopId", { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] }, cancelSubscription.handle.bind(cancelSubscription));

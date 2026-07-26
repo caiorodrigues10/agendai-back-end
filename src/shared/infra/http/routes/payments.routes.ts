@@ -6,6 +6,10 @@ import { CreatePixPaymentController } from "@/modules/payments/useCases/createPi
 import { GetPaymentStatusController } from "@/modules/payments/useCases/getPaymentStatus/GetPaymentStatusController";
 import { ListPaymentsController } from "@/modules/payments/useCases/listPayments/ListPaymentsController";
 import { ProcessWebhookController } from "@/modules/payments/useCases/processWebhook/ProcessWebhookController";
+import {
+  ProcessAbacateWebhookController,
+  abacateWebhookPreParsing,
+} from "@/modules/payments/useCases/processAbacateWebhook/ProcessAbacateWebhookController";
 import { CancelPaymentController } from "@/modules/payments/useCases/cancelPayment/CancelPaymentController";
 
 export async function paymentRoutes(app: FastifyInstance) {
@@ -14,6 +18,7 @@ export async function paymentRoutes(app: FastifyInstance) {
   const getStatus     = new GetPaymentStatusController();
   const listPayments  = new ListPaymentsController();
   const webhook       = new ProcessWebhookController();
+  const abacateWebhook = new ProcessAbacateWebhookController();
   const cancelPayment = new CancelPaymentController();
 
   // BUG-4: Rate-limit mais restritivo no webhook público
@@ -26,6 +31,21 @@ export async function paymentRoutes(app: FastifyInstance) {
       }
     }
   }, webhook.handle.bind(webhook));
+
+  // AbacatePay — URL: /api/payments/webhook/abacate?webhookSecret=...
+  app.post(
+    "/payments/webhook/abacate",
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: "1 minute",
+        },
+      },
+      preParsing: abacateWebhookPreParsing,
+    },
+    abacateWebhook.handle.bind(abacateWebhook)
+  );
 
   app.post(
     "/payments/card",

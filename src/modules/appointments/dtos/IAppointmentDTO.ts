@@ -38,6 +38,17 @@ export interface IAppointmentResponseDTO {
   updatedAt: Date;
 }
 
+/**
+ * Slot OCUPADO retornado por GET /appointments/availability.
+ * O front calcula os horários livres a partir desta lista
+ * (ver `isSlotAvailable` em BarberQueue/src/utils/schedulingUtils.ts).
+ */
+export interface IAvailabilitySlotDTO {
+  time: string;
+  staffId: string | null;
+  durationMinutes: number;
+}
+
 export interface IListAppointmentsQuery {
   page: number;
   limit: number;

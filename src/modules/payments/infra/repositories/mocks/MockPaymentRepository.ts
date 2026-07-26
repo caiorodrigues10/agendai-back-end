@@ -13,7 +13,13 @@ export class MockPaymentRepository implements IPaymentRepository {
     const now = new Date();
     const entity: IPaymentResponseDTO = {
       id: `payment-${this.seq++}`,
-      mpPaymentId: String(payload.mpPaymentId),
+      mpPaymentId:
+        payload.mpPaymentId != null && payload.mpPaymentId !== ""
+          ? String(payload.mpPaymentId)
+          : null,
+      provider: payload.provider ?? "MERCADOPAGO",
+      providerPaymentId: payload.providerPaymentId ?? null,
+      checkoutUrl: payload.checkoutUrl ?? null,
       status: payload.status,
       statusDetail: payload.statusDetail,
       paymentMethod: payload.paymentMethod,
@@ -45,6 +51,22 @@ export class MockPaymentRepository implements IPaymentRepository {
 
   async findByMpPaymentId(mpPaymentId: string): Promise<IPaymentResponseDTO | null> {
     return this.data.find((p) => p.mpPaymentId === String(mpPaymentId)) ?? null;
+  }
+
+  async findByProviderPaymentId(
+    providerPaymentId: string
+  ): Promise<IPaymentResponseDTO | null> {
+    return (
+      this.data.find((p) => p.providerPaymentId === providerPaymentId) ?? null
+    );
+  }
+
+  async findByExternalReference(
+    externalReference: string
+  ): Promise<IPaymentResponseDTO | null> {
+    return (
+      this.data.find((p) => p.externalReference === externalReference) ?? null
+    );
   }
 
   // FIX-3: undefined = listar todos

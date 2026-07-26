@@ -1,7 +1,8 @@
 # 🤖 AI_GUIDE.md — Guia Completo para IAs no Projeto BarberQueue
 
-> Este documento é o ponto de entrada obrigatório para qualquer IA que trabalhe neste repositório.
-> Leia-o **completamente** antes de escrever qualquer linha de código.
+> **Monorepo:** para visão geral frontend + backend, gaps conhecidos e roadmap, leia primeiro [`../AGENTS.md`](../AGENTS.md) na raiz do repositório.
+>
+> Este documento é o guia **detalhado do backend**. Leia-o **completamente** antes de escrever qualquer linha de código no `BarberQueue-back-end`.
 
 ---
 

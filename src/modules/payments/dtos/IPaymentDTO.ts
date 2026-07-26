@@ -1,7 +1,8 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Payment method types
 // ──────────────────────────────────────────────────────────────────────────────
-export type PaymentMethod = "credit_card" | "debit_card" | "pix";
+export type PaymentMethod = "credit_card" | "debit_card" | "pix" | "payment_link";
+export type PaymentProvider = "MERCADOPAGO" | "ABACATEPAY";
 export type PaymentStatus =
   | "pending"
   | "approved"
@@ -89,7 +90,10 @@ export interface IPixQrCodeDTO {
 export interface IPaymentResponseDTO {
   id: string;
   // BUG-2: string em vez de number para preservar precisão de BigInt do banco
-  mpPaymentId: string;
+  mpPaymentId: string | null;
+  provider: PaymentProvider;
+  providerPaymentId: string | null;
+  checkoutUrl: string | null;
   status: PaymentStatus;
   statusDetail: string;
   paymentMethod: PaymentMethod;

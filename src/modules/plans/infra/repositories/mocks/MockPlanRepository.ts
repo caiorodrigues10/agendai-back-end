@@ -11,7 +11,10 @@ export class MockPlanRepository implements IPlanRepository {
       name:         payload.name,
       description:  payload.description ?? null,
       price:        payload.price,
+      billingCycle: payload.billingCycle ?? "MONTHLY",
       maxEmployees: payload.maxEmployees,
+      hasDashboard: payload.hasDashboard ?? true,
+      tierKey:      payload.tierKey ?? "pro",
       features:     payload.features,
       active:       true,
       createdAt:    new Date()

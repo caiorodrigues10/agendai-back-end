@@ -273,7 +273,7 @@ export class AdminFinancialController {
     });
 
     if (!barbershop) {
-      throw new AppError("Barbearia não encontrada", 404);
+      throw new AppError("Salão não encontrado", 404);
     }
 
     const dateFilter = fromDate || toDate

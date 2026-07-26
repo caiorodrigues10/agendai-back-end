@@ -27,7 +27,7 @@ export class CreateCardPaymentUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     let mpResponse: Awaited<ReturnType<MercadoPagoService["createCardPayment"]>>;

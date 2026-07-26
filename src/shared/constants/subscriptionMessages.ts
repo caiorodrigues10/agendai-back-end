@@ -20,5 +20,5 @@ export const SUBSCRIPTION_MESSAGES = {
   NO_SUBSCRIPTION: "Assinatura inativa. Assine um plano para continuar usando a plataforma.",
   LOGIN_EXPIRED: "Seu período de acesso expirou. Assine um plano para continuar.",
   CNPJ_EXPIRED: "Este CNPJ já possui cadastro com acesso expirado. Assine um plano para reativar.",
-  CNPJ_DUPLICATE: "Já existe uma barbearia cadastrada com este CNPJ.",
+  CNPJ_DUPLICATE: "Já existe um salão cadastrado com este CNPJ.",
 } as const;

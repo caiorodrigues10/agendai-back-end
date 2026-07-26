@@ -30,9 +30,11 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.get("/barbershops/:id",          get.handle.bind(get));
   app.get("/barbershops/:id/schedule", getSchedule.handle.bind(getSchedule));
 
-  // ─── Edição com assinatura ─────────────────────────────────────────────────
-  app.put("/barbershops/:id",          { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
-  app.put("/barbershops/:id/schedule", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, updateSchedule.handle.bind(updateSchedule));
+  // ─── Edição com assinatura (PUT e PATCH aceitos — o front usa PATCH) ──────
+  app.put("/barbershops/:id",            { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
+  app.patch("/barbershops/:id",          { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
+  app.put("/barbershops/:id/schedule",   { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, updateSchedule.handle.bind(updateSchedule));
+  app.patch("/barbershops/:id/schedule", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, updateSchedule.handle.bind(updateSchedule));
 
   // ─── Logo — Fluxo 1: Signed URL (upload direto cliente → GCS) ─────────────
   //

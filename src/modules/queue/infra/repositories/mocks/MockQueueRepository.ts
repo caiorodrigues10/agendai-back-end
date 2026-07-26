@@ -7,6 +7,22 @@ export class MockQueueRepository implements IQueueRepository {
   private data: IQueueItemResponseDTO[] = [];
   private seq = 1;
 
+  async findActiveDuplicate(
+    barbershopId: string,
+    customerId: string,
+    whatsappDigits: string
+  ): Promise<IQueueItemResponseDTO | null> {
+    return (
+      this.data.find(
+        (q) =>
+          q.barbershopId === barbershopId &&
+          (q.status === "waiting" || q.status === "in_chair") &&
+          (q.customerId === customerId ||
+            q.whatsapp.replace(/\D/g, "") === whatsappDigits)
+      ) ?? null
+    );
+  }
+
   async create(payload: IJoinQueueDTO): Promise<IQueueItemResponseDTO> {
     const id = `queue-${this.seq++}`;
     const now = Date.now();

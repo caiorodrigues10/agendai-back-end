@@ -29,7 +29,7 @@ services:
       DATABASE_URL: postgresql://barberqueue:barberqueue123@database:5432/barberqueue_db
       NODE_ENV: development
       PORT: "3333"
-      ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:5173"
+      ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:5173,http://127.0.0.1:3002,http://127.0.0.1:3003,http://localhost:3003"
       # Dentro do container, a chave GCS fica em /run/secrets/gcs-key.json
       GCS_KEY_FILE_PATH: /run/secrets/gcs-key.json
     ports:

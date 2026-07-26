@@ -12,7 +12,8 @@ async function getAvailablePlans() {
     orderBy: { price: "asc" },
     select: {
       id: true, name: true, description: true,
-      price: true, maxEmployees: true, features: true
+      price: true, billingCycle: true, maxEmployees: true,
+      hasDashboard: true, tierKey: true, features: true
     }
   });
 }
@@ -139,7 +140,8 @@ export async function unblockOwnerCpfs(
 }
 
 export async function checkCnpjAccess(cnpj: string): Promise<void> {
-  const existingBarbershop = await prisma.barbershop.findUnique({
+  // findFirst: cnpj não possui constraint @unique no schema
+  const existingBarbershop = await prisma.barbershop.findFirst({
     where: { cnpj },
     select: {
       id: true,

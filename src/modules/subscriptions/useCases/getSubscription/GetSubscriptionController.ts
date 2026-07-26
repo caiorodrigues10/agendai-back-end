@@ -2,8 +2,27 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { buildSubscriptionResponse } from "../../utils/subscriptionMapper";
+import { computePlanEconomics } from "../../utils/planEconomics";
 
 const TRIAL_DAYS = 30;
+
+async function loadActivePlans() {
+  return prisma.plan.findMany({
+    where: { active: true },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      billingCycle: true,
+      hasDashboard: true,
+      tierKey: true,
+      maxEmployees: true,
+      features: true,
+      description: true,
+    },
+    orderBy: { price: "asc" },
+  });
+}
 
 export class GetSubscriptionController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -17,7 +36,7 @@ export class GetSubscriptionController {
       barbershopId = id ?? q.barbershopId ?? "";
       if (!barbershopId) throw new AppError("Informe o barbershopId", 400);
     } else {
-      if (!user.barbershopId) throw new AppError("Usuário sem barbearia vinculada", 400);
+      if (!user.barbershopId) throw new AppError("Usuário sem salão vinculado", 400);
       barbershopId = user.barbershopId;
     }
 
@@ -26,7 +45,7 @@ export class GetSubscriptionController {
       select: { id: true, createdAt: true, active: true }
     });
 
-    if (!barbershop) throw new AppError("Barbearia não encontrada", 404);
+    if (!barbershop) throw new AppError("Salão não encontrado", 404);
 
     const subscription = await prisma.subscription.findUnique({
       where: { barbershopId },
@@ -35,6 +54,8 @@ export class GetSubscriptionController {
         invoices: { orderBy: { createdAt: "desc" }, take: 5 }
       }
     });
+
+    const plans = await loadActivePlans();
 
     if (!subscription) {
       const trialEndsAt = new Date(barbershop.createdAt);
@@ -46,20 +67,34 @@ export class GetSubscriptionController {
         ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
         : 0;
 
+      const economics = computePlanEconomics({ plans });
+
       return reply.send({
         success: true,
         data: {
           subscription: null,
-          trial: { isInTrial, trialEndsAt, daysRemainingInTrial, isExpired: !isInTrial }
+          trial: { isInTrial, trialEndsAt, daysRemainingInTrial, isExpired: !isInTrial },
+          economics,
+          plans,
         }
       });
     }
 
     const dto = buildSubscriptionResponse(subscription, barbershop.createdAt, TRIAL_DAYS);
+    const economics = computePlanEconomics({
+      plans,
+      currentPlanId: subscription.planId,
+      subscriptionStart: subscription.startDate,
+    });
 
     return reply.send({
       success: true,
-      data: { subscription: dto, invoices: subscription.invoices }
+      data: {
+        subscription: dto,
+        invoices: subscription.invoices,
+        economics,
+        plans,
+      }
     });
   }
 }

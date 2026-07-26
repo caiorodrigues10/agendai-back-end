@@ -4,14 +4,22 @@ import {
   ICreatePaymentRecordDTO,
   IUpdatePaymentStatusDTO
 } from "../../repositories/IPaymentRepository";
-import { IPaymentResponseDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
+import {
+  IPaymentResponseDTO,
+  PaymentProvider,
+  PaymentStatus
+} from "../../dtos/IPaymentDTO";
 
 // mpPaymentId é BigInt no banco. Serializamos como string para evitar
 // truncamento silencioso de IDs acima de Number.MAX_SAFE_INTEGER (2^53-1).
 function mapToDTO(record: any): IPaymentResponseDTO {
   return {
     id: record.id,
-    mpPaymentId: record.mpPaymentId.toString(),
+    mpPaymentId:
+      record.mpPaymentId != null ? record.mpPaymentId.toString() : null,
+    provider: (record.provider as PaymentProvider) ?? "MERCADOPAGO",
+    providerPaymentId: record.providerPaymentId ?? null,
+    checkoutUrl: record.checkoutUrl ?? null,
     status: record.status as PaymentStatus,
     statusDetail: record.statusDetail,
     paymentMethod: record.paymentMethod,
@@ -46,7 +54,13 @@ export class PaymentRepository implements IPaymentRepository {
   async create(data: ICreatePaymentRecordDTO): Promise<IPaymentResponseDTO> {
     const record = await prisma.payment.create({
       data: {
-        mpPaymentId: BigInt(data.mpPaymentId),
+        mpPaymentId:
+          data.mpPaymentId != null && data.mpPaymentId !== ""
+            ? BigInt(data.mpPaymentId)
+            : null,
+        provider: data.provider ?? "MERCADOPAGO",
+        providerPaymentId: data.providerPaymentId ?? null,
+        checkoutUrl: data.checkoutUrl ?? null,
         status: data.status,
         statusDetail: data.statusDetail,
         paymentMethod: data.paymentMethod,
@@ -75,6 +89,25 @@ export class PaymentRepository implements IPaymentRepository {
   async findByMpPaymentId(mpPaymentId: string): Promise<IPaymentResponseDTO | null> {
     const record = await prisma.payment.findUnique({
       where: { mpPaymentId: BigInt(mpPaymentId) }
+    });
+    return record ? mapToDTO(record) : null;
+  }
+
+  async findByProviderPaymentId(
+    providerPaymentId: string
+  ): Promise<IPaymentResponseDTO | null> {
+    const record = await prisma.payment.findUnique({
+      where: { providerPaymentId }
+    });
+    return record ? mapToDTO(record) : null;
+  }
+
+  async findByExternalReference(
+    externalReference: string
+  ): Promise<IPaymentResponseDTO | null> {
+    const record = await prisma.payment.findFirst({
+      where: { externalReference },
+      orderBy: { createdAt: "desc" }
     });
     return record ? mapToDTO(record) : null;
   }

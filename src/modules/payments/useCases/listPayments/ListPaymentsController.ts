@@ -29,7 +29,7 @@ export class ListPaymentsController {
       resolvedBarbershopId = user.barbershopId;
       if (!resolvedBarbershopId) {
         throw new AppError(
-          "Usuário não está vinculado a nenhuma barbearia",
+          "Usuário não está vinculado a nenhum salão",
           400
         );
       }

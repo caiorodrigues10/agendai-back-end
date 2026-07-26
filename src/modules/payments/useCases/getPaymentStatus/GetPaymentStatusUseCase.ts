@@ -31,13 +31,15 @@ export class GetPaymentStatusUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       payment.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     const shouldSync =
-      syncWithMp || ["pending", "in_process"].includes(payment.status);
+      payment.provider === "MERCADOPAGO" &&
+      payment.mpPaymentId != null &&
+      (syncWithMp || ["pending", "in_process"].includes(payment.status));
 
-    if (shouldSync) {
+    if (shouldSync && payment.mpPaymentId) {
       try {
         // FIX-4: passa string diretamente — sem Number(), sem risco de truncamento
         const mpData = await this.mpService.getPaymentById(payment.mpPaymentId);

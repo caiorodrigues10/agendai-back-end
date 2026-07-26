@@ -1,3 +1,5 @@
+import { IPaymentResponseDTO } from "@/modules/payments/dtos/IPaymentDTO";
+
 export type SubscriptionStatus =
   | "TRIALING"
   | "ACTIVE"
@@ -8,7 +10,7 @@ export type SubscriptionStatus =
 export interface ISubscribeDTO {
   barbershopId: string;
   planId: string;
-  paymentMethod: "pix" | "credit_card";
+  paymentMethod: "pix" | "credit_card" | "payment_link";
   cardToken?: string;
   cardInstallments?: number;
   cardPaymentMethodId?: string;
@@ -24,6 +26,9 @@ export interface ISubscriptionResponseDTO {
   planId: string;
   planName: string;
   planPrice: number;
+  planBillingCycle?: "MONTHLY" | "YEARLY";
+  planHasDashboard?: boolean;
+  planTierKey?: string;
   status: SubscriptionStatus;
   startDate: Date;
   endDate: Date | null;
@@ -32,6 +37,12 @@ export interface ISubscriptionResponseDTO {
   trialEndsAt: Date;
   daysRemainingInTrial: number | null;
   latestInvoice: IInvoiceResponseDTO | null;
+  /**
+   * Pagamento gerado no ato da assinatura (presente apenas na resposta de
+   * POST /subscriptions). Para PIX carrega o QR Code e a data de expiração,
+   * permitindo ao frontend exibir o QR e fazer polling em GET /payments/:id.
+   */
+  payment?: IPaymentResponseDTO;
 }
 
 export interface IInvoiceResponseDTO {

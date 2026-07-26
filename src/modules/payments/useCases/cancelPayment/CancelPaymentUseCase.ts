@@ -32,7 +32,7 @@ export class CancelPaymentUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       payment.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     // FIX-1: "cancelled" retorna idempotentemente em vez de 400
@@ -46,6 +46,14 @@ export class CancelPaymentUseCase {
         `Pagamento com status "${payment.status}" não pode ser cancelado`,
         400
       );
+    }
+
+    if (payment.provider === "ABACATEPAY" || !payment.mpPaymentId) {
+      // Cancelamento remoto AbacatePay ainda não suportado — só marca local
+      return this.paymentRepo.updateStatus(payment.id, {
+        status: "cancelled",
+        statusDetail: "cancelled_locally",
+      });
     }
 
     let mpResponse: Awaited<ReturnType<MercadoPagoService["cancelPayment"]>>;

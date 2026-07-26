@@ -1,4 +1,4 @@
-type RoleLiteral = "MASTER_ADMIN" | "OWNER" | "EMPLOYEE";
+type RoleLiteral = "MASTER_ADMIN" | "OWNER" | "EMPLOYEE" | "CUSTOMER";
 
 export interface IUserResponseDTO {
   id: string;

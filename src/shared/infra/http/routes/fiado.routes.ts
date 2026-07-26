@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { checkDashboardAccess } from "../middlewares/checkDashboardAccess";
 import { FiadoController } from "@/modules/fiado/controllers/FiadoController";
 
 export async function fiadoRoutes(app: FastifyInstance) {
@@ -12,8 +13,8 @@ export async function fiadoRoutes(app: FastifyInstance) {
   // Roles que podem deletar (apenas dono ou admin)
   const ownerRoles = ["MASTER_ADMIN", "OWNER"];
 
-  const staffGuard = [authenticate, authorize(staffRoles), checkSubscription];
-  const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription];
+  const staffGuard = [authenticate, authorize(staffRoles), checkSubscription, checkDashboardAccess];
+  const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess];
 
   // ─── Resumo (deve vir antes de /:id para não colidir com o parâmetro) ──────
   app.get(

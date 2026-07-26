@@ -4,6 +4,7 @@ import {
   IUpdateAppointmentDTO,
   IAppointmentResponseDTO,
   IListAppointmentsQuery,
+  IAvailabilitySlotDTO,
   AppointmentStatus,
 } from "@/modules/appointments/dtos/IAppointmentDTO";
 
@@ -91,5 +92,24 @@ export class MockAppointmentRepository implements IAppointmentRepository {
         updatedAt: new Date(),
       };
     }
+  }
+
+  async getOccupiedSlots(
+    barbershopId: string,
+    date: string
+  ): Promise<IAvailabilitySlotDTO[]> {
+    const target = new Date(date).toDateString();
+    return this.appointments
+      .filter(
+        (a) =>
+          a.barbershopId === barbershopId &&
+          a.status === "CONFIRMED" &&
+          a.date.toDateString() === target
+      )
+      .map((a) => ({
+        time: a.time,
+        staffId: a.staffId,
+        durationMinutes: 30,
+      }));
   }
 }

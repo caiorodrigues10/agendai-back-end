@@ -11,7 +11,7 @@ export class GetBarbershopUseCase {
   ) {}
   async execute(id: string): Promise<IBarbershopResponseDTO> {
     const entity = await this.barbershopRepository.findById(id);
-    if (!entity) throw new AppError("Barbearia não encontrada", 404);
+    if (!entity) throw new AppError("Salão não encontrado", 404);
     return entity;
   }
 }

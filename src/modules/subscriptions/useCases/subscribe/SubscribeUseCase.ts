@@ -1,18 +1,31 @@
 import { inject, injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
 import { MercadoPagoService } from "@/modules/payments/services/MercadoPagoService";
+import { AbacatePayService } from "@/modules/payments/services/AbacatePayService";
 import { IPaymentRepository } from "@/modules/payments/repositories/IPaymentRepository";
 import { AppError } from "@/shared/errors/AppError";
+import { IPaymentResponseDTO } from "@/modules/payments/dtos/IPaymentDTO";
 import { ISubscribeDTO, ISubscriptionResponseDTO } from "../../dtos/ISubscriptionDTO";
 import { buildSubscriptionResponse } from "../../utils/subscriptionMapper";
 
 const TRIAL_DAYS = 30;
+
+function frontendBaseUrl(): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
+  const firstOrigin = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean)[0];
+  return (firstOrigin || "http://localhost:5173").replace(/\/$/, "");
+}
 
 @injectable()
 export class SubscribeUseCase {
   constructor(
     @inject("MercadoPagoService")
     private mpService: MercadoPagoService,
+    @inject("AbacatePayService")
+    private abacateService: AbacatePayService,
     @inject("PaymentRepository")
     private paymentRepo: IPaymentRepository
   ) {}
@@ -25,7 +38,7 @@ export class SubscribeUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     const barbershop = await prisma.barbershop.findUnique({
@@ -34,12 +47,19 @@ export class SubscribeUseCase {
     });
 
     if (!barbershop || !barbershop.active) {
-      throw new AppError("Barbearia não encontrada ou inativa", 404);
+      throw new AppError("Salão não encontrado ou inativo", 404);
     }
 
     const plan = await prisma.plan.findUnique({
       where: { id: data.planId },
-      select: { id: true, name: true, price: true, active: true },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        active: true,
+        description: true,
+        abacateProductId: true,
+      },
     });
 
     if (!plan || !plan.active) {
@@ -60,10 +80,10 @@ export class SubscribeUseCase {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
 
-    // Para PIX: subscription inicia como PAST_DUE e só ativa via webhook.
-    // Para cartão aprovado: ACTIVE imediatamente.
-    // Isso evita que usuários com PIX pendente tenham acesso antes de pagar.
-    const initialStatus = data.paymentMethod === "pix" ? "PAST_DUE" : "ACTIVE";
+    // PIX e payment_link: PAST_DUE até webhook. Cartão MP: ACTIVE se aprovado.
+    const pendingUntilWebhook =
+      data.paymentMethod === "pix" || data.paymentMethod === "payment_link";
+    const initialStatus = pendingUntilWebhook ? "PAST_DUE" : "ACTIVE";
 
     const subscription = await prisma.subscription.upsert({
       where: { barbershopId: data.barbershopId },
@@ -71,7 +91,7 @@ export class SubscribeUseCase {
         planId: plan.id,
         status: initialStatus,
         startDate: new Date(),
-        endDate: data.paymentMethod === "pix" ? null : dueDate,
+        endDate: pendingUntilWebhook ? null : dueDate,
         cancelDate: null,
       },
       create: {
@@ -79,7 +99,7 @@ export class SubscribeUseCase {
         planId: plan.id,
         status: initialStatus,
         startDate: new Date(),
-        endDate: data.paymentMethod === "pix" ? null : dueDate,
+        endDate: pendingUntilWebhook ? null : dueDate,
       },
     });
 
@@ -96,8 +116,18 @@ export class SubscribeUseCase {
     const externalReference = `bq-sub-${subscription.id}-inv-${invoice.id}`;
     const description = `Assinatura BarberQueue — ${plan.name}`;
 
+    let paymentRecord: IPaymentResponseDTO | undefined;
+
     try {
-      if (data.paymentMethod === "pix") {
+      if (data.paymentMethod === "payment_link") {
+        paymentRecord = await this.createAbacatePaymentLink({
+          plan,
+          data,
+          barbershopId: data.barbershopId,
+          externalReference,
+          description,
+        });
+      } else if (data.paymentMethod === "pix") {
         const mpResponse = await this.mpService.createPixPayment({
           transactionAmount: plan.price,
           description,
@@ -109,12 +139,12 @@ export class SubscribeUseCase {
           },
           barbershopId: data.barbershopId,
           externalReference,
-          // PIX de assinatura expira em 24h
           expirationMinutes: 60 * 24,
         });
 
-        await this.paymentRepo.create({
+        paymentRecord = await this.paymentRepo.create({
           mpPaymentId: mpResponse.id,
+          provider: "MERCADOPAGO",
           status: mpResponse.status as any,
           statusDetail: mpResponse.status_detail,
           paymentMethod: "pix",
@@ -126,14 +156,14 @@ export class SubscribeUseCase {
           pixQrCode:
             mpResponse.point_of_interaction?.transaction_data?.qr_code ?? null,
           pixQrCodeBase64:
-            mpResponse.point_of_interaction?.transaction_data?.qr_code_base64 ?? null,
+            mpResponse.point_of_interaction?.transaction_data?.qr_code_base64 ??
+            null,
           pixExpirationDate: mpResponse.date_of_expiration
             ? new Date(mpResponse.date_of_expiration)
             : null,
           rawResponse: JSON.stringify(mpResponse),
         });
       } else {
-        // Cartão de crédito/débito
         if (!data.cardToken || !data.cardPaymentMethodId) {
           throw new AppError(
             "Token e método de pagamento do cartão são obrigatórios",
@@ -171,8 +201,9 @@ export class SubscribeUseCase {
             ? "debit_card"
             : "credit_card";
 
-        await this.paymentRepo.create({
+        paymentRecord = await this.paymentRepo.create({
           mpPaymentId: mpResponse.id,
+          provider: "MERCADOPAGO",
           status: mpResponse.status as any,
           statusDetail: mpResponse.status_detail,
           paymentMethod: paymentMethod as any,
@@ -184,7 +215,6 @@ export class SubscribeUseCase {
           rawResponse: JSON.stringify(mpResponse),
         });
 
-        // Cartão aprovado imediatamente → marca invoice como paga e subscription ACTIVE
         if (mpResponse.status === "approved") {
           await prisma.$transaction([
             prisma.invoice.update({
@@ -197,7 +227,6 @@ export class SubscribeUseCase {
             }),
           ]);
         } else {
-          // Cartão não aprovado imediatamente (raro) → marca PAST_DUE
           await prisma.subscription.update({
             where: { id: subscription.id },
             data: { status: "PAST_DUE" },
@@ -205,11 +234,14 @@ export class SubscribeUseCase {
         }
       }
     } catch (error: any) {
-      // Falha no pagamento → reverte subscription para PAST_DUE
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { status: "PAST_DUE" },
-      }).catch(() => {}); // não mascara o erro original
+      if (error instanceof AppError) throw error;
+
+      await prisma.subscription
+        .update({
+          where: { id: subscription.id },
+          data: { status: "PAST_DUE" },
+        })
+        .catch(() => {});
 
       throw new AppError(
         `Erro ao processar pagamento: ${error.message ?? "Erro desconhecido"}`,
@@ -225,6 +257,91 @@ export class SubscribeUseCase {
       },
     });
 
-    return buildSubscriptionResponse(full, barbershop.createdAt, TRIAL_DAYS);
+    return {
+      ...buildSubscriptionResponse(full, barbershop.createdAt, TRIAL_DAYS),
+      payment: paymentRecord,
+    };
+  }
+
+  private async createAbacatePaymentLink(params: {
+    plan: {
+      id: string;
+      name: string;
+      price: number;
+      description: string | null;
+      abacateProductId: string | null;
+    };
+    data: ISubscribeDTO;
+    barbershopId: string;
+    externalReference: string;
+    description: string;
+  }): Promise<IPaymentResponseDTO> {
+    const { plan, data, barbershopId, externalReference, description } = params;
+
+    let productId = plan.abacateProductId;
+    if (!productId) {
+      const product = await this.abacateService.ensureProduct({
+        externalId: plan.id,
+        name: plan.name,
+        priceReais: plan.price,
+        description: plan.description,
+      });
+      productId = product.id;
+      await prisma.plan.update({
+        where: { id: plan.id },
+        data: { abacateProductId: productId },
+      });
+    }
+
+    let customerId: string | undefined;
+    try {
+      const name = [data.payerFirstName, data.payerLastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      const customer = await this.abacateService.createCustomer({
+        email: data.payerEmail,
+        name: name || undefined,
+        taxId: data.payerIdentification?.number,
+      });
+      customerId = customer.id;
+    } catch {
+      // Customer opcional — checkout funciona sem pré-cadastro
+    }
+
+    const base = frontendBaseUrl();
+    const checkout = await this.abacateService.createCheckout({
+      productId,
+      externalId: externalReference,
+      customerId,
+      returnUrl: `${base}/checkout?planId=${plan.id}&status=back`,
+      completionUrl: `${base}/checkout?planId=${plan.id}&status=success`,
+      methods: ["PIX", "CARD"],
+      metadata: {
+        barbershopId,
+        planId: plan.id,
+        externalReference,
+      },
+    });
+
+    if (!checkout.url) {
+      throw new AppError("AbacatePay não retornou URL de checkout", 502);
+    }
+
+    return this.paymentRepo.create({
+      mpPaymentId: null,
+      provider: "ABACATEPAY",
+      providerPaymentId: checkout.id,
+      checkoutUrl: checkout.url,
+      status: "pending",
+      statusDetail: checkout.status ?? "PENDING",
+      paymentMethod: "payment_link",
+      transactionAmount: plan.price,
+      currency: "BRL",
+      description,
+      barbershopId,
+      externalReference,
+      rawResponse: JSON.stringify(checkout),
+    });
   }
 }

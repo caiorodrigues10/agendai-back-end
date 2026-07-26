@@ -17,11 +17,32 @@ export async function buildApp() {
     origin: (origin, cb) => {
       const allowed = (process.env.ALLOWED_ORIGINS || "")
         .split(",")
+        .map((o) => o.trim())
         .filter(Boolean);
+
       // Sem origin = requisição server-side (webhook do MP, ferramentas internas) → permitir
-      if (!origin || allowed.includes(origin)) {
+      if (!origin) {
         cb(null, true);
         return;
+      }
+      if (allowed.includes(origin)) {
+        cb(null, true);
+        return;
+      }
+      // Dev: aceitar localhost / 127.0.0.1 em qualquer porta comum do Vite
+      if (process.env.NODE_ENV !== "production") {
+        try {
+          const url = new URL(origin);
+          if (
+            (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+            ["http:", "https:"].includes(url.protocol)
+          ) {
+            cb(null, true);
+            return;
+          }
+        } catch {
+          /* ignore invalid origin */
+        }
       }
       cb(new Error("Origin not allowed"), false);
     },
@@ -31,6 +52,7 @@ export async function buildApp() {
       "Authorization",
       "X-Signature",
       "X-Request-Id",
+      "X-Webhook-Signature",
     ],
   });
 
@@ -39,10 +61,10 @@ export async function buildApp() {
     contentSecurityPolicy: process.env.NODE_ENV === "production",
   });
 
-  // Rate-limit global
+  // Rate-limit global — limiar alto o suficiente para painel + polling (15s) sem derrubar sessão
   await app.register(rateLimit, {
     global: true,
-    max: 120,
+    max: 400,
     timeWindow: "1 minute",
     errorResponseBuilder: () => ({
       success: false,
@@ -94,9 +116,27 @@ export async function buildApp() {
   // Handler global de erros
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
+      // Alguns AppError carregam a message como JSON serializado
+      // (ex.: { code: "SUBSCRIPTION_REQUIRED", plans, ... } no checkSubscription).
+      // Nesses casos espalhamos os campos na resposta para o frontend consumir
+      // diretamente (`code`, `plans`, `reason`, ...), mantendo `message` legível.
+      let extras: Record<string, unknown> | null = null;
+      try {
+        const parsed = JSON.parse(error.message);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          extras = parsed as Record<string, unknown>;
+        }
+      } catch {
+        // message é uma string comum — segue o fluxo padrão
+      }
+
       reply.status(error.statusCode).send({
         success: false,
-        message: error.message,
+        ...(extras ?? {}),
+        message:
+          extras && typeof extras.message === "string"
+            ? extras.message
+            : error.message,
         errors: error.errors,
       });
       return;

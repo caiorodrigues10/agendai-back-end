@@ -6,6 +6,7 @@ import {
   IUpdateAppointmentDTO,
   IAppointmentResponseDTO,
   IListAppointmentsQuery,
+  IAvailabilitySlotDTO,
 } from "../dtos/IAppointmentDTO";
 
 // ─── Create ───────────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ export class CreateAppointmentUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
     return this.repo.create(data);
   }
@@ -51,7 +52,7 @@ export class GetAppointmentUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       appointment.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     return appointment;
@@ -76,7 +77,7 @@ export class ListAppointmentsUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     return this.repo.list(barbershopId, query);
@@ -104,7 +105,7 @@ export class UpdateAppointmentUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       appointment.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     if (appointment.status === "CANCELLED") {
@@ -112,6 +113,24 @@ export class UpdateAppointmentUseCase {
     }
 
     return this.repo.update(id, data);
+  }
+}
+
+// ─── Availability ─────────────────────────────────────────────────────────────
+
+@injectable()
+export class GetAvailabilityUseCase {
+  constructor(
+    @inject("AppointmentRepository")
+    private repo: IAppointmentRepository
+  ) {}
+
+  /** Rota pública: retorna slots OCUPADOS do dia; o front calcula os livres. */
+  async execute(
+    barbershopId: string,
+    date: string
+  ): Promise<IAvailabilitySlotDTO[]> {
+    return this.repo.getOccupiedSlots(barbershopId, date);
   }
 }
 
@@ -135,7 +154,7 @@ export class CancelAppointmentUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       appointment.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     if (appointment.status === "CANCELLED") {

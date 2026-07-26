@@ -99,15 +99,16 @@ export class ProcessWebhookController {
       return reply.status(200).send({ received: true });
     }
 
-    // Responde imediatamente ao MP para evitar timeout e retentativas
-    reply.status(200).send({ received: true });
-
-    // Processa de forma assíncrona — falha aqui não afeta a resposta ao MP
+    // Processa ANTES de responder: se falhar, devolve 500 e o MP reenvia o
+    // webhook (retry automático). Responder 200 antes de processar causava
+    // perda silenciosa de notificações de pagamento.
     const useCase = container.resolve(ProcessWebhookUseCase);
-    useCase
-      .execute(parseResult.data as IMercadoPagoWebhookDTO)
-      .catch((err) => {
-        request.log.error(err, "Erro ao processar webhook do Mercado Pago");
-      });
+    try {
+      await useCase.execute(parseResult.data as IMercadoPagoWebhookDTO);
+      return reply.status(200).send({ received: true });
+    } catch (err) {
+      request.log.error(err, "Erro ao processar webhook do Mercado Pago");
+      return reply.status(500).send({ received: false });
+    }
   }
 }

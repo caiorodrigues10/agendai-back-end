@@ -17,7 +17,7 @@ export class CancelSubscriptionController {
       barbershopId = paramId ?? "";
       if (!barbershopId) throw new AppError("barbershopId é obrigatório", 400);
     } else {
-      if (!user.barbershopId) throw new AppError("Usuário sem barbearia vinculada", 400);
+      if (!user.barbershopId) throw new AppError("Usuário sem salão vinculado", 400);
       barbershopId = user.barbershopId;
     }
 
@@ -26,7 +26,7 @@ export class CancelSubscriptionController {
     });
 
     if (!subscription) {
-      throw new AppError("Nenhuma assinatura encontrada para esta barbearia", 404);
+      throw new AppError("Nenhuma assinatura encontrada para este salão", 404);
     }
 
     if (subscription.status === "CANCELED") {

@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
+import { authenticateOptional } from "../middlewares/authenticateOptional";
 import { checkSubscription } from "../middlewares/checkSubscription"; // NOVO
 import { ListQueueController } from "@/modules/queue/useCases/listQueue/ListQueueController";
 import { JoinQueueController } from "@/modules/queue/useCases/joinQueue/JoinQueueController";
@@ -14,8 +15,9 @@ export async function queueRoutes(app: FastifyInstance) {
   const del = new DeleteQueueItemController();
   const metrics = new GetQueueMetricsController();
 
-  // checkSubscription adicionado nas rotas autenticadas
-  app.get("/queue", { preHandler: [authenticate, checkSubscription] }, list.handle.bind(list));
+  // GET /queue: público (visão do cliente, dados mascarados) + staff (visão completa via token).
+  // checkSubscription retorna cedo quando request.user é undefined.
+  app.get("/queue", { preHandler: [authenticateOptional, checkSubscription] }, list.handle.bind(list));
   app.post("/queue", join.handle.bind(join)); // público — cliente entra sem conta
   app.patch("/queue/:id", { preHandler: [authenticate, checkSubscription] }, update.handle.bind(update));
   app.delete("/queue/:id", { preHandler: [authenticate, checkSubscription] }, del.handle.bind(del));

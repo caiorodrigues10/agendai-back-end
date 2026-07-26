@@ -8,7 +8,7 @@ const identificationSchema = z.object({
 export const subscribeSchema = z
   .object({
     planId: z.string().uuid("planId inválido"),
-    paymentMethod: z.enum(["pix", "credit_card"]),
+    paymentMethod: z.enum(["pix", "credit_card", "payment_link"]),
     cardToken: z.string().optional(),
     cardPaymentMethodId: z.string().optional(),
     payerEmail: z.string().email("E-mail inválido"),

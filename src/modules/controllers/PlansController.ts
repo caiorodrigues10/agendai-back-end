@@ -3,6 +3,20 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { createPlanSchema, updatePlanSchema } from "@/modules/plans/schemas/planSchemas";
 
+const planSelect = {
+  id: true,
+  name: true,
+  description: true,
+  price: true,
+  billingCycle: true,
+  maxEmployees: true,
+  hasDashboard: true,
+  tierKey: true,
+  features: true,
+  active: true,
+  createdAt: true,
+} as const;
+
 export class PlansController {
   async list(request: FastifyRequest, reply: FastifyReply) {
     const { all } = request.query as { all?: string };
@@ -11,10 +25,7 @@ export class PlansController {
     const plans = await prisma.plan.findMany({
       where: onlyActive ? { active: true } : {},
       orderBy: { price: "asc" },
-      select: {
-        id: true, name: true, description: true, price: true,
-        maxEmployees: true, features: true, active: true, createdAt: true
-      }
+      select: planSelect,
     });
 
     return reply.send({ success: true, data: plans });
@@ -25,10 +36,7 @@ export class PlansController {
 
     const plan = await prisma.plan.findUnique({
       where: { id },
-      select: {
-        id: true, name: true, description: true, price: true,
-        maxEmployees: true, features: true, active: true, createdAt: true
-      }
+      select: planSelect,
     });
 
     if (!plan) throw new AppError("Plano não encontrado", 404);
@@ -41,10 +49,7 @@ export class PlansController {
 
     const plan = await prisma.plan.create({
       data,
-      select: {
-        id: true, name: true, description: true, price: true,
-        maxEmployees: true, features: true, active: true, createdAt: true
-      }
+      select: planSelect,
     });
 
     if (request.user) {
@@ -73,10 +78,7 @@ export class PlansController {
     const plan = await prisma.plan.update({
       where: { id },
       data,
-      select: {
-        id: true, name: true, description: true, price: true,
-        maxEmployees: true, features: true, active: true, createdAt: true
-      }
+      select: planSelect,
     });
 
     // Corrigido: auditLog faltava no update
@@ -129,8 +131,8 @@ export class PlansController {
       data: {
         activeSubscriptionsRemaining: activeCount,
         info: activeCount > 0
-          ? `${activeCount} barbearia(s) ainda usam este plano até o vencimento. Após isso precisarão assinar um novo.`
-          : "Nenhuma barbearia ativa neste plano."
+          ? `${activeCount} salão(ões) ainda usam este plano até o vencimento. Após isso precisarão assinar um novo.`
+          : "Nenhum salão ativo neste plano."
       }
     });
   }

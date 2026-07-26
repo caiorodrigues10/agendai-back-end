@@ -8,7 +8,7 @@ import {
   DeleteFiadoUseCase,
   AddFiadoPaymentUseCase,
   GetFiadoSummaryUseCase,
-} from "../useCases/fiadoUseCases";
+} from "../usecases/fiadoUseCases";
 import {
   createFiadoSchema,
   updateFiadoSchema,

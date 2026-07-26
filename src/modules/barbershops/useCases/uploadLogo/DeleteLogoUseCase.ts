@@ -22,18 +22,18 @@ export class DeleteLogoUseCase {
       barbershopId !== requestingUser.barbershopId
     ) {
       throw new AppError(
-        "Acesso negado: você não pertence a esta barbearia",
+        "Acesso negado: você não pertence a este salão",
         403
       );
     }
 
     const barbershop = await this.barbershopRepository.findById(barbershopId);
     if (!barbershop) {
-      throw new AppError("Barbearia não encontrada", 404);
+      throw new AppError("Salão não encontrado", 404);
     }
 
     if (!barbershop.logoUrl) {
-      throw new AppError("Esta barbearia não possui logo cadastrada", 404);
+      throw new AppError("Este salão não possui logo cadastrada", 404);
     }
 
     // Deleta o objeto do GCS

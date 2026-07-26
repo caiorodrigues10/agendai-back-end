@@ -1,9 +1,10 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma, Prisma } from "@/libs/prismaClient";
+import { SubscriptionStatus } from "@prisma/client";
 
 type SubscriptionWithRelations = Prisma.SubscriptionGetPayload<{
   include: {
-    plan: { select: { name: true; price: true } };
+    plan: { select: { name: true; price: true; billingCycle: true } };
     barbershop: { select: { id: true; name: true; whatsapp: true; createdAt: true } };
     invoices: true;
   };
@@ -19,7 +20,9 @@ export class ListSubscriptionsController {
     const take = Math.min(Number(limit), 100);
 
     const where: Prisma.SubscriptionWhereInput = {};
-    if (status) where.status = status;
+    if (status && status in SubscriptionStatus) {
+      where.status = status as SubscriptionStatus;
+    }
     if (search) {
       where.barbershop = {
         OR: [
@@ -36,7 +39,7 @@ export class ListSubscriptionsController {
         take, 
         orderBy: { createdAt: "desc" },
         include: {
-          plan: { select: { name: true, price: true } },
+          plan: { select: { name: true, price: true, billingCycle: true } },
           barbershop: { select: { id: true, name: true, whatsapp: true, createdAt: true } },
           invoices: { orderBy: { createdAt: "desc" }, take: 1 }
         }
@@ -57,6 +60,7 @@ export class ListSubscriptionsController {
         planId: sub.planId,
         planName: sub.plan?.name,
         planPrice: sub.plan?.price,
+        planBillingCycle: sub.plan?.billingCycle,
         status: sub.status,
         startDate: sub.startDate,
         endDate: sub.endDate,

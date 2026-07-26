@@ -7,7 +7,10 @@ const select = {
   name: true,
   description: true,
   price: true,
+  billingCycle: true,
   maxEmployees: true,
+  hasDashboard: true,
+  tierKey: true,
   features: true,
   active: true,
   createdAt: true

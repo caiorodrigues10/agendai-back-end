@@ -24,7 +24,7 @@ export class CreateExpenseUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
     return this.expenseRepository.create(data);
   }
@@ -45,7 +45,7 @@ export class ListExpensesUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       query.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
     return this.expenseRepository.list(query);
   }
@@ -69,7 +69,7 @@ export class GetExpenseUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       expense.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
     return expense;
   }
@@ -94,7 +94,7 @@ export class UpdateExpenseUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       expense.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
     return this.expenseRepository.update(id, data);
   }
@@ -118,7 +118,7 @@ export class DeleteExpenseUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       expense.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
     await this.expenseRepository.delete(id);
   }
@@ -141,7 +141,7 @@ export class GetExpenseSummaryUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
     return this.expenseRepository.getSummary(barbershopId, from, to);
   }

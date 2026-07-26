@@ -1,5 +1,6 @@
 import { prisma } from "@/libs/prismaClient";
 import { unblockOwnerCpfs } from "@/modules/subscriptions/utils/checkBarbershopAccess";
+import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 
 export async function handleSubscriptionPaymentWebhook(
   externalReference: string | null | undefined,
@@ -37,7 +38,8 @@ export async function handleSubscriptionPaymentWebhook(
       })
     ]);
 
-    // Desbloqueio automático dos CPFs dos owners
+    invalidateSubscriptionCache(subscription.barbershopId);
+
     await unblockOwnerCpfs(
       subscription.barbershopId,
       "system",
@@ -49,7 +51,6 @@ export async function handleSubscriptionPaymentWebhook(
       );
     });
 
-    // Notificação de pagamento confirmado
     await prisma.adminNotification.create({
       data: {
         type: "PAYMENT_RECEIVED",
@@ -77,7 +78,8 @@ export async function handleSubscriptionPaymentWebhook(
       })
     ]);
 
-    // Notificação de assinatura expirada
+    invalidateSubscriptionCache(subscription.barbershopId);
+
     await prisma.adminNotification.create({
       data: {
         type: "SUBSCRIPTION_EXPIRED",

@@ -35,8 +35,9 @@ describe("cpfUtils", () => {
       expect(isValidCpf("")).toBe(false);
     });
 
-    it("aceita 045.001.300-88", () => {
-      expect(isValidCpf("04500130088")).toBe(true);
+    it("aceita 168.995.350-09", () => {
+      // Nota: o fixture anterior (045.001.300-88) tinha dígito verificador inválido
+      expect(isValidCpf("16899535009")).toBe(true);
     });
   });
 

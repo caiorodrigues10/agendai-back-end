@@ -52,6 +52,12 @@ enum PaymentMethodEnum {
   credit_card
   debit_card
   pix
+  payment_link
+}
+
+enum PaymentProvider {
+  MERCADOPAGO
+  ABACATEPAY
 }
 
 enum PaymentStatusEnum {
@@ -68,7 +74,10 @@ enum PaymentStatusEnum {
 
 model Payment {
   id                String            @id @default(uuid()) @db.Uuid
-  mpPaymentId       BigInt            @unique
+  mpPaymentId       BigInt?           @unique
+  provider          PaymentProvider   @default(MERCADOPAGO)
+  providerPaymentId String?           @unique @db.VarChar(128)
+  checkoutUrl       String?           @db.VarChar(500)
   status            PaymentStatusEnum @default(pending)
   statusDetail      String            @db.VarChar(100)
   paymentMethod     PaymentMethodEnum
@@ -93,6 +102,7 @@ model Payment {
   @@index([barbershopId])
   @@index([status])
   @@index([mpPaymentId])
+  @@index([providerPaymentId])
   @@index([externalReference])
 }
 
@@ -228,7 +238,8 @@ model FeedPost {
   type         FeedType
   title        String?  @db.VarChar(200)
   content      String   @db.Text
-  imageUrl     String?  @db.VarChar(500)
+  // Text: o front envia data-URLs base64 (até migrar para upload GCS)
+  imageUrl     String?  @db.Text
   likes        Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -245,20 +256,35 @@ enum FeedType {
   ANNOUNCEMENT
 }
 
+enum PlanBillingCycle {
+  MONTHLY
+  YEARLY
+}
+
 model Plan {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String   @db.VarChar(100)
-  description  String?  @db.Text
-  price        Float    @db.Real
-  maxEmployees Int      @default(1)
-  features     String[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  active       Boolean  @default(true)
+  id               String           @id @default(uuid()) @db.Uuid
+  name             String           @db.VarChar(100)
+  description      String?          @db.Text
+  price            Float            @db.Real
+  billingCycle     PlanBillingCycle @default(MONTHLY)
+  /// 0 = funcionários ilimitados
+  maxEmployees     Int              @default(0)
+  /// Relatórios / financeiro / insights (dashboard analítico do staff)
+  hasDashboard     Boolean          @default(true)
+  /// Agrupa mensal/anual do mesmo produto (essential | pro)
+  tierKey          String           @default("pro") @db.VarChar(40)
+  features         String[]
+  abacateProductId String?          @db.VarChar(64)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  active           Boolean          @default(true)
 
   subscriptions Subscription[]
 
   @@map("plans")
+  @@index([billingCycle])
+  @@index([tierKey])
+  @@index([hasDashboard])
 }
 
 model Subscription {

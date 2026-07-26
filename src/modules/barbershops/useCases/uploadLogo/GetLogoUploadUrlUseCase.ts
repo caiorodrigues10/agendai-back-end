@@ -40,7 +40,7 @@ export class GetLogoUploadUrlUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     const extension = ALLOWED_MIME_TYPES[data.mimeType];
@@ -53,7 +53,7 @@ export class GetLogoUploadUrlUseCase {
 
     const barbershop = await this.barbershopRepository.findById(data.barbershopId);
     if (!barbershop) {
-      throw new AppError("Barbearia não encontrada", 404);
+      throw new AppError("Salão não encontrado", 404);
     }
 
     // Nome único: logos/barbershop-{uuid}-{timestamp}-{random}.{ext}

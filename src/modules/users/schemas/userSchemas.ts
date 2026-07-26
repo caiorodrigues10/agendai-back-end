@@ -19,7 +19,7 @@ export const createUserSchema = z.object({
     .min(6, "Senha deve ter no mínimo 6 caracteres")
     .max(100, "Senha muito longa"),
   role: z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]).optional(),
-  barbershopId: z.string().uuid("ID de barbearia inválido").optional(),
+  barbershopId: z.string().uuid("ID de salão inválido").optional(),
   cpf: cpfSchema.optional()
 }).superRefine((data, ctx) => {
   const role = data.role ?? "EMPLOYEE";
@@ -29,7 +29,7 @@ export const createUserSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["barbershopId"],
-      message: "Admins não devem possuir barbearia vinculada"
+      message: "Admins não devem possuir salão vinculado"
     });
   }
   if (role !== "MASTER_ADMIN" && !data.barbershopId) {
@@ -71,7 +71,7 @@ export const updateUserSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["barbershopId"],
-        message: "Admins não devem possuir barbearia vinculada"
+        message: "Admins não devem possuir salão vinculado"
       });
     }
   });

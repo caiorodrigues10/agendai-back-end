@@ -42,7 +42,7 @@ export class UploadLogoDirectUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     // Valida MIME type
@@ -66,7 +66,7 @@ export class UploadLogoDirectUseCase {
     // Verifica se a barbearia existe
     const barbershop = await this.barbershopRepository.findById(data.barbershopId);
     if (!barbershop) {
-      throw new AppError("Barbearia não encontrada", 404);
+      throw new AppError("Salão não encontrado", 404);
     }
 
     // Nome único para evitar colisões e invalidar cache automaticamente

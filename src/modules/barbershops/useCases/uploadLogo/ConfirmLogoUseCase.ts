@@ -29,7 +29,7 @@ export class ConfirmLogoUseCase {
       data.barbershopId !== requestingUser.barbershopId
     ) {
       throw new AppError(
-        "Acesso negado: você não pertence a esta barbearia",
+        "Acesso negado: você não pertence a este salão",
         403
       );
     }
@@ -38,7 +38,7 @@ export class ConfirmLogoUseCase {
       data.barbershopId
     );
     if (!barbershop) {
-      throw new AppError("Barbearia não encontrada", 404);
+      throw new AppError("Salão não encontrado", 404);
     }
 
     // Valida que a URL pertence ao nosso bucket (evita injeção de URL externa)

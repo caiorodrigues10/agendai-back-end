@@ -7,7 +7,7 @@ export async function setupSwagger(app: FastifyInstance) {
     openapi: {
       info: {
         title: "BarberQueue API",
-        description: "API para gestão de filas e agendamentos de barbearias",
+        description: "API para gestão de filas e agendamentos de salões",
         version: "1.0.0"
       },
       servers: [
@@ -28,7 +28,7 @@ export async function setupSwagger(app: FastifyInstance) {
       tags: [
         { name: "Auth", description: "Autenticação e autorização" },
         { name: "Users", description: "Gerenciamento de usuários" },
-        { name: "Barbershops", description: "Gerenciamento de barbearias" },
+        { name: "Barbershops", description: "Gerenciamento de salões" },
         { name: "Services", description: "Serviços oferecidos" },
         { name: "Queue", description: "Fila de atendimento" },
         { name: "Appointments", description: "Agendamentos" },

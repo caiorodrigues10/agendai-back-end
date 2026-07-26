@@ -28,7 +28,7 @@ export class CreateFiadoUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     return this.fiadoRepository.create(data);
@@ -55,7 +55,7 @@ export class GetFiadoUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       fiado.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     return fiado;
@@ -79,7 +79,7 @@ export class ListFiadosUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       query.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     return this.fiadoRepository.list(query);
@@ -107,7 +107,7 @@ export class UpdateFiadoUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       fiado.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     if (fiado.status === "PAID" && data.status !== "FORGIVEN") {
@@ -138,7 +138,7 @@ export class DeleteFiadoUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       fiado.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     await this.fiadoRepository.delete(id);
@@ -165,7 +165,7 @@ export class AddFiadoPaymentUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       fiado.barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     if (fiado.status === "PAID" || fiado.status === "FORGIVEN") {
@@ -200,7 +200,7 @@ export class GetFiadoSummaryUseCase {
       requestingUser.role !== "MASTER_ADMIN" &&
       barbershopId !== requestingUser.barbershopId
     ) {
-      throw new AppError("Acesso negado: você não pertence a esta barbearia", 403);
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
     return this.fiadoRepository.getSummary(barbershopId);

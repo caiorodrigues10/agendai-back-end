@@ -1,4 +1,5 @@
 import { ISubscriptionResponseDTO, IInvoiceResponseDTO } from "../dtos/ISubscriptionDTO";
+import { inferBillingCycle } from "./planEconomics";
 
 export function buildSubscriptionResponse(
   record: any,
@@ -34,6 +35,9 @@ export function buildSubscriptionResponse(
     planId: record.planId,
     planName: record.plan.name,
     planPrice: record.plan.price,
+    planBillingCycle: inferBillingCycle(record.plan),
+    planHasDashboard: record.plan.hasDashboard ?? true,
+    planTierKey: record.plan.tierKey ?? undefined,
     status: record.status,
     startDate: record.startDate,
     endDate: record.endDate,

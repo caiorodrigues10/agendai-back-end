@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { checkDashboardAccess } from "../middlewares/checkDashboardAccess";
 import { ExpenseController } from "@/modules/expenses/controllers/ExpenseController";
 
 export async function expensesRoutes(app: FastifyInstance) {
@@ -10,8 +11,8 @@ export async function expensesRoutes(app: FastifyInstance) {
   const staffRoles = ["MASTER_ADMIN", "OWNER", "EMPLOYEE"];
   const ownerRoles = ["MASTER_ADMIN", "OWNER"];
 
-  const staffGuard = [authenticate, authorize(staffRoles), checkSubscription];
-  const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription];
+  const staffGuard = [authenticate, authorize(staffRoles), checkSubscription, checkDashboardAccess];
+  const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess];
 
   app.get(
     "/expenses/summary",
