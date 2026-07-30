@@ -104,6 +104,31 @@ export class QueueRepository implements IQueueRepository {
     });
   }
 
+  async findActiveInLine(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
+    const items = await prisma.queueItem.findMany({
+      where: { barbershopId, status: { in: ["WAITING", "IN_CHAIR"] } },
+      orderBy: { joinedAt: "asc" },
+      include: { service: true },
+    });
+    return items.map((i: any) => this.mapToDTO(i));
+  }
+
+  async findWaitingByBarbershop(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
+    const items = await prisma.queueItem.findMany({
+      where: { barbershopId, status: "WAITING" },
+      orderBy: { joinedAt: "asc" },
+      include: { service: true },
+    });
+    return items.map((i: any) => this.mapToDTO(i));
+  }
+
+  async markNotifiedPosition(id: string, position: number): Promise<void> {
+    await prisma.queueItem.update({
+      where: { id },
+      data: { lastNotifiedPosition: position },
+    });
+  }
+
   private mapToDTO(item: any): IQueueItemResponseDTO {
     return {
       id:              item.id,
@@ -119,13 +144,15 @@ export class QueueRepository implements IQueueRepository {
       estimatedStartAt: item.estimatedStartAt instanceof Date
                          ? item.estimatedStartAt.getTime()
                          : (item.estimatedStartAt ?? null),
+      lastNotifiedPosition: item.lastNotifiedPosition ?? null,
       addedByStaff:    item.addedByStaff,
       completedAt:     item.completedAt instanceof Date
                          ? item.completedAt.getTime()
                          : (item.completedAt ?? null),
       completedBy:     item.completedBy  ?? null,
       finalPrice:      item.finalPrice   ?? null,
-      serviceName:     item.service?.name ?? null
+      serviceName:     item.service?.name ?? null,
+      serviceAvgTimeMinutes: item.service?.avgTimeMinutes ?? null,
     };
   }
 }

@@ -4,7 +4,8 @@ services:
     container_name: barberqueue_db
     restart: always
     ports:
-      - "5432:5432"
+      # Host 5442 para não conflitar com outros Postgres locais (5440/5441 etc.)
+      - "5442:5432"
     environment:
       POSTGRES_USER: barberqueue
       POSTGRES_PASSWORD: barberqueue123

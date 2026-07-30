@@ -21,7 +21,8 @@ export class MockBarbershopRepository implements IBarbershopRepository {
       cnpj: null,
       address: null,
       createdAt: now,
-      active: true
+      active: true,
+      evolutionInstanceName: null
     };
     this.data.push(entity);
     this.schedules[id] = [];
@@ -39,7 +40,14 @@ export class MockBarbershopRepository implements IBarbershopRepository {
     const current = this.data[idx];
     const updated: IBarbershopResponseDTO = {
       ...current,
-      ...payload
+      ...payload,
+      // string vazia é normalizada para null: sinaliza "sem instância própria, usar fallback".
+      evolutionInstanceName:
+        payload.evolutionInstanceName === ""
+          ? null
+          : payload.evolutionInstanceName === undefined
+            ? current.evolutionInstanceName
+            : payload.evolutionInstanceName
     } as IBarbershopResponseDTO;
     this.data[idx] = updated;
     return updated;

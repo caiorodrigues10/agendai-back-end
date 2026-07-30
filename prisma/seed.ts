@@ -118,7 +118,7 @@ async function main() {
 		const { Prisma: PrismaNamespace } = await import('@prisma/client')
 		await prisma.$executeRaw(
 			PrismaNamespace.sql`
-        INSERT INTO users (id, name, email, password, role, cpf, active, created_at, updated_at)
+        INSERT INTO users (id, name, email, password, role, cpf, active, "createdAt", "updatedAt")
         VALUES (
           '00000000-0000-0000-0000-000000000000'::uuid,
           'Sistema',

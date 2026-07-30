@@ -23,4 +23,11 @@ export interface IAppointmentRepository {
 		barbershopId: string,
 		date: string,
 	): Promise<IAvailabilitySlotDTO[]>
+	/**
+	 * Agendamentos CONFIRMED de hoje (America/Sao_Paulo) ainda sem lembrete enviado.
+	 * Inclui nome da barbearia e do serviço para a mensagem.
+	 */
+	findConfirmedForReminderToday(): Promise<IAppointmentResponseDTO[]>
+	/** Marca o lembrete como enviado (reminderSentAt = now). */
+	markReminderSent(id: string): Promise<void>
 }

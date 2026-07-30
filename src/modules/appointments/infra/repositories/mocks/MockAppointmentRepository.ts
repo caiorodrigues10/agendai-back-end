@@ -8,6 +8,16 @@ import {
   AppointmentStatus,
 } from "@/modules/appointments/dtos/IAppointmentDTO";
 
+/** YYYY-MM-DD no fuso America/Sao_Paulo (espelha o repositório Prisma). */
+function todayInSaoPaulo(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export class MockAppointmentRepository implements IAppointmentRepository {
   public appointments: IAppointmentResponseDTO[] = [];
   private seq = 1;
@@ -17,6 +27,7 @@ export class MockAppointmentRepository implements IAppointmentRepository {
     const entity: IAppointmentResponseDTO = {
       id: `appointment-${this.seq++}`,
       barbershopId: data.barbershopId,
+      barbershopName: null,
       serviceId: data.serviceId,
       serviceName: null,
       servicePrice: null,
@@ -27,6 +38,7 @@ export class MockAppointmentRepository implements IAppointmentRepository {
       date: new Date(data.date),
       time: data.time,
       status: "CONFIRMED",
+      reminderSentAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -111,5 +123,31 @@ export class MockAppointmentRepository implements IAppointmentRepository {
         staffId: a.staffId,
         durationMinutes: 30,
       }));
+  }
+
+  async findConfirmedForReminderToday(): Promise<IAppointmentResponseDTO[]> {
+    // Janela do dia em America/Sao_Paulo, espelhando o AppointmentRepository
+    // real (que usa gte/lt). Evita divergence de fuso em CI em UTC.
+    const start = new Date(`${todayInSaoPaulo()}T00:00:00Z`);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return this.appointments.filter(
+      (a) =>
+        a.status === "CONFIRMED" &&
+        !a.reminderSentAt &&
+        a.date >= start &&
+        a.date < end
+    );
+  }
+
+  async markReminderSent(id: string): Promise<void> {
+    const idx = this.appointments.findIndex((a) => a.id === id);
+    if (idx >= 0) {
+      this.appointments[idx] = {
+        ...this.appointments[idx],
+        reminderSentAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
   }
 }

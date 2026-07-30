@@ -14,6 +14,7 @@ type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
 	include: {
 		service: { select: { name: true; price: true } }
 		staff: { select: { name: true } }
+		barbershop: { select: { name: true } }
 	}
 }>
 
@@ -21,6 +22,7 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 	return {
 		id: record.id,
 		barbershopId: record.barbershopId,
+		barbershopName: record.barbershop?.name ?? null,
 		serviceId: record.serviceId,
 		serviceName: record.service?.name ?? null,
 		servicePrice: record.service?.price ?? null,
@@ -31,6 +33,7 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 		date: record.date,
 		time: record.time,
 		status: record.status as AppointmentStatus,
+		reminderSentAt: record.reminderSentAt ?? null,
 		createdAt: record.createdAt,
 		updatedAt: record.updatedAt,
 	}
@@ -39,7 +42,18 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 const include = {
 	service: { select: { name: true, price: true } },
 	staff: { select: { name: true } },
+	barbershop: { select: { name: true } },
 } as const
+
+/** YYYY-MM-DD no fuso America/Sao_Paulo (mesmo padrão de comparação de date do módulo). */
+function todayInSaoPaulo(): string {
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'America/Sao_Paulo',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+	}).format(new Date())
+}
 
 export class AppointmentRepository implements IAppointmentRepository {
 	async create(data: ICreateAppointmentDTO): Promise<IAppointmentResponseDTO> {
@@ -159,5 +173,31 @@ export class AppointmentRepository implements IAppointmentRepository {
 			staffId: r.staffId ?? null,
 			durationMinutes: r.service?.avgTimeMinutes ?? 30,
 		}))
+	}
+
+	async findConfirmedForReminderToday(): Promise<IAppointmentResponseDTO[]> {
+		const today = todayInSaoPaulo()
+		const day = new Date(today)
+		const next = new Date(day)
+		next.setDate(next.getDate() + 1)
+
+		const records = await prisma.appointment.findMany({
+			where: {
+				status: 'CONFIRMED',
+				reminderSentAt: null,
+				date: { gte: day, lt: next },
+			},
+			orderBy: [{ time: 'asc' }],
+			include,
+		})
+
+		return records.map(mapToDTO)
+	}
+
+	async markReminderSent(id: string): Promise<void> {
+		await prisma.appointment.update({
+			where: { id },
+			data: { reminderSentAt: new Date() },
+		})
 	}
 }

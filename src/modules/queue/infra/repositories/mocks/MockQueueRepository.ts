@@ -4,7 +4,7 @@ import { IQueueItemResponseDTO } from "@/modules/queue/dtos/IQueueItemResponseDT
 import { AppError } from "@/shared/errors/AppError";
 
 export class MockQueueRepository implements IQueueRepository {
-  private data: IQueueItemResponseDTO[] = [];
+  public data: IQueueItemResponseDTO[] = [];
   private seq = 1;
 
   async findActiveDuplicate(
@@ -82,5 +82,35 @@ export class MockQueueRepository implements IQueueRepository {
         q.status === "completed" &&
         (!barbershopId || q.barbershopId === barbershopId)
     ).length;
+  }
+
+  async findActiveInLine(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
+    return this.data
+      .filter(
+        (q) =>
+          q.barbershopId === barbershopId &&
+          (q.status === "waiting" || q.status === "in_chair")
+      )
+      .sort((a, b) => a.joinedAt - b.joinedAt);
+  }
+
+  async findWaitingByBarbershop(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
+    return this.data
+      .filter(
+        (q) =>
+          q.barbershopId === barbershopId &&
+          q.status === "waiting"
+      )
+      .sort((a, b) => a.joinedAt - b.joinedAt);
+  }
+
+  async markNotifiedPosition(id: string, position: number): Promise<void> {
+    const idx = this.data.findIndex((q) => q.id === id);
+    if (idx >= 0) {
+      this.data[idx] = {
+        ...this.data[idx],
+        lastNotifiedPosition: position,
+      };
+    }
   }
 }

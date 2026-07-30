@@ -24,6 +24,7 @@ export interface IUpdateAppointmentDTO {
 export interface IAppointmentResponseDTO {
   id: string;
   barbershopId: string;
+  barbershopName?: string | null;
   serviceId: string;
   serviceName: string | null;
   servicePrice: number | null;
@@ -34,6 +35,8 @@ export interface IAppointmentResponseDTO {
   date: Date;
   time: string;
   status: AppointmentStatus;
+  /** Preenchido após o cron de lembrete diário enviar o WhatsApp */
+  reminderSentAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -118,6 +118,9 @@ model Barbershop {
   active          Boolean        @default(true)
   approvalStatus  ApprovalStatus @default(PENDING)
   rejectionReason String?        @db.Text
+  /// Nome da instância da Evolution API conectada ao WhatsApp desta barbearia.
+  /// Se vazio, cai no fallback da env var EVOLUTION_INSTANCE_NAME.
+  evolutionInstanceName String? @db.VarChar(100)
 
   schedules         Schedule[]
   services          Service[]
@@ -186,7 +189,9 @@ model QueueItem {
   whatsapp         String      @db.VarChar(20)
   joinedAt         DateTime    @default(now())
   status           QueueStatus @default(WAITING)
-  estimatedStartAt DateTime?
+  estimatedStartAt     DateTime?
+  /// Última posição notificada ao cliente (evita reenvio se a posição não mudou)
+  lastNotifiedPosition Int?
   addedByStaff     Boolean     @default(false)
   completedAt      DateTime?
   completedBy      String?     @db.Uuid
@@ -206,17 +211,19 @@ enum QueueStatus {
 }
 
 model Appointment {
-  id           String            @id @default(uuid()) @db.Uuid
-  barbershopId String            @db.Uuid
-  serviceId    String            @db.Uuid
-  staffId      String?           @db.Uuid
-  customerName String            @db.VarChar(200)
-  whatsapp     String            @db.VarChar(20)
-  date         DateTime          @db.Date
-  time         String            @db.VarChar(5)
-  status       AppointmentStatus @default(CONFIRMED)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id             String            @id @default(uuid()) @db.Uuid
+  barbershopId   String            @db.Uuid
+  serviceId      String            @db.Uuid
+  staffId        String?           @db.Uuid
+  customerName   String            @db.VarChar(200)
+  whatsapp       String            @db.VarChar(20)
+  date           DateTime          @db.Date
+  time           String            @db.VarChar(5)
+  status         AppointmentStatus @default(CONFIRMED)
+  /// Quando o lembrete diário de WhatsApp foi enviado (evita duplicidade)
+  reminderSentAt DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service    Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)

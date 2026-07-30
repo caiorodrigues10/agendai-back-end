@@ -16,7 +16,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         cnpj: true,
         address: true,
         createdAt: true,
-        active: true
+        active: true,
+        evolutionInstanceName: true
       }
     });
   }
@@ -31,7 +32,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         cnpj: true,
         address: true,
         createdAt: true,
-        active: true
+        active: true,
+        evolutionInstanceName: true
       }
     });
   }
@@ -46,7 +48,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         cnpj: true,
         address: true,
         createdAt: true,
-        active: true
+        active: true,
+        evolutionInstanceName: true
       }
     });
   }
@@ -62,7 +65,8 @@ export class BarbershopRepository implements IBarbershopRepository {
         cnpj: true,
         address: true,
         createdAt: true,
-        active: true
+        active: true,
+        evolutionInstanceName: true
       }
     });
   }

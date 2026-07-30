@@ -41,6 +41,7 @@ export class JoinQueueController {
           select: {
             whatsapp: true,
             name: true,
+            evolutionInstanceName: true,
             services: { where: { id: data.serviceId }, select: { name: true } },
           },
         });
@@ -52,7 +53,10 @@ export class JoinQueueController {
             `Nome: ${data.customerName}\n` +
             `Serviço: ${serviceName}\n` +
             `Contato: ${data.whatsapp}`;
-          await sendWhatsAppMessage(shop.whatsapp, msg, request.log);
+          await sendWhatsAppMessage(shop.whatsapp, msg, {
+            instanceName: shop.evolutionInstanceName ?? undefined,
+            log: request.log,
+          });
         }
       } catch {
         /* notificação não bloqueia entrada na fila */

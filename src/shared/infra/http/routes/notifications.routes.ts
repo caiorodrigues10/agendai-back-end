@@ -1,13 +1,18 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { container } from "tsyringe";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
 import { sendWhatsAppMessage } from "@/shared/services/whatsappNotificationService";
+import { SendAppointmentRemindersUseCase } from "@/modules/appointments/useCases/appointmentUseCases";
+import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
 
 const whatsappBodySchema = z.object({
   phone: z.string().min(8).max(20),
   message: z.string().min(1).max(2000),
+  /** Opcional: se informado, usa a instanceName da Evolution API da barbearia. */
+  barbershopId: z.string().uuid().optional(),
 });
 
 export async function notificationsRoutes(app: FastifyInstance) {
@@ -19,8 +24,35 @@ export async function notificationsRoutes(app: FastifyInstance) {
 
   /** POST /notifications/whatsapp — envio manual pelo staff (ex.: aviso ao cliente). */
   app.post("/notifications/whatsapp", { preHandler: staffGuard }, async (request, reply) => {
-    const { phone, message } = whatsappBodySchema.parse(request.body);
-    const sent = await sendWhatsAppMessage(phone, message, request.log);
+    const { phone, message, barbershopId } = whatsappBodySchema.parse(request.body);
+
+    let instanceName: string | undefined;
+    if (barbershopId) {
+      const shop = await container
+        .resolve<IBarbershopRepository>("BarbershopRepository")
+        .findById(barbershopId);
+      instanceName = shop?.evolutionInstanceName?.trim() || undefined;
+    }
+
+    const sent = await sendWhatsAppMessage(phone, message, {
+      instanceName,
+      log: request.log,
+    });
     return reply.send({ success: true, data: { sent } });
   });
+
+  /**
+   * POST /notifications/appointment-reminders/run
+   * Disparo manual do job de lembretes (debug/produção sem esperar o cron).
+   * Apenas MASTER_ADMIN.
+   */
+  app.post(
+    "/notifications/appointment-reminders/run",
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] },
+    async (_request, reply) => {
+      const useCase = container.resolve(SendAppointmentRemindersUseCase);
+      const result = await useCase.execute();
+      return reply.send({ success: true, data: result });
+    }
+  );
 }

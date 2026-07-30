@@ -1,2 +1,7 @@
 node_modules
-echo "gcs-key.json" >> .gitignore
+.env
+.env.*
+!.env.example
+gcs-key.json
+evolution-qrcode.png
+docker-compose.evolution.yml
