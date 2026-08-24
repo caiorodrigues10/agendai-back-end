@@ -4,6 +4,8 @@ export interface ICreateAppointmentDTO {
   barbershopId: string;
   serviceId: string;
   staffId?: string | null;
+  clientId?: string | null;
+  clientPackageId?: string | null;
   customerName: string;
   whatsapp: string;
   /** Formato ISO: "2026-06-20" */
@@ -35,6 +37,8 @@ export interface IAppointmentResponseDTO {
   date: Date;
   time: string;
   status: AppointmentStatus;
+  clientId?: string | null;
+  clientPackageId?: string | null;
   /** Preenchido após o cron de lembrete diário enviar o WhatsApp */
   reminderSentAt?: Date | null;
   createdAt: Date;
@@ -44,7 +48,7 @@ export interface IAppointmentResponseDTO {
 /**
  * Slot OCUPADO retornado por GET /appointments/availability.
  * O front calcula os horários livres a partir desta lista
- * (ver `isSlotAvailable` em BarberQueue/src/utils/schedulingUtils.ts).
+ * (ver `isSlotAvailable` em agendai/src/utils/schedulingUtils.ts).
  */
 export interface IAvailabilitySlotDTO {
   time: string;

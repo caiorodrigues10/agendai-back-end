@@ -19,7 +19,7 @@ PROJECT_ID="${GCS_PROJECT_ID:-}"
 [[ -z "$PROJECT_ID" || "$PROJECT_ID" == "seu-project-id-aqui" ]] && \
   err "GCS_PROJECT_ID não configurado no .env"
 
-SA_NAME="barberqueue-api"
+SA_NAME="agendai-api"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 KEY_OUTPUT="$(cd "$(dirname "$0")/.." && pwd)/gcs-key.json"
 
@@ -35,7 +35,7 @@ if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" &>/d
 else
   info "Criando Service Account..."
   gcloud iam service-accounts create "$SA_NAME" \
-    --display-name="BarberQueue API Service Account" \
+    --display-name="AgendAI API Service Account" \
     --project="$PROJECT_ID"
   ok "Service Account criada"
 fi
@@ -75,3 +75,4 @@ fi
 
 echo ""
 echo -e "${GREEN}Próximo passo: bash scripts/setup-gcs.sh${NC}"
+echo "Guia completo: docs/GCS_SETUP.md"

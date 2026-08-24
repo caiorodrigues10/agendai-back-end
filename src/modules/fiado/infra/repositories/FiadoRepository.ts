@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { AppError } from "@/shared/errors/AppError";
 import { IFiadoRepository } from "../../repositories/IFiadoRepository";
 import {
   ICreateFiadoDTO,
@@ -108,7 +109,7 @@ export class FiadoRepository implements IFiadoRepository {
     });
 
     if (fiado.status === "PAID" || fiado.status === "FORGIVEN") {
-      throw new Error("Este fiado já está encerrado.");
+      throw new AppError("Este fiado já está encerrado.", 400);
     }
 
     const newPaidAmount = fiado.paidAmount + data.amount;

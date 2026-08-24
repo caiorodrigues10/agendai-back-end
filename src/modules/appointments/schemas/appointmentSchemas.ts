@@ -1,39 +1,50 @@
 import { z } from 'zod'
+import { isValidDate, isNotPast, isWithinHorizon, isBusinessHour } from '@/shared/utils/dateUtils'
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/
+
+const phoneBR = z
+	.string()
+	.transform((v) => v.replace(/\D/g, ""))
+	.refine((v) => v.length >= 10 && v.length <= 11, {
+		message: "WhatsApp inválido (DDD + número com 8 ou 9 dígitos)",
+	});
+
+const dateField = z
+	.string()
+	.refine((v) => isValidDate(v), { message: 'Data inválida (use YYYY-MM-DD)' })
+	.refine((v) => isNotPast(v), { message: 'Data não pode ser no passado' })
+	.refine((v) => isWithinHorizon(v), { message: 'Data muito distante (máximo 60 dias)' })
+
+const timeField = z
+	.string()
+	.regex(timeRegex, 'Hora deve ser no formato HH:MM')
+	.refine((v) => isBusinessHour(v), { message: 'Horário fora do comercial (07:00–22:00)' })
 
 export const createAppointmentSchema = z.object({
 	barbershopId: z.string().uuid('barbershopId inválido'),
 	serviceId: z.string().uuid('serviceId inválido'),
 	staffId: z.string().uuid('staffId inválido').optional().nullable(),
 	customerName: z.string().min(2, 'Nome obrigatório').max(200),
-	whatsapp: z.string().min(8, 'WhatsApp inválido').max(20),
-	date: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve ser no formato YYYY-MM-DD'),
-	time: z.string().regex(timeRegex, 'Hora deve ser no formato HH:MM'),
+	whatsapp: phoneBR,
+	date: dateField,
+	time: timeField,
+	clientId: z.string().uuid().optional().nullable(),
+	clientPackageId: z.string().uuid().optional().nullable(),
 })
 
 export const updateAppointmentSchema = z.object({
 	staffId: z.string().uuid().optional().nullable(),
 	customerName: z.string().min(2).max(200).optional(),
-	whatsapp: z.string().min(8).max(20).optional(),
-	date: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve ser no formato YYYY-MM-DD')
-		.optional(),
-	time: z
-		.string()
-		.regex(timeRegex, 'Hora deve ser no formato HH:MM')
-		.optional(),
+	whatsapp: phoneBR.optional(),
+	date: dateField.optional(),
+	time: timeField.optional(),
 	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
 })
 
 export const availabilityQuerySchema = z.object({
 	barbershopId: z.string().uuid('barbershopId inválido'),
-	date: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve ser no formato YYYY-MM-DD'),
+	date: dateField,
 	staffId: z.string().uuid('staffId inválido').optional(),
 })
 

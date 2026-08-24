@@ -49,7 +49,7 @@ async function main() {
     },
   });
 
-  const externalReference = `bq-sub-${subscription.id}-inv-${invoice.id}`;
+  const externalReference = `ag-sub-${subscription.id}-inv-${invoice.id}`;
   const billId = `bill_sim_${stamp}`;
 
   const payment = await prisma.payment.create({
@@ -63,7 +63,7 @@ async function main() {
       paymentMethod: "payment_link",
       transactionAmount: plan.price,
       currency: "BRL",
-      description: `Assinatura BarberQueue — ${plan.name}`,
+      description: `Assinatura AgendAI — ${plan.name}`,
       barbershopId,
       externalReference,
       rawResponse: JSON.stringify({ simulated: true }),

@@ -33,6 +33,8 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 		date: record.date,
 		time: record.time,
 		status: record.status as AppointmentStatus,
+		clientId: record.clientId ?? null,
+		clientPackageId: record.clientPackageId ?? null,
 		reminderSentAt: record.reminderSentAt ?? null,
 		createdAt: record.createdAt,
 		updatedAt: record.updatedAt,
@@ -67,6 +69,8 @@ export class AppointmentRepository implements IAppointmentRepository {
 				date: new Date(data.date),
 				time: data.time,
 				status: 'CONFIRMED',
+				clientId: data.clientId ?? null,
+				clientPackageId: data.clientPackageId ?? null,
 			},
 			include,
 		})
@@ -150,6 +154,7 @@ export class AppointmentRepository implements IAppointmentRepository {
 	async getOccupiedSlots(
 		barbershopId: string,
 		date: string,
+		staffId?: string,
 	): Promise<IAvailabilitySlotDTO[]> {
 		const day = new Date(date)
 		const next = new Date(day)
@@ -160,6 +165,11 @@ export class AppointmentRepository implements IAppointmentRepository {
 				barbershopId,
 				status: 'CONFIRMED',
 				date: { gte: day, lt: next },
+				...(staffId
+					? {
+							OR: [{ staffId }, { staffId: null }],
+						}
+					: {}),
 			},
 			select: {
 				time: true,

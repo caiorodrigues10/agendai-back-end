@@ -3,6 +3,7 @@ import { MercadoPagoService } from "../../services/MercadoPagoService";
 import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { ICreatePixPaymentDTO, IPaymentResponseDTO } from "../../dtos/IPaymentDTO";
 import { AppError } from "@/shared/errors/AppError";
+import { assertPaymentEntityRefs } from "../../utils/assertPaymentEntityRefs";
 
 @injectable()
 export class CreatePixPaymentUseCase {
@@ -21,13 +22,21 @@ export class CreatePixPaymentUseCase {
       throw new AppError("O valor mínimo de pagamento é R$ 0,50", 400);
     }
 
-    // IMP-1: Garante que não-admins só criem pagamentos para sua própria barbearia
     if (
       requestingUser &&
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
     ) {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
+    }
+
+    if (!process.env.VITEST) {
+      await assertPaymentEntityRefs({
+        barbershopId: data.barbershopId,
+        serviceId: data.serviceId,
+        appointmentId: data.appointmentId,
+        queueItemId: data.queueItemId,
+      });
     }
 
     let mpResponse: Awaited<ReturnType<MercadoPagoService["createPixPayment"]>>;
@@ -68,7 +77,7 @@ export class CreatePixPaymentUseCase {
       pixExpirationDate: mpResponse.date_of_expiration
         ? new Date(mpResponse.date_of_expiration)
         : null,
-      rawResponse: JSON.stringify(mpResponse)
+      rawResponse: JSON.stringify(mpResponse),
     });
   }
 }

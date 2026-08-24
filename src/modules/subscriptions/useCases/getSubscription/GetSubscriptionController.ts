@@ -3,8 +3,7 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { buildSubscriptionResponse } from "../../utils/subscriptionMapper";
 import { computePlanEconomics } from "../../utils/planEconomics";
-
-const TRIAL_DAYS = 30;
+import { TRIAL_DAYS } from "@/shared/constants/subscription";
 
 async function loadActivePlans() {
   return prisma.plan.findMany({
@@ -57,26 +56,36 @@ export class GetSubscriptionController {
 
     const plans = await loadActivePlans();
 
+    // Trial Pro = createdAt + TRIAL_DAYS (independe do plano escolhido/assinado).
+    // Quem assina Essencial no meio do trial continua com Pro até o fim; depois faz "downgrade".
+    const trialEndsAt = new Date(barbershop.createdAt);
+    trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+    const now = new Date();
+    const isInTrial = now <= trialEndsAt;
+    const daysRemainingInTrial = isInTrial
+      ? Math.max(
+          0,
+          Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+        )
+      : 0;
+    const trial = {
+      isInTrial,
+      trialEndsAt,
+      daysRemainingInTrial,
+      isExpired: !isInTrial,
+    };
+
     if (!subscription) {
-      const trialEndsAt = new Date(barbershop.createdAt);
-      trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
-
-      const now = new Date();
-      const isInTrial = now <= trialEndsAt;
-      const daysRemainingInTrial = isInTrial
-        ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-        : 0;
-
       const economics = computePlanEconomics({ plans });
 
       return reply.send({
         success: true,
         data: {
           subscription: null,
-          trial: { isInTrial, trialEndsAt, daysRemainingInTrial, isExpired: !isInTrial },
+          trial,
           economics,
           plans,
-        }
+        },
       });
     }
 
@@ -91,10 +100,11 @@ export class GetSubscriptionController {
       success: true,
       data: {
         subscription: dto,
+        trial,
         invoices: subscription.invoices,
         economics,
         plans,
-      }
+      },
     });
   }
 }

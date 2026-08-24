@@ -1,17 +1,34 @@
 import { z } from "zod";
+import { isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
+
+const phoneBR = z
+  .string()
+  .transform((v) => v.replace(/\D/g, ""))
+  .refine((v) => v.length >= 10 && v.length <= 11, {
+    message: "WhatsApp inválido (DDD + número com 8 ou 9 dígitos)",
+  });
 
 export const createBarbershopSchema = z.object({
   name: z.string().min(2).max(200),
-  whatsapp: z.string().min(8).max(20),
+  whatsapp: phoneBR,
   logoUrl: z.string().url().max(500).optional(),
-  cnpj: z.string().min(14).max(18).optional()
+  cnpj: z
+    .string()
+    .optional()
+    .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
+    .transform((v) => (v ? normalizeCnpj(v) : v)),
 });
 
 export const updateBarbershopSchema = z.object({
   name: z.string().min(2).max(200).optional(),
-  whatsapp: z.string().min(8).max(20).optional(),
+  whatsapp: phoneBR.optional(),
   logoUrl: z.string().url().max(500).nullable().optional(),
   active: z.boolean().optional(),
+  cnpj: z
+    .string()
+    .optional()
+    .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
+    .transform((v) => (v ? normalizeCnpj(v) : v)),
   /**
    * Nome da instância da Evolution API desta barbearia.
    * Aceita string (1..100), null, ou string vazia — string vazia é normalizada

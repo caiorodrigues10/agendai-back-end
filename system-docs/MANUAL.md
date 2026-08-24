@@ -1,6 +1,6 @@
-# BarberQueue Back‑end — Manual do Sistema
+# AgendAI Back‑end — Manual do Sistema
 
-Este manual documenta a arquitetura, a estrutura de pastas, os padrões e o fluxo das requisições do back‑end do BarberQueue. Ele serve tanto para onboard de novos(as) desenvolvedores(as) quanto para agentes de IA que precisem navegar e estender o projeto com segurança.
+Este manual documenta a arquitetura, a estrutura de pastas, os padrões e o fluxo das requisições do back‑end do AgendAI. Ele serve tanto para onboard de novos(as) desenvolvedores(as) quanto para agentes de IA que precisem navegar e estender o projeto com segurança.
 
 ## Visão Geral
 
@@ -210,14 +210,14 @@ describe("CreateUserUseCase", () => {
   - Para erros de negócio, use `rejects.toBeInstanceOf(AppError)`.
 
 Referências úteis:
-- Unitários por domínio: [barbershops.spec.ts](file:///d:/Programação/BarberQueue-back-end/src/modules/barbershops/useCases/barbershops.spec.ts), [services.spec.ts](file:///d:/Programação/BarberQueue-back-end/src/modules/services/useCases/services.spec.ts), [queue.spec.ts](file:///d:/Programação/BarberQueue-back-end/src/modules/queue/useCases/queue.spec.ts), [CreateUserUseCase.spec.ts](file:///d:/Programação/BarberQueue-back-end/src/modules/users/useCases/createUser/CreateUserUseCase.spec.ts)
+- Unitários por domínio: [barbershops.spec.ts](file:///d:/Programação/agendai-back-end/src/modules/barbershops/useCases/barbershops.spec.ts), [services.spec.ts](file:///d:/Programação/agendai-back-end/src/modules/services/useCases/services.spec.ts), [queue.spec.ts](file:///d:/Programação/agendai-back-end/src/modules/queue/useCases/queue.spec.ts), [CreateUserUseCase.spec.ts](file:///d:/Programação/agendai-back-end/src/modules/users/useCases/createUser/CreateUserUseCase.spec.ts)
 
 ### Testes de Integração (HTTP)
 
 - Objetivo: validar a integração das camadas HTTP → Controller → UseCase → Repository → Prisma → DB.
 - Estratégia: construir o app com `buildApp()`, injetar requisições com `app.inject` e usar um banco de testes.
 - Pré‑requisitos:
-  - Banco de testes acessível via `DATABASE_URL` (ex.: `barberqueue_test`).
+  - Banco de testes acessível via `DATABASE_URL` (ex.: `agendai_test`).
   - Esquema aplicado: `npx prisma db push` (ou `npm run prisma:seed` se necessário).
   - Importar o container de DI nos testes para registrar repositórios/providers: `import "@/shared/container"`.
 
@@ -261,13 +261,13 @@ describe("Users (integração HTTP)", () => {
 
 - Dicas:
   - Rode apenas o serviço de banco para integrações locais: `docker compose up -d database`.
-  - Use um `DATABASE_URL` exclusivo para testes (ex.: `postgresql://.../barberqueue_test`).
+  - Use um `DATABASE_URL` exclusivo para testes (ex.: `postgresql://.../agendai_test`).
   - Limpe os dados entre testes com `prisma.$transaction([...deleteMany])` para manter isolamento.
   - Não é necessário subir o servidor HTTP real; `app.inject` envia as requisições internamente.
 
 Configuração de testes:
-- Vitest já resolve aliases via [vitest.config.mts](file:///d:/Programação/BarberQueue-back-end/vitest.config.mts) com `vite-tsconfig-paths`.
-- Arquivo de setup global: [src/tests/setup.ts](file:///d:/Programação/BarberQueue-back-end/src/tests/setup.ts). Se desejar rodar muitas integrações, considere adicionar `import "@/shared/container"` aqui para evitar importar em cada teste.
+- Vitest já resolve aliases via [vitest.config.mts](file:///d:/Programação/agendai-back-end/vitest.config.mts) com `vite-tsconfig-paths`.
+- Arquivo de setup global: [src/tests/setup.ts](file:///d:/Programação/agendai-back-end/src/tests/setup.ts). Se desejar rodar muitas integrações, considere adicionar `import "@/shared/container"` aqui para evitar importar em cada teste.
 
 ## Convenções
 

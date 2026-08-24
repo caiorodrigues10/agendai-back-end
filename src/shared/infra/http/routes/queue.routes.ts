@@ -15,10 +15,11 @@ export async function queueRoutes(app: FastifyInstance) {
   const del = new DeleteQueueItemController();
   const metrics = new GetQueueMetricsController();
 
-  // GET /queue: público (visão do cliente, dados mascarados) + staff (visão completa via token).
+  // GET /queue: público (visão mascarada) + staff (visão completa via token).
   // checkSubscription retorna cedo quando request.user é undefined.
   app.get("/queue", { preHandler: [authenticateOptional, checkSubscription] }, list.handle.bind(list));
-  app.post("/queue", join.handle.bind(join)); // público — cliente entra sem conta
+  // POST público: authenticateOptional só para reconhecer staff (addedByStaff derivado do JWT).
+  app.post("/queue", { preHandler: [authenticateOptional] }, join.handle.bind(join));
   app.patch("/queue/:id", { preHandler: [authenticate, checkSubscription] }, update.handle.bind(update));
   app.delete("/queue/:id", { preHandler: [authenticate, checkSubscription] }, del.handle.bind(del));
   app.get("/queue/metrics", metrics.handle.bind(metrics));

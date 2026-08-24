@@ -2,33 +2,23 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { SUBSCRIPTION_MESSAGES } from "@/shared/constants/subscriptionMessages";
 import { blockEntity, assertCpfNotBlocked } from "@/shared/services/blockedEntityService";
-import { normalizeCpf } from "@/shared/utils/cpfUtils";
-
-const TRIAL_DAYS = 30;
-
-async function getAvailablePlans() {
-  return prisma.plan.findMany({
-    where: { active: true },
-    orderBy: { price: "asc" },
-    select: {
-      id: true, name: true, description: true,
-      price: true, billingCycle: true, maxEmployees: true,
-      hasDashboard: true, tierKey: true, features: true
-    }
-  });
-}
+import { TRIAL_DAYS } from "@/shared/constants/subscription";
+import { getAvailablePlans } from "@/shared/utils/planUtils";
+import { subscriptionGrantsAccess } from "@/shared/utils/subscriptionAccess";
 
 function buildSubscriptionRequiredError(
   message: string,
   plans: any[],
-  barbershopId?: string
+  barbershopId?: string,
+  extra?: Record<string, unknown>
 ) {
   throw new AppError(
     JSON.stringify({
       code: "SUBSCRIPTION_REQUIRED",
       message,
       plans,
-      ...(barbershopId && { barbershopId })
+      ...(barbershopId && { barbershopId }),
+      ...extra,
     }),
     402
   );
@@ -53,7 +43,7 @@ export async function checkBarbershopAccess(
     select: {
       createdAt: true,
       subscriptions: {
-        select: { status: true, endDate: true },
+        select: { status: true, endDate: true, asaasCreditCardToken: true },
         orderBy: { createdAt: "desc" },
         take: 1
       }
@@ -67,17 +57,15 @@ export async function checkBarbershopAccess(
   trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
 
   const subscription = barbershop.subscriptions[0];
-  const isInTrial = now <= trialEnd;
-  const hasActiveSubscription =
-    subscription && ["TRIALING", "ACTIVE"].includes(subscription.status);
+  const access = subscriptionGrantsAccess(subscription, now, trialEnd);
 
-  if (!isInTrial && !hasActiveSubscription) {
-    // Bloqueia automaticamente os CPFs dos owners desta barbearia
-    await blockOwnerCpfs(barbershopId);
+  // Login libera JWT mesmo sem cartão (CARD_REQUIRED): o FE manda ao checkout.
+  // Bloqueia só quando o calendário de trial acabou e não há assinatura válida.
+  if (access.allowed || access.cardRequired) return;
 
-    const plans = await getAvailablePlans();
-    buildSubscriptionRequiredError(SUBSCRIPTION_MESSAGES.LOGIN_EXPIRED, plans, barbershopId);
-  }
+  await blockOwnerCpfs(barbershopId);
+  const plans = await getAvailablePlans();
+  buildSubscriptionRequiredError(SUBSCRIPTION_MESSAGES.LOGIN_EXPIRED, plans, barbershopId);
 }
 
 /**
@@ -147,7 +135,7 @@ export async function checkCnpjAccess(cnpj: string): Promise<void> {
       id: true,
       createdAt: true,
       subscriptions: {
-        select: { status: true },
+        select: { status: true, endDate: true, asaasCreditCardToken: true },
         orderBy: { createdAt: "desc" },
         take: 1
       }
@@ -161,12 +149,18 @@ export async function checkCnpjAccess(cnpj: string): Promise<void> {
   trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
 
   const subscription = existingBarbershop.subscriptions[0];
-  const isInTrial = now <= trialEnd;
-  const hasActiveSubscription =
-    subscription && ["TRIALING", "ACTIVE"].includes(subscription.status);
+  const access = subscriptionGrantsAccess(subscription, now, trialEnd);
 
-  if (!isInTrial && !hasActiveSubscription) {
-    const plans = await getAvailablePlans();
-    buildSubscriptionRequiredError(SUBSCRIPTION_MESSAGES.CNPJ_EXPIRED, plans, existingBarbershop.id);
-  }
+  if (access.allowed) return;
+
+  // CNPJ já cadastrado sem acesso: pede reativação (plano), não novo cadastro
+  const plans = await getAvailablePlans();
+  buildSubscriptionRequiredError(
+    access.cardRequired
+      ? SUBSCRIPTION_MESSAGES.CARD_REQUIRED
+      : SUBSCRIPTION_MESSAGES.CNPJ_EXPIRED,
+    plans,
+    existingBarbershop.id,
+    access.cardRequired ? { reason: "CARD_REQUIRED" } : undefined
+  );
 }

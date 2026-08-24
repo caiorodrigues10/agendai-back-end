@@ -1,0 +1,374 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "ContactController.ts",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "controllers_contactcontroller",
+      "community": 1,
+      "community_name": "ContactController.ts",
+      "norm_label": "contactcontroller.ts"
+    },
+    {
+      "label": "hits",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L8",
+      "_origin": "ast",
+      "id": "controllers_contactcontroller_hits",
+      "community": 1,
+      "community_name": "ContactController.ts",
+      "norm_label": "hits"
+    },
+    {
+      "label": "assertRateLimit()",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L12",
+      "_origin": "ast",
+      "id": "controllers_contactcontroller_assertratelimit",
+      "community": 1,
+      "community_name": "ContactController.ts",
+      "norm_label": "assertratelimit()"
+    },
+    {
+      "label": "ContactController",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L25",
+      "_origin": "ast",
+      "id": "controllers_contactcontroller_contactcontroller",
+      "community": 1,
+      "community_name": "ContactController.ts",
+      "norm_label": "contactcontroller"
+    },
+    {
+      "label": ".submit()",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L26",
+      "_origin": "ast",
+      "id": "controllers_contactcontroller_contactcontroller_submit",
+      "community": 1,
+      "community_name": "ContactController.ts",
+      "norm_label": ".submit()"
+    },
+    {
+      "label": "contactSchema.ts",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/schemas/contactSchema.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "schemas_contactschema",
+      "community": 2,
+      "community_name": "contactSchema.ts",
+      "norm_label": "contactschema.ts"
+    },
+    {
+      "label": "contactTopics",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/schemas/contactSchema.ts",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "schemas_contactschema_contacttopics",
+      "community": 2,
+      "community_name": "contactSchema.ts",
+      "norm_label": "contacttopics"
+    },
+    {
+      "label": "submitContactSchema",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/schemas/contactSchema.ts",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "schemas_contactschema_submitcontactschema",
+      "community": 2,
+      "community_name": "contactSchema.ts",
+      "norm_label": "submitcontactschema"
+    },
+    {
+      "label": "SubmitContactInput",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/schemas/contactSchema.ts",
+      "source_location": "L25",
+      "_origin": "ast",
+      "id": "schemas_contactschema_submitcontactinput",
+      "community": 0,
+      "community_name": "SubmitContactMessageUseCase.ts",
+      "norm_label": "submitcontactinput"
+    },
+    {
+      "label": "SubmitContactMessageUseCase.ts",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "usecases_submitcontactmessageusecase",
+      "community": 0,
+      "community_name": "SubmitContactMessageUseCase.ts",
+      "norm_label": "submitcontactmessageusecase.ts"
+    },
+    {
+      "label": "TOPIC_LABEL",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L6",
+      "_origin": "ast",
+      "id": "usecases_submitcontactmessageusecase_topic_label",
+      "community": 0,
+      "community_name": "SubmitContactMessageUseCase.ts",
+      "norm_label": "topic_label"
+    },
+    {
+      "label": "SubmitContactMessageUseCase",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L14",
+      "_origin": "ast",
+      "id": "usecases_submitcontactmessageusecase_submitcontactmessageusecase",
+      "community": 0,
+      "community_name": "SubmitContactMessageUseCase.ts",
+      "norm_label": "submitcontactmessageusecase"
+    },
+    {
+      "label": "injectable",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "injectable",
+      "community": 0,
+      "community_name": "SubmitContactMessageUseCase.ts",
+      "norm_label": "injectable"
+    },
+    {
+      "label": ".execute()",
+      "file_type": "code",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L15",
+      "_origin": "ast",
+      "id": "usecases_submitcontactmessageusecase_submitcontactmessageusecase_execute",
+      "community": 0,
+      "community_name": "SubmitContactMessageUseCase.ts",
+      "norm_label": ".execute()"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller",
+      "target": "controllers_contactcontroller_assertratelimit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L25",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller",
+      "target": "controllers_contactcontroller_contactcontroller",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller",
+      "target": "controllers_contactcontroller_hits",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller",
+      "target": "schemas_contactschema",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller",
+      "target": "schemas_contactschema_submitcontactschema",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller",
+      "target": "usecases_submitcontactmessageusecase",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller",
+      "target": "usecases_submitcontactmessageusecase_submitcontactmessageusecase",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller_contactcontroller_submit",
+      "target": "controllers_contactcontroller_assertratelimit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L26",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller_contactcontroller",
+      "target": "controllers_contactcontroller_contactcontroller_submit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "indirect_call",
+      "context": "argument",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "agendai-back-end/src/modules/contact/controllers/ContactController.ts",
+      "source_location": "L35",
+      "weight": 1.0,
+      "source": "controllers_contactcontroller_contactcontroller_submit",
+      "target": "usecases_submitcontactmessageusecase_submitcontactmessageusecase"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/schemas/contactSchema.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "source": "schemas_contactschema",
+      "target": "schemas_contactschema_contacttopics",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/schemas/contactSchema.ts",
+      "source_location": "L25",
+      "weight": 1.0,
+      "source": "schemas_contactschema",
+      "target": "schemas_contactschema_submitcontactinput",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/schemas/contactSchema.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "schemas_contactschema",
+      "target": "schemas_contactschema_submitcontactschema",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "usecases_submitcontactmessageusecase",
+      "target": "schemas_contactschema",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "usecases_submitcontactmessageusecase",
+      "target": "schemas_contactschema_submitcontactinput",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "usecases_submitcontactmessageusecase_submitcontactmessageusecase_execute",
+      "target": "schemas_contactschema_submitcontactinput",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "usecases_submitcontactmessageusecase",
+      "target": "usecases_submitcontactmessageusecase_submitcontactmessageusecase",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L6",
+      "weight": 1.0,
+      "source": "usecases_submitcontactmessageusecase",
+      "target": "usecases_submitcontactmessageusecase_topic_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L13",
+      "weight": 1.0,
+      "context": "decorator",
+      "source": "usecases_submitcontactmessageusecase_submitcontactmessageusecase",
+      "target": "injectable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "agendai-back-end/src/modules/contact/useCases/SubmitContactMessageUseCase.ts",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "usecases_submitcontactmessageusecase_submitcontactmessageusecase",
+      "target": "usecases_submitcontactmessageusecase_submitcontactmessageusecase_execute",
+      "confidence_score": 1.0
+    }
+  ],
+  "hyperedges": []
+}

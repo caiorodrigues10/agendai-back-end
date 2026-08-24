@@ -11,7 +11,7 @@ Content-Type: {{json}}
 
 {
   "name": "Administrador",
-  "email": "admin@barberqueue.local",
+  "email": "admin@agendai.local",
   "password": "admin123",
   "role": "MASTER_ADMIN"
 }
@@ -22,7 +22,7 @@ POST {{baseUrl}}/api/auth/login
 Content-Type: {{json}}
 
 {
-  "email": "admin@barberqueue.local",
+  "email": "admin@agendai.local",
   "password": "admin123"
 }
 

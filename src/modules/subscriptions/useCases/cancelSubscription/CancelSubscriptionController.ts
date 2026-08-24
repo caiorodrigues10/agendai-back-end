@@ -1,6 +1,26 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
+import { z } from "zod";
+import { cancelSubscriptionForBarbershop } from "../../services/cancelSubscriptionService";
+
+const cancelReasonSchema = z.object({
+  cancelReason: z
+    .enum([
+      "price",
+      "low_usage",
+      "migrating",
+      "missing_features",
+      "technical_issues",
+      "closing",
+      "other",
+    ])
+    .optional(),
+  pixKey: z.string().max(140).optional(),
+  pixKeyType: z
+    .enum(["CPF", "CNPJ", "PHONE", "EMAIL", "RANDOM", "BR_CODE"])
+    .optional(),
+});
 
 export class CancelSubscriptionController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -21,23 +41,21 @@ export class CancelSubscriptionController {
       barbershopId = user.barbershopId;
     }
 
-    const subscription = await prisma.subscription.findUnique({
-      where: { barbershopId }
+    const body = cancelReasonSchema.parse(request.body ?? {});
+
+    const updated = await cancelSubscriptionForBarbershop(barbershopId, {
+      cancelReason: body.cancelReason,
+      pixKey: body.pixKey,
+      pixKeyType: body.pixKeyType,
     });
 
-    if (!subscription) {
+    if (!updated) {
       throw new AppError("Nenhuma assinatura encontrada para este salão", 404);
     }
 
-    if (subscription.status === "CANCELED") {
+    if (updated.alreadyCanceled) {
       throw new AppError("Assinatura já está cancelada", 409);
     }
-
-    const updated = await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: { status: "CANCELED", cancelDate: new Date() },
-      include: { plan: true }
-    });
 
     if (request.user) {
       await prisma.auditLog.create({
@@ -45,8 +63,8 @@ export class CancelSubscriptionController {
           userId: request.user.id,
           action: "CANCEL_SUBSCRIPTION",
           resource: "Subscription",
-          resourceId: subscription.id,
-          details: JSON.stringify({ barbershopId }),
+          resourceId: updated.id,
+          details: JSON.stringify({ barbershopId, cancelReason: body.cancelReason ?? null }),
           ipAddress: request.ip
         }
       });
@@ -54,8 +72,15 @@ export class CancelSubscriptionController {
 
     return reply.send({
       success: true,
-      message: `Assinatura do plano "${updated.plan.name}" cancelada com sucesso.`,
-      data: { id: updated.id, status: updated.status, cancelDate: updated.cancelDate }
+      message: `Assinatura do plano "${updated.plan?.name}" cancelada com sucesso.`,
+      data: {
+        id: updated.id,
+        status: updated.status,
+        cancelDate: updated.cancelDate,
+        cancelReason: updated.cancelReason,
+        endDate: updated.endDate,
+        proratedRefund: updated.proratedRefund,
+      }
     });
   }
 }

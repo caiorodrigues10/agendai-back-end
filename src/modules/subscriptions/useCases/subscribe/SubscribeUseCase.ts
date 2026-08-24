@@ -2,13 +2,13 @@ import { inject, injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
 import { MercadoPagoService } from "@/modules/payments/services/MercadoPagoService";
 import { AbacatePayService } from "@/modules/payments/services/AbacatePayService";
+import { AsaasService } from "@/modules/payments/services/AsaasService";
 import { IPaymentRepository } from "@/modules/payments/repositories/IPaymentRepository";
 import { AppError } from "@/shared/errors/AppError";
 import { IPaymentResponseDTO } from "@/modules/payments/dtos/IPaymentDTO";
 import { ISubscribeDTO, ISubscriptionResponseDTO } from "../../dtos/ISubscriptionDTO";
 import { buildSubscriptionResponse } from "../../utils/subscriptionMapper";
-
-const TRIAL_DAYS = 30;
+import { TRIAL_DAYS, billingPeriodDays } from "@/shared/constants/subscription";
 
 function frontendBaseUrl(): string {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
@@ -26,6 +26,8 @@ export class SubscribeUseCase {
     private mpService: MercadoPagoService,
     @inject("AbacatePayService")
     private abacateService: AbacatePayService,
+    @inject("AsaasService")
+    private asaasService: AsaasService,
     @inject("PaymentRepository")
     private paymentRepo: IPaymentRepository
   ) {}
@@ -59,6 +61,7 @@ export class SubscribeUseCase {
         active: true,
         description: true,
         abacateProductId: true,
+        billingCycle: true,
       },
     });
 
@@ -80,9 +83,11 @@ export class SubscribeUseCase {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
 
-    // PIX e payment_link: PAST_DUE até webhook. Cartão MP: ACTIVE se aprovado.
+    // PIX, payment_link e asaas: PAST_DUE até webhook. Cartão MP: ACTIVE se aprovado.
     const pendingUntilWebhook =
-      data.paymentMethod === "pix" || data.paymentMethod === "payment_link";
+      data.paymentMethod === "pix" ||
+      data.paymentMethod === "payment_link" ||
+      data.paymentMethod === "asaas";
     const initialStatus = pendingUntilWebhook ? "PAST_DUE" : "ACTIVE";
 
     const subscription = await prisma.subscription.upsert({
@@ -109,18 +114,32 @@ export class SubscribeUseCase {
         amount: plan.price,
         dueDate,
         status: "PENDING",
-        paymentMethod: data.paymentMethod,
+        // Asaas usa o meio escolhido no checkout embutido (PIX/cartão)
+        paymentMethod:
+          data.paymentMethod === "asaas"
+            ? data.asaasBillingType === "CREDIT_CARD"
+              ? "credit_card"
+              : "pix"
+            : data.paymentMethod,
       },
     });
 
-    const externalReference = `bq-sub-${subscription.id}-inv-${invoice.id}`;
-    const description = `Assinatura BarberQueue — ${plan.name}`;
+    const externalReference = `ag-sub-${subscription.id}-inv-${invoice.id}`;
+    const description = `Assinatura AgendAI — ${plan.name}`;
 
     let paymentRecord: IPaymentResponseDTO | undefined;
 
     try {
       if (data.paymentMethod === "payment_link") {
         paymentRecord = await this.createAbacatePaymentLink({
+          plan,
+          data,
+          barbershopId: data.barbershopId,
+          externalReference,
+          description,
+        });
+      } else if (data.paymentMethod === "asaas") {
+        paymentRecord = await this.createAsaasPayment({
           plan,
           data,
           barbershopId: data.barbershopId,
@@ -223,9 +242,18 @@ export class SubscribeUseCase {
             }),
             prisma.subscription.update({
               where: { id: subscription.id },
-              data: { status: "ACTIVE", endDate: dueDate },
+              data: {
+                status: "ACTIVE",
+                endDate: new Date(
+                  Date.now() + billingPeriodDays(plan.billingCycle) * 86400000
+                ),
+              },
             }),
           ]);
+          const { qualifyReferralOnPayment } = await import(
+            "@/modules/referrals/services/referralService"
+          );
+          await qualifyReferralOnPayment(data.barbershopId).catch(() => {});
         } else {
           await prisma.subscription.update({
             where: { id: subscription.id },
@@ -342,6 +370,138 @@ export class SubscribeUseCase {
       barbershopId,
       externalReference,
       rawResponse: JSON.stringify(checkout),
+    });
+  }
+
+  /**
+   * Asaas (checkout embutido): billingType PIX retorna o QR Code direto;
+   * CREDIT_CARD envia `creditCard` (número) ou `creditCardToken` legado
+   * ao Asaas via backend — o endpoint público de tokenização no browser
+   * não funciona (CORS/auth). Sem redirect — webhook ativa a assinatura.
+   */
+  private async createAsaasPayment(params: {
+    plan: {
+      id: string;
+      name: string;
+      price: number;
+      description: string | null;
+      abacateProductId: string | null;
+    };
+    data: ISubscribeDTO;
+    barbershopId: string;
+    externalReference: string;
+    description: string;
+  }): Promise<IPaymentResponseDTO> {
+    const { plan, data, barbershopId, externalReference, description } = params;
+
+    const name = [data.payerFirstName, data.payerLastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    const customerId = await this.asaasService.ensureCustomer({
+      name: name || undefined,
+      email: data.payerEmail,
+      cpfCnpj: data.payerIdentification?.number,
+      externalReference: `ag-customer-${barbershopId}`,
+    });
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    const dueDateStr = dueDate.toISOString().slice(0, 10);
+
+    const isCard = data.asaasBillingType === "CREDIT_CARD";
+    const card = data.asaasCreditCard;
+
+    if (isCard) {
+      if (!card && !data.cardToken) {
+        throw new AppError(
+          "Dados do cartão são obrigatórios para pagamento Asaas no cartão",
+          400
+        );
+      }
+      if (!data.payerIdentification) {
+        throw new AppError(
+          "Identificação (CPF/CNPJ) é obrigatória para pagamento no cartão",
+          400
+        );
+      }
+    }
+
+    const expiryYear = card
+      ? card.expiryYear.length === 2
+        ? `20${card.expiryYear}`
+        : card.expiryYear
+      : undefined;
+
+    const payment = await this.asaasService.createPayment({
+      customer: customerId,
+      billingType: isCard ? "CREDIT_CARD" : "PIX",
+      value: plan.price,
+      dueDate: dueDateStr,
+      description,
+      externalReference,
+      creditCard: isCard
+        ? card
+          ? {
+              holderName: card.holderName,
+              number: card.number,
+              expiryMonth: card.expiryMonth.padStart(2, "0"),
+              expiryYear: expiryYear!,
+              ccv: card.ccv,
+            }
+          : { creditCardToken: data.cardToken }
+        : undefined,
+      creditCardHolderInfo: isCard
+        ? {
+            name: name || card?.holderName || undefined,
+            email: data.payerEmail,
+            cpfCnpj: data.payerIdentification!.number,
+            ...(card
+              ? {
+                  postalCode: card.postalCode,
+                  addressNumber: card.addressNumber,
+                  phone: card.phone,
+                }
+              : {}),
+          }
+        : undefined,
+      remoteIp: isCard ? data.remoteIp : undefined,
+    });
+
+    let pixQrCode:
+      | { qrCode: string; qrCodeBase64: string; expirationDate: string }
+      | undefined;
+    if (!isCard) {
+      const qr = payment.pixQrCode ?? (await this.asaasService.getPixQrCode(payment.id).catch(() => null));
+      if (qr?.payload && qr.encodedImage) {
+        pixQrCode = {
+          qrCode: qr.payload,
+          qrCodeBase64: qr.encodedImage,
+          expirationDate: qr.expirationDate || "",
+        };
+      }
+    }
+
+    return this.paymentRepo.create({
+      mpPaymentId: null,
+      provider: "ASAAS",
+      providerPaymentId: payment.id,
+      checkoutUrl: null,
+      status: "pending",
+      statusDetail: payment.status ?? "PENDING",
+      paymentMethod: isCard ? "credit_card" : "pix",
+      transactionAmount: plan.price,
+      currency: "BRL",
+      description,
+      barbershopId,
+      externalReference,
+      pixQrCode: pixQrCode?.qrCode ?? null,
+      pixQrCodeBase64: pixQrCode?.qrCodeBase64 ?? null,
+      pixExpirationDate: pixQrCode?.expirationDate
+        ? new Date(pixQrCode.expirationDate)
+        : null,
+      rawResponse: JSON.stringify(payment),
     });
   }
 }

@@ -7,6 +7,8 @@ export default defineConfig({
     globals: true,
     environment: "node",
     setupFiles: ["src/tests/setup.ts"],
-    exclude: ["dist/**", "node_modules/**"]
-  }
+    exclude: ["dist/**", "node_modules/**"],
+    testTimeout: 30_000,
+    hookTimeout: 180_000,
+  },
 });

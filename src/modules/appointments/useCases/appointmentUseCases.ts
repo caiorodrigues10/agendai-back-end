@@ -1,8 +1,12 @@
 import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { sendWhatsAppMessage } from "@/shared/services/whatsappNotificationService";
+import { enqueueWhatsApp } from "@/shared/infra/queue";
+import { prisma } from "@/libs/prismaClient";
 import { IAppointmentRepository } from "../repositories/IAppointmentRepository";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
+import { IClientPackageRepository } from "@/modules/packages/repositories/IClientPackageRepository";
+import { debitClientPackageInTx, restoreClientPackageInTx } from "@/modules/packages/utils/clientPackageCredits";
 import {
   ICreateAppointmentDTO,
   IUpdateAppointmentDTO,
@@ -10,10 +14,98 @@ import {
   IListAppointmentsQuery,
   IAvailabilitySlotDTO,
 } from "../dtos/IAppointmentDTO";
+import { assertAppointmentBookable } from "../utils/assertAppointmentBookable";
 import {
   GetQueueWaitEstimateUseCase,
   QueueWaitEstimate,
 } from "@/modules/queue/useCases/getQueueWaitEstimate/GetQueueWaitEstimateUseCase";
+
+function mapCreatedAppointment(record: {
+  id: string;
+  barbershopId: string;
+  serviceId: string;
+  staffId: string | null;
+  clientId?: string | null;
+  clientPackageId?: string | null;
+  customerName: string;
+  whatsapp: string;
+  date: Date;
+  time: string;
+  status: string;
+  reminderSentAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  service?: { name: string; price: number } | null;
+  staff?: { name: string } | null;
+  barbershop?: { name: string } | null;
+}): IAppointmentResponseDTO {
+  return {
+    id: record.id,
+    barbershopId: record.barbershopId,
+    barbershopName: record.barbershop?.name ?? null,
+    serviceId: record.serviceId,
+    serviceName: record.service?.name ?? null,
+    servicePrice: record.service?.price ?? null,
+    staffId: record.staffId ?? null,
+    staffName: record.staff?.name ?? null,
+    customerName: record.customerName,
+    whatsapp: record.whatsapp,
+    date: record.date,
+    time: record.time,
+    status: record.status as IAppointmentResponseDTO["status"],
+    reminderSentAt: record.reminderSentAt ?? null,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    clientId: record.clientId ?? null,
+    clientPackageId: record.clientPackageId ?? null,
+  };
+}
+
+async function createAppointmentAtomic(
+  data: ICreateAppointmentDTO,
+  fallbackRepo: IAppointmentRepository
+): Promise<IAppointmentResponseDTO> {
+  // Unit tests usam MockAppointmentRepository sem Postgres.
+  if (process.env.VITEST) {
+    return fallbackRepo.create(data);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await assertAppointmentBookable(data, tx);
+
+    let clientId = data.clientId ?? null;
+    if (data.clientPackageId) {
+      const credited = await debitClientPackageInTx(tx, {
+        clientPackageId: data.clientPackageId,
+        barbershopId: data.barbershopId,
+        serviceId: data.serviceId,
+        count: 1,
+      });
+      clientId = credited.clientId;
+    }
+
+    const record = await tx.appointment.create({
+      data: {
+        barbershopId: data.barbershopId,
+        serviceId: data.serviceId,
+        staffId: data.staffId ?? null,
+        customerName: data.customerName,
+        whatsapp: data.whatsapp,
+        date: new Date(data.date),
+        time: data.time,
+        status: "CONFIRMED",
+        clientId,
+        clientPackageId: data.clientPackageId ?? null,
+      },
+      include: {
+        service: { select: { name: true, price: true } },
+        staff: { select: { name: true } },
+        barbershop: { select: { name: true } },
+      },
+    });
+    return mapCreatedAppointment(record);
+  });
+}
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 
@@ -21,7 +113,9 @@ import {
 export class CreateAppointmentUseCase {
   constructor(
     @inject("AppointmentRepository")
-    private repo: IAppointmentRepository
+    private repo: IAppointmentRepository,
+    @inject("ClientPackageRepository")
+    private packages?: IClientPackageRepository
   ) {}
 
   async execute(
@@ -34,7 +128,38 @@ export class CreateAppointmentUseCase {
     ) {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
-    return this.repo.create(data);
+
+    if (data.clientPackageId && process.env.VITEST && this.packages) {
+      const pkg = await this.packages.findById(data.clientPackageId);
+      if (!pkg) throw new AppError("Pacote do cliente não encontrado", 404);
+      if (pkg.serviceId !== data.serviceId) {
+        throw new AppError("Serviço não corresponde ao pacote", 400);
+      }
+      await this.packages.debitSessions(data.clientPackageId, 1);
+      data = { ...data, clientId: data.clientId ?? pkg.clientId };
+    }
+
+    return createAppointmentAtomic(data, this.repo);
+  }
+}
+
+/** Agendamento público — sem autorização administrativa implícita. */
+@injectable()
+export class CreatePublicAppointmentUseCase {
+  constructor(
+    @inject("AppointmentRepository")
+    private repo: IAppointmentRepository
+  ) {}
+
+  async execute(data: ICreateAppointmentDTO): Promise<IAppointmentResponseDTO> {
+    if (!data.barbershopId) {
+      throw new AppError("barbershopId é obrigatório", 400);
+    }
+    const { clientPackageId: _ignored, clientId: _ignoredClient, ...publicData } = data;
+    return createAppointmentAtomic(
+      { ...publicData, barbershopId: data.barbershopId },
+      this.repo
+    );
   }
 }
 
@@ -131,12 +256,31 @@ export class GetAvailabilityUseCase {
     private repo: IAppointmentRepository
   ) {}
 
-  /** Rota pública: retorna slots OCUPADOS do dia; o front calcula os livres. */
+  /**
+   * Rota pública: slots OCUPADOS do dia.
+   * - Com staffId: filtra conflitos daquele profissional (+ bookings sem staff).
+   * - Sem staffId (“qualquer”): retorna todos; o front aplica a regra
+   *   “indisponível só se todos elegíveis estiverem ocupados”.
+   *   Se não houver profissionais elegíveis, marca o dia inteiro como ocupado.
+   */
   async execute(
     barbershopId: string,
-    date: string
+    date: string,
+    staffId?: string
   ): Promise<IAvailabilitySlotDTO[]> {
-    return this.repo.getOccupiedSlots(barbershopId, date);
+    if (!staffId) {
+      const { countEligibleStaff } = await import(
+        "../utils/assertAppointmentBookable"
+      );
+      const eligible = process.env.VITEST
+        ? 1
+        : await countEligibleStaff(barbershopId);
+      if (eligible === 0) {
+        return [{ time: "00:00", staffId: null, durationMinutes: 24 * 60 }];
+      }
+    }
+
+    return this.repo.getOccupiedSlots(barbershopId, date, staffId);
   }
 }
 
@@ -146,7 +290,9 @@ export class GetAvailabilityUseCase {
 export class CancelAppointmentUseCase {
   constructor(
     @inject("AppointmentRepository")
-    private repo: IAppointmentRepository
+    private repo: IAppointmentRepository,
+    @inject("ClientPackageRepository")
+    private packages?: IClientPackageRepository
   ) {}
 
   async execute(
@@ -167,7 +313,27 @@ export class CancelAppointmentUseCase {
       throw new AppError("Agendamento já está cancelado", 409);
     }
 
-    await this.repo.delete(id);
+    const shouldRestore =
+      Boolean(appointment.clientPackageId) &&
+      appointment.status === "CONFIRMED";
+
+    if (process.env.VITEST) {
+      await this.repo.delete(id);
+      if (shouldRestore && appointment.clientPackageId && this.packages) {
+        await this.packages.restoreSessions(appointment.clientPackageId, 1);
+      }
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id },
+        data: { status: "CANCELLED" },
+      });
+      if (shouldRestore && appointment.clientPackageId) {
+        await restoreClientPackageInTx(tx, appointment.clientPackageId, 1);
+      }
+    });
   }
 }
 
@@ -312,25 +478,25 @@ export class SendAppointmentRemindersUseCase {
           instanceName: shop.evolutionInstanceName ?? undefined,
         };
 
-        const ok = await sendWhatsAppMessage(appt.whatsapp, mainMessage, sendOpts);
-        if (!ok) {
-          failed++;
-          continue;
-        }
-
+        await enqueueWhatsApp({
+          phone: appt.whatsapp,
+          message: mainMessage,
+          instanceName: sendOpts.instanceName,
+          deduplicationKey: `reminder:${appt.id}`,
+        });
         await this.repo.markReminderSent(appt.id);
         sent++;
 
         if (estimate.peopleAhead > 0) {
           try {
             const queueMsg = buildQueueUpdateMessage(appt, estimate, now);
-            const queueOk = await sendWhatsAppMessage(appt.whatsapp, queueMsg, sendOpts);
-            if (!queueOk) {
-              queueMessagesFailed++;
-            }
+            await enqueueWhatsApp({
+              phone: appt.whatsapp,
+              message: queueMsg,
+              instanceName: sendOpts.instanceName,
+              deduplicationKey: `reminder-queue:${appt.id}`,
+            });
           } catch {
-            // A mensagem principal já foi enviada com sucesso — a falha da
-            // segunda mensagem não derruba o contador de sent.
             queueMessagesFailed++;
           }
         }

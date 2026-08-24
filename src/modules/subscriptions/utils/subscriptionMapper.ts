@@ -42,9 +42,13 @@ export function buildSubscriptionResponse(
     startDate: record.startDate,
     endDate: record.endDate,
     cancelDate: record.cancelDate,
+    cancelReason: record.cancelReason ?? null,
     createdAt: record.createdAt,
     trialEndsAt,
     daysRemainingInTrial,
+    hasPaymentMethod: Boolean(record.asaasCreditCardToken),
+    cardLast4: record.cardLast4 ?? null,
+    cardBrand: record.cardBrand ?? null,
     latestInvoice
   };
 }

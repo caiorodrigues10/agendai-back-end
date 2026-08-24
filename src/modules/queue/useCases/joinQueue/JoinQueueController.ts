@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import { JoinQueueUseCase } from "./JoinQueueUseCase";
 import { z } from "zod";
 import { prisma } from "@/libs/prismaClient";
-import { sendWhatsAppMessage } from "@/shared/services/whatsappNotificationService";
+import { enqueueWhatsApp } from "@/shared/infra/queue";
+import { isQueueStaffForShop } from "../../utils/queueAccess";
 
 export class JoinQueueController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -15,14 +16,16 @@ export class JoinQueueController {
       whatsapp: z.string().min(8, "WhatsApp inválido").max(20),
       /** UUID persistido no localStorage do cliente (dedup na fila). */
       sessionId: z.string().uuid().optional(),
-      addedByStaff: z.boolean().optional(),
+      // addedByStaff do body é IGNORADO — derivado só de request.user
     });
 
     const data = schema.parse(request.body);
-    const isStaff = !!request.user;
+    const isStaff = isQueueStaffForShop(request.user, data.barbershopId);
 
     // Staff adiciona cliente com ID novo; visitante reutiliza sessionId se enviado.
-    const customerId = isStaff ? randomUUID() : (data.sessionId ?? randomUUID());
+    const customerId = isStaff
+      ? randomUUID()
+      : (data.sessionId ?? randomUUID());
 
     const useCase = container.resolve(JoinQueueUseCase);
     const item = await useCase.execute({
@@ -31,7 +34,7 @@ export class JoinQueueController {
       customerName: data.customerName,
       whatsapp: data.whatsapp,
       customerId,
-      addedByStaff: isStaff || data.addedByStaff,
+      addedByStaff: isStaff,
     });
 
     if (!isStaff) {
@@ -42,7 +45,10 @@ export class JoinQueueController {
             whatsapp: true,
             name: true,
             evolutionInstanceName: true,
-            services: { where: { id: data.serviceId }, select: { name: true } },
+            services: {
+              where: { id: data.serviceId },
+              select: { name: true },
+            },
           },
         });
         if (shop?.whatsapp) {
@@ -53,9 +59,11 @@ export class JoinQueueController {
             `Nome: ${data.customerName}\n` +
             `Serviço: ${serviceName}\n` +
             `Contato: ${data.whatsapp}`;
-          await sendWhatsAppMessage(shop.whatsapp, msg, {
+          await enqueueWhatsApp({
+            phone: shop.whatsapp,
+            message: msg,
             instanceName: shop.evolutionInstanceName ?? undefined,
-            log: request.log,
+            deduplicationKey: `join:${data.barbershopId}:${item.id}`,
           });
         }
       } catch {

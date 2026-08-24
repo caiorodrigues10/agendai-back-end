@@ -64,20 +64,13 @@ info "Configurando leitura pública (IAM allUsers → objectViewer)..."
 gsutil iam ch allUsers:objectViewer "gs://$BUCKET_NAME"
 ok "Leitura pública habilitada"
 
-# CORS
+# CORS (fonte única: cors.json do repo — edite lá para origins de produção)
 info "Aplicando CORS..."
-CORS_FILE="$(mktemp /tmp/gcs-cors-XXXX.json)"
-cat > "$CORS_FILE" << 'CORS'
-[{
-  "origin": ["*"],
-  "method": ["GET", "PUT", "HEAD", "OPTIONS"],
-  "responseHeader": ["Content-Type","Content-Length","Access-Control-Allow-Origin","x-goog-resumable"],
-  "maxAgeSeconds": 3600
-}]
-CORS
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CORS_FILE="${SCRIPT_DIR}/../cors.json"
+[[ -f "$CORS_FILE" ]] || err "cors.json não encontrado em $CORS_FILE"
 gsutil cors set "$CORS_FILE" "gs://$BUCKET_NAME"
-rm -f "$CORS_FILE"
-ok "CORS configurado"
+ok "CORS aplicado a partir de cors.json"
 
 # Pastas lógicas
 info "Criando estrutura de pastas..."
@@ -99,18 +92,17 @@ else
   warn "GCS_SA_EMAIL não definido — configure manualmente se necessário."
 fi
 
-# Lifecycle
-info "Configurando lifecycle..."
+# Lifecycle: só limpa tmp/ — NÃO apaga logos/ feeds/ documents/
+info "Configurando lifecycle (tmp/ com 7 dias)..."
 LC_FILE="$(mktemp /tmp/gcs-lc-XXXX.json)"
 cat > "$LC_FILE" << 'LC'
 {"rule":[
-  {"action":{"type":"Delete"},"condition":{"age":7,"matchesPrefix":["tmp/"]}},
-  {"action":{"type":"Delete"},"condition":{"age":365,"matchesPrefix":["logos/"]}}
+  {"action":{"type":"Delete"},"condition":{"age":7,"matchesPrefix":["tmp/"]}}
 ]}
 LC
 gsutil lifecycle set "$LC_FILE" "gs://$BUCKET_NAME"
 rm -f "$LC_FILE"
-ok "Lifecycle configurado"
+ok "Lifecycle configurado (apenas tmp/)"
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
@@ -120,5 +112,6 @@ echo ""
 echo "  URL pública : https://storage.googleapis.com/$BUCKET_NAME"
 echo "  Console     : https://console.cloud.google.com/storage/browser/$BUCKET_NAME"
 echo ""
-echo "  Próximo passo: docker compose up -d"
+echo "  Guia completo: docs/GCS_SETUP.md"
+echo "  Próximo passo: bash scripts/ensure-gcs-key.sh && docker compose up -d"
 echo ""

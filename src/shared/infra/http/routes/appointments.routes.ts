@@ -20,6 +20,12 @@ export async function appointmentsRoutes(app: FastifyInstance) {
 	]
 
 	// Disponibilidade de horários — pública (cliente escolhe horário antes de logar)
+
+  // Agendamento público — sem necessidade de autenticação
+  app.post(
+    '/appointments/public',
+    appointments.createPublic.bind(appointments),
+  )
 	app.get(
 		'/appointments/availability',
 		appointments.availability.bind(appointments),

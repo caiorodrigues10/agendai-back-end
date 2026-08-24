@@ -14,7 +14,7 @@ import {
   CreateAppointmentUseCase,
   SendAppointmentRemindersUseCase,
 } from "@/modules/appointments/useCases/appointmentUseCases";
-import * as whatsapp from "@/shared/services/whatsappNotificationService";
+import * as queueModule from "@/shared/infra/queue";
 import { AppError } from "@/shared/errors/AppError";
 
 let queues: MockQueueRepository;
@@ -24,6 +24,10 @@ let update: UpdateQueueItemUseCase;
 let del: DeleteQueueItemUseCase;
 let notifyPosition: NotifyQueuePositionUpdatesUseCase;
 let notifySpy: ReturnType<typeof vi.fn>;
+
+const staffShop1 = { id: "u1", role: "OWNER", barbershopId: "shop-1" };
+const staffShop2 = { id: "u2", role: "OWNER", barbershopId: "shop-2" };
+const masterAdmin = { id: "admin", role: "MASTER_ADMIN" };
 
 beforeEach(() => {
   queues = new MockQueueRepository();
@@ -37,8 +41,23 @@ beforeEach(() => {
 
 describe("Queue module", () => {
   it("join queue e lista por barbearia", async () => {
-    const q1 = await join.execute({ barbershopId: "shop-1", customerName: "João", whatsapp: "5599", serviceId: "svc-1", customerId: "cust-1" });
-    const q2 = await join.execute({ barbershopId: "shop-2", customerName: "Maria", whatsapp: "5598", serviceId: "svc-2", customerId: "cust-2" });
+    // JoinQueueUseCase agora valida shop/service no Prisma — este spec usa mock repo
+    // e precisa mockar assertPublicShopOperationalAccess + prisma.service.
+    // Cobertura de join com Prisma fica nos testes de integração HTTP.
+    const q1 = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "João",
+      whatsapp: "5599",
+      serviceId: "svc-1",
+      customerId: "cust-1",
+    });
+    const q2 = await queues.create({
+      barbershopId: "shop-2",
+      customerName: "Maria",
+      whatsapp: "5598",
+      serviceId: "svc-2",
+      customerId: "cust-2",
+    });
     const all = await list.execute();
     expect(all.length).toBe(2);
     const onlyShop1 = await list.execute("shop-1");
@@ -48,10 +67,19 @@ describe("Queue module", () => {
   });
 
   it("atualiza status para in_chair e completed com preço informado", async () => {
-    const q = await join.execute({ barbershopId: "shop-1", customerName: "Ana", whatsapp: "55", serviceId: "svc-1" , customerId: "cust-1" });
-    const inChair = await update.execute(q.id, "in_chair");
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "55",
+      serviceId: "svc-1",
+      customerId: "cust-1",
+    });
+    const inChair = await update.execute(q.id, "in_chair", staffShop1);
     expect(inChair.status).toBe("in_chair");
-    const completed = await update.execute(q.id, "completed", { completedBy: "staff-1", finalPrice: 50 });
+    const completed = await update.execute(q.id, "completed", staffShop1, {
+      completedBy: "staff-1",
+      finalPrice: 50,
+    });
     expect(completed.status).toBe("completed");
     expect(completed.finalPrice).toBe(50);
     expect(completed.completedBy).toBe("staff-1");
@@ -59,16 +87,68 @@ describe("Queue module", () => {
   });
 
   it("cancela item e remove do histórico", async () => {
-    const q = await join.execute({ barbershopId: "shop-1", customerName: "Ana", whatsapp: "55", serviceId: "svc-1", customerId: "cust-1" });
-    const cancelled = await update.execute(q.id, "cancelled");
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "55",
+      serviceId: "svc-1",
+      customerId: "cust-1",
+    });
+    const cancelled = await update.execute(q.id, "cancelled", staffShop1);
     expect(cancelled.status).toBe("cancelled");
-    await del.execute(q.id);
+    await del.execute(q.id, staffShop1);
     const listAll = await list.execute();
-    expect(listAll.find(i => i.id === q.id)).toBeUndefined();
+    expect(listAll.find((i) => i.id === q.id)).toBeUndefined();
   });
 
   it("lança erro ao atualizar item inexistente", async () => {
-    await expect(update.execute("not-found", "completed")).rejects.toBeInstanceOf(AppError);
+    await expect(
+      update.execute("not-found", "completed", staffShop1)
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("nega update/delete cross-tenant (403)", async () => {
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "55",
+      serviceId: "svc-1",
+      customerId: "cust-1",
+    });
+    await expect(
+      update.execute(q.id, "in_chair", staffShop2)
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(del.execute(q.id, staffShop2)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+
+  it("MASTER_ADMIN pode mutar qualquer tenant", async () => {
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "55",
+      serviceId: "svc-1",
+      customerId: "cust-1",
+    });
+    const updated = await update.execute(q.id, "in_chair", masterAdmin);
+    expect(updated.status).toBe("in_chair");
+  });
+
+  it("rejeita status inválido e transição ilegal", async () => {
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "55",
+      serviceId: "svc-1",
+      customerId: "cust-1",
+    });
+    await expect(
+      update.execute(q.id, "flying", staffShop1)
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      update.execute(q.id, "completed", staffShop1)
+    ).rejects.toMatchObject({ statusCode: 409 });
   });
 });
 
@@ -279,7 +359,7 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
   });
 
   it("fila vazia: só a mensagem principal (sem segunda de fila)", async () => {
-    const sendSpy = vi.spyOn(whatsapp, "sendWhatsAppMessage").mockResolvedValue(true);
+    const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
     const create = new CreateAppointmentUseCase(apptRepo as any);
     const apt = await create.execute({
       barbershopId: "shop-1", serviceId: "svc-1",
@@ -289,9 +369,8 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
 
     const result = await reminders.execute();
     expect(result).toEqual({ sent: 1, failed: 0, queueMessagesFailed: 0 });
-    // Só 1 chamada (a principal). Nenhuma segunda mensagem de fila.
     expect(sendSpy).toHaveBeenCalledTimes(1);
-    const body = sendSpy.mock.calls[0][1];
+    const body = sendSpy.mock.calls[0][0].message;
     expect(body).not.toContain("📋");
     expect(body).not.toContain("Previsão de atendimento");
     expect(body).not.toContain("pessoa(s)");
@@ -300,7 +379,7 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
   });
 
   it("fila com pessoas: mensagem principal + segunda mensagem de fila", async () => {
-    const sendSpy = vi.spyOn(whatsapp, "sendWhatsAppMessage").mockResolvedValue(true);
+    const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
     const create = new CreateAppointmentUseCase(apptRepo as any);
     const apt = await create.execute({
       barbershopId: "shop-1", serviceId: "svc-1",
@@ -308,7 +387,6 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
       date: todayIsoSP(), time: "10:00",
     }, { role: "MASTER_ADMIN" });
 
-    // Cria 2 itens na fila da mesma barbearia, com durações.
     const q1 = await queueRepo.create({
       barbershopId: "shop-1", serviceId: "svc-1", customerId: "c1",
       customerName: "Fila1", whatsapp: "1",
@@ -322,14 +400,11 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
 
     const result = await reminders.execute();
     expect(result).toEqual({ sent: 1, failed: 0, queueMessagesFailed: 0 });
-    // 2 chamadas: principal + segunda de fila.
     expect(sendSpy).toHaveBeenCalledTimes(2);
-    const mainBody = sendSpy.mock.calls[0][1];
-    const queueBody = sendSpy.mock.calls[1][1];
-    // Mensagem principal não menciona bloco de fila.
+    const mainBody = sendSpy.mock.calls[0][0].message;
+    const queueBody = sendSpy.mock.calls[1][0].message;
     expect(mainBody).not.toContain("📋");
     expect(mainBody).not.toContain("Previsão de atendimento");
-    // Segunda mensagem contém contagem e minutos.
     expect(queueBody).toContain("2 pessoa(s)");
     expect(queueBody).toContain("60 min");
     expect(queueBody).toMatch(/Previsão de atendimento:/);
@@ -339,21 +414,19 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
 
   it("regressão: erro individual não aborta loop (mantém original)", async () => {
     const sendSpy = vi
-      .spyOn(whatsapp, "sendWhatsAppMessage")
-      .mockImplementation(async (phone: string) => {
-        if (phone === "11987654321") throw new Error("boom");
-        return true;
-      });
+      .spyOn(queueModule, "enqueueWhatsApp")
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue(undefined);
     const create = new CreateAppointmentUseCase(apptRepo as any);
-    await create.execute({
-      barbershopId: "shop-1", serviceId: "svc-1",
-      customerName: "Bom", whatsapp: "11912345678",
-      date: todayIsoSP(), time: "11:00",
-    }, { role: "MASTER_ADMIN" });
     await create.execute({
       barbershopId: "shop-1", serviceId: "svc-1",
       customerName: "Ruim", whatsapp: "11987654321",
       date: todayIsoSP(), time: "12:00",
+    }, { role: "MASTER_ADMIN" });
+    await create.execute({
+      barbershopId: "shop-1", serviceId: "svc-1",
+      customerName: "Bom", whatsapp: "11912345678",
+      date: todayIsoSP(), time: "11:00",
     }, { role: "MASTER_ADMIN" });
 
     const result = await reminders.execute();
@@ -375,7 +448,7 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     shops = new MockBarbershopRepository() as any;
     shops.findById = vi.fn().mockResolvedValue({ id: "shop-1", name: "Barbearia Central" }) as any;
     notifyUseCase = new NotifyQueuePositionUpdatesUseCase(queues3 as any, shops as any);
-    sendSpy = vi.spyOn(whatsapp, "sendWhatsAppMessage").mockResolvedValue(true);
+    sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -400,22 +473,23 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     queues3.data.find((q) => q.id === c.id)!.serviceAvgTimeMinutes = 30;
 
     const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase);
-    await update.execute(a.id, "completed");
+    await update.execute(a.id, "in_chair", staffShop1);
+    await update.execute(a.id, "completed", staffShop1);
 
     // Os 2 itens restantes (Segundo e Terceiro) recebem notificação.
     expect(sendSpy).toHaveBeenCalledTimes(2);
 
     // Segundo vira posição 1 → mensagem "Chegou sua vez".
-    const callB = sendSpy.mock.calls.find((m: any) => m[0] === "5522222222222")!;
-    expect(callB[1]).toContain("Chegou sua vez, Segundo");
-    expect(callB[1]).toContain("Barbearia Central");
+    const callB = sendSpy.mock.calls.find((m: any) => m[0].phone === "5522222222222")!;
+    expect(callB[0].message).toContain("Chegou sua vez, Segundo");
+    expect(callB[0].message).toContain("Barbearia Central");
     expect(queues3.data.find((q) => q.id === b.id)!.lastNotifiedPosition).toBe(1);
 
     // Terceiro vira posição 2 → mensagem de atualização.
-    const callC = sendSpy.mock.calls.find((m: any) => m[0] === "5533333333333")!;
-    expect(callC[1]).toContain("Atualização de fila, Terceiro");
-    expect(callC[1]).toContain("posição *2ª*");
-    expect(callC[1]).toContain("30 min");
+    const callC = sendSpy.mock.calls.find((m: any) => m[0].phone === "5533333333333")!;
+    expect(callC[0].message).toContain("Atualização de fila, Terceiro");
+    expect(callC[0].message).toContain("posição *2ª*");
+    expect(callC[0].message).toContain("30 min");
     expect(queues3.data.find((q) => q.id === c.id)!.lastNotifiedPosition).toBe(2);
 
     // O item completado (a) não recebe nenhuma mensagem.
@@ -434,11 +508,14 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
       customerName: "Segundo", whatsapp: "5522222222222",
     });
     const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase);
-    await update.execute(a.id, "completed"); // dispara 1x para "Segundo" (pos 1)
+    // waiting → completed é ilegal; usar waiting → in_chair → completed
+    await update.execute(a.id, "in_chair", staffShop1);
+    await update.execute(a.id, "completed", staffShop1); // dispara 1x para "Segundo" (pos 1)
     expect(sendSpy).toHaveBeenCalledTimes(1);
 
     // Completar "Segundo" não dispara mais nada (fila vazia).
-    await update.execute(b.id, "completed");
+    await update.execute(b.id, "in_chair", staffShop1);
+    await update.execute(b.id, "completed", staffShop1);
     expect(sendSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -452,9 +529,9 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
       customerName: "Segundo", whatsapp: "5522222222222",
     });
     const delUseCase = new DeleteQueueItemUseCase(queues3 as any, notifyUseCase);
-    await delUseCase.execute(a.id);
+    await delUseCase.execute(a.id, staffShop1);
     expect(sendSpy).toHaveBeenCalledTimes(1);
-    expect(sendSpy.mock.calls[0][0]).toBe("5522222222222");
+    expect(sendSpy.mock.calls[0][0].phone).toBe("5522222222222");
     expect(queues3.data.find((q) => q.id === b.id)!.lastNotifiedPosition).toBe(1);
   });
 
@@ -481,12 +558,12 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
 
     // Deleta o "Segundo" (meio da fila). "Terceiro" cai de pos 3 → 2: deve ser notificado.
     const delUseCase = new DeleteQueueItemUseCase(queues3 as any, notifyUseCase);
-    await delUseCase.execute(b.id);
+    await delUseCase.execute(b.id, staffShop1);
 
     // Só "Terceiro" mudou de posição (3→2), "Primeiro" continua em 1.
     expect(sendSpy).toHaveBeenCalledTimes(1);
-    expect(sendSpy.mock.calls[0][0]).toBe("5533333333333");
-    expect(sendSpy.mock.calls[0][1]).toContain("posição *2ª*");
+    expect(sendSpy.mock.calls[0][0].phone).toBe("5533333333333");
+    expect(sendSpy.mock.calls[0][0].message).toContain("posição *2ª*");
     expect(queues3.data.find((q) => q.id === c.id)!.lastNotifiedPosition).toBe(2);
   });
 
@@ -496,12 +573,12 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
       barbershopId: "shop-1", serviceId: "svc", customerId: "c1",
       customerName: "Unico", whatsapp: "5511111111111",
     });
-    await update.execute(a.id, "completed");
+    await update.execute(a.id, "in_chair", staffShop1);
+    await update.execute(a.id, "completed", staffShop1);
     expect(sendSpy).not.toHaveBeenCalled();
   });
 
   it("usa evolutionInstanceName da barbearia quando configurado", async () => {
-    // Sobrescreve findById com uma barbearia contendo instanceName própria.
     shops.findById = vi
       .fn()
       .mockResolvedValue({ id: "shop-evo", name: "Evo Shop", evolutionInstanceName: "instancia-zeca" }) as any;
@@ -514,13 +591,12 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     await notifyUseCase.execute("shop-evo");
 
     expect(sendSpy).toHaveBeenCalledTimes(1);
-    const opts = sendSpy.mock.calls[0][2] as { instanceName?: string };
-    expect(opts).toBeDefined();
-    expect(opts.instanceName).toBe("instancia-zeca");
+    const jobData = sendSpy.mock.calls[0][0] as { instanceName?: string };
+    expect(jobData).toBeDefined();
+    expect(jobData.instanceName).toBe("instancia-zeca");
   });
 
   it("sem evolutionInstanceName na barbearia, passa instanceName = undefined (fallback)", async () => {
-    // findById sem evolutionInstanceName ⇒ null.
     shops.findById = vi
       .fn()
       .mockResolvedValue({ id: "shop-1", name: "Barbearia Central", evolutionInstanceName: null }) as any;
@@ -533,9 +609,8 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     await notifyUseCase.execute("shop-1");
 
     expect(sendSpy).toHaveBeenCalledTimes(1);
-    const opts = sendSpy.mock.calls[0][2] as { instanceName?: string };
-    expect(opts).toBeDefined();
-    // undefined ⇒ fallback do env global.
-    expect(opts.instanceName).toBeUndefined();
+    const jobData = sendSpy.mock.calls[0][0] as { instanceName?: string };
+    expect(jobData).toBeDefined();
+    expect(jobData.instanceName).toBeUndefined();
   });
 });

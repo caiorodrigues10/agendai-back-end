@@ -12,7 +12,7 @@ import {
   SendAppointmentRemindersUseCase,
 } from "./appointmentUseCases";
 import { AppError } from "@/shared/errors/AppError";
-import * as whatsapp from "@/shared/services/whatsappNotificationService";
+import * as queueModule from "@/shared/infra/queue";
 
 const ADMIN = { role: "MASTER_ADMIN" } as const;
 const owner = (barbershopId: string) => ({ role: "OWNER", barbershopId });
@@ -181,8 +181,8 @@ describe("Appointments module", () => {
 
     it("envio com sucesso marca reminderSentAt", async () => {
       const sendSpy = vi
-        .spyOn(whatsapp, "sendWhatsAppMessage")
-        .mockResolvedValue(true);
+        .spyOn(queueModule, "enqueueWhatsApp")
+        .mockResolvedValue(undefined);
 
       const create = new CreateAppointmentUseCase(repo as any);
       const apt = await create.execute(
@@ -210,10 +210,11 @@ describe("Appointments module", () => {
 
       expect(result).toEqual({ sent: 1, failed: 0, queueMessagesFailed: 0 });
       expect(sendSpy).toHaveBeenCalledOnce();
-      expect(sendSpy.mock.calls[0][0]).toBe("11999999999");
-      expect(sendSpy.mock.calls[0][1]).toContain("João");
-      expect(sendSpy.mock.calls[0][1]).toContain("10:30");
-      expect(sendSpy.mock.calls[0][1]).toContain("Barbearia Central");
+      const jobData = sendSpy.mock.calls[0][0];
+      expect(jobData.phone).toBe("11999999999");
+      expect(jobData.message).toContain("João");
+      expect(jobData.message).toContain("10:30");
+      expect(jobData.message).toContain("Barbearia Central");
       expect(repo.appointments.find((a) => a.id === apt.id)?.reminderSentAt).toBeInstanceOf(
         Date
       );
@@ -223,8 +224,8 @@ describe("Appointments module", () => {
 
     it("falha no envio não marca reminderSentAt", async () => {
       const sendSpy = vi
-        .spyOn(whatsapp, "sendWhatsAppMessage")
-        .mockResolvedValue(false);
+        .spyOn(queueModule, "enqueueWhatsApp")
+        .mockRejectedValue(new Error("fail"));
 
       const create = new CreateAppointmentUseCase(repo as any);
       const apt = await create.execute(
@@ -256,8 +257,8 @@ describe("Appointments module", () => {
 
     it("nenhum agendamento hoje retorna { sent: 0, failed: 0 }", async () => {
       const sendSpy = vi
-        .spyOn(whatsapp, "sendWhatsAppMessage")
-        .mockResolvedValue(true);
+        .spyOn(queueModule, "enqueueWhatsApp")
+        .mockResolvedValue(undefined);
 
       const create = new CreateAppointmentUseCase(repo as any);
       await create.execute(
@@ -313,12 +314,11 @@ describe("Appointments module", () => {
 
       // Para o "Ruim", o envio lança; para o "Bom", envio bem-sucedido.
       const sendSpy = vi
-        .spyOn(whatsapp, "sendWhatsAppMessage")
-        .mockImplementation(async (phone: string) => {
-          if (phone === "11987654321") {
+        .spyOn(queueModule, "enqueueWhatsApp")
+        .mockImplementation(async (data: { phone: string }) => {
+          if (data.phone === "11987654321") {
             throw new Error("boom");
           }
-          return true;
         });
 
       const useCase = new SendAppointmentRemindersUseCase(
@@ -343,8 +343,8 @@ describe("Appointments module", () => {
 
     it("usa evolutionInstanceName da barbearia quando configurado (não passa instanceName = undefined)", async () => {
       const sendSpy = vi
-        .spyOn(whatsapp, "sendWhatsAppMessage")
-        .mockResolvedValue(true);
+        .spyOn(queueModule, "enqueueWhatsApp")
+        .mockResolvedValue(undefined);
 
       const create = new CreateAppointmentUseCase(repo as any);
       const apt = await create.execute(
@@ -379,18 +379,17 @@ describe("Appointments module", () => {
 
       expect(result.sent).toBe(1);
       expect(sendSpy).toHaveBeenCalledOnce();
-      // O 3º argumento deve ser um objeto com instanceName preenchido.
-      const opts = sendSpy.mock.calls[0][2] as { instanceName?: string };
-      expect(opts).toBeDefined();
-      expect(opts.instanceName).toBe("minha-instancia");
+      const jobData = sendSpy.mock.calls[0][0] as { instanceName?: string };
+      expect(jobData).toBeDefined();
+      expect(jobData.instanceName).toBe("minha-instancia");
 
       sendSpy.mockRestore();
     });
 
     it("barbearia sem evolutionInstanceName: passa instanceName = undefined (cai no fallback do env)", async () => {
       const sendSpy = vi
-        .spyOn(whatsapp, "sendWhatsAppMessage")
-        .mockResolvedValue(true);
+        .spyOn(queueModule, "enqueueWhatsApp")
+        .mockResolvedValue(undefined);
 
       const create = new CreateAppointmentUseCase(repo as any);
       const apt = await create.execute(
@@ -408,7 +407,6 @@ describe("Appointments module", () => {
       stored.barbershopName = "Barbearia Padrão";
       stored.serviceName = "Corte";
 
-      // Cria a barbearia SEM evolutionInstanceName.
       const shop = await shops.create({
         name: "Barbearia Padrão",
         whatsapp: "11911111111",
@@ -424,10 +422,9 @@ describe("Appointments module", () => {
 
       expect(result.sent).toBe(1);
       expect(sendSpy).toHaveBeenCalledOnce();
-      const opts = sendSpy.mock.calls[0][2] as { instanceName?: string };
-      expect(opts).toBeDefined();
-      // instanceName indefinido ⇒ fallback do env global.
-      expect(opts.instanceName).toBeUndefined();
+      const jobData = sendSpy.mock.calls[0][0] as { instanceName?: string };
+      expect(jobData).toBeDefined();
+      expect(jobData.instanceName).toBeUndefined();
 
       sendSpy.mockRestore();
     });

@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { validateSchema } from "@/shared/utils/zodValidation";
 import { refreshSchema } from "../../schemas/authSchemas";
 import { verify, sign, Secret, SignOptions } from "jsonwebtoken";
+import { randomUUID } from "node:crypto";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
 import { UserRepository } from "@/modules/users/infra/repositories/UserRepository";
@@ -23,7 +24,11 @@ export class RefreshController {
       const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
       const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: (user as any).cpf ?? undefined }, auth.secret as Secret, accessOpts);
       const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
-      const newRefreshToken = sign({ sub: user.id }, auth.refreshSecret as Secret, refreshOpts);
+      const newRefreshToken = sign(
+        { sub: user.id, jti: randomUUID() },
+        auth.refreshSecret as Secret,
+        refreshOpts
+      );
       // Rotaciona: apaga o token antigo e cria um novo (evita acúmulo no banco)
       await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
       await prisma.refreshToken.create({

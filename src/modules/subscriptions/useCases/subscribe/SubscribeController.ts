@@ -24,7 +24,14 @@ export class SubscribeController {
     }
 
     const useCase = container.resolve(SubscribeUseCase);
-    const result = await useCase.execute({ ...body, barbershopId }, user);
+    const result = await useCase.execute(
+      {
+        ...body,
+        barbershopId,
+        remoteIp: request.ip
+      },
+      user
+    );
 
     reply.status(201).send({ success: true, data: result });
   }

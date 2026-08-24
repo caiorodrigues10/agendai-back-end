@@ -15,6 +15,11 @@ import { categoriesRoutes } from './categories.routes'
 import { appointmentsRoutes } from './appointments.routes'
 import { feedRoutes } from './feed.routes'
 import { notificationsRoutes } from './notifications.routes'
+import { contactRoutes } from './contact.routes'
+import { referralsRoutes } from './referrals.routes'
+import { postsRoutes } from './posts.routes'
+import { clientsRoutes } from './clients.routes'
+import { packagesRoutes } from './packages.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	await authRoutes(app)
@@ -33,4 +38,9 @@ export async function apiRoutes(app: FastifyInstance) {
 	await categoriesRoutes(app)
 	await feedRoutes(app)
 	await notificationsRoutes(app)
+	await contactRoutes(app)
+	await referralsRoutes(app)
+	await postsRoutes(app)
+	await clientsRoutes(app)
+	await packagesRoutes(app)
 }

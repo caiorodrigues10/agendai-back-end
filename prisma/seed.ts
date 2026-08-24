@@ -89,7 +89,7 @@ const defaultPlans = [
 async function main() {
 	const hashProvider = new BcryptHashProvider()
 
-	const adminEmail = 'admin@barberqueue.local'
+	const adminEmail = 'admin@agendai.local'
 	const existingAdmin = await prisma.user.findUnique({
 		where: { email: adminEmail },
 	})
@@ -109,7 +109,7 @@ async function main() {
 	}
 
 	const systemUser = await prisma.user.findUnique({
-		where: { email: 'system@barberqueue.internal' },
+		where: { email: 'system@agendai.internal' },
 	})
 	if (!systemUser) {
 		const fakePassword = await hashProvider.hash(
@@ -122,7 +122,7 @@ async function main() {
         VALUES (
           '00000000-0000-0000-0000-000000000000'::uuid,
           'Sistema',
-          'system@barberqueue.internal',
+          'system@agendai.internal',
           ${fakePassword},
           ${Role.MASTER_ADMIN}::"Role",
           NULL,

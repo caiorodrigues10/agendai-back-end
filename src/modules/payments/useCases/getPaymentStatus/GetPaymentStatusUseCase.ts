@@ -1,5 +1,6 @@
 import { inject, injectable } from "tsyringe";
 import { MercadoPagoService } from "../../services/MercadoPagoService";
+import { AsaasService } from "../../services/AsaasService";
 import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { IPaymentResponseDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
 import { AppError } from "@/shared/errors/AppError";
@@ -10,7 +11,9 @@ export class GetPaymentStatusUseCase {
     @inject("PaymentRepository")
     private paymentRepo: IPaymentRepository,
     @inject("MercadoPagoService")
-    private mpService: MercadoPagoService
+    private mpService: MercadoPagoService,
+    @inject("AsaasService")
+    private asaasService: AsaasService
   ) {}
 
   async execute(
@@ -35,11 +38,35 @@ export class GetPaymentStatusUseCase {
     }
 
     const shouldSync =
-      payment.provider === "MERCADOPAGO" &&
-      payment.mpPaymentId != null &&
-      (syncWithMp || ["pending", "in_process"].includes(payment.status));
+      (payment.provider === "MERCADOPAGO" &&
+        payment.mpPaymentId != null &&
+        (syncWithMp || ["pending", "in_process"].includes(payment.status))) ||
+      (payment.provider === "ASAAS" &&
+        payment.providerPaymentId != null &&
+        (syncWithMp || ["pending", "in_process"].includes(payment.status)));
 
-    if (shouldSync && payment.mpPaymentId) {
+    if (payment.provider === "ASAAS" && payment.providerPaymentId) {
+      try {
+        const asaasData = await this.asaasService.getPayment(
+          payment.providerPaymentId
+        );
+        const mapped = this.asaasService.mapStatusToLocal(asaasData.status);
+        if (mapped !== payment.status) {
+          return this.paymentRepo.updateStatus(payment.id, {
+            status: mapped,
+            statusDetail: asaasData.status,
+            rawResponse: JSON.stringify(asaasData),
+          });
+        }
+      } catch (err: any) {
+        const msg = `[GetPaymentStatus] Falha ao sincronizar providerPaymentId=${payment.providerPaymentId} com Asaas: ${err?.message ?? err}`;
+        if (logger) {
+          logger.warn(msg);
+        } else {
+          console.warn(msg);
+        }
+      }
+    } else if (shouldSync && payment.mpPaymentId) {
       try {
         // FIX-4: passa string diretamente — sem Number(), sem risco de truncamento
         const mpData = await this.mpService.getPaymentById(payment.mpPaymentId);

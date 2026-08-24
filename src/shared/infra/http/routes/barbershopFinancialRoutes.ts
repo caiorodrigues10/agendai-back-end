@@ -3,7 +3,7 @@ import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
 import { checkDashboardAccess } from "../middlewares/checkDashboardAccess";
-import { BarbershopFinancialController } from "../../../../modules/barbershops/controllers/BarbershopFinancialController";
+import { BarbershopFinancialController } from "@/modules/barbershops/controllers/BarbershopFinancialController";
 
 const financial = new BarbershopFinancialController();
 

@@ -1,49 +1,66 @@
 services:
   database:
     image: postgres:16-alpine
-    container_name: barberqueue_db
+    container_name: agendai_db
     restart: always
     ports:
       # Host 5442 para não conflitar com outros Postgres locais (5440/5441 etc.)
       - "5442:5432"
     environment:
-      POSTGRES_USER: barberqueue
-      POSTGRES_PASSWORD: barberqueue123
-      POSTGRES_DB: barberqueue_db
+      POSTGRES_USER: agendai
+      POSTGRES_PASSWORD: agendai123
+      POSTGRES_DB: agendai_db
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U barberqueue -d barberqueue_db"]
+      test: ["CMD-SHELL", "pg_isready -U agendai -d agendai_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: agendai_redis
+    restart: always
+    # Sem publish na host: a API acessa via rede Docker (redis:6379).
+    # Se precisar debug local, use: "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   api:
     build: .
-    container_name: barberqueue_api
+    container_name: agendai_api
     restart: always
     # env_file carrega o .env automaticamente; environment abaixo tem precedência
     env_file:
       - .env
     environment:
       # Sobrescreve DATABASE_URL para apontar para o container interno
-      DATABASE_URL: postgresql://barberqueue:barberqueue123@database:5432/barberqueue_db
+      DATABASE_URL: postgresql://agendai:agendai123@database:5432/agendai_db
+      # BullMQ (e-mail / WhatsApp) — hostname do serviço na rede Docker
+      REDIS_URL: redis://redis:6379
       NODE_ENV: development
       PORT: "3333"
       ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:5173,http://127.0.0.1:3002,http://127.0.0.1:3003,http://localhost:3003"
-      # Dentro do container, a chave GCS fica em /run/secrets/gcs-key.json
+      # GCS: mount de ./gcs-key.json (arquivo, não diretório).
+      # Antes do primeiro up: bash scripts/ensure-gcs-key.sh
+      # Chave real: docs/GCS_SETUP.md → create-service-account.sh + setup-gcs.sh
+      # Placeholder permite a API subir; upload de logo retorna 503 até a SA estar configurada.
       GCS_KEY_FILE_PATH: /run/secrets/gcs-key.json
     ports:
       - "3333:3333"
     volumes:
       - .:/app
       - /app/node_modules
-      # gcs-key.json montado como read-only.
-      # Execute `bash scripts/ensure-gcs-key.sh` para criar o placeholder
-      # caso ainda não tenha a chave real do GCP.
+      # Deve ser um ARQUIVO. Se Docker criou uma pasta aqui, apague e rode ensure-gcs-key.sh.
       - ./gcs-key.json:/run/secrets/gcs-key.json:ro
     depends_on:
       database:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: >
       sh -c "

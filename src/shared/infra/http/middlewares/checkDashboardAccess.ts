@@ -1,13 +1,15 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
-
-const TRIAL_DAYS = 30;
+import { TRIAL_DAYS } from "@/shared/constants/subscription";
 
 /**
  * Bloqueia rotas de dashboard (financeiro / relatórios do salão)
  * quando o plano ativo tem hasDashboard = false.
- * Trial de 30 dias libera acesso completo (captura + retenção).
+ *
+ * Regra de produto: os primeiros TRIAL_DAYS (desde barbershop.createdAt)
+ * são sempre Pro completo — mesmo se o dono já escolheu/assinou Essencial.
+ * Após o trial, aplica o plano efetivo (downgrade automático para Essencial).
  */
 export async function checkDashboardAccess(
   request: FastifyRequest,

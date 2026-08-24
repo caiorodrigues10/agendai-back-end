@@ -3,8 +3,9 @@ import { AdminDashboardController } from "@/modules/admin/controllers/AdminDashb
 import { AdminBarbershopController } from "@/modules/admin/controllers/AdminBarbershopController";
 import { AdminUserController } from "@/modules/admin/controllers/AdminUserController";
 import { AdminAuditLogController } from "@/modules/admin/controllers/AdminAuditLogController";
-import { BlockedEntityAdminController } from "../../../../modules/admin/controllers/BlockedEntityController"
+import { BlockedEntityAdminController } from "@/modules/admin/controllers/BlockedEntityController"
 import { AdminNotificationController } from "@/modules/admin/controllers/AdminNotificationController";
+import { AdminReferralsController } from "@/modules/admin/controllers/AdminReferralsController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 
@@ -14,6 +15,7 @@ const userController = new AdminUserController();
 const auditLogController = new AdminAuditLogController();
 const blockedEntityController = new BlockedEntityAdminController();
 const notificationController = new AdminNotificationController();
+const referralsController = new AdminReferralsController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"])];
@@ -46,4 +48,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/notifications/unread-count", { preHandler }, notificationController.unreadCount.bind(notificationController));
   app.patch("/admin/notifications/read-all", { preHandler }, notificationController.markAllRead.bind(notificationController));
   app.patch("/admin/notifications/:id/read", { preHandler }, notificationController.markRead.bind(notificationController));
+
+  // ─── Indicações ───────────────────────────────────────────────────────────
+  app.get("/admin/referrals", { preHandler }, referralsController.getStats.bind(referralsController));
 }

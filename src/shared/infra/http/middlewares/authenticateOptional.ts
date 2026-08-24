@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { verify } from "jsonwebtoken";
 import auth from "@/config/auth";
+import { extractBearerToken } from "./authenticate";
 
 interface JwtPayload {
   sub: string;
@@ -11,17 +12,14 @@ interface JwtPayload {
 
 /**
  * Variante do `authenticate` para rotas com visão pública + visão staff.
- * Se houver token válido, popula `request.user`; caso contrário segue
+ * Se houver Bearer JWT válido, popula `request.user`; caso contrário segue
  * anônimo (request.user permanece undefined) sem lançar erro.
  */
 export async function authenticateOptional(
   request: FastifyRequest,
   _reply: FastifyReply
 ): Promise<void> {
-  const authHeader = request.headers.authorization;
-  if (!authHeader) return;
-
-  const [, token] = authHeader.split(" ");
+  const token = extractBearerToken(request.headers.authorization);
   if (!token) return;
 
   try {

@@ -17,6 +17,11 @@ const feedSelect = {
   imageUrl: true,
   likes: true,
   createdAt: true,
+  status: true,
+  scheduledFor: true,
+  publishedAt: true,
+  postMode: true,
+  ctaText: true,
   author: { select: { name: true } },
 } as const;
 
@@ -29,6 +34,11 @@ type FeedRow = {
   imageUrl: string | null;
   likes: number;
   createdAt: Date;
+  status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  scheduledFor: Date | null;
+  publishedAt: Date | null;
+  postMode: "QUEUE" | "APPOINTMENTS" | "BOTH";
+  ctaText: string | null;
   author: { name: string } | null;
 };
 
@@ -50,6 +60,11 @@ function toResponse(post: FeedRow) {
     likes: post.likes,
     createdAt: post.createdAt.getTime(),
     authorName: post.author?.name ?? "Equipe",
+    status: post.status.toLowerCase(),
+    scheduledFor: post.scheduledFor ? post.scheduledFor.getTime() : undefined,
+    publishedAt: post.publishedAt ? post.publishedAt.getTime() : undefined,
+    postMode: post.postMode.toLowerCase(),
+    ctaText: post.ctaText ?? undefined,
   };
 }
 
@@ -69,7 +84,7 @@ export class FeedController {
     }
 
     const posts = await prisma.feedPost.findMany({
-      where: { barbershopId },
+      where: { barbershopId, status: "PUBLISHED" },
       select: feedSelect,
       orderBy: { createdAt: "desc" },
     });
@@ -91,6 +106,9 @@ export class FeedController {
         title: body.title ?? null,
         content: body.content,
         imageUrl: body.imageUrl ?? null,
+        // Posts criados pelo formulário antigo continuam públicos
+        status: "PUBLISHED",
+        publishedAt: new Date(),
       },
       select: feedSelect,
     });

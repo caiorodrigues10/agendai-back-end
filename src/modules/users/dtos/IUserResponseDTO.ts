@@ -10,4 +10,6 @@ export interface IUserResponseDTO {
   createdAt: Date;
   active: boolean;
   password?: string;
+  googleSub?: string | null;
+  emailVerified?: boolean;
 }

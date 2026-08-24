@@ -26,7 +26,7 @@ export class UserRepository implements IUserRepository {
   async findByEmail(email: string): Promise<IUserResponseDTO | null> {
     return prisma.user.findUnique({
       where: { email },
-      select: { ...publicSelect, password: true }
+      select: { ...publicSelect, password: true, googleSub: true, emailVerified: true }
     });
   }
 

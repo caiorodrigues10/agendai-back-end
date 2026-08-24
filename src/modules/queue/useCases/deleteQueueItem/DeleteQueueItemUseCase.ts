@@ -1,6 +1,11 @@
 import { inject, injectable } from "tsyringe";
+import { AppError } from "@/shared/errors/AppError";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
 import { NotifyQueuePositionUpdatesUseCase } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
+import {
+  assertQueueTenantAccess,
+  type QueueRequestingUser,
+} from "../../utils/queueAccess";
 
 @injectable()
 export class DeleteQueueItemUseCase {
@@ -10,16 +15,18 @@ export class DeleteQueueItemUseCase {
     @inject(NotifyQueuePositionUpdatesUseCase)
     private notifyQueuePositionUpdates: NotifyQueuePositionUpdatesUseCase
   ) {}
-  async execute(id: string): Promise<void> {
-    // Pega barbershopId antes de remover para poder avisar a fila daquela barbearia.
+
+  async execute(id: string, requestingUser: QueueRequestingUser): Promise<void> {
     const item = await this.queueRepository.findById(id);
+    if (!item) throw new AppError("Item de fila não encontrado", 404);
+
+    assertQueueTenantAccess(item.barbershopId, requestingUser);
+
     await this.queueRepository.delete(id);
-    if (item) {
-      try {
-        await this.notifyQueuePositionUpdates.execute(item.barbershopId);
-      } catch {
-        // logar no futuro quando use case receber logger
-      }
+    try {
+      await this.notifyQueuePositionUpdates.execute(item.barbershopId);
+    } catch {
+      // notificação não bloqueia a remoção
     }
   }
 }

@@ -1,5 +1,6 @@
 import { injectable } from "tsyringe";
 import crypto from "node:crypto";
+import { AppError } from "@/shared/errors/AppError";
 
 /** Chave pública HMAC da AbacatePay (documentação oficial). Sobrescrevível via env. */
 const DEFAULT_ABACATE_HMAC_PUBLIC_KEY =
@@ -62,7 +63,7 @@ export class AbacatePayService {
   }
 
   private async request<T>(
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "DELETE",
     path: string,
     body?: unknown
   ): Promise<T> {
@@ -161,6 +162,112 @@ export class AbacatePayService {
       "GET",
       `/checkouts/get?id=${encodeURIComponent(checkoutId)}`
     );
+  }
+
+  /**
+   * Cancela um checkout PENDING (ainda não pago).
+   * Checkouts PAID devem usar refundCheckout.
+   * @see https://docs.abacatepay.com/pages/payment/reference (status CANCELLED)
+   */
+  async cancelCheckout(checkoutId: string): Promise<AbacateCheckout> {
+    const remote = await this.getCheckout(checkoutId);
+    const status = (remote.status || "").toUpperCase();
+
+    if (status === "CANCELLED" || status === "EXPIRED") {
+      return remote;
+    }
+    if (status === "PAID" || status === "REFUNDED") {
+      throw new AppError(
+        "Checkout AbacatePay já foi pago — use reembolso em vez de cancelamento",
+        422
+      );
+    }
+    if (status !== "PENDING") {
+      throw new AppError(
+        `Checkout AbacatePay no status "${remote.status}" não pode ser cancelado`,
+        422
+      );
+    }
+
+    try {
+      return await this.request<AbacateCheckout>("POST", "/checkouts/cancel", {
+        id: checkoutId,
+      });
+    } catch (error: any) {
+      const message = String(error?.message ?? "");
+      if (
+        message.includes("404") ||
+        message.includes("NOT_FOUND") ||
+        message.includes("not found") ||
+        message.includes("INVALID")
+      ) {
+        throw new AppError(
+          "Cancelamento remoto de checkout AbacatePay indisponível para este tipo/estado",
+          422
+        );
+      }
+      throw new AppError(
+        `Falha temporária ao cancelar no AbacatePay: ${message || "erro de rede"}`,
+        503
+      );
+    }
+  }
+
+  /**
+   * Reembolsa integralmente um checkout pago (PIX ou Cartão).
+   * @see https://docs.abacatepay.com/pages/payment/refund
+   */
+  async refundCheckout(
+    checkoutId: string,
+    reason: string
+  ): Promise<{ refundId: string; status: string }> {
+    try {
+      const data = await this.request<{ refundPublicId: string }>(
+        "POST",
+        "/checkouts/refund",
+        { id: checkoutId, reason }
+      );
+      return { refundId: data.refundPublicId, status: "REFUNDED" };
+    } catch (error: any) {
+      const message = error?.message ?? "";
+      const knownErrors: Array<[string, string]> = [
+        ["TRANSACTION_NOT_REFUNDABLE", "A transação não está em um estado reembolsável"],
+        ["INSUFFICIENT_FUNDS", "Saldo insuficiente na loja para realizar o reembolso"],
+        ["TRANSACTION_UNDER_DISPUTE", "Transação em disputa não pode ser reembolsada"],
+        ["TRANSACTION_NOT_FOUND", "Transação não encontrada"],
+        ["INVALID_METHOD", "Este método de pagamento não é reembolsável"],
+      ];
+      for (const [code, ptMessage] of knownErrors) {
+        if (message.includes(code)) {
+          throw new AppError(ptMessage, 422);
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Envia um PIX de devolução proporcional para a chave do cliente.
+   * Usado para "burlar" a limitação da AbacatePay (que só reembolsa o total)
+   * devolvendo apenas o valor não utilizado via transferência PIX.
+   * @see https://docs.abacatepay.com/pages/pix/create
+   */
+  async sendPix(input: {
+    amountCents: number;
+    externalId: string;
+    description?: string;
+    pixKey: string;
+    pixKeyType: "CPF" | "CNPJ" | "PHONE" | "EMAIL" | "RANDOM" | "BR_CODE";
+  }): Promise<{ id: string; status: string }> {
+    return this.request<{ id: string; status: string }>("POST", "/pix/send", {
+      amount: input.amountCents,
+      externalId: input.externalId,
+      description: input.description,
+      pix: {
+        key: input.pixKey,
+        type: input.pixKeyType,
+      },
+    });
   }
 
   /**

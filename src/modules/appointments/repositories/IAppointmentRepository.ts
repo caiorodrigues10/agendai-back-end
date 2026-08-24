@@ -22,6 +22,7 @@ export interface IAppointmentRepository {
 	getOccupiedSlots(
 		barbershopId: string,
 		date: string,
+		staffId?: string,
 	): Promise<IAvailabilitySlotDTO[]>
 	/**
 	 * Agendamentos CONFIRMED de hoje (America/Sao_Paulo) ainda sem lembrete enviado.

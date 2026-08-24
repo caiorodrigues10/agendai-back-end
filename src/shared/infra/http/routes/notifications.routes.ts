@@ -4,7 +4,7 @@ import { container } from "tsyringe";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
-import { sendWhatsAppMessage } from "@/shared/services/whatsappNotificationService";
+import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { SendAppointmentRemindersUseCase } from "@/modules/appointments/useCases/appointmentUseCases";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
 
@@ -34,11 +34,13 @@ export async function notificationsRoutes(app: FastifyInstance) {
       instanceName = shop?.evolutionInstanceName?.trim() || undefined;
     }
 
-    const sent = await sendWhatsAppMessage(phone, message, {
+    await enqueueWhatsApp({
+      phone,
+      message,
       instanceName,
-      log: request.log,
+      deduplicationKey: `manual:${phone}:${Date.now()}`,
     });
-    return reply.send({ success: true, data: { sent } });
+    return reply.send({ success: true, data: { sent: true } });
   });
 
   /**

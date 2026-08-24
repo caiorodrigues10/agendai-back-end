@@ -11,35 +11,15 @@ import {
   getCachedAccess,
   setCachedAccess,
 } from "./subscriptionAccessCache";
+import { TRIAL_DAYS } from "@/shared/constants/subscription";
+import { getAvailablePlans } from "@/shared/utils/planUtils";
+import { subscriptionGrantsAccess } from "@/shared/utils/subscriptionAccess";
 
 export { invalidateSubscriptionCache } from "./subscriptionAccessCache";
 
-const TRIAL_DAYS = 30;
-
-async function getAvailablePlans() {
-  return prisma.plan.findMany({
-    where: { active: true },
-    orderBy: { price: "asc" },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      price: true,
-      billingCycle: true,
-      maxEmployees: true,
-      hasDashboard: true,
-      tierKey: true,
-      features: true,
-    },
-  });
-}
-
 /**
  * Middleware que verifica se a barbearia do usuário autenticado
- * possui acesso ativo (trial ou assinatura).
- *
- * Retorna 402 com estrutura JSON padronizada contendo os planos disponíveis,
- * idêntica à estrutura usada em checkBarbershopAccess.ts (login).
+ * possui acesso ativo (trial com cartão vaulted ou assinatura paga).
  */
 export async function checkSubscription(
   request: FastifyRequest,
@@ -47,13 +27,8 @@ export async function checkSubscription(
 ): Promise<void> {
   const user = request.user;
 
-  // MASTER_ADMIN bypassa a checagem de assinatura
   if (!user || user.role === "MASTER_ADMIN") return;
 
-  // Verifica bloqueio de CPF mid-session (cobre o gap de até 15min do JWT)
-  // Nota: request.user não carrega cpf; buscamos via token sub → user.id no banco
-  // Para não adicionar query extra por padrão, delegamos ao login (checkBarbershopAccess).
-  // Verifica bloqueio de CPF em toda requisição (cobre o gap de até 15min do JWT)
   if (user.cpf) {
     await assertCpfNotBlocked(user.cpf);
   }
@@ -62,7 +37,6 @@ export async function checkSubscription(
     throw new AppError("Usuário não vinculado a nenhum salão", 400);
   }
 
-  // Verifica cache antes de ir ao banco
   const cached = getCachedAccess(user.barbershopId);
   if (cached === true) return;
   if (cached === false) {
@@ -89,6 +63,7 @@ export async function checkSubscription(
           status: true,
           endDate: true,
           cancelDate: true,
+          asaasCreditCardToken: true,
           plan: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -106,26 +81,24 @@ export async function checkSubscription(
   const trialEnd = new Date(barbershop.createdAt);
   trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
 
-  // Dentro do trial — acesso liberado
-  if (now <= trialEnd) {
+  const subscription = barbershop.subscriptions[0];
+  const access = subscriptionGrantsAccess(subscription, now, trialEnd);
+
+  if (access.allowed) {
     setCachedAccess(user.barbershopId, true);
     return;
   }
 
-  const subscription = barbershop.subscriptions[0];
+  setCachedAccess(user.barbershopId, false);
 
-  if (!subscription) {
-    setCachedAccess(user.barbershopId, false);
-    // Trial expirou sem assinatura — bloqueia CPFs e retorna 402 com planos
-    blockOwnerCpfs(user.barbershopId).catch((err) =>
-      request.log.warn({ err }, "checkSubscription: falha ao bloquear CPFs dos owners")
-    );
+  const plans = await getAvailablePlans();
 
-    const plans = await getAvailablePlans();
+  if (access.cardRequired) {
     throw new AppError(
       JSON.stringify({
         code: "SUBSCRIPTION_REQUIRED",
-        message: SUBSCRIPTION_MESSAGES.TRIAL_EXPIRED,
+        reason: "CARD_REQUIRED",
+        message: SUBSCRIPTION_MESSAGES.CARD_REQUIRED,
         plans,
         barbershopId: user.barbershopId,
       }),
@@ -133,27 +106,26 @@ export async function checkSubscription(
     );
   }
 
-  const config = SUBSCRIPTION_STATUS_CONFIG[subscription.status];
+  blockOwnerCpfs(user.barbershopId).catch((err) =>
+    request.log.warn({ err }, "checkSubscription: falha ao bloquear CPFs dos owners")
+  );
 
-  if (!config?.allowed) {
-    setCachedAccess(user.barbershopId, false);
-    blockOwnerCpfs(user.barbershopId).catch((err) =>
-      request.log.warn({ err }, "checkSubscription: falha ao bloquear CPFs dos owners")
-    );
+  const statusMessage = subscription
+    ? SUBSCRIPTION_STATUS_CONFIG[subscription.status]?.message
+    : undefined;
 
-    const plans = await getAvailablePlans();
-    throw new AppError(
-      JSON.stringify({
-        code: "SUBSCRIPTION_REQUIRED",
-        message: config?.message ?? SUBSCRIPTION_MESSAGES.NO_SUBSCRIPTION,
-        plans,
-        barbershopId: user.barbershopId,
-        subscriptionStatus: subscription.status,
-      }),
-      402
-    );
-  }
-
-  // Assinatura ativa — cacheia somente após confirmar que o status permite acesso
-  setCachedAccess(user.barbershopId, true);
+  throw new AppError(
+    JSON.stringify({
+      code: "SUBSCRIPTION_REQUIRED",
+      message:
+        statusMessage ??
+        (subscription
+          ? SUBSCRIPTION_MESSAGES.NO_SUBSCRIPTION
+          : SUBSCRIPTION_MESSAGES.TRIAL_EXPIRED),
+      plans,
+      barbershopId: user.barbershopId,
+      ...(subscription ? { subscriptionStatus: subscription.status } : {}),
+    }),
+    402
+  );
 }

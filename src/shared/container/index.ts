@@ -19,6 +19,7 @@ import { PaymentRepository } from '@/modules/payments/infra/repositories/Payment
 
 import { MercadoPagoService } from '@/modules/payments/services/MercadoPagoService'
 import { AbacatePayService } from '@/modules/payments/services/AbacatePayService'
+import { AsaasService } from '@/modules/payments/services/AsaasService'
 
 import { IPlanRepository } from '@/modules/plans/repositories/IPlanRepository'
 import { PlanRepository } from '@/modules/plans/infra/repositories/PlanRepository'
@@ -40,6 +41,14 @@ import {
 
 import { IAppointmentRepository } from '@/modules/appointments/repositories/IAppointmentRepository'
 import { AppointmentRepository } from '@/modules/appointments/infra/repositories/AppointmentRepository'
+
+import { ISalonClientRepository } from '@/modules/clients/repositories/ISalonClientRepository'
+import { SalonClientRepository } from '@/modules/clients/infra/repositories/SalonClientRepository'
+
+import { IServicePackageRepository } from '@/modules/packages/repositories/IServicePackageRepository'
+import { ServicePackageRepository } from '@/modules/packages/infra/repositories/ServicePackageRepository'
+import { IClientPackageRepository } from '@/modules/packages/repositories/IClientPackageRepository'
+import { ClientPackageRepository } from '@/modules/packages/infra/repositories/ClientPackageRepository'
 
 container.registerSingleton<IUserRepository>('UserRepository', UserRepository)
 container.registerSingleton<IServiceRepository>(
@@ -66,6 +75,7 @@ container.registerSingleton<AbacatePayService>(
 	'AbacatePayService',
 	AbacatePayService,
 )
+container.registerSingleton<AsaasService>('AsaasService', AsaasService)
 container.registerSingleton<IPlanRepository>('PlanRepository', PlanRepository)
 container.registerSingleton<IFiadoRepository>(
 	'FiadoRepository',
@@ -86,4 +96,16 @@ container.registerSingleton<IExpenseCategoryRepository>(
 container.registerSingleton<IAppointmentRepository>(
 	'AppointmentRepository',
 	AppointmentRepository,
+)
+container.registerSingleton<ISalonClientRepository>(
+	'SalonClientRepository',
+	SalonClientRepository,
+)
+container.registerSingleton<IServicePackageRepository>(
+	'ServicePackageRepository',
+	ServicePackageRepository,
+)
+container.registerSingleton<IClientPackageRepository>(
+	'ClientPackageRepository',
+	ClientPackageRepository,
 )

@@ -10,9 +10,19 @@ interface JwtPayload {
   cpf?: string;
 }
 
+/** Aceita somente `Bearer <JWT>` (scheme case-insensitive). */
+export function extractBearerToken(authorization: string | undefined): string | null {
+  if (!authorization) return null;
+  const [scheme, token, ...rest] = authorization.trim().split(/\s+/);
+  if (!scheme || scheme.toLowerCase() !== "bearer" || !token || rest.length > 0) {
+    return null;
+  }
+  return token;
+}
+
 export async function authenticate(
   request: FastifyRequest,
-  reply: FastifyReply
+  _reply: FastifyReply
 ): Promise<void> {
   const authHeader = request.headers.authorization;
 
@@ -20,7 +30,7 @@ export async function authenticate(
     throw new AppError("Token ausente", 401);
   }
 
-  const [, token] = authHeader.split(" ");
+  const token = extractBearerToken(authHeader);
 
   if (!token) {
     throw new AppError("Token mal formatado", 401);

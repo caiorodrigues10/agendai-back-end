@@ -1,7 +1,7 @@
 import { inject, injectable } from "tsyringe";
 import { IQueueRepository } from "@/modules/queue/repositories/IQueueRepository";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
-import { sendWhatsAppMessage } from "@/shared/services/whatsappNotificationService";
+import { enqueueWhatsApp } from "@/shared/infra/queue";
 
 export interface NotifyQueuePositionResult {
   notified: number;
@@ -68,9 +68,12 @@ export class NotifyQueuePositionUpdatesUseCase {
               estimatedWaitMinutes
             );
 
-      const ok = await sendWhatsAppMessage(item.whatsapp, message, {
+      const ok = await enqueueWhatsApp({
+        phone: item.whatsapp,
+        message,
         instanceName,
-      });
+        deduplicationKey: `position:${barbershopId}:${item.id}:${position}`,
+      }).then(() => true).catch(() => false);
       if (ok) {
         await this.queueRepository.markNotifiedPosition(item.id, position);
         notified++;

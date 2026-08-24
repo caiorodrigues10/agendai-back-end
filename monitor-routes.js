@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * monitor-routes.js
- * Monitor de rotas da API BarberQueue em tempo real
+ * Monitor de rotas da API AgendAI em tempo real
  * Compatível com Linux, macOS e Windows
  *
  * Uso:
@@ -46,7 +46,7 @@ const C = {
 // ─── Todas as rotas da API ────────────────────────────────────────────────────
 const ROUTES = [
   // ── Auth ──────────────────────────────────────────────────────────────────
-  { group: "Auth",         method: "POST",  path: "/auth/login",          auth: false, body: { email: "admin@barberqueue.local", password: "admin123" } },
+  { group: "Auth",         method: "POST",  path: "/auth/login",          auth: false, body: { email: "admin@agendai.local", password: "admin123" } },
   { group: "Auth",         method: "POST",  path: "/auth/refresh",        auth: false, body: { refreshToken: "test" } },
   { group: "Auth",         method: "GET",   path: "/auth/me",             auth: true  },
 
@@ -210,7 +210,7 @@ function render(results, iteration, startTime, lastError) {
 
   // Header
   console.log(`${C.bold}${C.cyan}╔══════════════════════════════════════════════════════════════╗${C.reset}`);
-  console.log(`${C.bold}${C.cyan}║         BarberQueue — Monitor de Rotas em Tempo Real         ║${C.reset}`);
+  console.log(`${C.bold}${C.cyan}║           AgendAI — Monitor de Rotas em Tempo Real           ║${C.reset}`);
   console.log(`${C.bold}${C.cyan}╚══════════════════════════════════════════════════════════════╝${C.reset}`);
   console.log(`  ${C.gray}Base URL:${C.reset} ${C.white}${BASE_URL}${C.reset}   ${C.gray}Atualização: ${now}  #${iteration}${C.reset}`);
   console.log(`  ${C.green}▲ UP: ${up}/${total}${C.reset}   ${C.red}▼ DOWN/404: ${down}${C.reset}   ${C.yellow}⚠ ERROR: ${err}${C.reset}   ${C.gray}Intervalo: ${INTERVAL/1000}s${C.reset}`);

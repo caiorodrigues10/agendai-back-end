@@ -1,5 +1,6 @@
 import { inject, injectable } from "tsyringe";
 import { sign, Secret, SignOptions } from "jsonwebtoken";
+import { randomBytes, randomUUID } from "crypto";
 import { prisma } from "@/libs/prismaClient";
 import auth from "@/config/auth";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
@@ -8,6 +9,12 @@ import { assertCpfNotBlocked } from "@/shared/services/blockedEntityService";
 import { normalizeCpf, isValidCpf } from "@/shared/utils/cpfUtils";
 import { checkCnpjAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { SUBSCRIPTION_MESSAGES } from "@/shared/constants/subscriptionMessages";
+import { enqueueEmail } from "@/shared/infra/queue";
+import {
+  attachReferralOnRegister,
+  ensureReferralCode,
+} from "@/modules/referrals/services/referralService";
+import { validateEmail } from "@/shared/services/emailValidationService";
 
 export interface IRegisterDTO {
   ownerName: string;
@@ -17,6 +24,7 @@ export interface IRegisterDTO {
   barbershopName: string;
   whatsapp: string;
   cnpj?: string;
+  referralCode?: string;
 }
 
 function mapRole(role: string): "admin" | "owner" | "employee" {
@@ -42,6 +50,11 @@ export class RegisterUseCase {
   ) {}
 
   async execute(data: IRegisterDTO) {
+    const emailValidation = await validateEmail(data.email);
+    if (!emailValidation.valid) {
+      throw new AppError("E-mail inválido", 400);
+    }
+
     const normalizedCpf = normalizeCpf(data.cpf);
     if (!isValidCpf(normalizedCpf)) {
       throw new AppError("CPF inválido", 400);
@@ -72,6 +85,8 @@ export class RegisterUseCase {
     }
 
     const hashedPassword = await this.hashProvider.hash(data.password);
+    const verificationToken = randomBytes(32).toString("hex");
+    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const user = await prisma.$transaction(async (tx) => {
       const barbershop = await tx.barbershop.create({
@@ -109,7 +124,7 @@ export class RegisterUseCase {
         ],
       });
 
-      return tx.user.create({
+      const created = await tx.user.create({
         data: {
           name: data.ownerName,
           email: data.email,
@@ -117,6 +132,7 @@ export class RegisterUseCase {
           role: "OWNER",
           barbershopId: barbershop.id,
           cpf: normalizedCpf,
+          emailVerified: false,
         },
         select: {
           id: true,
@@ -126,6 +142,16 @@ export class RegisterUseCase {
           barbershopId: true,
         },
       });
+
+      await tx.verificationToken.create({
+        data: {
+          token: verificationToken,
+          userId: created.id,
+          expiresAt: tokenExpires,
+        },
+      });
+
+      return created;
     });
 
     const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
@@ -137,7 +163,11 @@ export class RegisterUseCase {
 
     const expiresAt = new Date(Date.now() + parseDuration(auth.refreshExpiresIn));
     const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
-    const refreshToken = sign({ sub: user.id }, auth.refreshSecret as Secret, refreshOpts);
+    const refreshToken = sign(
+      { sub: user.id, jti: randomUUID() },
+      auth.refreshSecret as Secret,
+      refreshOpts
+    );
 
     await prisma.refreshToken.deleteMany({
       where: { userId: user.id, expiresAt: { lt: new Date() } },
@@ -145,6 +175,48 @@ export class RegisterUseCase {
 
     await prisma.refreshToken.create({
       data: { token: refreshToken, userId: user.id, expiresAt },
+    });
+
+    // Código de indicação do novo owner (para compartilhar depois)
+    if (user.barbershopId) {
+      await ensureReferralCode({
+        ownerUserId: user.id,
+        barbershopId: user.barbershopId,
+      }).catch((err) => {
+        console.warn("[Register] Falha ao gerar código de indicação:", err?.message ?? err);
+      });
+
+      await attachReferralOnRegister({
+        referralCode: data.referralCode,
+        refereeUserId: user.id,
+        refereeBarbershopId: user.barbershopId,
+        refereeOwnerName: user.name,
+        refereeEmail: user.email,
+        refereeCpf: normalizedCpf,
+      }).catch((err) => {
+        console.warn("[Register] Falha ao anexar indicação:", err?.message ?? err);
+      });
+    }
+
+    await enqueueEmail({
+      kind: "verify_email",
+      ownerName: user.name,
+      email: user.email,
+      token: verificationToken,
+      deduplicationKey: `verify-email:${user.id}`,
+    }).catch((err) => {
+      console.warn("[Register] Falha ao enfileirar verificação de e-mail:", err?.message ?? err);
+    });
+
+    // Boas-vindas (não bloqueia cadastro se fila/e-mail falhar)
+    await enqueueEmail({
+      kind: "welcome",
+      ownerName: user.name,
+      barbershopName: data.barbershopName,
+      email: user.email,
+      deduplicationKey: `welcome:${user.id}`,
+    }).catch((err) => {
+      console.warn("[Register] Falha ao enfileirar e-mail de boas-vindas:", err?.message ?? err);
     });
 
     return {

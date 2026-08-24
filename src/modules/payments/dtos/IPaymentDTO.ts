@@ -2,7 +2,7 @@
 // Payment method types
 // ──────────────────────────────────────────────────────────────────────────────
 export type PaymentMethod = "credit_card" | "debit_card" | "pix" | "payment_link";
-export type PaymentProvider = "MERCADOPAGO" | "ABACATEPAY";
+export type PaymentProvider = "MERCADOPAGO" | "ABACATEPAY" | "ASAAS";
 export type PaymentStatus =
   | "pending"
   | "approved"

@@ -10,7 +10,10 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 
 export async function buildApp() {
-  const app = fastify({ logger: true });
+  const app = fastify({
+    // Silencia logs nos testes de inject (NODE_ENV=test)
+    logger: process.env.NODE_ENV !== "test",
+  });
 
   // CORS com whitelist de origens configurável via env
   await app.register(cors, {
@@ -67,6 +70,7 @@ export async function buildApp() {
     max: 400,
     timeWindow: "1 minute",
     errorResponseBuilder: () => ({
+      statusCode: 429,
       success: false,
       message: "Muitas requisições. Tente novamente em alguns instantes.",
     }),

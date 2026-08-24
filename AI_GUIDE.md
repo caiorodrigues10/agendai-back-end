@@ -1,8 +1,8 @@
-# 🤖 AI_GUIDE.md — Guia Completo para IAs no Projeto BarberQueue
+# 🤖 AI_GUIDE.md — Guia Completo para IAs no Projeto AgendAI
 
 > **Monorepo:** para visão geral frontend + backend, gaps conhecidos e roadmap, leia primeiro [`../AGENTS.md`](../AGENTS.md) na raiz do repositório.
 >
-> Este documento é o guia **detalhado do backend**. Leia-o **completamente** antes de escrever qualquer linha de código no `BarberQueue-back-end`.
+> Este documento é o guia **detalhado do backend**. Leia-o **completamente** antes de escrever qualquer linha de código no `agendai-back-end`.
 
 ---
 
@@ -28,7 +28,7 @@
 
 ## 1. Visão Geral do Projeto
 
-**BarberQueue** é uma API REST SaaS para gestão de barbearias. Ela serve múltiplos tenants (barbearias) com controle de acesso por role, sistema de assinaturas via Mercado Pago e fila digital pública.
+**AgendAI** é uma API REST SaaS para gestão de salões, barbearias e studios. Ela serve múltiplos tenants (estabelecimentos) com controle de acesso por role, sistema de assinaturas via AbacatePay/Mercado Pago e fila digital pública.
 
 **Entidades centrais:**
 - `Barbershop` — o tenant principal; tudo pertence a uma barbearia
@@ -36,6 +36,8 @@
 - `Subscription` — licença de acesso da barbearia à plataforma
 - `QueueItem` — fila de atendimento (acesso público)
 - `Appointment` — agendamentos
+- `SalonClient` — CRM de cliente do salão (sem login)
+- `ServicePackage` / `ClientPackage` — catálogo e carteira de pacotes pré-pagos
 - `Fiado` — controle de crédito com clientes
 - `Expense` — despesas operacionais
 
@@ -305,10 +307,11 @@ Esta é a área de lógica mais complexa. Leia com atenção.
 
 ### 7.1 Fluxo de acesso
 
-1. Toda barbearia tem **30 dias de trial** a partir de `Barbershop.createdAt`.
-2. Após o trial, é necessária uma `Subscription` com status `ACTIVE` ou `TRIALING`.
-3. O middleware `checkSubscription` verifica isso em cada request.
-4. `MASTER_ADMIN` é **sempre isento** de `checkSubscription`.
+1. Toda barbearia tem **30 dias de trial Pro** a partir de `Barbershop.createdAt` — independente do plano escolhido/assinado.
+2. Durante o trial: `checkDashboardAccess` libera Pro completo mesmo com Essencial; após o trial aplica o plano efetivo (downgrade).
+3. Após o trial, é necessária uma `Subscription` com status `ACTIVE` ou `TRIALING`.
+4. O middleware `checkSubscription` verifica isso em cada request.
+5. `MASTER_ADMIN` é **sempre isento** de `checkSubscription`.
 
 ### 7.2 Status de Subscription
 
@@ -765,6 +768,16 @@ O CPF do usuário é incluído no access token para permitir que `checkSubscript
 
 ## 14. Integrações Externas
 
+### 14.0 E-mail (Resend) + Indicação
+
+- Provider DI: `EmailProvider` → `ResendEmailProvider` (sem `RESEND_API_KEY` = log/skip).
+- Fila BullMQ `email` (`enqueueEmail`) — worker iniciado em `server.ts`.
+- Templates em `modules/email/templates/` (boas-vindas, indicação aplicada, indicação convertida).
+- Indicação dono→dono: `ReferralCode` / `Referral`; `POST /auth/register` aceita `referralCode`; `GET /api/referrals/me` para o owner.
+- Qualificação + recompensa (+30 dias no `endDate` do indicador) em `handleSubscriptionPaymentWebhook` / pagamento MP aprovado.
+- Log de envios: tabela `EmailDelivery`.
+- Termos/LGPD: fora de escopo técnico — agente legal separado.
+
 ### 14.1 Mercado Pago
 
 Arquivo: `src/modules/payments/services/MercadoPagoService.ts`
@@ -778,9 +791,12 @@ Arquivo: `src/modules/payments/services/MercadoPagoService.ts`
 
 Arquivo: `src/shared/container/providers/StorageProvider/implementations/GcsStorageProvider.ts`
 
+**Setup (bucket + SA + chave):** siga [`docs/GCS_SETUP.md`](docs/GCS_SETUP.md).
+
 - `Storage` é inicializado de forma **lazy**.
-- Aceita credenciais via arquivo (`GCS_KEY_FILE_PATH`), JSON base64 (`GCS_CREDENTIALS_JSON`) ou ADC.
-- Em desenvolvimento sem credenciais: crie `gcs-key.json` vazio (`echo '{}' > gcs-key.json`). O servidor sobe; só falha ao tentar fazer upload.
+- Aceita credenciais via arquivo (`GCS_KEY_FILE_PATH`), JSON/base64 (`GCS_CREDENTIALS_JSON`) ou ADC.
+- Placeholder / JSON sem `type: service_account` → `AppError` 503 com ponteiro para `docs/GCS_SETUP.md` (a API sobe; só falha no upload).
+- Scripts: `create-service-account.sh`, `setup-gcs.sh`, `ensure-gcs-key.sh`. CORS do bucket vem de `cors.json`.
 
 ### 14.3 Variáveis de Ambiente Obrigatórias em Produção
 

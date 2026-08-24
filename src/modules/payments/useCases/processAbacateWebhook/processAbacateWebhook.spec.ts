@@ -19,7 +19,7 @@ function makeAbacateMock(overrides?: {
         status: "PAID",
         amount: 9900,
         paidAmount: 9900,
-        externalId: "bq-sub-sub1-inv-inv1",
+        externalId: "ag-sub-sub1-inv-inv1",
         url: "https://app.abacatepay.com/pay/bill_abc123",
         devMode: false,
       }),
@@ -63,7 +63,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       currency: "BRL",
       description: "Assinatura",
       barbershopId: "shop-1",
-      externalReference: "bq-sub-sub1-inv-inv1",
+      externalReference: "ag-sub-sub1-inv-inv1",
     });
 
     await useCase.execute({
@@ -79,7 +79,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
     const updated = await repo.findById(payment.id);
     expect(updated?.status).toBe("approved");
     expect(handleSubscriptionPaymentWebhook).toHaveBeenCalledWith(
-      "bq-sub-sub1-inv-inv1",
+      "ag-sub-sub1-inv-inv1",
       "approved"
     );
   });
@@ -95,7 +95,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       currency: "BRL",
       description: "x",
       barbershopId: "shop-1",
-      externalReference: "bq-sub-a-inv-b",
+      externalReference: "ag-sub-a-inv-b",
     });
 
     abacate.getCheckout.mockResolvedValue({
@@ -103,7 +103,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       status: "PAID",
       amount: 2000,
       paidAmount: 2000,
-      externalId: "bq-sub-a-inv-b",
+      externalId: "ag-sub-a-inv-b",
       url: "https://x",
       devMode: false,
     });
@@ -113,7 +113,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       data: {
         checkout: {
           id: "bill_nested",
-          externalId: "bq-sub-a-inv-b",
+          externalId: "ag-sub-a-inv-b",
           status: "PAID",
         },
       },
@@ -144,7 +144,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       currency: "BRL",
       description: "x",
       barbershopId: "shop-1",
-      externalReference: "bq-sub-a-inv-b",
+      externalReference: "ag-sub-a-inv-b",
     });
 
     abacate.getCheckout.mockResolvedValue({
@@ -152,7 +152,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       status: "PENDING",
       amount: 9900,
       paidAmount: 0,
-      externalId: "bq-sub-a-inv-b",
+      externalId: "ag-sub-a-inv-b",
       url: "https://x",
       devMode: false,
     });
@@ -176,7 +176,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       currency: "BRL",
       description: "x",
       barbershopId: "shop-1",
-      externalReference: "bq-sub-a-inv-b",
+      externalReference: "ag-sub-a-inv-b",
     });
 
     abacate.getCheckout.mockResolvedValue({
@@ -184,7 +184,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       status: "PAID",
       amount: 100,
       paidAmount: 100,
-      externalId: "bq-sub-a-inv-b",
+      externalId: "ag-sub-a-inv-b",
       url: "https://x",
       devMode: false,
     });
@@ -213,7 +213,7 @@ describe("ProcessAbacateWebhookUseCase", () => {
       currency: "BRL",
       description: "x",
       barbershopId: "shop-1",
-      externalReference: "bq-sub-a-inv-b",
+      externalReference: "ag-sub-a-inv-b",
     });
 
     await useCase.execute({

@@ -1,4 +1,4 @@
-# 💈 BarberQueue — Backend API
+# 💈 AgendAI — Backend API
 
 API REST completa para gestão de barbearias: fila digital, agendamentos, fiado, despesas, pagamentos via Mercado Pago, assinaturas de planos e painel administrativo.
 
@@ -52,7 +52,7 @@ API REST completa para gestão de barbearias: fila digital, agendamentos, fiado,
 
 ## Visão Geral
 
-O BarberQueue é uma plataforma SaaS para barbearias que oferece:
+O AgendAI é uma plataforma SaaS para salões, barbearias e studios que oferece:
 
 - **Fila digital** — clientes entram na fila sem precisar de conta
 - **Agendamentos** — marcação de horários com funcionários
@@ -97,7 +97,7 @@ Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
 
 ```env
 # Banco de dados
-DATABASE_URL="postgresql://barberqueue:barberqueue123@localhost:5432/barberqueue_db"
+DATABASE_URL="postgresql://agendai:agendai123@localhost:5432/agendai_db"
 
 # JWT
 JWT_SECRET="sua-chave-secreta-jwt"
@@ -115,9 +115,9 @@ MERCADOPAGO_ACCESS_TOKEN=TEST-xxxx-xxxx
 MERCADOPAGO_WEBHOOK_SECRET=seu-segredo-webhook
 
 # Google Cloud Storage
-GCS_BUCKET_NAME=barberqueue-assets
+GCS_BUCKET_NAME=agendai-assets
 GCS_PROJECT_ID=seu-project-id-aqui
-GCS_KEY_FILE_PATH=/caminho/absoluto/para/barberqueue-api-xxxx.json
+GCS_KEY_FILE_PATH=/caminho/absoluto/para/agendai-api-xxxx.json
 ```
 
 > **Nota GCS:** Se não tiver credenciais do GCS, crie um arquivo placeholder para o Docker não falhar:
@@ -135,7 +135,7 @@ GCS_KEY_FILE_PATH=/caminho/absoluto/para/barberqueue-api-xxxx.json
 ```bash
 # 1. Clone o repositório
 git clone <url-do-repo>
-cd barberqueue-backend
+cd agendai-back-end
 
 # 2. Crie o arquivo placeholder da chave GCS (se não tiver a chave real)
 echo '{}' > gcs-key.json
@@ -158,7 +158,7 @@ O Docker Compose executa automaticamente:
 
 **Credenciais do admin criadas pelo seed:**
 ```
-Email: admin@barberqueue.local
+Email: admin@agendai.local
 Senha: admin123
 ```
 
@@ -226,7 +226,7 @@ node monitor-routes.js --url http://localhost:3333/api --token SEU_JWT_AQUI
 # 1. Faça login na API e copie o accessToken da resposta
 curl -X POST http://localhost:3333/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@barberqueue.local","password":"admin123"}'
+  -d '{"email":"admin@agendai.local","password":"admin123"}'
 
 # 2. Use o token no monitor
 node monitor-routes.js --url http://localhost:3333/api --token eyJhbGciOiJIUz...
@@ -370,7 +370,7 @@ Autentica um usuário e retorna os tokens de acesso.
 **Body:**
 ```json
 {
-  "email": "admin@barberqueue.local",
+  "email": "admin@agendai.local",
   "password": "admin123"
 }
 ```
@@ -381,7 +381,7 @@ Autentica um usuário e retorna os tokens de acesso.
   "user": {
     "id": "uuid",
     "name": "Administrador",
-    "email": "admin@barberqueue.local",
+    "email": "admin@agendai.local",
     "role": "admin",
     "barbershopId": null
   },
@@ -637,7 +637,7 @@ Gera uma URL assinada para upload direto ao GCS.
   "success": true,
   "data": {
     "uploadUrl": "https://storage.googleapis.com/upload/...",
-    "publicUrl": "https://storage.googleapis.com/barberqueue-assets/logos/...",
+    "publicUrl": "https://storage.googleapis.com/agendai-assets/logos/...",
     "objectName": "logos/barbershop-uuid-timestamp.jpg",
     "expiresInSeconds": 900,
     "instructions": [
@@ -660,7 +660,7 @@ Confirma o upload e salva a URL no banco.
 
 **Body:**
 ```json
-{ "logoUrl": "https://storage.googleapis.com/barberqueue-assets/logos/..." }
+{ "logoUrl": "https://storage.googleapis.com/agendai-assets/logos/..." }
 ```
 
 ---

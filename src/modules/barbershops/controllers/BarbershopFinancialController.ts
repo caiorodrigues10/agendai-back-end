@@ -51,7 +51,7 @@ export class BarbershopFinancialController {
       }
       : undefined;
 
-    const [expenses, fiados, overdueCount] = await Promise.all([
+    const [expenses, fiados, overdueCount, packageSales] = await Promise.all([
       prisma.expense.findMany({
         where: {
           barbershopId,
@@ -72,6 +72,15 @@ export class BarbershopFinancialController {
           status: { in: ["PENDING", "PARTIAL"] },
           dueDate: { lt: new Date() },
         },
+      }),
+      prisma.clientPackage.aggregate({
+        where: {
+          barbershopId,
+          status: { in: ["ACTIVE", "DEPLETED"] },
+          ...(dateFilter && { purchasedAt: dateFilter }),
+        },
+        _count: { id: true },
+        _sum: { pricePaid: true },
       }),
     ]);
 
@@ -110,6 +119,10 @@ export class BarbershopFinancialController {
           totalPending: totalFiadoDebt,
           overdueCount,
           overdueAmount,
+        },
+        packages: {
+          count: packageSales._count.id,
+          totalPaid: packageSales._sum.pricePaid ?? 0,
         },
       },
     });

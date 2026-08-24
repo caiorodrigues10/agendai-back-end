@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
+import { ZodError } from "zod";
 import { AppError } from "@/shared/errors/AppError";
 import {
   createAppointmentSchema,
@@ -9,6 +10,7 @@ import {
 } from "../schemas/appointmentSchemas";
 import {
   CreateAppointmentUseCase,
+  CreatePublicAppointmentUseCase,
   GetAppointmentUseCase,
   ListAppointmentsUseCase,
   UpdateAppointmentUseCase,
@@ -77,9 +79,28 @@ export class AppointmentController {
 
   /** Rota pública — retorna array de slots ocupados (formato esperado pelo front). */
   async availability(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const query = availabilityQuerySchema.parse(request.query);
+    let query: { barbershopId: string; date: string; staffId?: string };
+    try {
+      query = availabilityQuerySchema.parse(request.query);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new AppError(
+          "Parâmetros inválidos: informe barbershopId e date (YYYY-MM-DD)",
+          400,
+          error.errors.map((err) => ({
+            field: err.path.join("."),
+            message: err.message,
+          })),
+        );
+      }
+      throw error;
+    }
     const useCase = container.resolve(GetAvailabilityUseCase);
-    const slots = await useCase.execute(query.barbershopId, query.date);
+    const slots = await useCase.execute(
+      query.barbershopId,
+      query.date,
+      query.staffId
+    );
     reply.send(slots);
   }
 
@@ -88,5 +109,17 @@ export class AppointmentController {
     const useCase = container.resolve(CancelAppointmentUseCase);
     await useCase.execute(id, request.user!);
     reply.status(204).send();
+  }
+
+  /** Rota pública — cria agendamento sem login e sem privilégio admin implícito. */
+  async createPublic(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const body = createAppointmentSchema.parse(request.body);
+    if (!body.barbershopId) throw new AppError("barbershopId é obrigatório", 400);
+    const useCase = container.resolve(CreatePublicAppointmentUseCase);
+    const appointment = await useCase.execute({
+      ...body,
+      barbershopId: body.barbershopId,
+    });
+    reply.status(201).send({ success: true, data: appointment });
   }
 }

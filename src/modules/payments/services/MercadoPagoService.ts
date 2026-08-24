@@ -53,7 +53,7 @@ export class MercadoPagoService {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.accessToken}`,
       "Content-Type": "application/json",
-      "X-Product-Id": "barberqueue"
+      "X-Product-Id": "agendai"
     };
 
     if (idempotencyKey) {
@@ -95,7 +95,7 @@ export class MercadoPagoService {
     queueItemId?: string
   ): Promise<MPPaymentResponse> {
     const externalReference =
-      data.externalReference || `bq-${barbershopId}-${Date.now()}`;
+      data.externalReference || `ag-${barbershopId}-${Date.now()}`;
 
     const payload: Record<string, unknown> = {
       transaction_amount: data.transactionAmount,
@@ -153,7 +153,7 @@ export class MercadoPagoService {
 
   async createPixPayment(data: ICreatePixPaymentDTO): Promise<MPPaymentResponse> {
     const externalReference =
-      data.externalReference || `bq-pix-${data.barbershopId}-${Date.now()}`;
+      data.externalReference || `ag-pix-${data.barbershopId}-${Date.now()}`;
 
     const expirationDate = new Date(
       Date.now() + (data.expirationMinutes ?? 30) * 60 * 1000
@@ -213,6 +213,18 @@ export class MercadoPagoService {
       "PUT",
       `/v1/payments/${mpPaymentId}`,
       { status: "cancelled" }
+    );
+  }
+
+  async refundPayment(
+    mpPaymentId: string | number,
+    amountReais?: number
+  ): Promise<MPPaymentResponse> {
+    const body = amountReais ? { amount: amountReais } : undefined;
+    return this.request<MPPaymentResponse>(
+      "POST",
+      `/v1/payments/${mpPaymentId}/refunds`,
+      body
     );
   }
 }

@@ -6,7 +6,7 @@ export async function setupSwagger(app: FastifyInstance) {
   await app.register(fastifySwagger, {
     openapi: {
       info: {
-        title: "BarberQueue API",
+        title: "AgendAI API",
         description: "API para gestão de filas e agendamentos de salões",
         version: "1.0.0"
       },

@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma, Prisma } from "@/libs/prismaClient";
 import { SubscriptionStatus } from "@prisma/client";
+import { TRIAL_DAYS } from "@/shared/constants/subscription";
 
 type SubscriptionWithRelations = Prisma.SubscriptionGetPayload<{
   include: {
@@ -47,8 +48,6 @@ export class ListSubscriptionsController {
       prisma.subscription.count({ where })
     ]);
 
-    const TRIAL_DAYS = 30;
-
     const data = subscriptions.map((sub: SubscriptionWithRelations) => {
       const trialEndsAt = new Date(sub.barbershop?.createdAt ?? sub.createdAt);
       trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
@@ -65,6 +64,7 @@ export class ListSubscriptionsController {
         startDate: sub.startDate,
         endDate: sub.endDate,
         cancelDate: sub.cancelDate,
+        cancelReason: sub.cancelReason ?? null,
         trialEndsAt,
         latestInvoice: sub.invoices?.[0] ?? null
       };

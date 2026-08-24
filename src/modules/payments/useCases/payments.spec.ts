@@ -21,6 +21,26 @@ const mpServiceMock = {
   cancelPayment:     mockMpCancel
 } as any;
 
+const abacateServiceMock = {
+  cancelCheckout: vi.fn(),
+  getCheckout: vi.fn(),
+} as any;
+
+const asaasServiceMock = {
+  cancelPayment: vi.fn(),
+  getPayment: vi.fn(),
+  mapStatusToLocal: vi.fn().mockReturnValue("cancelled"),
+} as any;
+
+function makeCancelUseCase(paymentRepo = repo) {
+  return new CancelPaymentUseCase(
+    paymentRepo as any,
+    mpServiceMock,
+    abacateServiceMock,
+    asaasServiceMock
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function makeMpCardResponse(overrides: Record<string, unknown> = {}) {
   return {
@@ -180,7 +200,7 @@ describe("GetPaymentStatusUseCase", () => {
       payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
       barbershopId: "shop-1"
     });
-    const fetched = await new GetPaymentStatusUseCase(repo as any, mpServiceMock).execute(created.id);
+    const fetched = await new GetPaymentStatusUseCase(repo as any, mpServiceMock, {} as any).execute(created.id);
     expect(fetched.id).toBe(created.id);
     expect(mockMpGet).not.toHaveBeenCalled();
   });
@@ -193,7 +213,7 @@ describe("GetPaymentStatusUseCase", () => {
     mockMpGet.mockResolvedValue({
       ...makeMpPixResponse(), status: "approved", status_detail: "accredited"
     });
-    const updated = await new GetPaymentStatusUseCase(repo as any, mpServiceMock).execute(created.id);
+    const updated = await new GetPaymentStatusUseCase(repo as any, mpServiceMock, {} as any).execute(created.id);
     expect(mockMpGet).toHaveBeenCalledOnce();
     // FIX-4: getPaymentById deve receber string, não Number
     expect(mockMpGet).toHaveBeenCalledWith("789012");
@@ -207,7 +227,7 @@ describe("GetPaymentStatusUseCase", () => {
     });
     mockMpGet.mockRejectedValue(new Error("MP timeout"));
     const warnSpy = vi.fn();
-    const fetched = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+    const fetched = await new GetPaymentStatusUseCase(repo as any, mpServiceMock, {} as any)
       .execute(created.id, false, { warn: warnSpy });
     expect(fetched.status).toBe("pending");
     expect(warnSpy).toHaveBeenCalledOnce();
@@ -216,7 +236,7 @@ describe("GetPaymentStatusUseCase", () => {
 
   it("lança AppError para id inexistente", async () => {
     await expect(
-      new GetPaymentStatusUseCase(repo as any, mpServiceMock).execute("not-found")
+      new GetPaymentStatusUseCase(repo as any, mpServiceMock, {} as any).execute("not-found")
     ).rejects.toBeInstanceOf(AppError);
   });
 
@@ -228,7 +248,7 @@ describe("GetPaymentStatusUseCase", () => {
       payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
       barbershopId: "shop-1"
     });
-    const err = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+    const err = await new GetPaymentStatusUseCase(repo as any, mpServiceMock, {} as any)
       .execute(created.id, false, undefined, { role: "EMPLOYEE", barbershopId: "shop-2" })
       .catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
@@ -243,7 +263,7 @@ describe("GetPaymentStatusUseCase", () => {
       payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
       barbershopId: "shop-1"
     });
-    const result = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+    const result = await new GetPaymentStatusUseCase(repo as any, mpServiceMock, {} as any)
       .execute(created.id, false, undefined, { role: "EMPLOYEE", barbershopId: "shop-1" });
     expect(result.id).toBe(created.id);
   });
@@ -256,7 +276,7 @@ describe("GetPaymentStatusUseCase", () => {
       payer: { email: "a@b.com", identification: { type: "CPF", number: "12345678901" } },
       barbershopId: "shop-1"
     });
-    const result = await new GetPaymentStatusUseCase(repo as any, mpServiceMock)
+    const result = await new GetPaymentStatusUseCase(repo as any, mpServiceMock, {} as any)
       .execute(created.id, false, undefined, { role: "MASTER_ADMIN" });
     expect(result.id).toBe(created.id);
   });
@@ -306,7 +326,7 @@ describe("CancelPaymentUseCase", () => {
     mockMpCancel.mockResolvedValue({
       ...makeMpPixResponse(), status: "cancelled", status_detail: "by_collector"
     });
-    const cancelled = await new CancelPaymentUseCase(repo as any, mpServiceMock).execute(created.id);
+    const cancelled = await makeCancelUseCase().execute(created.id);
     expect(cancelled.status).toBe("cancelled");
     // FIX-4: cancelPayment deve receber string
     expect(mockMpCancel).toHaveBeenCalledWith("789012");
@@ -320,7 +340,7 @@ describe("CancelPaymentUseCase", () => {
     // Simula webhook chegando antes: atualiza status para cancelled
     await repo.updateStatus(created.id, { status: "cancelled", statusDetail: "by_collector" });
     // Chamada de cancel não deve ir ao MP nem lançar erro
-    const result = await new CancelPaymentUseCase(repo as any, mpServiceMock).execute(created.id);
+    const result = await makeCancelUseCase().execute(created.id);
     expect(result.status).toBe("cancelled");
     expect(mockMpCancel).not.toHaveBeenCalled();
   });
@@ -334,13 +354,13 @@ describe("CancelPaymentUseCase", () => {
       barbershopId: "shop-1"
     });
     await expect(
-      new CancelPaymentUseCase(repo as any, mpServiceMock).execute(created.id)
+      makeCancelUseCase().execute(created.id)
     ).rejects.toBeInstanceOf(AppError);
   });
 
   it("lança AppError para id inexistente", async () => {
     await expect(
-      new CancelPaymentUseCase(repo as any, mpServiceMock).execute("not-found")
+      makeCancelUseCase().execute("not-found")
     ).rejects.toBeInstanceOf(AppError);
   });
 
@@ -349,7 +369,7 @@ describe("CancelPaymentUseCase", () => {
     const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    const err = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+    const err = await makeCancelUseCase()
       .execute(created.id, { role: "EMPLOYEE", barbershopId: "shop-1" })
       .catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
@@ -361,7 +381,7 @@ describe("CancelPaymentUseCase", () => {
     const created = await new CreatePixPaymentUseCase(repo as any, mpServiceMock).execute({
       transactionAmount: 40, description: "x", payer: { email: "a@b.com" }, barbershopId: "shop-1"
     });
-    const err = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+    const err = await makeCancelUseCase()
       .execute(created.id, { role: "OWNER", barbershopId: "shop-2" })
       .catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
@@ -376,9 +396,56 @@ describe("CancelPaymentUseCase", () => {
     mockMpCancel.mockResolvedValue({
       ...makeMpPixResponse(), status: "cancelled", status_detail: "by_collector"
     });
-    const result = await new CancelPaymentUseCase(repo as any, mpServiceMock)
+    const result = await makeCancelUseCase()
       .execute(created.id, { role: "OWNER", barbershopId: "shop-1" });
     expect(result.status).toBe("cancelled");
+  });
+
+  it("cancela AbacatePay remotamente antes de atualizar local", async () => {
+    const created = await repo.create({
+      mpPaymentId: null,
+      status: "pending",
+      statusDetail: "pending",
+      paymentMethod: "pix",
+      transactionAmount: 20,
+      currency: "BRL",
+      description: "plano",
+      barbershopId: "shop-1",
+      provider: "ABACATEPAY",
+      providerPaymentId: "bill_abc",
+    } as any);
+    abacateServiceMock.cancelCheckout.mockResolvedValue({
+      id: "bill_abc",
+      status: "CANCELLED",
+    });
+    abacateServiceMock.getCheckout.mockResolvedValue({
+      id: "bill_abc",
+      status: "CANCELLED",
+    });
+    const result = await makeCancelUseCase().execute(created.id);
+    expect(abacateServiceMock.cancelCheckout).toHaveBeenCalledWith("bill_abc");
+    expect(result.status).toBe("cancelled");
+  });
+
+  it("não marca local se cancelamento AbacatePay falhar", async () => {
+    const created = await repo.create({
+      mpPaymentId: null,
+      status: "pending",
+      statusDetail: "pending",
+      paymentMethod: "pix",
+      transactionAmount: 20,
+      currency: "BRL",
+      description: "plano",
+      barbershopId: "shop-1",
+      provider: "ABACATEPAY",
+      providerPaymentId: "bill_fail",
+    } as any);
+    abacateServiceMock.cancelCheckout.mockRejectedValue(new Error("network down"));
+    await expect(makeCancelUseCase().execute(created.id)).rejects.toMatchObject({
+      statusCode: 503,
+    });
+    const still = await repo.findById(created.id);
+    expect(still?.status).toBe("pending");
   });
 });
 

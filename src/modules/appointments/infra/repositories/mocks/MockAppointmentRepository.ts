@@ -38,6 +38,8 @@ export class MockAppointmentRepository implements IAppointmentRepository {
       date: new Date(data.date),
       time: data.time,
       status: "CONFIRMED",
+      clientId: data.clientId ?? null,
+      clientPackageId: data.clientPackageId ?? null,
       reminderSentAt: null,
       createdAt: now,
       updatedAt: now,
@@ -108,7 +110,8 @@ export class MockAppointmentRepository implements IAppointmentRepository {
 
   async getOccupiedSlots(
     barbershopId: string,
-    date: string
+    date: string,
+    staffId?: string
   ): Promise<IAvailabilitySlotDTO[]> {
     const target = new Date(date).toDateString();
     return this.appointments
@@ -116,7 +119,8 @@ export class MockAppointmentRepository implements IAppointmentRepository {
         (a) =>
           a.barbershopId === barbershopId &&
           a.status === "CONFIRMED" &&
-          a.date.toDateString() === target
+          a.date.toDateString() === target &&
+          (!staffId || !a.staffId || a.staffId === staffId)
       )
       .map((a) => ({
         time: a.time,
