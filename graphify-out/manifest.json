@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1787679076.2281144,
-    "ast_hash": "8d96426fb7e94312378d954be68ab04a",
+    "mtime": 1787685753.3897023,
+    "ast_hash": "5b0d55a47ba9428bffe392c6e827c0a8",
     "semantic_hash": ""
   },
   "prisma/migrations/20260727120000_add_appointment_reminder_sent_at/migration.sql": {
@@ -1205,8 +1205,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/index.ts": {
-    "mtime": 1783103939.7126572,
-    "ast_hash": "c73d6555696a93cefdf4ba7b731fddfe",
+    "mtime": 1787683754.0128627,
+    "ast_hash": "5a4680dd45c4b8fcedc2a3dd7dc49dfa",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/notifications.routes.ts": {
@@ -1245,8 +1245,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/users.routes.ts": {
-    "mtime": 1787679282.9673758,
-    "ast_hash": "bdb7e6e77dcd0e77d6fa14f64e087d29",
+    "mtime": 1787684254.5220435,
+    "ast_hash": "c6086b54e1b24df1a60d58cba3b55391",
     "semantic_hash": ""
   },
   "src/shared/infra/http/server.ts": {
@@ -1385,8 +1385,8 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1787679079.386167,
-    "ast_hash": "74cfea378f2ef50956b6e7b235683ecf",
+    "mtime": 1787683417.8746638,
+    "ast_hash": "49a778b5ac11df2fe16ab5228f47a8eb",
     "semantic_hash": ""
   },
   "docs/GCS_SETUP.md": {
@@ -1765,8 +1765,8 @@
     "semantic_hash": ""
   },
   "src/shared/utils/logger.ts": {
-    "mtime": 1787679065.2611268,
-    "ast_hash": "625bf85e2a197bb4ffaee7bbbdd9208d",
+    "mtime": 1787682698.8664985,
+    "ast_hash": "f3ab9f98124c5e8044cd65f47f455e83",
     "semantic_hash": ""
   },
   "src/shared/utils/sentry.ts": {
@@ -1775,13 +1775,33 @@
     "semantic_hash": ""
   },
   "src/shared/utils/tracing.ts": {
-    "mtime": 1787680297.247198,
-    "ast_hash": "7933b947b36e8d2eda631706a090fa45",
+    "mtime": 1787681141.697676,
+    "ast_hash": "9ecf6250e3f6d49d4177ff26760ad12c",
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
     "mtime": 1787679403.6318638,
     "ast_hash": "aec5a094e2ca08bd09c82482307dafdc",
+    "semantic_hash": ""
+  },
+  "scripts/deploy.sh": {
+    "mtime": 1787685778.2762733,
+    "ast_hash": "e786046cf8dc0acfba10ec3178956bd1",
+    "semantic_hash": ""
+  },
+  "tsup.config.ts": {
+    "mtime": 1787681418.696602,
+    "ast_hash": "5bb21b2bed924448b717179d46de762e",
+    "semantic_hash": ""
+  },
+  "docker-compose.dev.yml": {
+    "mtime": 1787685824.163987,
+    "ast_hash": "c3660467cfdbb3ee4227862b3215686f",
+    "semantic_hash": ""
+  },
+  "docker-compose.prod.yml": {
+    "mtime": 1787685802.7234502,
+    "ast_hash": "ddd3a59f22cab347be0c7fd0fd1b4c9c",
     "semantic_hash": ""
   }
 }
