@@ -20,6 +20,11 @@ export function getRedisConnection(): IORedis {
     _redis = new IORedis(REDIS_URL, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
+      retryStrategy(times: number) {
+        if (times > 10) return null;
+        return Math.min(times * 200, 5000);
+      },
+      tls: REDIS_URL.startsWith("rediss://") ? {} : undefined,
     });
     _redis.on("error", (err) => {
       console.error("[Redis] Erro de conexão:", err.message);
