@@ -17,6 +17,7 @@ export function getRedisConnection(): IORedis {
     );
   }
   if (!_redis) {
+    const useTls = REDIS_URL.startsWith("rediss://") || REDIS_URL.includes("upstash.io");
     _redis = new IORedis(REDIS_URL, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
@@ -24,7 +25,7 @@ export function getRedisConnection(): IORedis {
         if (times > 10) return null;
         return Math.min(times * 200, 5000);
       },
-      tls: REDIS_URL.startsWith("rediss://") ? {} : undefined,
+      ...(useTls ? { tls: {} } : {}),
     });
     _redis.on("error", (err) => {
       console.error("[Redis] Erro de conexão:", err.message);
