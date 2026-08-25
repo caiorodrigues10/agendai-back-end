@@ -21,11 +21,13 @@ describe("AsaasService", () => {
   });
 
   function mockFetch(status: number, body: unknown) {
+    const text = JSON.stringify(body);
     return vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({
         ok: status >= 200 && status < 300,
         status,
+        text: async () => text,
         json: async () => body,
       } as Response);
   }
@@ -139,11 +141,13 @@ describe("AsaasService", () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
+        text: async () => JSON.stringify({ data: [] }),
         json: async () => ({ data: [] }),
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
+        text: async () => JSON.stringify({ id: "cus_new" }),
         json: async () => ({ id: "cus_new" }),
       } as Response);
 

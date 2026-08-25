@@ -5,7 +5,6 @@ import type { FastifyInstance } from "fastify";
 // exercise the real HTTP plugin configuration with a local, inert route only.
 vi.mock("./routes", () => ({
   registerRoutes: async (app: FastifyInstance) => {
-    app.get("/health", async () => ({ status: "ok" }));
     app.get("/pentest/ping", async () => ({ ok: true }));
   },
 }));

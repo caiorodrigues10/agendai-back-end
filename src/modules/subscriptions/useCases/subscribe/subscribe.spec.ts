@@ -11,7 +11,7 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
     findUniqueOrThrow: vi.fn(),
   },
-  invoice: { create: vi.fn(), update: vi.fn() },
+  invoice: { create: vi.fn(), update: vi.fn(), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   $transaction: vi.fn(),
 }));
 
@@ -112,9 +112,12 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
       status: "PENDING",
       paymentMethod: "credit_card",
     });
-    prismaMock.$transaction.mockImplementation((ops: any[]) =>
-      Promise.all(ops)
-    );
+    prismaMock.$transaction.mockImplementation(async (fnOrOps: any) => {
+      if (typeof fnOrOps === "function") {
+        return fnOrOps(prismaMock);
+      }
+      return Promise.all(fnOrOps);
+    });
     prismaMock.subscription.update.mockResolvedValue({});
     prismaMock.invoice.update.mockResolvedValue({});
     prismaMock.subscription.findUniqueOrThrow.mockResolvedValue(
