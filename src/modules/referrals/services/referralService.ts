@@ -14,6 +14,9 @@ import { invalidateSubscriptionCache } from '@/shared/infra/http/middlewares/sub
 import { validateEmail } from '@/shared/services/emailValidationService'
 import { normalizeCpf } from '@/shared/utils/cpfUtils'
 import { sendWhatsAppMessage } from '@/shared/services/whatsappNotificationService'
+import { getModuleLogger } from '@/shared/utils/logger'
+
+const logger = getModuleLogger('referrals');
 
 function generateCode(length = REFERRAL_CODE_LENGTH): string {
 	const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -136,7 +139,7 @@ export async function attachReferralOnRegister(input: {
 		email: input.refereeEmail,
 		referrerShopName: code.barbershop.name,
 		deduplicationKey: `referral-applied:${input.refereeBarbershopId}`,
-	}).catch(() => {})
+	}).catch((err) => logger.error({ err }, 'Failed to send referral applied email'))
 }
 
 /**
@@ -214,7 +217,7 @@ export async function qualifyReferralOnPayment(
 	})
 
 	if (referrerSub) {
-		invalidateSubscriptionCache(referral.referrerBarbershopId)
+		await invalidateSubscriptionCache(referral.referrerBarbershopId);
 
 		await enqueueEmail({
 			kind: 'referral_converted',
@@ -223,7 +226,7 @@ export async function qualifyReferralOnPayment(
 			refereeShopName: referral.refereeBarbershop.name,
 			rewardDays: totalDays,
 			deduplicationKey: `referral-converted:${referral.id}`,
-		}).catch(() => {})
+		}).catch((err) => logger.error({ err }, 'Failed to send referral converted email'))
 
 		const whatsapp = referral.referrerBarbershop.whatsapp
 		if (whatsapp) {
@@ -233,12 +236,10 @@ export async function qualifyReferralOnPayment(
 				`O salão *${referral.refereeBarbershop.name}* assinou o AGENDAI.`,
 				`+${totalDays} dias creditados na sua assinatura.`,
 			].join('\n')
-			await sendWhatsAppMessage(whatsapp, msg).catch(() => {})
+			await sendWhatsAppMessage(whatsapp, msg).catch((err) => logger.error({ err }, 'Failed to send referral converted WhatsApp'))
 		}
 	} else {
-		console.warn(
-			`[Referral] Indicação ${referral.id} marcada REWARDED sem assinatura do indicador ${referral.referrerBarbershopId}`,
-		)
+		logger.warn({ referralId: referral.id, referrerBarbershopId: referral.referrerBarbershopId }, 'Referral marked REWARDED without referrer subscription')
 	}
 }
 
@@ -308,7 +309,7 @@ export async function revokeReferralOnCancellation(
 	})
 
 	if (referrerSub) {
-		invalidateSubscriptionCache(referral.referrerBarbershopId)
+		await invalidateSubscriptionCache(referral.referrerBarbershopId);
 	}
 
 	const daysForNotify = daysActuallyRevoked || revokedDays
@@ -320,7 +321,7 @@ export async function revokeReferralOnCancellation(
 		refereeShopName: referral.refereeBarbershop.name,
 		revokedDays: daysForNotify,
 		deduplicationKey: `referral-revoked:${referral.id}`,
-	}).catch(() => {})
+	}).catch((err) => logger.error({ err }, 'Failed to send referral revoked email'))
 
 	const referrerShop = await prisma.barbershop.findUnique({
 		where: { id: referral.referrerBarbershopId },
@@ -333,7 +334,7 @@ export async function revokeReferralOnCancellation(
 			`O salão *${referral.refereeBarbershop.name}* cancelou/estornou.`,
 			`-${daysForNotify} dias removidos da sua assinatura.`,
 		].join('\n')
-		await sendWhatsAppMessage(referrerShop.whatsapp, msg).catch(() => {})
+		await sendWhatsAppMessage(referrerShop.whatsapp, msg).catch((err) => logger.error({ err }, 'Failed to send referral revoked WhatsApp'))
 	}
 
 	await prisma.adminNotification
@@ -350,7 +351,7 @@ export async function revokeReferralOnCancellation(
 				}),
 			},
 		})
-		.catch(() => {})
+		.catch((err) => logger.error({ err }, 'Failed to create referral revoked admin notification'))
 }
 
 export async function getReferralDashboard(input: {

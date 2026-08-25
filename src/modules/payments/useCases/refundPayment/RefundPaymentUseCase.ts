@@ -7,6 +7,9 @@ import { AsaasService } from "../../services/AsaasService";
 import { cancelSubscriptionForBarbershop } from "@/modules/subscriptions/services/cancelSubscriptionService";
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import { revokeReferralOnCancellation } from "@/modules/referrals/services/referralService";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('payments:refund');
 
 const INVOICE_REFERENCE_PATTERN = /^(?:bq|ag)-sub-([0-9a-f-]+)-inv-([0-9a-f-]+)$/;
 
@@ -154,20 +157,14 @@ export class RefundPaymentUseCase {
         await cancelSubscriptionForBarbershop(payment.barbershopId, {
           revokeImmediately: true,
         }).catch((err) => {
-          console.warn(
-            `[RefundPayment] Falha ao cancelar assinatura ${subscription.id}:`,
-            err?.message ?? err
-          );
+          logger.error({ err, subscriptionId: subscription.id }, 'Failed to cancel subscription after refund');
         });
       }
 
-      invalidateSubscriptionCache(payment.barbershopId);
+      await invalidateSubscriptionCache(payment.barbershopId);
 
       await revokeReferralOnCancellation(payment.barbershopId).catch((err) => {
-        console.warn(
-          `[RefundPayment] Falha ao reverter indicação:`,
-          err?.message ?? err
-        );
+        logger.error({ err }, 'Failed to revoke referral on cancellation');
       });
 
       await prisma.adminNotification
@@ -186,7 +183,7 @@ export class RefundPaymentUseCase {
             }),
           },
         })
-        .catch(() => {});
+        .catch((err) => logger.error({ err }, 'Failed to create refund admin notification'));
 
       await prisma.auditLog
         .create({
@@ -204,7 +201,7 @@ export class RefundPaymentUseCase {
             }),
           },
         })
-        .catch(() => {});
+        .catch((err) => logger.error({ err }, 'Failed to create audit log'));
 
       return prisma.refund.findUniqueOrThrow({ where: { id: refund.id } });
     } catch (error: any) {
@@ -218,7 +215,7 @@ export class RefundPaymentUseCase {
           where: { id: refund.id },
           data: { status: "FAILED", errorMessage: message },
         })
-        .catch(() => {});
+        .catch((err) => logger.error({ err }, 'Failed to update refund status to FAILED'));
 
       throw new AppError(message, 422);
     }

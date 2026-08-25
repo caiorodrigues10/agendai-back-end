@@ -12,4 +12,10 @@ export interface IUserResponseDTO {
   password?: string;
   googleSub?: string | null;
   emailVerified?: boolean;
+  deletedAt?: Date | null;
+  termsVersion?: string | null;
+  termsAcceptedAt?: Date | null;
+  marketingOptIn?: boolean;
+  marketingOptInAt?: Date | null;
+  lgpdConsentAt?: Date | null;
 }

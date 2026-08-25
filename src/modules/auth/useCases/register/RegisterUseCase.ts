@@ -25,6 +25,10 @@ export interface IRegisterDTO {
   whatsapp: string;
   cnpj?: string;
   referralCode?: string;
+  termsVersion: string;
+  termsAccepted: boolean;
+  marketingOptIn: boolean;
+  lgpdConsent: boolean;
 }
 
 function mapRole(role: string): "admin" | "owner" | "employee" {
@@ -87,6 +91,7 @@ export class RegisterUseCase {
     const hashedPassword = await this.hashProvider.hash(data.password);
     const verificationToken = randomBytes(32).toString("hex");
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const now = new Date();
 
     const user = await prisma.$transaction(async (tx) => {
       const barbershop = await tx.barbershop.create({
@@ -133,6 +138,11 @@ export class RegisterUseCase {
           barbershopId: barbershop.id,
           cpf: normalizedCpf,
           emailVerified: false,
+          termsVersion: data.termsVersion,
+          termsAcceptedAt: data.termsAccepted ? now : null,
+          marketingOptIn: data.marketingOptIn,
+          marketingOptInAt: data.marketingOptIn ? now : null,
+          lgpdConsentAt: data.lgpdConsent ? now : null,
         },
         select: {
           id: true,
@@ -183,7 +193,7 @@ export class RegisterUseCase {
         ownerUserId: user.id,
         barbershopId: user.barbershopId,
       }).catch((err) => {
-        console.warn("[Register] Falha ao gerar código de indicação:", err?.message ?? err);
+        console.error("[Register] Falha ao gerar código de indicação:", err?.message ?? err);
       });
 
       await attachReferralOnRegister({
@@ -194,7 +204,7 @@ export class RegisterUseCase {
         refereeEmail: user.email,
         refereeCpf: normalizedCpf,
       }).catch((err) => {
-        console.warn("[Register] Falha ao anexar indicação:", err?.message ?? err);
+        console.error("[Register] Falha ao anexar indicação:", err?.message ?? err);
       });
     }
 
@@ -205,7 +215,7 @@ export class RegisterUseCase {
       token: verificationToken,
       deduplicationKey: `verify-email:${user.id}`,
     }).catch((err) => {
-      console.warn("[Register] Falha ao enfileirar verificação de e-mail:", err?.message ?? err);
+      console.error("[Register] Falha ao enfileirar verificação de e-mail:", err?.message ?? err);
     });
 
     // Boas-vindas (não bloqueia cadastro se fila/e-mail falhar)
@@ -216,7 +226,7 @@ export class RegisterUseCase {
       email: user.email,
       deduplicationKey: `welcome:${user.id}`,
     }).catch((err) => {
-      console.warn("[Register] Falha ao enfileirar e-mail de boas-vindas:", err?.message ?? err);
+      console.error("[Register] Falha ao enfileirar e-mail de boas-vindas:", err?.message ?? err);
     });
 
     return {

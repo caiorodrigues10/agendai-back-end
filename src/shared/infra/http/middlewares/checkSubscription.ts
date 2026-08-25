@@ -10,6 +10,7 @@ import { assertCpfNotBlocked } from "@/shared/services/blockedEntityService";
 import {
   getCachedAccess,
   setCachedAccess,
+  invalidateSubscriptionCache,
 } from "./subscriptionAccessCache";
 import { TRIAL_DAYS } from "@/shared/constants/subscription";
 import { getAvailablePlans } from "@/shared/utils/planUtils";
@@ -37,7 +38,7 @@ export async function checkSubscription(
     throw new AppError("Usuário não vinculado a nenhum salão", 400);
   }
 
-  const cached = getCachedAccess(user.barbershopId);
+  const cached = await getCachedAccess(user.barbershopId);
   if (cached === true) return;
   if (cached === false) {
     const plans = await getAvailablePlans();
@@ -73,7 +74,7 @@ export async function checkSubscription(
   });
 
   if (!barbershop || !barbershop.active) {
-    setCachedAccess(user.barbershopId, false);
+    await setCachedAccess(user.barbershopId, false);
     throw new AppError("Salão inativo ou não encontrado", 403);
   }
 
@@ -85,11 +86,11 @@ export async function checkSubscription(
   const access = subscriptionGrantsAccess(subscription, now, trialEnd);
 
   if (access.allowed) {
-    setCachedAccess(user.barbershopId, true);
+    await setCachedAccess(user.barbershopId, true);
     return;
   }
 
-  setCachedAccess(user.barbershopId, false);
+  await setCachedAccess(user.barbershopId, false);
 
   const plans = await getAvailablePlans();
 

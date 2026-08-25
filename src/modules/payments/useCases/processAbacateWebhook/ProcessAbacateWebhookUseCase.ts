@@ -167,7 +167,7 @@ export class ProcessAbacateWebhookUseCase {
       updated.externalReference,
       "approved"
     ).catch((err) => {
-      console.warn(
+      console.error(
         `[ProcessAbacateWebhook] Falha ao atualizar subscription: ${err?.message ?? err}`
       );
     });
@@ -197,7 +197,7 @@ export class ProcessAbacateWebhookUseCase {
       updated.externalReference,
       status
     ).catch((err) => {
-      console.warn(
+      console.error(
         `[ProcessAbacateWebhook] Falha ao atualizar subscription: ${err?.message ?? err}`
       );
     });

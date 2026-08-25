@@ -8,6 +8,15 @@ import { prisma } from "@/libs/prismaClient";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
 
+interface UserLike {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  barbershopId: string | null;
+  cpf: string | null;
+}
+
 @injectable()
 export class GoogleLoginUseCase {
   constructor(
@@ -64,6 +73,15 @@ export class GoogleLoginUseCase {
       });
     }
 
-    return issueAuthSession(user);
+    const userLike: UserLike = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      barbershopId: user.barbershopId ?? null,
+      cpf: user.cpf ?? null,
+    };
+
+    return issueAuthSession(userLike);
   }
 }

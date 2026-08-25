@@ -76,7 +76,8 @@ export class CancelPaymentUseCase {
         });
       } catch (error: any) {
         if (error instanceof AppError) throw error;
-        console.warn(
+        console.error(
+          "[CancelPayment]",
           JSON.stringify({
             event: "payment_cancel_remote_failed",
             provider: "ABACATEPAY",
@@ -116,7 +117,8 @@ export class CancelPaymentUseCase {
         });
       } catch (error: any) {
         if (error instanceof AppError) throw error;
-        console.warn(
+        console.error(
+          "[CancelPayment]",
           JSON.stringify({
             event: "payment_cancel_remote_failed",
             provider: "ASAAS",

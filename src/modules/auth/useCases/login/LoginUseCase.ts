@@ -4,6 +4,18 @@ import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashPr
 import { AppError } from "@/shared/errors/AppError";
 import { checkBarbershopAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { issueAuthSession } from "../../services/issueAuthSession";
+import { prisma } from "@/libs/prismaClient";
+
+const CURRENT_TERMS_VERSION = "1.0";
+
+interface UserLike {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  barbershopId: string | null;
+  cpf: string | null;
+}
 
 @injectable()
 export class LoginUseCase {
@@ -25,10 +37,29 @@ export class LoginUseCase {
       throw new AppError("Credenciais inválidas", 401);
     }
 
+    if (user.termsVersion !== CURRENT_TERMS_VERSION) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          termsVersion: CURRENT_TERMS_VERSION,
+          termsAcceptedAt: new Date(),
+        },
+      });
+    }
+
     if (user.barbershopId) {
       await checkBarbershopAccess(user.barbershopId, user.cpf ?? undefined);
     }
 
-    return issueAuthSession(user);
+    const userLike: UserLike = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      barbershopId: user.barbershopId ?? null,
+      cpf: user.cpf ?? null,
+    };
+
+    return issueAuthSession(userLike);
   }
 }

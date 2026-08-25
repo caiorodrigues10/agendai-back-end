@@ -58,11 +58,7 @@ export class ProcessAsaasWebhookUseCase {
     await handleSubscriptionPaymentWebhook(
       updated.externalReference,
       localStatus
-    ).catch((err) => {
-      console.warn(
-        `[ProcessAsaasWebhook] Falha ao atualizar subscription: ${err?.message ?? err}`
-      );
-    });
+    );
   }
 
   private async resolveLocalPayment(

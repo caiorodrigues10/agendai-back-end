@@ -6,6 +6,9 @@ import {
   revokeReferralOnCancellation,
 } from "@/modules/referrals/services/referralService";
 import { billingPeriodDays } from "@/shared/constants/subscription";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('subscriptions:webhook');
 
 export async function handleSubscriptionPaymentWebhook(
   externalReference: string | null | undefined,
@@ -34,10 +37,7 @@ export async function handleSubscriptionPaymentWebhook(
     // Idempotência: invoice já paga → não reestende endDate (OpenCode checkpoint)
     if (invoice.status === "PAID") {
       await qualifyReferralOnPayment(subscription.barbershopId).catch((err) => {
-        console.warn(
-          `[WebhookSubscription] Falha ao qualificar indicação da barbearia ${subscription.barbershopId}:`,
-          err?.message ?? err
-        );
+        logger.error({ err, barbershopId: subscription.barbershopId }, 'Failed to qualify referral on payment');
       });
       return;
     }
@@ -62,17 +62,14 @@ export async function handleSubscriptionPaymentWebhook(
       }),
     ]);
 
-    invalidateSubscriptionCache(subscription.barbershopId);
+    await invalidateSubscriptionCache(subscription.barbershopId);
 
     await unblockOwnerCpfs(
       subscription.barbershopId,
       "system",
       externalReference
     ).catch((err) => {
-      console.warn(
-        `[WebhookSubscription] Falha ao desbloquear CPFs da barbearia ${subscription.barbershopId}:`,
-        err?.message ?? err
-      );
+      logger.error({ err, barbershopId: subscription.barbershopId }, 'Failed to unblock owner CPFs');
     });
 
     await prisma.adminNotification
@@ -90,15 +87,12 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch(() => {
-        /* não quebra o fluxo */
+      .catch((err) => {
+        logger.error({ err }, 'Failed to create payment received admin notification');
       });
 
     await qualifyReferralOnPayment(subscription.barbershopId).catch((err) => {
-      console.warn(
-        `[WebhookSubscription] Falha ao qualificar indicação da barbearia ${subscription.barbershopId}:`,
-        err?.message ?? err
-      );
+      logger.error({ err, barbershopId: subscription.barbershopId }, 'Failed to qualify referral on payment');
     });
   } else if (newPaymentStatus === "in_mediation") {
     // Disputa/contestação em análise — suspende acesso imediatamente até a resolução.
@@ -113,7 +107,7 @@ export async function handleSubscriptionPaymentWebhook(
       }),
     ]);
 
-    invalidateSubscriptionCache(subscription.barbershopId);
+    await invalidateSubscriptionCache(subscription.barbershopId);
 
     await prisma.adminNotification
       .create({
@@ -130,13 +124,12 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch(() => {});
+      .catch((err) => {
+        logger.error({ err }, 'Failed to create subscription in mediation admin notification');
+      });
 
     await revokeReferralOnCancellation(subscription.barbershopId).catch((err) => {
-      console.warn(
-        `[WebhookSubscription] Falha ao reverter indicação:`,
-        err?.message ?? err
-      );
+      logger.error({ err }, 'Failed to revoke referral on cancellation');
     });
   } else if (["charged_back", "refunded"].includes(newPaymentStatus)) {
     // Estorno confirmado (externo via cartão, ou refund total do admin).
@@ -174,7 +167,7 @@ export async function handleSubscriptionPaymentWebhook(
           ]),
     ]);
 
-    invalidateSubscriptionCache(subscription.barbershopId);
+    await invalidateSubscriptionCache(subscription.barbershopId);
 
     await prisma.adminNotification
       .create({
@@ -194,13 +187,12 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch(() => {});
+      .catch((err) => {
+        logger.error({ err }, 'Failed to create chargeback/refund admin notification');
+      });
 
     await revokeReferralOnCancellation(subscription.barbershopId).catch((err) => {
-      console.warn(
-        `[WebhookSubscription] Falha ao reverter indicação:`,
-        err?.message ?? err
-      );
+      logger.error({ err }, 'Failed to revoke referral on cancellation');
     });
   } else if (["rejected", "cancelled"].includes(newPaymentStatus)) {
     // Pagamento não efetivado — mantém PAST_DUE (aguardando nova tentativa).
@@ -215,7 +207,7 @@ export async function handleSubscriptionPaymentWebhook(
       }),
     ]);
 
-    invalidateSubscriptionCache(subscription.barbershopId);
+    await invalidateSubscriptionCache(subscription.barbershopId);
 
     await prisma.adminNotification
       .create({
@@ -232,13 +224,12 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch(() => {});
+      .catch((err) => {
+        logger.error({ err }, 'Failed to create payment rejected admin notification');
+      });
 
-await revokeReferralOnCancellation(subscription.barbershopId).catch((err) => {
-      console.warn(
-        `[WebhookSubscription] Falha ao reverter indicação:`,
-        err?.message ?? err
-      );
+    await revokeReferralOnCancellation(subscription.barbershopId).catch((err) => {
+      logger.error({ err }, 'Failed to revoke referral on cancellation');
     });
   }
 }

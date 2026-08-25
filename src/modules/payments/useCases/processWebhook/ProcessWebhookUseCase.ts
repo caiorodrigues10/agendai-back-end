@@ -24,7 +24,7 @@ export class ProcessWebhookUseCase {
     try {
       mpData = await this.mpService.getPaymentById(mpPaymentIdStr);
     } catch (err: any) {
-      console.warn(
+      console.error(
         `[ProcessWebhook] Falha ao buscar mpPaymentId=${mpPaymentIdStr}: ${err?.message ?? err}`
       );
       return;
@@ -46,7 +46,7 @@ export class ProcessWebhookUseCase {
       updatedPayment.externalReference,
       mpData.status
     ).catch((err) => {
-      console.warn(`[ProcessWebhook] Falha ao atualizar subscription: ${err?.message ?? err}`);
+      console.error(`[ProcessWebhook] Falha ao atualizar subscription: ${err?.message ?? err}`);
     });
   }
 }

@@ -2,6 +2,9 @@ import { prisma } from "@/libs/prismaClient";
 import { revokeReferralOnCancellation } from "@/modules/referrals/services/referralService";
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import { issueProratedRefund } from "@/modules/payments/services/proratedRefundService";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('subscriptions:cancel');
 
 export interface CancelSubscriptionResult {
   id: string;
@@ -69,14 +72,11 @@ export async function cancelSubscriptionForBarbershop(
     include: { plan: { select: { id: true, name: true } } },
   });
 
-  await revokeReferralOnCancellation(barbershopId).catch((err) => {
-    console.warn(
-      `[CancelSubscription] Falha ao reverter indicação:`,
-      err?.message ?? err
-    );
+await revokeReferralOnCancellation(barbershopId).catch((err) => {
+    logger.error({ err, barbershopId }, 'Failed to revoke referral on cancellation');
   });
 
-  invalidateSubscriptionCache(barbershopId);
+  await invalidateSubscriptionCache(barbershopId);
 
   // Reembolso proporcional automático do período não utilizado.
   // Apenas quando NÃO há revogação imediata (reembolso total do admin já devolveu tudo).
@@ -91,10 +91,7 @@ export async function cancelSubscriptionForBarbershop(
         pixKeyType: options?.pixKeyType,
       });
     } catch (err: any) {
-      console.warn(
-        `[CancelSubscription] Falha ao emitir reembolso proporcional:`,
-        err?.message ?? err
-      );
+      logger.error({ err, barbershopId }, 'Failed to issue prorated refund');
     }
   }
 

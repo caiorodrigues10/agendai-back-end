@@ -10,6 +10,9 @@ import {
   buildReferralRevokedEmail,
 } from "@/modules/email/templates/referralEmails";
 import { buildVerifyEmail } from "@/modules/email/templates/authEmails";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('queue:email');
 
 const QUEUE_NAME = "email";
 
@@ -59,7 +62,7 @@ function createWorker(): Worker<EmailJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(`[Email Worker] Job ${job?.id} falhou:`, err.message);
+    logger.error({ err, jobId: job?.id }, 'Email job failed');
   });
 
   return worker;
@@ -76,13 +79,13 @@ export const emailWorker = new Proxy({} as Worker<EmailJobData>, {
 export async function startEmailWorker(): Promise<void> {
   if (process.env.VITEST) return;
   if (!_worker) _worker = createWorker();
-  console.log("[Email Worker] Iniciado");
+  logger.info('Email worker started');
 }
 
 export async function stopEmailWorker(): Promise<void> {
   if (_worker) {
     await _worker.close();
     _worker = null;
-    console.log("[Email Worker] Parado");
+    logger.info('Email worker stopped');
   }
 }

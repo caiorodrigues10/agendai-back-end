@@ -53,7 +53,8 @@ export function assertQueueTenantAccess(
 ): void {
   if (user.role === "MASTER_ADMIN") return;
   if (!user.barbershopId || user.barbershopId !== itemBarbershopId) {
-    console.warn(
+    console.error(
+      "[QueueAccess]",
       JSON.stringify({
         event: "tenant_access_denied",
         resource: "queue",

@@ -9,18 +9,24 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  name          String    @db.VarChar(200)
-  email         String    @unique @db.VarChar(100)
-  password      String    @db.VarChar(500)
-  role          Role      @default(EMPLOYEE)
-  barbershopId  String?   @db.Uuid
-  cpf           String?   @unique @db.VarChar(11)
-  emailVerified Boolean   @default(false)
-  googleSub     String?   @unique @db.VarChar(100)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  active        Boolean   @default(true)
+  id                String    @id @default(uuid()) @db.Uuid
+  name              String    @db.VarChar(200)
+  email             String    @unique @db.VarChar(100)
+  password          String    @db.VarChar(500)
+  role              Role      @default(EMPLOYEE)
+  barbershopId      String?   @db.Uuid
+  cpf               String?   @unique @db.VarChar(11)
+  emailVerified     Boolean   @default(false)
+  googleSub         String?   @unique @db.VarChar(100)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  active            Boolean   @default(true)
+  deletedAt         DateTime?
+  termsVersion      String?   @db.VarChar(20)
+  termsAcceptedAt   DateTime?
+  marketingOptIn    Boolean   @default(false)
+  marketingOptInAt  DateTime?
+  lgpdConsentAt     DateTime?
 
   barbershop          Barbershop?         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   refreshTokens       RefreshToken[]
@@ -35,6 +41,7 @@ model User {
 
   @@map("users")
   @@index([cpf])
+  @@index([deletedAt])
 }
 
 enum Role {
@@ -129,6 +136,7 @@ model Payment {
   @@index([mpPaymentId])
   @@index([providerPaymentId])
   @@index([externalReference])
+  @@index([externalReference, status])
 }
 
 model Barbershop {
@@ -488,6 +496,7 @@ model Subscription {
   @@unique([barbershopId])
   @@map("subscriptions")
   @@index([status])
+  @@index([barbershopId, status])
 }
 
 enum SubscriptionStatus {
@@ -514,6 +523,7 @@ model Invoice {
   @@map("invoices")
   @@index([status])
   @@index([dueDate])
+  @@index([subscriptionId, status, dueDate])
 }
 
 enum InvoiceStatus {
@@ -619,6 +629,41 @@ model AuditLog {
   @@map("audit_logs")
   @@index([userId])
   @@index([action])
+  @@index([createdAt])
+}
+
+model AccessLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  email      String?  @db.VarChar(255)
+  action     String   @db.VarChar(50)   // LOGIN, LOGOUT, LOGIN_FAILED, REFRESH, REGISTER
+  ipAddress  String?  @db.VarChar(50)
+  userAgent  String?  @db.VarChar(500)
+  success    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@map("access_logs")
+  @@index([userId])
+  @@index([email])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model ErrorLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  statusCode Int
+  code       String?  @db.VarChar(100)
+  message    String   @db.Text
+  stack      String?  @db.Text
+  path       String   @db.VarChar(500)
+  method     String   @db.VarChar(10)
+  ipAddress  String?  @db.VarChar(50)
+  createdAt  DateTime @default(now())
+
+  @@map("error_logs")
+  @@index([userId])
+  @@index([statusCode])
   @@index([createdAt])
 }
 
@@ -832,4 +877,16 @@ enum EmailDeliveryStatus {
   SENT
   FAILED
   SKIPPED
+}
+
+model Feedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@map("feedbacks")
+  @@index([userId])
+  @@index([createdAt])
 }

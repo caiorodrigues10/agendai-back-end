@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agendai_api_dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3333:3333"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        npx prisma generate &&
+        npx prisma db push &&
+        npm run prisma:seed &&
+        npm run dev:docker
+      "
+
+  db:
+    image: postgres:16-alpine
+    container_name: agendai_db_dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: agendai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agendai123}
+      POSTGRES_DB: agendai
+    ports:
+      - "5442:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agendai -d agendai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: agendai_redis_dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata_dev:
+    driver: local
+  redisdata_dev:
+    driver: local
+
+networks:
+  default:
+    name: agendai-dev-network

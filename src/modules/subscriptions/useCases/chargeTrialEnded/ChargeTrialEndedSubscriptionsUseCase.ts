@@ -133,7 +133,7 @@ export class ChargeTrialEndedSubscriptionsUseCase {
             where: { id: sub.id },
             data: { status: "PAST_DUE" },
           });
-          invalidateSubscriptionCache(sub.barbershopId);
+          await invalidateSubscriptionCache(sub.barbershopId);
           result.failed += 1;
           result.errors.push({
             subscriptionId: sub.id,
@@ -151,7 +151,7 @@ export class ChargeTrialEndedSubscriptionsUseCase {
             where: { id: sub.id },
             data: { status: "PAST_DUE" },
           });
-          invalidateSubscriptionCache(sub.barbershopId);
+          await invalidateSubscriptionCache(sub.barbershopId);
         } catch {
           /* ignore */
         }

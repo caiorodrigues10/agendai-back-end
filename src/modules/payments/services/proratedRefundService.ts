@@ -6,6 +6,9 @@ import { billingPeriodDays } from "@/shared/constants/subscription";
 import { MercadoPagoService } from "./MercadoPagoService";
 import { AbacatePayService } from "./AbacatePayService";
 import { AsaasService } from "./AsaasService";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('payments:prorated-refund');
 
 export interface ProratedRefundInput {
   barbershopId: string;
@@ -199,7 +202,7 @@ export async function issueProratedRefund(
       }),
     ]);
 
-    invalidateSubscriptionCache(input.barbershopId);
+    await invalidateSubscriptionCache(input.barbershopId);
 
     await prisma.adminNotification
       .create({
@@ -217,7 +220,7 @@ export async function issueProratedRefund(
           }),
         },
       })
-      .catch(() => {});
+      .catch((err) => logger.error({ err }, 'Failed to create refund admin notification'));
 
     return { refundId: refund.id, amount: amountReais, status: "SUCCEEDED", reason };
   } catch (error: any) {
@@ -229,7 +232,7 @@ export async function issueProratedRefund(
         where: { id: refund.id },
         data: { status: "FAILED", errorMessage: message },
       })
-      .catch(() => {});
+      .catch((err) => logger.error({ err }, 'Failed to update refund status to FAILED'));
 
     await prisma.adminNotification
       .create({
@@ -247,7 +250,7 @@ export async function issueProratedRefund(
           }),
         },
       })
-      .catch(() => {});
+      .catch((err) => logger.error({ err }, 'Failed to create refund failure admin notification'));
 
     return { refundId: refund.id, amount: amountReais, status: "FAILED", reason: message };
   }

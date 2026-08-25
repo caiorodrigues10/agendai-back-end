@@ -8,6 +8,7 @@ import { apiRoutes } from "./routes/api";
 import { setupSwagger } from "@/config/swagger";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
+import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 
 export async function buildApp() {
   const app = fastify({
@@ -59,6 +60,52 @@ export async function buildApp() {
     ],
   });
 
+  // Health check endpoints (no rate limit)
+  app.get("/health", async () => {
+    const dbHealthy = await checkDatabase();
+    const redisHealthy = await checkRedis();
+
+    return {
+      status: dbHealthy && redisHealthy ? "ok" : "degraded",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      checks: {
+        db: dbHealthy ? "healthy" : "unhealthy",
+        redis: redisHealthy ? "healthy" : "unhealthy",
+      },
+    };
+  });
+
+  app.get("/ready", async (request, reply) => {
+    const dbHealthy = await checkDatabase();
+    const redisHealthy = await checkRedis();
+
+    if (dbHealthy && redisHealthy) {
+      return { status: "ready" };
+    }
+    reply.status(503);
+    return { status: "not ready" };
+  });
+
+  async function checkDatabase(): Promise<boolean> {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function checkRedis(): Promise<boolean> {
+    try {
+      const redis = getRedisConnection();
+      await redis.ping();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // Headers de segurança via Helmet
   await app.register(helmet, {
     contentSecurityPolicy: process.env.NODE_ENV === "production",
@@ -92,38 +139,54 @@ export async function buildApp() {
   await registerRoutes(app);
   await app.register(apiRoutes, { prefix: "/api" });
 
-  // Hook de auditoria global para mutações autenticadas
-  app.addHook("preHandler", async (request) => {
+  // Hook de auditoria global para mutações autenticadas.
+  // Usa "onResponse" (roda DEPOIS do handler) para garantir que
+  // request.user já foi populado pelo middleware authenticate.
+  // Em "preHandler" global, request.user é undefined porque os
+  // middlewares de roda (authenticate) ainda não rodaram.
+  app.addHook("onResponse", async (request, reply) => {
     if (
-      ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-      request.user
-    ) {
-      if (request.url.includes("/api/admin/audit-logs")) return;
+      !["POST", "PUT", "PATCH", "DELETE"].includes(request.method) ||
+      !request.user
+    ) return;
+    if (request.url.includes("/api/admin/audit-logs")) return;
+    if (reply.statusCode >= 400) return;
 
-      try {
-        await prisma.auditLog.create({
-          data: {
-            userId: (request.user as any).id,
-            action: `${request.method} ${request.url.split("?")[0]}`,
-            resource: request.url.split("/")[2] || "API",
-            resourceId: (request.params as any)?.id || null,
-            details: JSON.stringify(request.body).substring(0, 500),
-            ipAddress: request.ip,
-          },
-        });
-      } catch (err) {
-        request.log.error(err as any, "Failed to create audit log");
-      }
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: (request.user as any).id,
+          action: `${request.method} ${request.url.split("?")[0]}`,
+          resource: request.url.split("/")[2] || "API",
+          resourceId: (request.params as any)?.id || null,
+          details: JSON.stringify(request.body).substring(0, 500),
+          ipAddress: request.ip,
+        },
+      });
+    } catch (err) {
+      request.log.error(err as any, "Failed to create audit log");
     }
   });
 
   // Handler global de erros
-  app.setErrorHandler((error, request, reply) => {
+  app.setErrorHandler(async (error, request, reply) => {
+    const statusCode = error.statusCode ?? 500;
+
+    // Log to error_logs table (async, non-blocking)
+    prisma.errorLog.create({
+      data: {
+        userId: (request.user as any)?.id ?? null,
+        statusCode,
+        code: error.code ?? null,
+        message: (error.message ?? "Unknown error").substring(0, 2000),
+        stack: error.stack?.substring(0, 5000) ?? null,
+        path: request.url.split("?")[0],
+        method: request.method,
+        ipAddress: request.ip ?? null,
+      },
+    }).catch(() => {}); // Never block the response
+
     if (error instanceof AppError) {
-      // Alguns AppError carregam a message como JSON serializado
-      // (ex.: { code: "SUBSCRIPTION_REQUIRED", plans, ... } no checkSubscription).
-      // Nesses casos espalhamos os campos na resposta para o frontend consumir
-      // diretamente (`code`, `plans`, `reason`, ...), mantendo `message` legível.
       let extras: Record<string, unknown> | null = null;
       try {
         const parsed = JSON.parse(error.message);

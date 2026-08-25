@@ -63,7 +63,7 @@ export class GetPaymentStatusUseCase {
         if (logger) {
           logger.warn(msg);
         } else {
-          console.warn(msg);
+          console.error(msg);
         }
       }
     } else if (shouldSync && payment.mpPaymentId) {
@@ -83,7 +83,7 @@ export class GetPaymentStatusUseCase {
         if (logger) {
           logger.warn(msg);
         } else {
-          console.warn(msg);
+          console.error(msg);
         }
       }
     }

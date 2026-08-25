@@ -6,6 +6,9 @@ import { Worker, Job } from "bullmq";
 import { getRedisConnection } from "./redisConnection";
 import { WhatsAppJobData } from "./whatsappQueue";
 import { sendWhatsAppMessage } from "@/shared/services/evolutionApiService";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('queue:whatsapp');
 
 const QUEUE_NAME = "whatsapp";
 
@@ -17,9 +20,7 @@ function createWorker(): Worker<WhatsAppJobData> {
     async (job: Job<WhatsAppJobData>) => {
       const { phone, message, instanceName } = job.data;
 
-      console.log(
-        `[WhatsApp Worker] Processando job ${job.id} (tentativa ${job.attemptsMade + 1}/${job.opts.attempts})`
-      );
+      logger.debug({ jobId: job.id, attempt: job.attemptsMade + 1, maxAttempts: job.opts.attempts }, 'Processing WhatsApp job');
 
       const sent = await sendWhatsAppMessage(phone, message, {
         instanceName: instanceName || undefined,
@@ -39,14 +40,11 @@ function createWorker(): Worker<WhatsAppJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(
-      `[WhatsApp Worker] Job ${job?.id} falhou:`,
-      err.message
-    );
+    logger.error({ err, jobId: job?.id }, 'WhatsApp job failed');
   });
 
   worker.on("error", (err) => {
-    console.error("[WhatsApp Worker] Erro geral:", err.message);
+    logger.error({ err }, 'WhatsApp worker error');
   });
 
   return worker;
@@ -64,13 +62,13 @@ export const whatsappWorker = new Proxy({} as Worker<WhatsAppJobData>, {
 export async function startWhatsAppWorker(): Promise<void> {
   if (process.env.VITEST) return;
   if (!_worker) _worker = createWorker();
-  console.log("[WhatsApp Worker] Iniciado");
+  logger.info('WhatsApp worker started');
 }
 
 export async function stopWhatsAppWorker(): Promise<void> {
   if (_worker) {
     await _worker.close();
     _worker = null;
-    console.log("[WhatsApp Worker] Parado");
+    logger.info('WhatsApp worker stopped');
   }
 }

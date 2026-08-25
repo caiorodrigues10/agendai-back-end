@@ -9,6 +9,7 @@ import { IPaymentResponseDTO } from "@/modules/payments/dtos/IPaymentDTO";
 import { ISubscribeDTO, ISubscriptionResponseDTO } from "../../dtos/ISubscriptionDTO";
 import { buildSubscriptionResponse } from "../../utils/subscriptionMapper";
 import { TRIAL_DAYS, billingPeriodDays } from "@/shared/constants/subscription";
+import { Prisma } from "@prisma/client";
 
 function frontendBaseUrl(): string {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
@@ -69,61 +70,84 @@ export class SubscribeUseCase {
       throw new AppError("Plano não encontrado ou inativo", 404);
     }
 
-    const existing = await prisma.subscription.findUnique({
-      where: { barbershopId: data.barbershopId },
-    });
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const lockedBarbershop = await tx.barbershop.findUnique({
+          where: { id: data.barbershopId },
+          select: { id: true, active: true },
+        });
 
-    if (existing && ["TRIALING", "ACTIVE"].includes(existing.status)) {
-      throw new AppError(
-        "Já existe uma assinatura ativa. Cancele a atual antes de assinar um novo plano.",
-        409
-      );
-    }
+        if (!lockedBarbershop || !lockedBarbershop.active) {
+          throw new AppError("Salão não encontrado ou inativo", 404);
+        }
 
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
+        const existing = await tx.subscription.findUnique({
+          where: { barbershopId: data.barbershopId },
+        });
 
-    // PIX, payment_link e asaas: PAST_DUE até webhook. Cartão MP: ACTIVE se aprovado.
-    const pendingUntilWebhook =
-      data.paymentMethod === "pix" ||
-      data.paymentMethod === "payment_link" ||
-      data.paymentMethod === "asaas";
-    const initialStatus = pendingUntilWebhook ? "PAST_DUE" : "ACTIVE";
+        if (existing && ["TRIALING", "ACTIVE"].includes(existing.status)) {
+          throw new AppError(
+            "Já existe uma assinatura ativa. Cancele a atual antes de assinar um novo plano.",
+            409
+          );
+        }
 
-    const subscription = await prisma.subscription.upsert({
-      where: { barbershopId: data.barbershopId },
-      update: {
-        planId: plan.id,
-        status: initialStatus,
-        startDate: new Date(),
-        endDate: pendingUntilWebhook ? null : dueDate,
-        cancelDate: null,
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 30);
+
+        const pendingUntilWebhook =
+          data.paymentMethod === "pix" ||
+          data.paymentMethod === "payment_link" ||
+          data.paymentMethod === "asaas";
+        const initialStatus = pendingUntilWebhook ? "PAST_DUE" : "ACTIVE";
+
+        const subscription = await tx.subscription.upsert({
+          where: { barbershopId: data.barbershopId },
+          update: {
+            planId: plan.id,
+            status: initialStatus,
+            startDate: new Date(),
+            endDate: pendingUntilWebhook ? null : dueDate,
+            cancelDate: null,
+          },
+          create: {
+            barbershopId: data.barbershopId,
+            planId: plan.id,
+            status: initialStatus,
+            startDate: new Date(),
+            endDate: pendingUntilWebhook ? null : dueDate,
+          },
+        });
+
+        await tx.invoice.deleteMany({
+          where: { subscriptionId: subscription.id, status: "PENDING" },
+        });
+
+        const invoice = await tx.invoice.create({
+          data: {
+            subscriptionId: subscription.id,
+            amount: plan.price,
+            dueDate,
+            status: "PENDING",
+            paymentMethod:
+              data.paymentMethod === "asaas"
+                ? data.asaasBillingType === "CREDIT_CARD"
+                  ? "credit_card"
+                  : "pix"
+                : data.paymentMethod,
+          },
+        });
+
+        return { subscription, invoice };
       },
-      create: {
-        barbershopId: data.barbershopId,
-        planId: plan.id,
-        status: initialStatus,
-        startDate: new Date(),
-        endDate: pendingUntilWebhook ? null : dueDate,
-      },
-    });
+      {
+        maxWait: 5000,
+        timeout: 10000,
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      }
+    );
 
-    const invoice = await prisma.invoice.create({
-      data: {
-        subscriptionId: subscription.id,
-        amount: plan.price,
-        dueDate,
-        status: "PENDING",
-        // Asaas usa o meio escolhido no checkout embutido (PIX/cartão)
-        paymentMethod:
-          data.paymentMethod === "asaas"
-            ? data.asaasBillingType === "CREDIT_CARD"
-              ? "credit_card"
-              : "pix"
-            : data.paymentMethod,
-      },
-    });
-
+    const { subscription, invoice } = result;
     const externalReference = `ag-sub-${subscription.id}-inv-${invoice.id}`;
     const description = `Assinatura AgendAI — ${plan.name}`;
 

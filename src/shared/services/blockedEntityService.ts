@@ -41,7 +41,7 @@ async function createAdminNotification(
     });
   } catch (err) {
     // Notificação nunca deve derrubar o fluxo principal
-    console.warn("[AdminNotification] Falha ao criar notificação:", err);
+    console.error("[BlockedEntity] Falha ao criar notificação:", err);
   }
 }
 
@@ -63,7 +63,7 @@ async function createAuditLog(
       }
     });
   } catch (err) {
-    console.warn("[AuditLog] Falha ao criar log:", err);
+    console.error("[BlockedEntity] Falha ao criar audit log:", err);
   }
 }
 

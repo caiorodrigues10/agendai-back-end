@@ -2,6 +2,9 @@ import { inject, injectable } from "tsyringe";
 import { IQueueRepository } from "@/modules/queue/repositories/IQueueRepository";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('queue:notify');
 
 export interface NotifyQueuePositionResult {
   notified: number;
@@ -73,7 +76,7 @@ export class NotifyQueuePositionUpdatesUseCase {
         message,
         instanceName,
         deduplicationKey: `position:${barbershopId}:${item.id}:${position}`,
-      }).then(() => true).catch(() => false);
+      }).then(() => true).catch((err) => { logger.error({ err }, 'Failed to enqueue WhatsApp position update'); return false; });
       if (ok) {
         await this.queueRepository.markNotifiedPosition(item.id, position);
         notified++;

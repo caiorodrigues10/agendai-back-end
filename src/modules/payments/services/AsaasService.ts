@@ -1,5 +1,8 @@
 import { injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('payments:asaas');
 
 export interface AsaasCustomer {
   id: string;
@@ -73,31 +76,50 @@ export class AsaasService {
     path: string,
     body?: unknown
   ): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: {
-        access_token: this.apiKey,
-        "Content-Type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const json = (await response.json()) as
-      | T
-      | { errors?: Array<{ code: string; description: string }> }
-      | undefined;
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: {
+          access_token: this.apiKey,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const asaasError = json as { errors?: Array<{ code: string; description: string }> };
-      const detail = asaasError?.errors
-        ?.map((e) => `${e.code}: ${e.description}`)
-        .join("; ");
-      throw new Error(
-        `Asaas API error ${response.status}: ${detail || "erro desconhecido"}`
-      );
+      // DELETE pode retornar 204 No Content (sem body)
+      if (response.status === 204) {
+        return {} as T;
+      }
+
+      const text = await response.text();
+      const json = (text ? JSON.parse(text) : undefined) as
+        | T
+        | { errors?: Array<{ code: string; description: string }> }
+        | undefined;
+
+      if (!response.ok) {
+        const asaasError = json as { errors?: Array<{ code: string; description: string }> };
+        const detail = asaasError?.errors
+          ?.map((e) => `${e.code}: ${e.description}`)
+          .join("; ");
+        throw new Error(
+          `Asaas API error ${response.status}: ${detail || "erro desconhecido"}`
+        );
+      }
+
+      return json as T;
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        throw new Error("Asaas API timeout: requisição não respondeu em 15s");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return json as T;
   }
 
   /**
@@ -134,9 +156,10 @@ export class AsaasService {
   }
 
   /**
-   * Cria uma cobrança. PIX retorna pixQrCode no response; CREDIT_CARD
-   * aceita `creditCard` com número (holderName/number/expiry/ccv) ou
-   * `creditCardToken`, mais `creditCardHolderInfo` e `remoteIp`.
+   * Cria uma cobrança. Para PIX, o pixQrCode NÃO vem no response —
+   * é necessário chamar getPixQrCode(paymentId) separadamente.
+   * CREDIT_CARD aceita `creditCard` com número (holderName/number/expiry/ccv)
+   * ou `creditCardToken`, mais `creditCardHolderInfo` e `remoteIp`.
    * @see https://docs.asaas.com/reference/criar-nova-cobranca
    */
   async createPayment(input: {

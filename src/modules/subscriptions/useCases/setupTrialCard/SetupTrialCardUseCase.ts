@@ -145,7 +145,7 @@ export class SetupTrialCardUseCase {
 					include: { plan: true, invoices: { orderBy: { createdAt: 'desc' }, take: 1 } },
 				})
 
-		invalidateSubscriptionCache(barbershopId)
+		await invalidateSubscriptionCache(barbershopId);
 
 		return buildSubscriptionResponse(subscription, barbershop.createdAt, TRIAL_DAYS)
 	}

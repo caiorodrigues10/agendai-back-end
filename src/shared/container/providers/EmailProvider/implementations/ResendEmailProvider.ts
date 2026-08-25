@@ -1,11 +1,14 @@
 import { Resend } from 'resend'
 import { injectable } from 'tsyringe'
 import { prisma } from '@/libs/prismaClient'
+import { getModuleLogger } from '@/shared/utils/logger'
 import type {
 	IEmailProvider,
 	SendEmailInput,
 	SendEmailResult,
 } from '../IEmailProvider'
+
+const logger = getModuleLogger('email:resend');
 
 @injectable()
 export class ResendEmailProvider implements IEmailProvider {
@@ -40,7 +43,7 @@ export class ResendEmailProvider implements IEmailProvider {
 			})
 			.catch(() => null)
 
-		const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
+const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
 		if (allowlist && process.env.NODE_ENV !== 'production') {
 			const allowed = allowlist
 				.split(',')
@@ -48,25 +51,23 @@ export class ResendEmailProvider implements IEmailProvider {
 				.filter(Boolean)
 			if (!allowed.includes(input.to.toLowerCase())) {
 				const msg = `E-mail fora da allowlist de desenvolvimento: ${input.to}`
-				console.warn(`[Email] ${msg}`)
+				logger.warn({ to: input.to }, msg)
 				if (delivery) {
 					await prisma.emailDelivery
 						.update({
 							where: { id: delivery.id },
-							data: { status: 'SKIPPED', error: msg },
-						})
-						.catch(() => {})
+						data: { status: 'SKIPPED', error: msg },
+					})
+					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to SKIPPED'))
 				}
 				return { ok: true, skipped: true, error: msg }
 			}
 		}
 
-		const client = this.getClient()
+const client = this.getClient()
 		if (!client) {
-			console.log(
-				`[Email] RESEND_API_KEY ausente — skip envio para ${input.to} (${input.template})`,
-			)
-			console.log(`[Email] Assunto: ${input.subject}`)
+		logger.warn({ to: input.to, template: input.template }, 'RESEND_API_KEY ausente — skip envio')
+		logger.debug({ subject: input.subject }, 'Email subject')
 			if (delivery) {
 				await prisma.emailDelivery
 					.update({
@@ -76,7 +77,7 @@ export class ResendEmailProvider implements IEmailProvider {
 							error: 'RESEND_API_KEY not configured',
 						},
 					})
-					.catch(() => {})
+					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to SKIPPED'))
 			}
 			return { ok: true, skipped: true }
 		}
@@ -91,15 +92,15 @@ export class ResendEmailProvider implements IEmailProvider {
 				replyTo: process.env.EMAIL_REPLY_TO?.trim() || undefined,
 			})
 
-			if (error) {
+if (error) {
 				const errMsg = error.message || 'Resend error'
 				if (delivery) {
 					await prisma.emailDelivery
 						.update({
 							where: { id: delivery.id },
-							data: { status: 'FAILED', error: errMsg },
-						})
-						.catch(() => {})
+						data: { status: 'FAILED', error: errMsg },
+					})
+					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
 				}
 				return { ok: false, error: errMsg }
 			}
@@ -113,7 +114,7 @@ export class ResendEmailProvider implements IEmailProvider {
 							providerId: data?.id ?? null,
 						},
 					})
-					.catch(() => {})
+					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to SENT'))
 			}
 
 			return { ok: true, providerId: data?.id }
@@ -124,9 +125,9 @@ export class ResendEmailProvider implements IEmailProvider {
 				await prisma.emailDelivery
 					.update({
 						where: { id: delivery.id },
-						data: { status: 'FAILED', error: errMsg },
-					})
-					.catch(() => {})
+					data: { status: 'FAILED', error: errMsg },
+				})
+				.catch((err) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
 			}
 			return { ok: false, error: errMsg }
 		}

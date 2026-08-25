@@ -15,6 +15,24 @@ import { CancelPaymentController } from "@/modules/payments/useCases/cancelPayme
 import { RefundPaymentController } from "@/modules/payments/useCases/refundPayment/RefundPaymentController";
 import { ListRefundsController } from "@/modules/payments/useCases/refundPayment/ListRefundsController";
 
+const webhookRateLimit = {
+  config: {
+    rateLimit: {
+      max: 100,
+      timeWindow: "1 minute",
+    },
+  },
+};
+
+const checkoutRateLimit = {
+  config: {
+    rateLimit: {
+      max: 30,
+      timeWindow: "1 minute",
+    },
+  },
+};
+
 export async function paymentRoutes(app: FastifyInstance) {
   const cardPayment   = new CreateCardPaymentController();
   const pixPayment    = new CreatePixPaymentController();
@@ -27,27 +45,16 @@ export async function paymentRoutes(app: FastifyInstance) {
   const refundPayment = new RefundPaymentController();
   const listRefunds   = new ListRefundsController();
 
-  // BUG-4: Rate-limit mais restritivo no webhook público
-  // O MP envia no máximo poucos eventos por segundo — 30/min é mais que suficiente
+  // Webhook endpoints — 100 req/min per IP
   app.post("/payments/webhook", {
-    config: {
-      rateLimit: {
-        max: 30,
-        timeWindow: "1 minute"
-      }
-    }
+    ...webhookRateLimit,
   }, webhook.handle.bind(webhook));
 
   // AbacatePay — URL: /api/payments/webhook/abacate?webhookSecret=...
   app.post(
     "/payments/webhook/abacate",
     {
-      config: {
-        rateLimit: {
-          max: 30,
-          timeWindow: "1 minute",
-        },
-      },
+      ...webhookRateLimit,
       preParsing: abacateWebhookPreParsing,
     },
     abacateWebhook.handle.bind(abacateWebhook)
@@ -57,25 +64,21 @@ export async function paymentRoutes(app: FastifyInstance) {
   app.post(
     "/payments/webhook/asaas",
     {
-      config: {
-        rateLimit: {
-          max: 60,
-          timeWindow: "1 minute",
-        },
-      },
+      ...webhookRateLimit,
     },
     asaasWebhook.handle.bind(asaasWebhook)
   );
 
+  // Checkout endpoints — 30 req/min per IP
   app.post(
     "/payments/card",
-    { preHandler: [authenticate] },
+    { ...checkoutRateLimit, preHandler: [authenticate] },
     cardPayment.handle.bind(cardPayment)
   );
 
   app.post(
     "/payments/pix",
-    { preHandler: [authenticate] },
+    { ...checkoutRateLimit, preHandler: [authenticate] },
     pixPayment.handle.bind(pixPayment)
   );
 

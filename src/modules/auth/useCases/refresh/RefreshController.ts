@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { validateSchema } from "@/shared/utils/zodValidation";
 import { refreshSchema } from "../../schemas/authSchemas";
+import { logAccess } from "@/shared/services/accessLogService";
 import { verify, sign, Secret, SignOptions } from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 import auth from "@/config/auth";
@@ -37,6 +38,14 @@ export class RefreshController {
           userId: decoded.sub,
           expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn))
         }
+      });
+      await logAccess({
+        userId: user.id,
+        email: user.email,
+        action: "REFRESH",
+        ipAddress: request.ip,
+        userAgent: request.headers["user-agent"],
+        success: true,
       });
       return reply.status(200).send({
         user: {

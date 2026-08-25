@@ -6,6 +6,9 @@ import { ConfirmLogoUseCase } from "./ConfirmLogoUseCase";
 import { DeleteLogoUseCase } from "./DeleteLogoUseCase";
 import { UploadLogoDirectUseCase } from "./UploadLogoDirectUseCase";
 import { AppError } from "@/shared/errors/AppError";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger('barbershops:logo');
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -93,7 +96,7 @@ export class LogoController {
     const mimeType: string = data.mimetype ?? "";
     if (!ALLOWED_MIME_TYPES.has(mimeType)) {
       // Drena o stream para não deixar a conexão pendurada
-      await data.toBuffer().catch(() => {});
+      await data.toBuffer().catch((err: unknown) => logger.error({ err }, 'Failed to drain rejected upload stream'));
       throw new AppError(
         `Tipo de arquivo não permitido: "${mimeType}". Aceitos: JPEG, PNG, WebP`,
         400

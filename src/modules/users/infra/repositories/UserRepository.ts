@@ -11,7 +11,13 @@ const publicSelect = {
   barbershopId: true,
   cpf: true,
   createdAt: true,
-  active: true
+  active: true,
+  deletedAt: true,
+  termsVersion: true,
+  termsAcceptedAt: true,
+  marketingOptIn: true,
+  marketingOptInAt: true,
+  lgpdConsentAt: true,
 } as const;
 
 export class UserRepository implements IUserRepository {
