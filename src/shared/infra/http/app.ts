@@ -101,16 +101,15 @@ export async function buildApp() {
 
   async function checkRedis(): Promise<boolean> {
     try {
-      const url = process.env.UPSTASH_REDIS_REST_URL;
-      const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-      if (url && token) {
-        const { Redis } = await import("@upstash/redis");
-        const upstash = new Redis({ url, token });
-        await upstash.ping();
-        return true;
-      }
-      const redis = getRedisConnection();
-      await redis.ping();
+      const redisUrl = process.env.REDIS_URL;
+      if (!redisUrl) return false;
+      const parsed = new URL(redisUrl.replace(/^rediss?:\/\//, "https://"));
+      const host = parsed.hostname;
+      const token = parsed.password;
+      if (!host || !token) return false;
+      const { Redis } = await import("@upstash/redis");
+      const upstash = new Redis({ url: `https://${host}`, token });
+      await upstash.ping();
       return true;
     } catch {
       return false;
