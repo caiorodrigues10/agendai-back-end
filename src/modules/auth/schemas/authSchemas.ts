@@ -10,7 +10,8 @@ const phoneBR = z
 
 export const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6)
+  password: z.string().min(6),
+  recaptchaToken: z.string().min(1, "Verificação de segurança obrigatória"),
 });
 
 export const refreshSchema = z.object({
@@ -47,10 +48,12 @@ export const registerSchema = z.object({
   termsAccepted: z.boolean().refine(v => v === true, "É necessário aceitar os Termos de Uso"),
   marketingOptIn: z.boolean().optional().default(false),
   lgpdConsent: z.boolean().refine(v => v === true, "É necessário consentir com o tratamento de dados (LGPD)"),
+  recaptchaToken: z.string().min(1, "Verificação de segurança obrigatória"),
 });
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email("E-mail inválido"),
+  recaptchaToken: z.string().min(1, "Verificação de segurança obrigatória"),
 }).strict();
 
 export const resetPasswordSchema = z.object({

@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/login/LoginController.ts": {
-    "mtime": 1787758641.5540037,
-    "ast_hash": "876689d83305f7e0786d44768b82313d",
+    "mtime": 1787764652.7378843,
+    "ast_hash": "97b0f205a0a56fd52be9956b9cebcca9",
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/login/LoginUseCase.ts": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/app.ts": {
-    "mtime": 1787758588.0599103,
-    "ast_hash": "b847818efcc9e00c9a639b8ed2e8d477",
+    "mtime": 1787764798.25065,
+    "ast_hash": "fd62c716b34fa4d0a80ab6812c5f2258",
     "semantic_hash": ""
   },
   "src/shared/infra/http/middlewares/authenticate.ts": {
@@ -1250,8 +1250,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/server.ts": {
-    "mtime": 1787744138.6791246,
-    "ast_hash": "0570b1156eda723c24acaa3d145c9a0a",
+    "mtime": 1787764695.808982,
+    "ast_hash": "7366edd897a543f77b7fed623362b0aa",
     "semantic_hash": ""
   },
   "src/shared/infra/queue/emailQueue.ts": {
@@ -1887,6 +1887,16 @@
   "src/shared/services/bruteForceProtection.ts": {
     "mtime": 1787764443.4046314,
     "ast_hash": "1f8e8866116218cd89b28f42c067adab",
+    "semantic_hash": ""
+  },
+  "prisma/migrations/20260826160000_add_password_reset_tokens/migration.sql": {
+    "mtime": 1787764732.1013494,
+    "ast_hash": "a2f9032db0c9d5e6167d159326311ff2",
+    "semantic_hash": ""
+  },
+  "src/shared/infra/http/redisRateLimitStore.ts": {
+    "mtime": 1787764670.8505628,
+    "ast_hash": "6fb343dcb93b537cdf8848411ac02673",
     "semantic_hash": ""
   }
 }

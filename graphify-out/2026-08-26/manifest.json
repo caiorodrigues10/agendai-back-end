@@ -180,8 +180,8 @@
     "semantic_hash": ""
   },
   "src/modules/auth/schemas/authSchemas.ts": {
-    "mtime": 1787758730.5238912,
-    "ast_hash": "9f717c7e704a7163b3937dd5b113e0df",
+    "mtime": 1787764426.2742298,
+    "ast_hash": "287756e2e4f96f2ede318ca47f3c9062",
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/login/LoginController.ts": {
@@ -1040,8 +1040,8 @@
     "semantic_hash": ""
   },
   "src/shared/container/providers/EmailProvider/IEmailProvider.ts": {
-    "mtime": 1787744138.6766129,
-    "ast_hash": "8c85050064d4755b793b44ed3c5a2474",
+    "mtime": 1787764430.4458926,
+    "ast_hash": "ca3a4ffa6f28a4f11b47078f0953a69c",
     "semantic_hash": ""
   },
   "src/shared/container/providers/EmailProvider/implementations/ResendEmailProvider.ts": {
@@ -1165,8 +1165,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/auth.routes.ts": {
-    "mtime": 1787761698.1149037,
-    "ast_hash": "c8a5b72cf0a9224d3b77355aa7c2c493",
+    "mtime": 1787764498.0102904,
+    "ast_hash": "0e07baac6a8cbcea69ba8d6719238540",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/barbershopFinancialRoutes.ts": {
@@ -1857,6 +1857,36 @@
   "src/shared/infra/http/requestContext.ts": {
     "mtime": 1787761519.407357,
     "ast_hash": "570764476d2d1ae0c7609db07d1098fd",
+    "semantic_hash": ""
+  },
+  "src/modules/auth/useCases/forgotPassword/ForgotPasswordController.ts": {
+    "mtime": 1787764467.1847744,
+    "ast_hash": "c1a7f8d51c713bba460bdfd48c880950",
+    "semantic_hash": ""
+  },
+  "src/modules/auth/useCases/forgotPassword/ForgotPasswordUseCase.ts": {
+    "mtime": 1787764455.7273319,
+    "ast_hash": "e2ab6b73519ac94107b28f0a346026e4",
+    "semantic_hash": ""
+  },
+  "src/modules/auth/useCases/resetPassword/ResetPasswordController.ts": {
+    "mtime": 1787764478.8427534,
+    "ast_hash": "8b0ff69e88bd36a54c4184340646fa28",
+    "semantic_hash": ""
+  },
+  "src/modules/auth/useCases/resetPassword/ResetPasswordUseCase.ts": {
+    "mtime": 1787764473.363309,
+    "ast_hash": "2e8346e5ef62672d1cbbf31f9a2223d3",
+    "semantic_hash": ""
+  },
+  "src/shared/services/bruteForceProtection.spec.ts": {
+    "mtime": 1787764465.339926,
+    "ast_hash": "7a8b5cb0a3e433d43c7163f32e4d6eb0",
+    "semantic_hash": ""
+  },
+  "src/shared/services/bruteForceProtection.ts": {
+    "mtime": 1787764443.4046314,
+    "ast_hash": "1f8e8866116218cd89b28f42c067adab",
     "semantic_hash": ""
   }
 }

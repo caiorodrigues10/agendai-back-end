@@ -10,6 +10,7 @@ import { ForgotPasswordController, validateForgotPassword } from "@/modules/auth
 import { ResetPasswordController, validateResetPassword } from "@/modules/auth/useCases/resetPassword/ResetPasswordController";
 import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
+import { verifyRecaptcha } from "@/shared/infra/http/middlewares/verifyRecaptcha";
 
 const authRateLimit = {
   config: {
@@ -31,8 +32,8 @@ export async function authRoutes(app: FastifyInstance) {
   const forgotPassword = new ForgotPasswordController();
   const resetPassword = new ResetPasswordController();
 
-  app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin] }, login.handle.bind(login));
-  app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister] }, register.handle.bind(register));
+  app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin, verifyRecaptcha] }, login.handle.bind(login));
+  app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister, verifyRecaptcha] }, register.handle.bind(register));
   app.post("/auth/refresh", { ...authRateLimit, preHandler: [validateRefresh] }, refresh.handle.bind(refresh));
   app.get("/auth/me", { preHandler: [mePreHandler] }, me.handle.bind(me));
   app.get("/auth/verify-email", {
@@ -42,7 +43,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/auth/forgot-password", {
     config: { rateLimit: { max: 3, timeWindow: "1 hour" } },
-    preHandler: [validateForgotPassword],
+    preHandler: [validateForgotPassword, verifyRecaptcha],
   }, forgotPassword.handle.bind(forgotPassword));
 
   app.post("/auth/reset-password", {
