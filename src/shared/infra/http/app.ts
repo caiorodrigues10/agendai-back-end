@@ -101,6 +101,14 @@ export async function buildApp() {
 
   async function checkRedis(): Promise<boolean> {
     try {
+      const url = process.env.UPSTASH_REDIS_REST_URL;
+      const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+      if (url && token) {
+        const { Redis } = await import("@upstash/redis");
+        const upstash = new Redis({ url, token });
+        await upstash.ping();
+        return true;
+      }
       const redis = getRedisConnection();
       await redis.ping();
       return true;
