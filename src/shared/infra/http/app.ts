@@ -107,10 +107,16 @@ export async function buildApp() {
       const host = parsed.hostname;
       const token = parsed.password;
       if (!host || !token) return false;
-      const { Redis } = await import("@upstash/redis");
-      const upstash = new Redis({ url: `https://${host}`, token });
-      await upstash.ping();
-      return true;
+      const resp = await fetch(`https://${host}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(["ping"]),
+        signal: AbortSignal.timeout(5000),
+      });
+      return resp.ok;
     } catch {
       return false;
     }
