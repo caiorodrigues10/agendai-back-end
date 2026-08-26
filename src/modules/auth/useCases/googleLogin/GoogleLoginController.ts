@@ -13,7 +13,7 @@ export class GoogleLoginController {
     try {
       const { idToken } = request.body as { idToken: string };
       const useCase = container.resolve(GoogleLoginUseCase);
-      const result = await useCase.execute(idToken);
+      const result = await useCase.execute(idToken, reply);
       await logAccess({
         userId: (result as any)?.user?.id,
         action: "GOOGLE_LOGIN",

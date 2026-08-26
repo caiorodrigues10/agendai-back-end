@@ -26,6 +26,14 @@ export class LogoutController {
       success: true,
     });
 
+    reply.setCookie('refresh_token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 0,
+    });
+
     return reply.status(200).send({ message: "Logout realizado com sucesso" });
   }
 
@@ -48,6 +56,14 @@ export class LogoutController {
       ipAddress: request.ip,
       userAgent: request.headers["user-agent"],
       success: true,
+    });
+
+    reply.setCookie('refresh_token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 0,
     });
 
     return reply.status(200).send({

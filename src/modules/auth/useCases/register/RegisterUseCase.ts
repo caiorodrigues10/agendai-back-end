@@ -1,6 +1,7 @@
 import { inject, injectable } from "tsyringe";
 import { sign, Secret, SignOptions } from "jsonwebtoken";
 import { randomBytes, randomUUID } from "crypto";
+import { FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import auth from "@/config/auth";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
@@ -53,7 +54,7 @@ export class RegisterUseCase {
     private hashProvider: IHashProvider
   ) {}
 
-  async execute(data: IRegisterDTO) {
+  async execute(data: IRegisterDTO, reply?: FastifyReply) {
     const emailValidation = await validateEmail(data.email);
     if (!emailValidation.valid) {
       throw new AppError("E-mail inválido", 400);
@@ -229,7 +230,17 @@ export class RegisterUseCase {
       console.error("[Register] Falha ao enfileirar e-mail de boas-vindas:", err?.message ?? err);
     });
 
-    return {
+    if (reply) {
+      reply.setCookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/api/auth',
+        maxAge: 7 * 24 * 60 * 60,
+      });
+    }
+
+    const session = {
       user: {
         id: user.id,
         name: user.name,
@@ -238,7 +249,8 @@ export class RegisterUseCase {
         barbershopId: user.barbershopId ?? undefined,
       },
       accessToken,
-      refreshToken,
     };
+
+    return reply ? session : { ...session, refreshToken };
   }
 }

@@ -1,4 +1,5 @@
 import fastify from "fastify";
+import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -15,6 +16,8 @@ export async function buildApp() {
     // Silencia logs nos testes de inject (NODE_ENV=test)
     logger: process.env.NODE_ENV !== "test",
   });
+
+  await app.register(cookie);
 
   // CORS com whitelist de origens configurável via env
   await app.register(cors, {

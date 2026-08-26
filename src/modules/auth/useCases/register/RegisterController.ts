@@ -10,7 +10,7 @@ export const validateRegister = validateSchema(registerSchema);
 export class RegisterController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
     const useCase = container.resolve(RegisterUseCase);
-    const result = await useCase.execute(request.body as any);
+    const result = await useCase.execute(request.body as any, reply);
     await logAccess({
       userId: result.user?.id,
       email: (request.body as any).email,

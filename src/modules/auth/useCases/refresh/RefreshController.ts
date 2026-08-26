@@ -12,7 +12,10 @@ export const validateRefresh = validateSchema(refreshSchema);
 
 export class RefreshController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
-    const { refreshToken } = request.body as { refreshToken: string };
+    const refreshToken = request.cookies.refresh_token;
+    if (!refreshToken) {
+      return reply.status(401).send({ message: "Refresh token não fornecido" });
+    }
     try {
       const decoded = verify(refreshToken, auth.refreshSecret as Secret) as any;
       const tokenRecord = await prisma.refreshToken.findFirst({ where: { token: refreshToken } });
@@ -47,6 +50,15 @@ export class RefreshController {
         userAgent: request.headers["user-agent"],
         success: true,
       });
+
+      reply.setCookie('refresh_token', newRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/api/auth',
+        maxAge: 7 * 24 * 60 * 60,
+      });
+
       return reply.status(200).send({
         user: {
           id: user.id,
@@ -56,7 +68,6 @@ export class RefreshController {
           barbershopId: user.barbershopId ?? undefined
         },
         accessToken,
-        refreshToken: newRefreshToken
       });
     } catch {
       return reply.status(401).send({ message: "Refresh token inválido" });

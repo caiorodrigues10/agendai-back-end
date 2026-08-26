@@ -1,4 +1,5 @@
 import { inject, injectable } from "tsyringe";
+import { FastifyReply } from "fastify";
 import { OAuth2Client } from "google-auth-library";
 import { IUserRepository } from "@/modules/users/repositories/IUserRepository";
 import { AppError } from "@/shared/errors/AppError";
@@ -24,7 +25,7 @@ export class GoogleLoginUseCase {
     private userRepository: IUserRepository
   ) {}
 
-  async execute(idToken: string) {
+  async execute(idToken: string, reply?: FastifyReply) {
     const client = new OAuth2Client(googleClientId);
 
     let payload;
@@ -82,6 +83,6 @@ export class GoogleLoginUseCase {
       cpf: user.cpf ?? null,
     };
 
-    return issueAuthSession(userLike);
+    return issueAuthSession(userLike, reply);
   }
 }

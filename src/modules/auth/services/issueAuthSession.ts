@@ -1,5 +1,6 @@
 import { sign, Secret, SignOptions } from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
+import { FastifyReply } from "fastify";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
 
@@ -27,7 +28,7 @@ function parseDuration(input: string): number {
   return value * multipliers[unit];
 }
 
-export async function issueAuthSession(user: UserLike) {
+export async function issueAuthSession(user: UserLike, reply?: FastifyReply) {
   const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
   const accessToken = sign(
     { role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: user.cpf ?? undefined },
@@ -51,7 +52,17 @@ export async function issueAuthSession(user: UserLike) {
     data: { token: refreshToken, userId: user.id, expiresAt }
   });
 
-  return {
+  if (reply) {
+    reply.setCookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 7 * 24 * 60 * 60,
+    });
+  }
+
+  const session = {
     user: {
       id: user.id,
       name: user.name,
@@ -60,6 +71,7 @@ export async function issueAuthSession(user: UserLike) {
       barbershopId: user.barbershopId ?? undefined
     },
     accessToken,
-    refreshToken
   };
+
+  return reply ? session : { ...session, refreshToken };
 }

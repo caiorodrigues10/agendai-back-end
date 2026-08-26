@@ -1,4 +1,5 @@
 import { inject, injectable } from "tsyringe";
+import { FastifyReply } from "fastify";
 import { IUserRepository } from "@/modules/users/repositories/IUserRepository";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { AppError } from "@/shared/errors/AppError";
@@ -26,7 +27,7 @@ export class LoginUseCase {
     private hashProvider: IHashProvider
   ) { }
 
-  async execute(email: string, password: string) {
+  async execute(email: string, password: string, reply?: FastifyReply) {
     const user = await this.userRepository.findByEmail(email);
     if (!user || !user.active) {
       throw new AppError("Credenciais inválidas", 401);
@@ -60,6 +61,6 @@ export class LoginUseCase {
       cpf: user.cpf ?? null,
     };
 
-    return issueAuthSession(userLike);
+    return issueAuthSession(userLike, reply);
   }
 }

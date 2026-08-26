@@ -12,7 +12,7 @@ export class LoginController {
     const { email, password } = request.body as { email: string; password: string };
     const useCase = container.resolve(LoginUseCase);
     try {
-      const result = await useCase.execute(email, password);
+      const result = await useCase.execute(email, password, reply);
       await logAccess({
         email,
         action: "LOGIN",

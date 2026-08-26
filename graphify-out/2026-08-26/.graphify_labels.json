@@ -166,18 +166,13 @@
   "164": "sendWhatsAppMessage",
   "165": "assertAppointmentBookable.ts",
   "166": "VerifyEmailController.ts",
-  "167": "packageUseCases.ts",
   "168": "disposable-email-domains",
   "169": "google-auth-library",
   "170": "@opentelemetry/api",
-  "171": "JoinQueueController.ts",
   "172": "@opentelemetry/exporter-prometheus",
   "173": "@opentelemetry/resources",
   "174": "@opentelemetry/sdk-node",
   "175": "@opentelemetry/semantic-conventions",
   "176": "pino",
-  "177": "@sentry/node",
-  "178": "payments.routes.ts",
-  "179": "queue.spec.ts",
-  "180": "subscriptionAccessCache.ts"
+  "177": "@sentry/node"
 }
