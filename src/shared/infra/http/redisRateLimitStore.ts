@@ -12,49 +12,72 @@ export class RedisRateLimitStore {
     this.timeWindow = opts.timeWindow ?? 60_000;
   }
 
-  private key(routeKey: string, key: string): string {
-    return `${this.prefix}${routeKey}:${key}`;
+  incr(
+    key: string,
+    callback: (error: Error | null, result?: { current: number; ttl: number }) => void,
+    timeWindow?: number,
+  ): void {
+    const redis = getRedisConnection();
+    const ttlSeconds = Math.ceil((timeWindow ?? this.timeWindow) / 1000);
+
+    redis
+      .incr(key)
+      .then(async (count) => {
+        if (count === 1) {
+          await redis.expire(key, ttlSeconds);
+        }
+        const ttl = await redis.ttl(key);
+        callback(null, { current: count, ttl: Math.max(0, ttl) * 1000 });
+      })
+      .catch((err) => {
+        logger.error({ err }, "Redis error in rate-limit incr, allowing request");
+        callback(null, { current: 1, ttl: ttlSeconds * 1000 });
+      });
   }
 
-  async increment(key: string): Promise<{ count: number; ttl: number }> {
-    try {
-      const redis = getRedisConnection();
-      const count = await redis.incr(key);
-      if (count === 1) {
-        const expiry = Math.ceil(this.timeWindow / 1000);
-        await redis.expire(key, expiry);
-      }
-      const remaining = await redis.ttl(key);
-      return { count, ttl: Math.max(0, remaining) };
-    } catch (err) {
-      logger.error({ err }, "Redis error in rate-limit increment, allowing request");
-      return { count: 1, ttl: Math.ceil(this.timeWindow / 1000) };
-    }
+  read(
+    key: string,
+    callback: (error: Error | null, result?: { current: number; ttl: number }) => void,
+    timeWindow?: number,
+  ): void {
+    const redis = getRedisConnection();
+    const ttlSeconds = Math.ceil((timeWindow ?? this.timeWindow) / 1000);
+
+    redis
+      .get(key)
+      .then((val) => {
+        const current = val ? parseInt(val, 10) : 0;
+        callback(null, { current, ttl: ttlSeconds * 1000 });
+      })
+      .catch((err) => {
+        logger.error({ err }, "Redis error in rate-limit read");
+        callback(null, { current: 0, ttl: ttlSeconds * 1000 });
+      });
   }
 
-  async decrement(key: string): Promise<void> {
-    try {
-      const redis = getRedisConnection();
-      await redis.decr(key);
-    } catch (err) {
-      logger.error({ err }, "Redis error in rate-limit decrement");
-    }
-  }
+  child(routeOptions: { timeWindow?: number; max?: number; method?: string; url?: string }): RedisRateLimitStore {
+    const childPrefix = routeOptions.method && routeOptions.url
+      ? `${this.prefix}${routeOptions.method}:${routeOptions.url}:`
+      : this.prefix;
 
-  child(override: { timeWindow?: number; max?: number; prefix?: string }): RedisRateLimitStore {
     return new RedisRateLimitStore({
-      timeWindow: override.timeWindow ?? this.timeWindow,
-      max: override.max,
-      prefix: override.prefix ?? this.prefix,
+      timeWindow: routeOptions.timeWindow ?? this.timeWindow,
+      max: routeOptions.max,
+      prefix: childPrefix,
     });
   }
 
-  async reset(key: string): Promise<void> {
-    try {
-      const redis = getRedisConnection();
-      await redis.del(key);
-    } catch (err) {
+  decrement(key: string): void {
+    const redis = getRedisConnection();
+    redis.decr(key).catch((err) => {
+      logger.error({ err }, "Redis error in rate-limit decrement");
+    });
+  }
+
+  reset(key: string): void {
+    const redis = getRedisConnection();
+    redis.del(key).catch((err) => {
       logger.error({ err }, "Redis error in rate-limit reset");
-    }
+    });
   }
 }
