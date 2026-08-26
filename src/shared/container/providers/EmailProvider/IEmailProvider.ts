@@ -4,6 +4,7 @@ export type EmailTemplateId =
 	| 'referral_converted'
 	| 'referral_revoked'
 	| 'verify_email'
+	| 'forgot_password'
 
 export interface SendEmailInput {
 	to: string

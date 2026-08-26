@@ -9,7 +9,7 @@ import { apiRoutes } from "./routes/api";
 import { setupSwagger } from "@/config/swagger";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
-import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { RedisRateLimitStore } from "./redisRateLimitStore";
 
 export async function buildApp() {
   const app = fastify({
@@ -114,17 +114,22 @@ export async function buildApp() {
     contentSecurityPolicy: process.env.NODE_ENV === "production",
   });
 
-  // Rate-limit global — limiar alto o suficiente para painel + polling (15s) sem derrubar sessão
-  await app.register(rateLimit, {
+  // Rate-limit global — Redis store em produção, in-memory em testes
+  const rateLimitWindowMs = 60_000; // 1 minute
+  const rateLimitConfig: Record<string, unknown> = {
     global: true,
     max: 400,
-    timeWindow: "1 minute",
+    timeWindow: rateLimitWindowMs,
     errorResponseBuilder: () => ({
       statusCode: 429,
       success: false,
       message: "Muitas requisições. Tente novamente em alguns instantes.",
     }),
-  });
+  };
+  if (!process.env.VITEST) {
+    rateLimitConfig.store = new RedisRateLimitStore({ windowMs: rateLimitWindowMs });
+  }
+  await app.register(rateLimit, rateLimitConfig);
 
   // Suporte a upload multipart/form-data
   await app.register(multipart, {

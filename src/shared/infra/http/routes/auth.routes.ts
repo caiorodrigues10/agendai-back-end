@@ -6,6 +6,8 @@ import { RegisterController, validateRegister } from "@/modules/auth/useCases/re
 import { VerifyEmailController } from "@/modules/auth/controllers/VerifyEmailController";
 import { GoogleLoginController, validateGoogleLogin } from "@/modules/auth/useCases/googleLogin/GoogleLoginController";
 import { LogoutController } from "@/modules/auth/useCases/logout/LogoutController";
+import { ForgotPasswordController, validateForgotPassword } from "@/modules/auth/useCases/forgotPassword/ForgotPasswordController";
+import { ResetPasswordController, validateResetPassword } from "@/modules/auth/useCases/resetPassword/ResetPasswordController";
 import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 
@@ -26,13 +28,27 @@ export async function authRoutes(app: FastifyInstance) {
   const verifyEmail = new VerifyEmailController();
   const googleLogin = new GoogleLoginController();
   const logout = new LogoutController();
+  const forgotPassword = new ForgotPasswordController();
+  const resetPassword = new ResetPasswordController();
 
   app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin] }, login.handle.bind(login));
   app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister] }, register.handle.bind(register));
   app.post("/auth/refresh", { ...authRateLimit, preHandler: [validateRefresh] }, refresh.handle.bind(refresh));
   app.get("/auth/me", { preHandler: [mePreHandler] }, me.handle.bind(me));
-  app.get("/auth/verify-email", (req, reply) => verifyEmail.handle(req, reply));
+  app.get("/auth/verify-email", {
+    config: { rateLimit: { max: 5, timeWindow: "5 minutes" } },
+  }, (req, reply) => verifyEmail.handle(req, reply));
   app.post("/auth/google", { ...authRateLimit, preHandler: [validateGoogleLogin] }, googleLogin.handle.bind(googleLogin));
+
+  app.post("/auth/forgot-password", {
+    config: { rateLimit: { max: 3, timeWindow: "1 hour" } },
+    preHandler: [validateForgotPassword],
+  }, forgotPassword.handle.bind(forgotPassword));
+
+  app.post("/auth/reset-password", {
+    config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
+    preHandler: [validateResetPassword],
+  }, resetPassword.handle.bind(resetPassword));
 
   app.post("/auth/logout", { preHandler: [authenticate, setRlsContext] }, logout.handle.bind(logout));
   app.post("/auth/revoke-all-sessions", { preHandler: [authenticate, setRlsContext] }, logout.revokeAllSessions.bind(logout));

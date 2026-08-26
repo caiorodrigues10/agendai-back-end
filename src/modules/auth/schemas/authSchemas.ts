@@ -48,3 +48,12 @@ export const registerSchema = z.object({
   marketingOptIn: z.boolean().optional().default(false),
   lgpdConsent: z.boolean().refine(v => v === true, "É necessário consentir com o tratamento de dados (LGPD)"),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("E-mail inválido"),
+}).strict();
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(32, "Token inválido"),
+  newPassword: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+}).strict();

@@ -11,6 +11,7 @@ import {
   stopWhatsAppWorker,
   stopEmailWorker,
 } from "@/shared/infra/queue";
+import { cleanupTimers as cleanupBruteForceTimers } from "@/shared/services/bruteForceProtection";
 import { initSentry } from "@/shared/utils/sentry";
 import { initTracing } from "@/shared/utils/tracing";
 import { logger, getModuleLogger } from "@/shared/utils/logger";
@@ -61,6 +62,7 @@ async function start() {
     // Graceful shutdown
     const shutdown = async () => {
       serverLogger.info("Shutting down...");
+      cleanupBruteForceTimers();
       await stopEmailWorker().catch((err) => serverLogger.error({ err }, 'Failed to stop email worker'));
       await stopWhatsAppWorker();
       await app.close();
