@@ -15,6 +15,7 @@ const timeField = z
   .refine((v) => isBusinessHour(v), { message: "Horário fora do comercial (07:00–22:00)" });
 
 export const createServicePackageSchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   serviceId: z.string().uuid("serviceId inválido"),
   name: z.string().min(2, "Nome obrigatório").max(100),
   sessionCount: z.number().int().min(2, "Mínimo 2 sessões").max(100),
@@ -39,6 +40,7 @@ export const listServicePackagesQuerySchema = z.object({
 });
 
 export const sellClientPackageSchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   clientId: z.string().uuid("clientId inválido"),
   packageId: z.string().uuid("packageId inválido"),
   paymentMethod: z.enum(["cash", "pix", "card", "other"]),

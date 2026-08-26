@@ -21,6 +21,7 @@ const asaasCreditCardSchema = z.object({
 
 export const subscribeSchema = z
   .object({
+    barbershopId: z.string().uuid().optional(),
     planId: z.string().uuid("planId inválido"),
     paymentMethod: z.enum(["pix", "credit_card", "payment_link", "asaas"]),
     asaasBillingType: z.enum(["PIX", "CREDIT_CARD"]).optional(),

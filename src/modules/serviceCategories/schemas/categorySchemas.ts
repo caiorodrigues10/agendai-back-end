@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createServiceCategorySchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   name: z.string().min(2).max(100),
   description: z.string().max(500).optional().nullable(),
   icon: z.string().max(50).optional().nullable(),
@@ -16,6 +17,7 @@ export const updateServiceCategorySchema = z.object({
 });
 
 export const createExpenseCategorySchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   name: z.string().min(2).max(100),
   description: z.string().max(500).optional().nullable(),
   icon: z.string().max(50).optional().nullable(),

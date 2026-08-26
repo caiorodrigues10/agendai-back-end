@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { authenticate } from '../middlewares/authenticate'
 import { authorize } from '../middlewares/authorize'
 import { checkSubscription } from '../middlewares/checkSubscription'
+import { setRlsContext } from '../middlewares/setRlsContext'
 import { ReferralsController } from '@/modules/referrals/controllers/ReferralsController'
 
 export async function referralsRoutes(app: FastifyInstance) {
@@ -14,6 +15,7 @@ export async function referralsRoutes(app: FastifyInstance) {
 				authenticate,
 				authorize(['OWNER', 'MASTER_ADMIN']),
 				checkSubscription,
+				setRlsContext,
 			],
 		},
 		(req, reply) => controller.me(req, reply),

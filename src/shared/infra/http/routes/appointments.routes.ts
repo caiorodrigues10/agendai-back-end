@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { authenticate } from '../middlewares/authenticate'
 import { authorize } from '../middlewares/authorize'
 import { checkSubscription } from '../middlewares/checkSubscription'
+import { setRlsContext } from '../middlewares/setRlsContext'
 import { AppointmentController } from '@/modules/appointments/controllers/AppointmentController'
 
 export async function appointmentsRoutes(app: FastifyInstance) {
@@ -11,12 +12,14 @@ export async function appointmentsRoutes(app: FastifyInstance) {
 		authenticate,
 		authorize(['MASTER_ADMIN', 'OWNER', 'EMPLOYEE']),
 		checkSubscription,
+		setRlsContext,
 	]
 
 	const ownerGuard = [
 		authenticate,
 		authorize(['MASTER_ADMIN', 'OWNER']),
 		checkSubscription,
+		setRlsContext,
 	]
 
 	// Disponibilidade de horários — pública (cliente escolhe horário antes de logar)

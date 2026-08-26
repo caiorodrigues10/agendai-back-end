@@ -7,6 +7,7 @@ import { VerifyEmailController } from "@/modules/auth/controllers/VerifyEmailCon
 import { GoogleLoginController, validateGoogleLogin } from "@/modules/auth/useCases/googleLogin/GoogleLoginController";
 import { LogoutController } from "@/modules/auth/useCases/logout/LogoutController";
 import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
+import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 
 const authRateLimit = {
   config: {
@@ -33,6 +34,6 @@ export async function authRoutes(app: FastifyInstance) {
   app.get("/auth/verify-email", (req, reply) => verifyEmail.handle(req, reply));
   app.post("/auth/google", { ...authRateLimit, preHandler: [validateGoogleLogin] }, googleLogin.handle.bind(googleLogin));
 
-  app.post("/auth/logout", { preHandler: [authenticate] }, logout.handle.bind(logout));
-  app.post("/auth/revoke-all-sessions", { preHandler: [authenticate] }, logout.revokeAllSessions.bind(logout));
+  app.post("/auth/logout", { preHandler: [authenticate, setRlsContext] }, logout.handle.bind(logout));
+  app.post("/auth/revoke-all-sessions", { preHandler: [authenticate, setRlsContext] }, logout.revokeAllSessions.bind(logout));
 }

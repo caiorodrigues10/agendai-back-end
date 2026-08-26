@@ -25,7 +25,7 @@ export class AppointmentController {
 
     const barbershopId =
       user.role === "MASTER_ADMIN"
-        ? (request.body as any).barbershopId
+        ? (body as any).barbershopId
         : user.barbershopId;
 
     if (!barbershopId) throw new AppError("barbershopId é obrigatório", 400);

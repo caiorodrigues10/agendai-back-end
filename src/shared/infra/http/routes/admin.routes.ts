@@ -8,6 +8,7 @@ import { AdminNotificationController } from "@/modules/admin/controllers/AdminNo
 import { AdminReferralsController } from "@/modules/admin/controllers/AdminReferralsController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
+import { setRlsContext } from "../middlewares/setRlsContext";
 
 const dashboardController = new AdminDashboardController();
 const barbershopController = new AdminBarbershopController();
@@ -18,7 +19,7 @@ const notificationController = new AdminNotificationController();
 const referralsController = new AdminReferralsController();
 
 export async function adminRoutes(app: FastifyInstance) {
-  const preHandler = [authenticate, authorize(["MASTER_ADMIN"])];
+  const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext];
 
   // ─── Dashboard ───────────────────────────────────────────────────────────
   app.get("/admin/dashboard", { preHandler }, dashboardController.getDashboard.bind(dashboardController));

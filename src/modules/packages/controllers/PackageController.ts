@@ -36,7 +36,7 @@ export class ServicePackageController {
     const body = createServicePackageSchema.parse(request.body);
     const barbershopId = resolveBarbershopId(
       user,
-      (request.body as { barbershopId?: string }).barbershopId
+      body.barbershopId
     );
     const useCase = container.resolve(CreateServicePackageUseCase);
     const pkg = await useCase.execute({ ...body, barbershopId }, user);
@@ -70,7 +70,7 @@ export class ClientPackageController {
     const body = sellClientPackageSchema.parse(request.body);
     const barbershopId = resolveBarbershopId(
       user,
-      (request.body as { barbershopId?: string }).barbershopId
+      body.barbershopId
     );
     const useCase = container.resolve(SellClientPackageUseCase);
     const sold = await useCase.execute(

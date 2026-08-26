@@ -3,6 +3,7 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { hash } from "bcryptjs";
 import { isValidCpf, normalizeCpf } from "@/shared/utils/cpfUtils";
+import { adminCreateUserSchema, adminUpdateUserSchema } from "../schemas/adminSchemas";
 
 export class AdminUserController {
   async list(request: FastifyRequest, reply: FastifyReply) {
@@ -43,7 +44,8 @@ export class AdminUserController {
   }
 
   async create(request: FastifyRequest, reply: FastifyReply) {
-    const { name, email, password, role, barbershopId, active = true, cpf } = request.body as any;
+    const parsed = adminCreateUserSchema.parse(request.body);
+    const { name, email, password, role, barbershopId, active = true, cpf } = parsed;
     const sanitizedBarbershopId = (barbershopId === "NULL" || !barbershopId) ? null : barbershopId;
 
     const userExists = await prisma.user.findUnique({ where: { email } });
@@ -82,7 +84,8 @@ export class AdminUserController {
 
   async update(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
-    const { name, email, role, active, barbershopId, cpf } = request.body as any;
+    const parsed = adminUpdateUserSchema.parse(request.body);
+    const { name, email, role, active, barbershopId, cpf } = parsed;
     const sanitizedBarbershopId = (barbershopId === "NULL" || !barbershopId) ? null : barbershopId;
 
     let normalizedCpf: string | null | undefined = undefined;

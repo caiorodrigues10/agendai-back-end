@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createExpenseSchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   categoryId: z.string().uuid().optional().nullable(),
   title: z.string().min(2).max(200),
   description: z.string().max(1000).optional().nullable(),

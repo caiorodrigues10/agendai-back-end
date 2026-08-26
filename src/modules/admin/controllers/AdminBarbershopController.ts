@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { container } from "tsyringe";
 import { CreateBarbershopUseCase } from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopUseCase";
+import { adminUpdateBarbershopStatusSchema, adminCreateBarbershopSchema } from "../schemas/adminSchemas";
 
 export class AdminBarbershopController {
   async list(request: FastifyRequest, reply: FastifyReply) {
@@ -43,7 +44,8 @@ export class AdminBarbershopController {
 
   async updateStatus(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
-    const { active, approvalStatus, rejectionReason } = request.body as any;
+    const parsed = adminUpdateBarbershopStatusSchema.parse(request.body);
+    const { active, approvalStatus, rejectionReason } = parsed;
 
     const barbershop = await prisma.barbershop.update({
       where: { id },
@@ -71,7 +73,8 @@ export class AdminBarbershopController {
   }
 
   async create(request: FastifyRequest, reply: FastifyReply) {
-    const { name, whatsapp, cnpj, address, active = true } = request.body as any;
+    const parsed = adminCreateBarbershopSchema.parse(request.body);
+    const { name, whatsapp, cnpj, address, active = true } = parsed;
 
     // Usa o UseCase para garantir que checkCnpjAccess() seja executado
     const useCase = container.resolve(CreateBarbershopUseCase);

@@ -34,7 +34,7 @@ export class ServiceCategoryController {
 
     const barbershopId =
       user.role === "MASTER_ADMIN"
-        ? ((request.body as any).barbershopId ?? null)
+        ? (body.barbershopId ?? null)
         : user.barbershopId ?? null;
 
     const data = await serviceCatRepo.create({ ...body, barbershopId });
@@ -99,7 +99,7 @@ export class ExpenseCategoryController {
 
     const barbershopId =
       user.role === "MASTER_ADMIN"
-        ? ((request.body as any).barbershopId ?? null)
+        ? (body.barbershopId ?? null)
         : user.barbershopId ?? null;
 
     const data = await expenseCatRepo.create({ ...body, barbershopId });

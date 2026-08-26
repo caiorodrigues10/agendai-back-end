@@ -16,7 +16,7 @@ export class SubscribeController {
 
     const barbershopId =
       user.role === "MASTER_ADMIN"
-        ? (request.body as any).barbershopId
+        ? body.barbershopId
         : user.barbershopId;
 
     if (!barbershopId) {

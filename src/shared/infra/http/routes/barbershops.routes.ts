@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate }       from "../middlewares/authenticate";
 import { authorize }          from "../middlewares/authorize";
 import { checkSubscription }  from "../middlewares/checkSubscription";
+import { setRlsContext }      from "../middlewares/setRlsContext";
 import { CreateBarbershopController }  from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopController";
 import { ListBarbershopsController }   from "@/modules/barbershops/useCases/listBarbershops/ListBarbershopsController";
 import { GetBarbershopController }     from "@/modules/barbershops/useCases/getBarbershop/GetBarbershopController";
@@ -22,8 +23,8 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const logo           = new LogoController();
 
   // ─── Admin — sem checkSubscription (operação de plataforma) ────────────────
-  app.post("/barbershops",     { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] }, create.handle.bind(create));
-  app.delete("/barbershops/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] }, del.handle.bind(del));
+  app.post("/barbershops",     { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] }, create.handle.bind(create));
+  app.delete("/barbershops/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] }, del.handle.bind(del));
 
   // ─── Leitura pública ───────────────────────────────────────────────────────
   app.get("/barbershops",              list.handle.bind(list));
@@ -31,10 +32,10 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.get("/barbershops/:id/schedule", getSchedule.handle.bind(getSchedule));
 
   // ─── Edição com assinatura (PUT e PATCH aceitos — o front usa PATCH) ──────
-  app.put("/barbershops/:id",            { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
-  app.patch("/barbershops/:id",          { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, update.handle.bind(update));
-  app.put("/barbershops/:id/schedule",   { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, updateSchedule.handle.bind(updateSchedule));
-  app.patch("/barbershops/:id/schedule", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] }, updateSchedule.handle.bind(updateSchedule));
+  app.put("/barbershops/:id",            { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, update.handle.bind(update));
+  app.patch("/barbershops/:id",          { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, update.handle.bind(update));
+  app.put("/barbershops/:id/schedule",   { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, updateSchedule.handle.bind(updateSchedule));
+  app.patch("/barbershops/:id/schedule", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, updateSchedule.handle.bind(updateSchedule));
 
   // ─── Logo — Fluxo 1: Signed URL (upload direto cliente → GCS) ─────────────
   //
@@ -49,13 +50,13 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   //   → Confirma e salva no banco
   app.get(
     "/barbershops/:id/logo/upload-url",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
     logo.getUploadUrl.bind(logo)
   );
 
   app.patch(
     "/barbershops/:id/logo",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
     logo.confirmLogo.bind(logo)
   );
 
@@ -67,7 +68,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   //   → Faz upload no GCS e salva logoUrl no banco em uma única requisição
   app.post(
     "/barbershops/:id/logo/upload",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
     logo.uploadDirect.bind(logo)
   );
 
@@ -77,7 +78,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   //   → Remove do GCS e limpa logoUrl no banco
   app.delete(
     "/barbershops/:id/logo",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
     logo.deleteLogo.bind(logo)
   );
 }

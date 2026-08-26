@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authenticateOptional } from "../middlewares/authenticateOptional";
 import { checkSubscription } from "../middlewares/checkSubscription"; // NOVO
+import { setRlsContext } from "../middlewares/setRlsContext";
 import { ListQueueController } from "@/modules/queue/useCases/listQueue/ListQueueController";
 import { JoinQueueController } from "@/modules/queue/useCases/joinQueue/JoinQueueController";
 import { UpdateQueueItemController } from "@/modules/queue/useCases/updateQueueItem/UpdateQueueItemController";
@@ -20,7 +21,7 @@ export async function queueRoutes(app: FastifyInstance) {
   app.get("/queue", { preHandler: [authenticateOptional, checkSubscription] }, list.handle.bind(list));
   // POST público: authenticateOptional só para reconhecer staff (addedByStaff derivado do JWT).
   app.post("/queue", { preHandler: [authenticateOptional] }, join.handle.bind(join));
-  app.patch("/queue/:id", { preHandler: [authenticate, checkSubscription] }, update.handle.bind(update));
-  app.delete("/queue/:id", { preHandler: [authenticate, checkSubscription] }, del.handle.bind(del));
+  app.patch("/queue/:id", { preHandler: [authenticate, checkSubscription, setRlsContext] }, update.handle.bind(update));
+  app.delete("/queue/:id", { preHandler: [authenticate, checkSubscription, setRlsContext] }, del.handle.bind(del));
   app.get("/queue/metrics", metrics.handle.bind(metrics));
 }

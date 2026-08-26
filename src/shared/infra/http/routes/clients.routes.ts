@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { setRlsContext } from "../middlewares/setRlsContext";
 import { ClientController } from "@/modules/clients/controllers/ClientController";
 
 export async function clientsRoutes(app: FastifyInstance) {
@@ -10,6 +11,7 @@ export async function clientsRoutes(app: FastifyInstance) {
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
     checkSubscription,
+    setRlsContext,
   ];
 
   app.post("/clients", { preHandler: staffGuard }, clients.create.bind(clients));

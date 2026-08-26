@@ -20,7 +20,7 @@ export class ClientController {
 
     const barbershopId =
       user.role === "MASTER_ADMIN"
-        ? (request.body as { barbershopId?: string }).barbershopId
+        ? body.barbershopId
         : user.barbershopId;
 
     if (!barbershopId) {

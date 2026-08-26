@@ -4,6 +4,7 @@ import { container } from "tsyringe";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { setRlsContext } from "../middlewares/setRlsContext";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { SendAppointmentRemindersUseCase } from "@/modules/appointments/useCases/appointmentUseCases";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
@@ -20,6 +21,7 @@ export async function notificationsRoutes(app: FastifyInstance) {
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
     checkSubscription,
+    setRlsContext,
   ];
 
   /** POST /notifications/whatsapp — envio manual pelo staff (ex.: aviso ao cliente). */
@@ -50,7 +52,7 @@ export async function notificationsRoutes(app: FastifyInstance) {
    */
   app.post(
     "/notifications/appointment-reminders/run",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] },
     async (_request, reply) => {
       const useCase = container.resolve(SendAppointmentRemindersUseCase);
       const result = await useCase.execute();

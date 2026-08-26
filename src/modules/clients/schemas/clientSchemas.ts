@@ -8,6 +8,7 @@ const phoneBR = z
   });
 
 export const createClientSchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   name: z.string().min(2, "Nome obrigatório").max(200),
   whatsapp: phoneBR,
   notes: z.string().max(2000).optional().nullable(),

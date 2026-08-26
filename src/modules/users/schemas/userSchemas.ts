@@ -81,6 +81,15 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Senha obrigatória")
 });
 
+/** Schema para OWNER/EMPLOYEE atualizar membros da equipe. */
+export const staffUpdateUserSchema = z.object({
+  name: z.string().min(3).max(200).optional(),
+  email: z.string().email().max(100).optional(),
+  role: z.enum(["OWNER", "EMPLOYEE"]).optional(),
+  active: z.boolean().optional(),
+}).strict();
+
 export type CreateUserDTO = z.infer<typeof createUserSchema>;
 export type UpdateUserDTO = z.infer<typeof updateUserSchema>;
 export type LoginDTO = z.infer<typeof loginSchema>;
+export type StaffUpdateUserDTO = z.infer<typeof staffUpdateUserSchema>;

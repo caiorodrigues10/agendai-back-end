@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { setRlsContext } from "../middlewares/setRlsContext";
 import {
   ServiceCategoryController,
   ExpenseCategoryController,
@@ -15,11 +16,13 @@ export async function categoriesRoutes(app: FastifyInstance) {
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
     checkSubscription,
+    setRlsContext,
   ];
   const ownerGuard = [
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER"]),
     checkSubscription,
+    setRlsContext,
   ];
 
   // ─── Service Categories ───────────────────────────────────────────────────

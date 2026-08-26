@@ -6,6 +6,7 @@ import { ExportUserDataController } from "@/modules/users/useCases/exportData/Ex
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { setRlsContext } from "../middlewares/setRlsContext";
 
 export async function usersRoutes(app: FastifyInstance) {
   const createUserController = new CreateUserController();
@@ -14,7 +15,7 @@ export async function usersRoutes(app: FastifyInstance) {
   const exportUserDataController = new ExportUserDataController();
 
   // ─── Gestão de equipe (OWNER da barbearia; MASTER_ADMIN via ?barbershopId=) ─
-  const ownerGuard = [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription];
+  const ownerGuard = [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext];
   app.get("/users", { preHandler: ownerGuard }, staff.list.bind(staff));
   app.patch("/users/:id", { preHandler: ownerGuard }, staff.update.bind(staff));
   app.delete("/users/:id", { preHandler: ownerGuard }, staff.delete.bind(staff));
@@ -68,7 +69,7 @@ export async function usersRoutes(app: FastifyInstance) {
   }, createUserController.handle.bind(createUserController));
 
   // ─── LGPD: Exclusão de conta (Art. 18) ─
-  const authGuard = [authenticate];
+  const authGuard = [authenticate, setRlsContext];
   app.delete("/users/me", {
     preHandler: [...authGuard, validateDeleteAccount],
     schema: {

@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
+import { setRlsContext } from "../middlewares/setRlsContext";
 import { CreateCardPaymentController } from "@/modules/payments/useCases/createCardPayment/CreateCardPaymentController";
 import { CreatePixPaymentController } from "@/modules/payments/useCases/createPixPayment/CreatePixPaymentController";
 import { GetPaymentStatusController } from "@/modules/payments/useCases/getPaymentStatus/GetPaymentStatusController";
@@ -72,43 +73,43 @@ export async function paymentRoutes(app: FastifyInstance) {
   // Checkout endpoints — 30 req/min per IP
   app.post(
     "/payments/card",
-    { ...checkoutRateLimit, preHandler: [authenticate] },
+    { ...checkoutRateLimit, preHandler: [authenticate, setRlsContext] },
     cardPayment.handle.bind(cardPayment)
   );
 
   app.post(
     "/payments/pix",
-    { ...checkoutRateLimit, preHandler: [authenticate] },
+    { ...checkoutRateLimit, preHandler: [authenticate, setRlsContext] },
     pixPayment.handle.bind(pixPayment)
   );
 
   app.get(
     "/payments/:id",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]), setRlsContext] },
     getStatus.handle.bind(getStatus)
   );
 
   app.patch(
     "/payments/:id/cancel",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), setRlsContext] },
     cancelPayment.handle.bind(cancelPayment)
   );
 
   app.post(
     "/payments/:id/refund",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] },
     refundPayment.handle.bind(refundPayment)
   );
 
   app.get(
     "/refunds",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] },
     listRefunds.handle.bind(listRefunds)
   );
 
   app.get(
     "/payments",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"])] },
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), setRlsContext] },
     listPayments.handle.bind(listPayments)
   );
 }

@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Prisma } from "@prisma/client";
+import { rlsExtension } from "./prismaExtensions";
 
 const connectionString = process.env.DATABASE_URL;
 const pool = new Pool({
@@ -9,5 +10,5 @@ const pool = new Pool({
 });
 const adapter = new PrismaPg(pool as any);
 
-export const prisma = new PrismaClient({ adapter: adapter as any } as any);
+export const prisma = new PrismaClient({ adapter: adapter as any } as any).$extends(rlsExtension);
 export { Prisma };

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createFiadoSchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   customerName: z.string().min(2, "Nome obrigatório").max(200),
   whatsapp: z.string().min(8, "WhatsApp inválido").max(20),
   description: z.string().min(2, "Descrição obrigatória").max(500),
@@ -10,6 +11,7 @@ export const createFiadoSchema = z.object({
 });
 
 export const createFiadoPaymentSchema = z.object({
+  barbershopId: z.string().uuid().optional(),
   amount: z.number().positive("Valor deve ser positivo"),
   notes: z.string().max(1000).optional().nullable(),
 });

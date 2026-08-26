@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
+import { updateQueueItemSchema } from "../../schemas/queueSchemas";
 import { UpdateQueueItemUseCase } from "./UpdateQueueItemUseCase";
 
 export class UpdateQueueItemController {
@@ -11,11 +12,8 @@ export class UpdateQueueItemController {
     }
 
     const { id } = request.params as { id: string };
-    const { status, completedBy, finalPrice } = request.body as {
-      status: string;
-      completedBy?: string;
-      finalPrice?: number;
-    };
+    const parsed = updateQueueItemSchema.parse(request.body);
+    const { status, completedBy, finalPrice } = parsed;
 
     const useCase = container.resolve(UpdateQueueItemUseCase);
     const item = await useCase.execute(id, status, user, {

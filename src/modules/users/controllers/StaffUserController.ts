@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
+import { staffUpdateUserSchema } from "../schemas/userSchemas";
 
 const publicSelect = {
   id: true,
@@ -64,17 +65,8 @@ export class StaffUserController {
     const requester = request.user!;
     const target = await this.findScopedUser(request, id);
 
-    const { name, email, role, active } = request.body as {
-      name?: string;
-      email?: string;
-      role?: string;
-      active?: boolean;
-    };
-
-    // OWNER só gerencia papéis internos do salão
-    if (role && !["OWNER", "EMPLOYEE"].includes(role)) {
-      throw new AppError("Role inválida para gestão de equipe", 400);
-    }
+    const parsed = staffUpdateUserSchema.parse(request.body);
+    const { name, email, role, active } = parsed;
     // OWNER não pode rebaixar/alterar outro OWNER (evita golpe de acesso)
     if (requester.role === "OWNER" && target.role === "OWNER" && target.id !== requester.id && role) {
       throw new AppError("Você não pode alterar o papel de outro proprietário", 403);

@@ -3,6 +3,7 @@ import { authenticate } from "../middlewares/authenticate";
 import { authenticateOptional } from "../middlewares/authenticateOptional";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { setRlsContext } from "../middlewares/setRlsContext";
 import { FeedController } from "@/modules/feed/controllers/FeedController";
 import { UploadVideoController } from "@/modules/feed/useCases/uploadVideo";
 
@@ -14,6 +15,7 @@ export async function feedRoutes(app: FastifyInstance) {
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
     checkSubscription,
+    setRlsContext,
   ];
 
   // Leitura pública — o perfil da barbearia exibe o feed para visitantes

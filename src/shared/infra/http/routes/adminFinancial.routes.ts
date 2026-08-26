@@ -1,12 +1,13 @@
 import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
+import { setRlsContext } from "../middlewares/setRlsContext";
 import { AdminFinancialController } from "@/modules/admin/controllers/AdminFinancialController";
 
 const financial = new AdminFinancialController();
 
 export async function adminFinancialRoutes(app: FastifyInstance) {
-  const preHandler = [authenticate, authorize(["MASTER_ADMIN"])];
+  const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext];
 
   app.get(
     "/admin/financial/overview",

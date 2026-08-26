@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
+import { setRlsContext } from "../middlewares/setRlsContext";
 import { PostsController } from "@/modules/posts/controllers/PostsController";
 
 export async function postsRoutes(app: FastifyInstance) {
@@ -11,6 +12,7 @@ export async function postsRoutes(app: FastifyInstance) {
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
     checkSubscription,
+    setRlsContext,
   ];
 
   app.get("/posts/preview", { preHandler: staffGuard }, posts.preview.bind(posts));
