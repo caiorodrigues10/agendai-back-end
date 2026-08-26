@@ -4,16 +4,15 @@ import { AppError } from "@/shared/errors/AppError";
 import { blockEntity, unblockEntity } from "@/shared/services/blockedEntityService";
 import { isValidCpf } from "@/shared/utils/cpfUtils";
 import { blockSchema } from "../schemas/blockedEntitySchemas";
+import { adminListBlockedEntitiesQuerySchema } from "../schemas/adminSchemas";
 
 export class BlockedEntityAdminController {
   /** GET /admin/blocked-entities */
   async list(request: FastifyRequest, reply: FastifyReply) {
-    const { page = "1", limit = "20", type, isActive, search } = request.query as {
-      page?: string; limit?: string; type?: string; isActive?: string; search?: string;
-    };
+    const { page, limit, type, isActive, search } = adminListBlockedEntitiesQuerySchema.parse(request.query);
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const take = Math.min(Number(limit), 100);
+    const skip = (page - 1) * limit;
+    const take = limit;
 
     const where: any = {};
     if (type) where.type = type;
@@ -40,7 +39,7 @@ export class BlockedEntityAdminController {
       data,
       meta: {
         total,
-        page: Number(page),
+        page,
         limit: take,
         totalPages: Math.ceil(total / take)
       }

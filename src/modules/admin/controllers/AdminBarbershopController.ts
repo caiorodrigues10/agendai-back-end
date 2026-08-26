@@ -2,14 +2,14 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { container } from "tsyringe";
 import { CreateBarbershopUseCase } from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopUseCase";
-import { adminUpdateBarbershopStatusSchema, adminCreateBarbershopSchema } from "../schemas/adminSchemas";
+import { adminUpdateBarbershopStatusSchema, adminCreateBarbershopSchema, adminListBarbershopsQuerySchema } from "../schemas/adminSchemas";
 
 export class AdminBarbershopController {
   async list(request: FastifyRequest, reply: FastifyReply) {
-    const { page = 1, limit = 10, status, search } = request.query as any;
+    const { page, limit, status, search } = adminListBarbershopsQuerySchema.parse(request.query);
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const take = Number(limit);
+    const skip = (page - 1) * limit;
+    const take = limit;
 
     const where: any = {};
     if (status === 'active') where.active = true;
@@ -38,7 +38,7 @@ export class AdminBarbershopController {
     return reply.status(200).send({
       success: true,
       data: barbershops,
-      meta: { total, page: Number(page), limit: take, totalPages: Math.ceil(total / take) },
+      meta: { total, page, limit: take, totalPages: Math.ceil(total / take) },
     });
   }
 

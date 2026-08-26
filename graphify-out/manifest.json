@@ -180,8 +180,8 @@
     "semantic_hash": ""
   },
   "src/modules/auth/schemas/authSchemas.ts": {
-    "mtime": 1787764426.2742298,
-    "ast_hash": "287756e2e4f96f2ede318ca47f3c9062",
+    "mtime": 1787765361.7578695,
+    "ast_hash": "97da1d23b716bc1574467b6b66b730e2",
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/login/LoginController.ts": {
@@ -1165,8 +1165,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/auth.routes.ts": {
-    "mtime": 1787764498.0102904,
-    "ast_hash": "0e07baac6a8cbcea69ba8d6719238540",
+    "mtime": 1787765366.6051655,
+    "ast_hash": "8b6b9eb0a7c9bec15b52ee27d73c8bd1",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/barbershopFinancialRoutes.ts": {
@@ -1897,6 +1897,11 @@
   "src/shared/infra/http/redisRateLimitStore.ts": {
     "mtime": 1787764670.8505628,
     "ast_hash": "6fb343dcb93b537cdf8848411ac02673",
+    "semantic_hash": ""
+  },
+  "src/shared/infra/http/middlewares/verifyRecaptcha.ts": {
+    "mtime": 1787765356.944243,
+    "ast_hash": "9a47a9cad2eb8969360fe2e4d0694290",
     "semantic_hash": ""
   }
 }

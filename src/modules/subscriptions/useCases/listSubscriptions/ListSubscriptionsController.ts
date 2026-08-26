@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma, Prisma } from "@/libs/prismaClient";
 import { SubscriptionStatus } from "@prisma/client";
 import { TRIAL_DAYS } from "@/shared/constants/subscription";
+import { adminListSubscriptionsQuerySchema } from "@/modules/admin/schemas/adminSchemas";
 
 type SubscriptionWithRelations = Prisma.SubscriptionGetPayload<{
   include: {
@@ -13,12 +14,10 @@ type SubscriptionWithRelations = Prisma.SubscriptionGetPayload<{
 
 export class ListSubscriptionsController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const { page = "1", limit = "20", status, search } = request.query as {
-      page?: string; limit?: string; status?: string; search?: string;
-    };
+    const { page, limit, status, search } = adminListSubscriptionsQuerySchema.parse(request.query);
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const take = Math.min(Number(limit), 100);
+    const skip = (page - 1) * limit;
+    const take = limit;
 
     const where: Prisma.SubscriptionWhereInput = {};
     if (status && status in SubscriptionStatus) {
@@ -73,7 +72,7 @@ export class ListSubscriptionsController {
     return reply.send({
       success: true,
       data,
-      meta: { total, page: Number(page), limit: take, totalPages: Math.ceil(total / take) }
+      meta: { total, page, limit: take, totalPages: Math.ceil(total / take) }
     });
   }
 }

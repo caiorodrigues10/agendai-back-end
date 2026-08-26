@@ -3,14 +3,14 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { hash } from "bcryptjs";
 import { isValidCpf, normalizeCpf } from "@/shared/utils/cpfUtils";
-import { adminCreateUserSchema, adminUpdateUserSchema } from "../schemas/adminSchemas";
+import { adminCreateUserSchema, adminUpdateUserSchema, adminListUsersQuerySchema } from "../schemas/adminSchemas";
 
 export class AdminUserController {
   async list(request: FastifyRequest, reply: FastifyReply) {
-    const { page = 1, limit = 10, role, search, active, barbershopId } = request.query as any;
+    const { page, limit, role, search, active, barbershopId } = adminListUsersQuerySchema.parse(request.query);
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const take = Number(limit);
+    const skip = (page - 1) * limit;
+    const take = limit;
 
     const where: any = {};
     if (role) where.role = role;
@@ -39,7 +39,7 @@ export class AdminUserController {
     return reply.status(200).send({
       success: true,
       data: users,
-      meta: { total, page: Number(page), limit: take, totalPages: Math.ceil(total / take) },
+      meta: { total, page, limit: take, totalPages: Math.ceil(total / take) },
     });
   }
 

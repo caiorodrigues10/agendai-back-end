@@ -3,8 +3,12 @@ import { prisma } from "@/libs/prismaClient";
 
 const RETENTION_MONTHS = 6;
 const BATCH_SIZE = 1000;
+const ALLOWED_TABLES = new Set(["audit_logs", "access_logs", "error_logs"]);
 
 async function cleanTable(tableName: string): Promise<number> {
+  if (!ALLOWED_TABLES.has(tableName)) {
+    throw new Error(`Tabela não permitida: ${tableName}`);
+  }
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - RETENTION_MONTHS);
 
