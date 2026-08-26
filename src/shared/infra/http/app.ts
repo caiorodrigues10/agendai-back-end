@@ -153,7 +153,7 @@ export async function buildApp() {
     }),
   };
   if (!process.env.VITEST) {
-    rateLimitConfig.store = new RedisRateLimitStore({ windowMs: rateLimitWindowMs });
+    rateLimitConfig.store = RedisRateLimitStore;
   }
   await app.register(rateLimit, rateLimitConfig);
 

@@ -1,57 +1,50 @@
-import type { Store } from "@fastify/rate-limit";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { getModuleLogger } from "@/shared/utils/logger";
 
 const logger = getModuleLogger("rate-limit-redis");
 
-export class RedisRateLimitStore implements Store {
+export class RedisRateLimitStore {
   private readonly prefix: string;
-  private readonly windowMs: number;
+  private readonly timeWindow: number;
 
-  constructor(opts: { prefix?: string; windowMs: number }) {
+  constructor(opts: { timeWindow?: number; max?: number; prefix?: string }) {
     this.prefix = opts.prefix ?? "rl:";
-    this.windowMs = opts.windowMs;
+    this.timeWindow = opts.timeWindow ?? 60_000;
   }
 
   private key(routeKey: string, key: string): string {
     return `${this.prefix}${routeKey}:${key}`;
   }
 
-  async increment(
-    routeKey: string,
-    key: string,
-    windowMs: number,
-    ttl?: number,
-  ): Promise<{ count: number; ttl: number }> {
+  async increment(key: string): Promise<{ count: number; ttl: number }> {
     try {
       const redis = getRedisConnection();
-      const redisKey = this.key(routeKey, key);
-      const count = await redis.incr(redisKey);
+      const count = await redis.incr(key);
       if (count === 1) {
-        const expiry = Math.ceil((ttl ?? windowMs) / 1000);
-        await redis.expire(redisKey, expiry);
+        const expiry = Math.ceil(this.timeWindow / 1000);
+        await redis.expire(key, expiry);
       }
-      const remaining = await redis.ttl(redisKey);
+      const remaining = await redis.ttl(key);
       return { count, ttl: Math.max(0, remaining) };
     } catch (err) {
       logger.error({ err }, "Redis error in rate-limit increment, allowing request");
-      return { count: 1, ttl: Math.ceil(windowMs / 1000) };
+      return { count: 1, ttl: Math.ceil(this.timeWindow / 1000) };
     }
   }
 
-  async decrement(routeKey: string, key: string): Promise<void> {
+  async decrement(key: string): Promise<void> {
     try {
       const redis = getRedisConnection();
-      await redis.decr(this.key(routeKey, key));
+      await redis.decr(key);
     } catch (err) {
       logger.error({ err }, "Redis error in rate-limit decrement");
     }
   }
 
-  async reset(routeKey: string, key: string): Promise<void> {
+  async reset(key: string): Promise<void> {
     try {
       const redis = getRedisConnection();
-      await redis.del(this.key(routeKey, key));
+      await redis.del(key);
     } catch (err) {
       logger.error({ err }, "Redis error in rate-limit reset");
     }
