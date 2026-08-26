@@ -88,6 +88,8 @@ export const emailQueueEvents = new Proxy({} as QueueEvents, {
 
 export async function enqueueEmail(data: EmailJobData): Promise<void> {
   if (process.env.VITEST) return;
+  const { ensureEmailWorker } = await import("./emailWorker");
+  await ensureEmailWorker();
   await getQueue().add(data.kind as EmailTemplateId, data, {
     jobId: data.deduplicationKey || undefined,
   });

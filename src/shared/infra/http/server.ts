@@ -8,9 +8,7 @@ import { schedulePostPublisher } from "@/shared/infra/cron/postPublisher.cron";
 import { scheduleTrialCardCharges } from "@/shared/infra/cron/trialCardCharges.cron";
 import { scheduleCleanOldLogs } from "@/shared/infra/cron/cleanOldLogs.cron";
 import {
-  startWhatsAppWorker,
   stopWhatsAppWorker,
-  startEmailWorker,
   stopEmailWorker,
 } from "@/shared/infra/queue";
 import { initSentry } from "@/shared/utils/sentry";
@@ -31,20 +29,6 @@ async function start() {
   try {
     await app.listen({ port, host: "0.0.0.0" });
     serverLogger.info({ port }, 'Server started');
-
-    // WhatsApp worker (BullMQ)
-    try {
-      await startWhatsAppWorker();
-    } catch (err) {
-      serverLogger.error({ err }, "Falha ao iniciar WhatsApp worker (Redis disponível?)");
-    }
-
-    // Email worker (BullMQ)
-    try {
-      await startEmailWorker();
-    } catch (err) {
-      serverLogger.error({ err }, "Falha ao iniciar Email worker (Redis disponível?)");
-    }
 
     // Cron de lembretes: falha ao agendar não derruba o servidor
     try {

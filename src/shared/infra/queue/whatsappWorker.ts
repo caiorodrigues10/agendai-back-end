@@ -1,6 +1,6 @@
 /**
  * Worker BullMQ para envio de WhatsApp.
- * Instanciação lazy — só sobe no bootstrap de produção (startWhatsAppWorker).
+ * Lazy com auto-stop — sobe quando há jobs, para após 60s ocioso.
  */
 import { Worker, Job } from "bullmq";
 import { getRedisConnection } from "./redisConnection";
@@ -11,13 +11,24 @@ import { getModuleLogger } from "@/shared/utils/logger";
 const logger = getModuleLogger('queue:whatsapp');
 
 const QUEUE_NAME = "whatsapp";
+const IDLE_TIMEOUT_MS = 60_000;
 
 let _worker: Worker<WhatsAppJobData> | null = null;
+let _idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+function resetIdleTimer(): void {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(() => {
+    stopWhatsAppWorker();
+  }, IDLE_TIMEOUT_MS);
+}
 
 function createWorker(): Worker<WhatsAppJobData> {
   const worker = new Worker<WhatsAppJobData>(
     QUEUE_NAME,
     async (job: Job<WhatsAppJobData>) => {
+      if (_idleTimer) clearTimeout(_idleTimer);
+
       const { phone, message, instanceName } = job.data;
 
       logger.debug({ jobId: job.id, attempt: job.attemptsMade + 1, maxAttempts: job.opts.attempts }, 'Processing WhatsApp job');
@@ -30,6 +41,7 @@ function createWorker(): Worker<WhatsAppJobData> {
         throw new Error(`Falha ao enviar WhatsApp`);
       }
 
+      resetIdleTimer();
       return { sent: true };
     },
     {
@@ -41,10 +53,15 @@ function createWorker(): Worker<WhatsAppJobData> {
 
   worker.on("failed", (job, err) => {
     logger.error({ err, jobId: job?.id }, 'WhatsApp job failed');
+    resetIdleTimer();
   });
 
   worker.on("error", (err) => {
     logger.error({ err }, 'WhatsApp worker error');
+  });
+
+  worker.on("ready", () => {
+    resetIdleTimer();
   });
 
   return worker;
@@ -59,6 +76,16 @@ export const whatsappWorker = new Proxy({} as Worker<WhatsAppJobData>, {
   },
 });
 
+/** Ensure worker is running — chamado pelo enqueue. */
+export async function ensureWhatsAppWorker(): Promise<void> {
+  if (process.env.VITEST) return;
+  if (!_worker) {
+    _worker = createWorker();
+    logger.info('WhatsApp worker started (on-demand)');
+  }
+  if (_idleTimer) clearTimeout(_idleTimer);
+}
+
 export async function startWhatsAppWorker(): Promise<void> {
   if (process.env.VITEST) return;
   if (!_worker) _worker = createWorker();
@@ -66,9 +93,13 @@ export async function startWhatsAppWorker(): Promise<void> {
 }
 
 export async function stopWhatsAppWorker(): Promise<void> {
+  if (_idleTimer) {
+    clearTimeout(_idleTimer);
+    _idleTimer = null;
+  }
   if (_worker) {
     await _worker.close();
     _worker = null;
-    logger.info('WhatsApp worker stopped');
+    logger.info('WhatsApp worker stopped (idle)');
   }
 }

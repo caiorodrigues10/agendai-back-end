@@ -61,6 +61,8 @@ export const whatsappQueueEvents = new Proxy({} as QueueEvents, {
 
 export async function enqueueWhatsApp(data: WhatsAppJobData): Promise<void> {
   if (process.env.VITEST) return;
+  const { ensureWhatsAppWorker } = await import("./whatsappWorker");
+  await ensureWhatsAppWorker();
   const jobId = data.deduplicationKey || undefined;
   await getQueue().add("send", data, { jobId });
 }

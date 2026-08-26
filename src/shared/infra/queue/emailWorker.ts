@@ -15,6 +15,7 @@ import { getModuleLogger } from "@/shared/utils/logger";
 const logger = getModuleLogger('queue:email');
 
 const QUEUE_NAME = "email";
+const IDLE_TIMEOUT_MS = 60_000;
 
 function buildEmailPayload(data: EmailJobData) {
   switch (data.kind) {
@@ -38,11 +39,21 @@ function buildEmailPayload(data: EmailJobData) {
 }
 
 let _worker: Worker<EmailJobData> | null = null;
+let _idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+function resetIdleTimer(): void {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(() => {
+    stopEmailWorker();
+  }, IDLE_TIMEOUT_MS);
+}
 
 function createWorker(): Worker<EmailJobData> {
   const worker = new Worker<EmailJobData>(
     QUEUE_NAME,
     async (job: Job<EmailJobData>) => {
+      if (_idleTimer) clearTimeout(_idleTimer);
+
       const emailProvider =
         container.resolve<IEmailProvider>("EmailProvider");
       const payload = buildEmailPayload(job.data);
@@ -52,6 +63,8 @@ function createWorker(): Worker<EmailJobData> {
           result.error || `Falha ao enviar e-mail ${job.data.kind}`
         );
       }
+
+      resetIdleTimer();
       return result;
     },
     {
@@ -63,6 +76,11 @@ function createWorker(): Worker<EmailJobData> {
 
   worker.on("failed", (job, err) => {
     logger.error({ err, jobId: job?.id }, 'Email job failed');
+    resetIdleTimer();
+  });
+
+  worker.on("ready", () => {
+    resetIdleTimer();
   });
 
   return worker;
@@ -76,6 +94,16 @@ export const emailWorker = new Proxy({} as Worker<EmailJobData>, {
   },
 });
 
+/** Ensure worker is running — chamado pelo enqueue. */
+export async function ensureEmailWorker(): Promise<void> {
+  if (process.env.VITEST) return;
+  if (!_worker) {
+    _worker = createWorker();
+    logger.info('Email worker started (on-demand)');
+  }
+  if (_idleTimer) clearTimeout(_idleTimer);
+}
+
 export async function startEmailWorker(): Promise<void> {
   if (process.env.VITEST) return;
   if (!_worker) _worker = createWorker();
@@ -83,9 +111,13 @@ export async function startEmailWorker(): Promise<void> {
 }
 
 export async function stopEmailWorker(): Promise<void> {
+  if (_idleTimer) {
+    clearTimeout(_idleTimer);
+    _idleTimer = null;
+  }
   if (_worker) {
     await _worker.close();
     _worker = null;
-    logger.info('Email worker stopped');
+    logger.info('Email worker stopped (idle)');
   }
 }
