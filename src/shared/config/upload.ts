@@ -52,3 +52,54 @@ export function validateMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
   return false;
 }
+
+/** 25 MB */
+export const MAX_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
+
+/** Max video duration in seconds */
+export const MAX_VIDEO_DURATION_SECONDS = 60;
+
+/** MIME types allowed for video uploads */
+export const ALLOWED_VIDEO_MIME_TYPES: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+};
+
+/** Magic bytes for video types */
+export const VIDEO_SIGNATURES: Record<string, Buffer[]> = {
+  "video/mp4": [
+    // ftyp box (offset 4-7: "ftyp", then brand at 8-11)
+    Buffer.from([0x66, 0x74, 0x79, 0x70]),
+  ],
+  "video/webm": [
+    Buffer.from([0x1A, 0x45, 0xDF, 0xA3]),
+  ],
+  "video/quicktime": [
+    Buffer.from([0x66, 0x74, 0x79, 0x70]),
+  ],
+};
+
+/**
+ * Verify that the first bytes of a video buffer match the declared MIME type.
+ * For MP4/MOV: checks "ftyp" at offset 4.
+ * For WebM: checks EBML header at offset 0.
+ */
+export function validateVideoMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  const signatures = VIDEO_SIGNATURES[mimeType];
+  if (!signatures || signatures.length === 0) return false;
+
+  if (buffer.length < 12) return false;
+
+  // MP4 / MOV: "ftyp" at offset 4
+  if (mimeType === "video/mp4" || mimeType === "video/quicktime") {
+    return buffer.subarray(4, 8).equals(signatures[0]);
+  }
+
+  // WebM: EBML header at offset 0
+  if (mimeType === "video/webm") {
+    return buffer.subarray(0, 4).equals(signatures[0]);
+  }
+
+  return false;
+}

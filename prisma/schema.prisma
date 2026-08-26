@@ -393,6 +393,8 @@ model FeedPost {
   content      String   @db.Text
   // Text: o front envia data-URLs base64 (até migrar para upload GCS)
   imageUrl     String?  @db.Text
+  /// URL do vídeo no GCS (pasta posts/).
+  videoUrl     String?  @db.Text
   likes        Int      @default(0)
   /// Agendamento de publicação: NULL = publicado imediatamente (rascunho se status DRAFT).
   scheduledFor DateTime?

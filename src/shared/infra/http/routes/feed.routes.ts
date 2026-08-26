@@ -4,9 +4,11 @@ import { authenticateOptional } from "../middlewares/authenticateOptional";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
 import { FeedController } from "@/modules/feed/controllers/FeedController";
+import { UploadVideoController } from "@/modules/feed/useCases/uploadVideo";
 
 export async function feedRoutes(app: FastifyInstance) {
   const feed = new FeedController();
+  const uploadVideoController = new UploadVideoController();
 
   const staffGuard = [
     authenticate,
@@ -24,4 +26,11 @@ export async function feedRoutes(app: FastifyInstance) {
   // PATCH: curtir é público (só campo likes); edição de conteúdo exige staff.
   // O controller decide com base nos campos enviados e em request.user.
   app.patch("/feed/:id", { preHandler: [authenticateOptional] }, feed.update.bind(feed));
+
+  // Upload de vídeo para posts
+  app.post(
+    "/feed/:barbershopId/video",
+    { preHandler: staffGuard },
+    (req, rep) => uploadVideoController.upload(req, rep)
+  );
 }

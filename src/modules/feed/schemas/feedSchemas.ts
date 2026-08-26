@@ -15,6 +15,7 @@ export const createFeedPostSchema = z.object({
   title: z.string().max(200).optional().nullable(),
   content: z.string().max(5000).default(""),
   imageUrl: z.string().optional().nullable(),
+  videoUrl: z.string().url().max(500).optional().nullable(),
 });
 
 export const updateFeedPostSchema = z.object({
@@ -22,6 +23,7 @@ export const updateFeedPostSchema = z.object({
   title: z.string().max(200).optional().nullable(),
   content: z.string().max(5000).optional(),
   imageUrl: z.string().optional().nullable(),
+  videoUrl: z.string().url().max(500).optional().nullable(),
   likes: z.number().int().min(0).optional(),
 });
 
