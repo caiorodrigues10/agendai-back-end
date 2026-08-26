@@ -41,6 +41,14 @@ export class RedisRateLimitStore {
     }
   }
 
+  child(override: { timeWindow?: number; max?: number; prefix?: string }): RedisRateLimitStore {
+    return new RedisRateLimitStore({
+      timeWindow: override.timeWindow ?? this.timeWindow,
+      max: override.max,
+      prefix: override.prefix ?? this.prefix,
+    });
+  }
+
   async reset(key: string): Promise<void> {
     try {
       const redis = getRedisConnection();
