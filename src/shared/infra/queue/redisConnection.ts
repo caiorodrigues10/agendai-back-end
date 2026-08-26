@@ -18,14 +18,26 @@ export function getRedisConnection(): IORedis {
   }
   if (!_redis) {
     const useTls = REDIS_URL.startsWith("rediss://") || REDIS_URL.includes("upstash.io");
+    const tlsOptions = useTls
+      ? {
+          tls: {
+            rejectUnauthorized: true,
+            servername: new URL(REDIS_URL).hostname,
+          },
+        }
+      : {};
     _redis = new IORedis(REDIS_URL, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
+      lazyConnect: true,
       retryStrategy(times: number) {
         if (times > 10) return null;
         return Math.min(times * 200, 5000);
       },
-      ...(useTls ? { tls: {} } : {}),
+      ...tlsOptions,
+    });
+    _redis.connect().catch((err) => {
+      console.error("[Redis] Falha ao conectar:", err.message);
     });
     _redis.on("error", (err) => {
       console.error("[Redis] Erro de conexão:", err.message);
