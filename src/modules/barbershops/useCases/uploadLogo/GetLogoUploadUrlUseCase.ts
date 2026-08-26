@@ -3,13 +3,7 @@ import { randomUUID } from "node:crypto";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider, ISignedUploadUrlResult } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
-
-const ALLOWED_MIME_TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/jpg":  "jpg",
-  "image/png":  "png",
-  "image/webp": "webp",
-};
+import { ALLOWED_LOGO_MIME_TYPES } from "@/shared/config/upload";
 
 const LOGO_FOLDER = "logos";
 
@@ -43,7 +37,7 @@ export class GetLogoUploadUrlUseCase {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
-    const extension = ALLOWED_MIME_TYPES[data.mimeType];
+    const extension = ALLOWED_LOGO_MIME_TYPES[data.mimeType];
     if (!extension) {
       throw new AppError(
         `Tipo de arquivo não permitido: ${data.mimeType}. Aceitos: JPEG, PNG, WebP`,

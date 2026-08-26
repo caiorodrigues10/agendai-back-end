@@ -4,16 +4,11 @@ import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
-
-/** Máximo de 5 MB por logo */
-const MAX_SIZE_BYTES = 5 * 1024 * 1024;
-
-const ALLOWED_MIME_TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/jpg":  "jpg",
-  "image/png":  "png",
-  "image/webp": "webp",
-};
+import {
+  ALLOWED_LOGO_MIME_TYPES,
+  MAX_UPLOAD_SIZE_BYTES,
+  validateMagicBytes,
+} from "@/shared/config/upload";
 
 const LOGO_FOLDER = "logos";
 
@@ -45,8 +40,7 @@ export class UploadLogoDirectUseCase {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
-    // Valida MIME type
-    const extension = ALLOWED_MIME_TYPES[data.mimeType];
+    const extension = ALLOWED_LOGO_MIME_TYPES[data.mimeType];
     if (!extension) {
       throw new AppError(
         `Tipo de arquivo não permitido: ${data.mimeType}. Aceitos: JPEG, PNG, WebP`,
@@ -54,12 +48,18 @@ export class UploadLogoDirectUseCase {
       );
     }
 
-    // Valida tamanho
-    if (data.buffer.byteLength > MAX_SIZE_BYTES) {
+    if (data.buffer.byteLength > MAX_UPLOAD_SIZE_BYTES) {
       const sizeMb = (data.buffer.byteLength / 1024 / 1024).toFixed(2);
       throw new AppError(
         `Arquivo muito grande (${sizeMb} MB). Máximo permitido: 5 MB`,
         413
+      );
+    }
+
+    if (!validateMagicBytes(data.buffer, data.mimeType)) {
+      throw new AppError(
+        `Arquivo corrompido ou tipo inválido: o conteúdo não corresponde a ${data.mimeType}`,
+        400
       );
     }
 

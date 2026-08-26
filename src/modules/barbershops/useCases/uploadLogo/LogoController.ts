@@ -7,17 +7,15 @@ import { DeleteLogoUseCase } from "./DeleteLogoUseCase";
 import { UploadLogoDirectUseCase } from "./UploadLogoDirectUseCase";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
+import {
+  ALLOWED_LOGO_MIME_TYPES,
+  MAX_UPLOAD_SIZE_BYTES,
+  validateMagicBytes,
+} from "@/shared/config/upload";
 
 const logger = getModuleLogger('barbershops:logo');
 
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-]);
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_MIME_SET = new Set(Object.keys(ALLOWED_LOGO_MIME_TYPES));
 
 const getUploadUrlSchema = z.object({
   mimeType: z.enum(["image/jpeg", "image/jpg", "image/png", "image/webp"], {
@@ -80,10 +78,9 @@ export class LogoController {
   async uploadDirect(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { id: barbershopId } = request.params as { id: string };
 
-    // Lê o arquivo via @fastify/multipart
     const data = await (request as any).file({
       limits: {
-        fileSize: MAX_FILE_SIZE,
+        fileSize: MAX_UPLOAD_SIZE_BYTES,
         files: 1,
         fields: 0,
       },
@@ -94,8 +91,7 @@ export class LogoController {
     }
 
     const mimeType: string = data.mimetype ?? "";
-    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-      // Drena o stream para não deixar a conexão pendurada
+    if (!ALLOWED_MIME_SET.has(mimeType)) {
       await data.toBuffer().catch((err: unknown) => logger.error({ err }, 'Failed to drain rejected upload stream'));
       throw new AppError(
         `Tipo de arquivo não permitido: "${mimeType}". Aceitos: JPEG, PNG, WebP`,
@@ -107,11 +103,17 @@ export class LogoController {
     try {
       buffer = await data.toBuffer();
     } catch (err: any) {
-      // @fastify/multipart lança RequestFileTooLargeError quando ultrapassa o limite
       if (err?.code === "FST_REQ_FILE_TOO_LARGE" || err?.statusCode === 413) {
         throw new AppError("Arquivo muito grande. Máximo permitido: 5 MB", 413);
       }
       throw new AppError(`Erro ao processar o arquivo: ${err?.message ?? "erro desconhecido"}`, 500);
+    }
+
+    if (!validateMagicBytes(buffer, mimeType)) {
+      throw new AppError(
+        `Arquivo corrompido ou tipo inválido: o conteúdo não corresponde a ${mimeType}`,
+        400
+      );
     }
 
     const useCase = container.resolve(UploadLogoDirectUseCase);
