@@ -110,8 +110,34 @@ export async function buildApp() {
   }
 
   // Headers de segurança via Helmet
+  const isProd = process.env.NODE_ENV === "production";
   await app.register(helmet, {
-    contentSecurityPolicy: process.env.NODE_ENV === "production",
+    contentSecurityPolicy: isProd ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://www.google.com", "https://www.gstatic.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        connectSrc: ["'self'", "https://www.google.com"],
+        frameSrc: ["https://www.google.com"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: [],
+      },
+    } : false,
+    hsts: isProd ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+      payment: ["'self'"],
+    },
   });
 
   // Rate-limit global — Redis store em produção, in-memory em testes
