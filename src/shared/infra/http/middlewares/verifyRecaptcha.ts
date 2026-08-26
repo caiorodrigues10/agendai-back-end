@@ -40,11 +40,9 @@ async function verifyToken(token: string, ip: string, action: string): Promise<R
 export async function verifyRecaptcha(
   request: FastifyRequest,
   _reply: FastifyReply,
-  done: () => void,
 ) {
   if (!RECAPTCHA_SECRET) {
     logger.warn("RECAPTCHA_SECRET_KEY not set — skipping verification");
-    done();
     return;
   }
 
@@ -69,10 +67,8 @@ export async function verifyRecaptcha(
     }
 
     logger.debug({ score: result.score, ip: request.ip, action }, "reCAPTCHA OK");
-    done();
   } catch (err) {
     if (err instanceof AppError) throw err;
     logger.error({ err, ip: request.ip }, "reCAPTCHA service error — allowing request (fail open)");
-    done();
   }
 }
