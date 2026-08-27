@@ -1,5 +1,19 @@
-/** WhatsApp placeholder quando o staff não informa contato. */
+/** WhatsApp placeholder quando o staff ou um dependente não informa contato. */
 export const STAFF_QUEUE_PLACEHOLDER_WHATSAPP = "00000000000";
+
+export function isPlaceholderWhatsApp(whatsapp: string): boolean {
+  const d = whatsapp.replace(/\D/g, "");
+  return !d || d === STAFF_QUEUE_PLACEHOLDER_WHATSAPP;
+}
+
+/** Normaliza WhatsApp da fila; vazio/curto vira placeholder (dependente sem zap). */
+export function resolveQueueWhatsApp(raw: string | undefined): string {
+  const d = (raw ?? "").replace(/\D/g, "");
+  if (d.length >= 8 && d !== STAFF_QUEUE_PLACEHOLDER_WHATSAPP) {
+    return (raw ?? "").trim().slice(0, 20);
+  }
+  return STAFF_QUEUE_PLACEHOLDER_WHATSAPP;
+}
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");

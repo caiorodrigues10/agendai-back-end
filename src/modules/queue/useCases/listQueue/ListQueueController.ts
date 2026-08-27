@@ -4,17 +4,28 @@ import { ListQueueUseCase } from "./ListQueueUseCase";
 import { IQueueItemResponseDTO } from "../../dtos/IQueueItemResponseDTO";
 
 /** Remove dados pessoais sensíveis para a visão pública da fila. */
-function toPublicView(items: IQueueItemResponseDTO[]): IQueueItemResponseDTO[] {
+function toPublicView(
+  items: IQueueItemResponseDTO[],
+  sessionId?: string
+): IQueueItemResponseDTO[] {
   return items.map((item) => ({
     ...item,
     whatsapp: "",
-    customerId: "",
+    customerId: sessionId && item.customerId === sessionId ? item.customerId : "",
   }));
 }
 
 export class ListQueueController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
-    const { barbershopId } = request.query as { barbershopId?: string };
+    const { barbershopId, sessionId: rawSession } = request.query as {
+      barbershopId?: string;
+      sessionId?: string;
+    };
+    const sessionId =
+      typeof rawSession === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawSession)
+        ? rawSession
+        : undefined;
     const user = request.user;
 
     // ── Visão pública (cliente sem conta) ────────────────────────────────
@@ -27,7 +38,7 @@ export class ListQueueController {
       }
       const listQueueUseCase = container.resolve(ListQueueUseCase);
       const queue = await listQueueUseCase.execute(barbershopId);
-      return reply.status(200).send(toPublicView(queue));
+      return reply.status(200).send(toPublicView(queue, sessionId));
     }
 
     // ── Visão staff/admin autenticada ────────────────────────────────────

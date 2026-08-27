@@ -6,6 +6,10 @@ import { z } from "zod";
 import { prisma } from "@/libs/prismaClient";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { isQueueStaffForShop } from "../../utils/queueAccess";
+import {
+  isPlaceholderWhatsApp,
+  resolveQueueWhatsApp,
+} from "../../utils/queueDuplicate";
 
 export class JoinQueueController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -13,13 +17,14 @@ export class JoinQueueController {
       barbershopId: z.string().uuid("barbershopId inválido"),
       serviceId: z.string().uuid("serviceId inválido"),
       customerName: z.string().min(2, "Nome obrigatório").max(200),
-      whatsapp: z.string().min(8, "WhatsApp inválido").max(20),
+      whatsapp: z.string().max(20).optional().default(""),
       /** UUID persistido no localStorage do cliente (dedup na fila). */
       sessionId: z.string().uuid().optional(),
       // addedByStaff do body é IGNORADO — derivado só de request.user
     });
 
     const data = schema.parse(request.body);
+    const whatsapp = resolveQueueWhatsApp(data.whatsapp);
     const isStaff = isQueueStaffForShop(request.user, data.barbershopId);
 
     // Staff adiciona cliente com ID novo; visitante reutiliza sessionId se enviado.
@@ -32,7 +37,7 @@ export class JoinQueueController {
       barbershopId: data.barbershopId,
       serviceId: data.serviceId,
       customerName: data.customerName,
-      whatsapp: data.whatsapp,
+      whatsapp,
       customerId,
       addedByStaff: isStaff,
     });
@@ -58,7 +63,7 @@ export class JoinQueueController {
             `*${shop.name}*\n` +
             `Nome: ${data.customerName}\n` +
             `Serviço: ${serviceName}\n` +
-            `Contato: ${data.whatsapp}`;
+            `Contato: ${isPlaceholderWhatsApp(whatsapp) ? "não informado" : whatsapp}`;
           await enqueueWhatsApp({
             phone: shop.whatsapp,
             message: msg,

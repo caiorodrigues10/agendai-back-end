@@ -3,8 +3,18 @@ import { IQueueRepository } from "@/modules/queue/repositories/IQueueRepository"
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
 
 const logger = getModuleLogger('queue:notify');
+
+/** Mensagem ao chamar o cliente (cadeira) — mesmo texto da posição 1. */
+export function buildQueueCalledMessage(customerName: string, shopLabel: string): string {
+  return (
+    `Chegou sua vez, ${customerName}! 🎉\n\n` +
+    `Você é o próximo a ser atendido na *${shopLabel}*. ` +
+    `Pode se aproximar do balcão/recepção.\n\nAté já! 💈`
+  );
+}
 
 export interface NotifyQueuePositionResult {
   notified: number;
@@ -59,6 +69,11 @@ export class NotifyQueuePositionUpdatesUseCase {
 
       if (lastNotified === position) continue;
 
+      if (isPlaceholderWhatsApp(item.whatsapp)) {
+        await this.queueRepository.markNotifiedPosition(item.id, position);
+        continue;
+      }
+
       const estimatedWaitMinutes = this.calcEstimatedWaitAhead(waiting, i);
 
       const message =
@@ -100,11 +115,7 @@ export class NotifyQueuePositionUpdatesUseCase {
   }
 
   private buildYouAreNextMessage(customerName: string, shopLabel: string): string {
-    return (
-      `Chegou sua vez, ${customerName}! 🎉\n\n` +
-      `Você é o próximo a ser atendido na *${shopLabel}*. ` +
-      `Pode se aproximar do balcão/recepção.\n\nAté já! 💈`
-    );
+    return buildQueueCalledMessage(customerName, shopLabel);
   }
 
   private buildPositionUpdateMessage(

@@ -16,7 +16,7 @@ import {
 } from "@/modules/appointments/useCases/appointmentUseCases";
 import * as queueModule from "@/shared/infra/queue";
 import { AppError } from "@/shared/errors/AppError";
-import { isActiveQueueDuplicate } from "../utils/queueDuplicate";
+import { isActiveQueueDuplicate, resolveQueueWhatsApp, STAFF_QUEUE_PLACEHOLDER_WHATSAPP } from "../utils/queueDuplicate";
 import { updateQueueItemSchema } from "../schemas/queueSchemas";
 
 let queues: MockQueueRepository;
@@ -35,9 +35,16 @@ beforeEach(() => {
   queues = new MockQueueRepository();
   notifySpy = vi.fn().mockResolvedValue({ notified: 0, failed: 0 });
   notifyPosition = { execute: notifySpy } as any;
+  const shopsStub = {
+    findById: vi.fn().mockResolvedValue({
+      id: "shop-1",
+      name: "Barbearia Central",
+      evolutionInstanceName: null,
+    }),
+  };
   join = new JoinQueueUseCase(queues as any);
   list = new ListQueueUseCase(queues as any);
-  update = new UpdateQueueItemUseCase(queues as any, notifyPosition);
+  update = new UpdateQueueItemUseCase(queues as any, notifyPosition, shopsStub as any);
   del = new DeleteQueueItemUseCase(queues as any, notifyPosition);
 });
 
@@ -86,6 +93,40 @@ describe("Queue module", () => {
     expect(completed.finalPrice).toBe(50);
     expect(completed.completedBy).toBe("staff-1");
     expect(typeof completed.completedAt).toBe("number");
+  });
+
+  it("Chamar enfileira WhatsApp ao ir para in_chair", async () => {
+    const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "11988887777",
+      serviceId: "svc-1",
+      customerId: "cust-call",
+    });
+    await update.execute(q.id, "in_chair", staffShop1);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy.mock.calls[0][0]).toMatchObject({
+      phone: "11988887777",
+      deduplicationKey: `call:${q.id}`,
+    });
+    expect(sendSpy.mock.calls[0][0].message).toContain("Chegou sua vez, Ana");
+    expect(sendSpy.mock.calls[0][0].message).toContain("Barbearia Central");
+    sendSpy.mockRestore();
+  });
+
+  it("Chamar não enfileira WhatsApp para placeholder", async () => {
+    const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Sem Zap",
+      whatsapp: STAFF_QUEUE_PLACEHOLDER_WHATSAPP,
+      serviceId: "svc-1",
+      customerId: "cust-placeholder",
+    });
+    await update.execute(q.id, "in_chair", staffShop1);
+    expect(sendSpy).not.toHaveBeenCalled();
+    sendSpy.mockRestore();
   });
 
   it("ignora completedAt extra no PATCH (timestamp fica no servidor)", () => {
@@ -505,12 +546,16 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     queues3.data.find((q) => q.id === b.id)!.serviceAvgTimeMinutes = 30;
     queues3.data.find((q) => q.id === c.id)!.serviceAvgTimeMinutes = 30;
 
-    const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase);
+    const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase, shops);
     await update.execute(a.id, "in_chair", staffShop1);
     await update.execute(a.id, "completed", staffShop1);
 
-    // Os 2 itens restantes (Segundo e Terceiro) recebem notificação.
-    expect(sendSpy).toHaveBeenCalledTimes(2);
+    // Chamado (Primeiro) + 2 restantes (Segundo e Terceiro).
+    expect(sendSpy).toHaveBeenCalledTimes(3);
+
+    const callA = sendSpy.mock.calls.find((m: any) => m[0].deduplicationKey === `call:${a.id}`)!;
+    expect(callA[0].phone).toBe("5511111111111");
+    expect(callA[0].message).toContain("Chegou sua vez, Primeiro");
 
     // Segundo vira posição 1 → mensagem "Chegou sua vez".
     const callB = sendSpy.mock.calls.find((m: any) => m[0].phone === "5522222222222")!;
@@ -525,9 +570,6 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     expect(callC[0].message).toContain("30 min");
     expect(queues3.data.find((q) => q.id === c.id)!.lastNotifiedPosition).toBe(2);
 
-    // O item completado (a) não recebe nenhuma mensagem.
-    expect(sendSpy.mock.calls.find((m: any) => m[0] === "5511111111111")).toBeUndefined();
-
     void a;
   });
 
@@ -540,16 +582,17 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
       barbershopId: "shop-1", serviceId: "svc", customerId: "c2",
       customerName: "Segundo", whatsapp: "5522222222222",
     });
-    const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase);
+    const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase, shops);
     // waiting → completed é ilegal; usar waiting → in_chair → completed
     await update.execute(a.id, "in_chair", staffShop1);
-    await update.execute(a.id, "completed", staffShop1); // dispara 1x para "Segundo" (pos 1)
-    expect(sendSpy).toHaveBeenCalledTimes(1);
+    await update.execute(a.id, "completed", staffShop1);
+    // call:Primeiro + posição do Segundo
+    expect(sendSpy).toHaveBeenCalledTimes(2);
 
-    // Completar "Segundo" não dispara mais nada (fila vazia).
     await update.execute(b.id, "in_chair", staffShop1);
     await update.execute(b.id, "completed", staffShop1);
-    expect(sendSpy).toHaveBeenCalledTimes(1);
+    // + call:Segundo; fila vazia não notifica waiting
+    expect(sendSpy).toHaveBeenCalledTimes(3);
   });
 
   it("DELETE do item da frente dispara aviso para o novo primeiro", async () => {
@@ -600,13 +643,16 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     expect(queues3.data.find((q) => q.id === c.id)!.lastNotifiedPosition).toBe(2);
   });
 
-  it("fila vazia não chama sendWhatsAppMessage", async () => {
-    const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase);
+  it("único cliente: Chamar envia WhatsApp; completar não notifica waiting vazio", async () => {
+    const update = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase, shops);
     const a = await queues3.create({
       barbershopId: "shop-1", serviceId: "svc", customerId: "c1",
       customerName: "Unico", whatsapp: "5511111111111",
     });
     await update.execute(a.id, "in_chair", staffShop1);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy.mock.calls[0][0].deduplicationKey).toBe(`call:${a.id}`);
+    sendSpy.mockClear();
     await update.execute(a.id, "completed", staffShop1);
     expect(sendSpy).not.toHaveBeenCalled();
   });
@@ -673,5 +719,11 @@ describe("isActiveQueueDuplicate", () => {
         customerName: "Maria",
       })
     ).toBe(false);
+  });
+
+  it("resolveQueueWhatsApp: vazio vira placeholder; número válido permanece", () => {
+    expect(resolveQueueWhatsApp("")).toBe(STAFF_QUEUE_PLACEHOLDER_WHATSAPP);
+    expect(resolveQueueWhatsApp("   ")).toBe(STAFF_QUEUE_PLACEHOLDER_WHATSAPP);
+    expect(resolveQueueWhatsApp("11988887777")).toBe("11988887777");
   });
 });

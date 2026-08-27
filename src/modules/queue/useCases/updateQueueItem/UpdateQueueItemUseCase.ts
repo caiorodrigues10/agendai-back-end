@@ -1,7 +1,8 @@
 import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
-import { NotifyQueuePositionUpdatesUseCase } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
+import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
+import { NotifyQueuePositionUpdatesUseCase, buildQueueCalledMessage } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
 import {
   assertQueueStatusTransition,
   assertQueueTenantAccess,
@@ -9,6 +10,8 @@ import {
   type QueueRequestingUser,
 } from "../../utils/queueAccess";
 import { computeInsertJoinedAt } from "../../utils/computeInsertJoinedAt";
+import { isPlaceholderWhatsApp } from "../../utils/queueDuplicate";
+import { enqueueWhatsApp } from "@/shared/infra/queue";
 
 @injectable()
 export class UpdateQueueItemUseCase {
@@ -16,7 +19,9 @@ export class UpdateQueueItemUseCase {
     @inject("QueueRepository")
     private queueRepository: IQueueRepository,
     @inject(NotifyQueuePositionUpdatesUseCase)
-    private notifyQueuePositionUpdates: NotifyQueuePositionUpdatesUseCase
+    private notifyQueuePositionUpdates: NotifyQueuePositionUpdatesUseCase,
+    @inject("BarbershopRepository")
+    private barbershopRepository: IBarbershopRepository
   ) {}
 
   async execute(
@@ -49,6 +54,21 @@ export class UpdateQueueItemUseCase {
       ...details,
       joinedAt,
     });
+
+    if (item.status === "waiting" && nextStatus === "in_chair" && !isPlaceholderWhatsApp(item.whatsapp)) {
+      try {
+        const shop = await this.barbershopRepository.findById(item.barbershopId);
+        const shopLabel = shop?.name?.trim() || "a barbearia";
+        await enqueueWhatsApp({
+          phone: item.whatsapp,
+          message: buildQueueCalledMessage(item.customerName, shopLabel),
+          instanceName: shop?.evolutionInstanceName?.trim() || undefined,
+          deduplicationKey: `call:${item.id}`,
+        });
+      } catch {
+        // notificação não bloqueia a mutação
+      }
+    }
 
     try {
       await this.notifyQueuePositionUpdates.execute(item.barbershopId);
