@@ -11,12 +11,14 @@ import {
   getConfigQuerySchema,
   saveConfigBodySchema,
   postParamsSchema,
+  generatePostSchema,
 } from "../schemas/postsSchemas";
 import {
   buildPostSvg,
   pngToDataUrl,
   renderPostSvgToPng,
 } from "../services/postImageService";
+import { generatePostContent } from "../services/postAiService";
 
 const ENUM_TO_INPUT = {
   HAIRCUT: "haircut",
@@ -151,6 +153,18 @@ export class PostsController {
       postMode: query.postMode,
     });
     return reply.status(200).send({ success: true, data: { imageUrl } });
+  }
+
+  /** Gera sugestões de título/CTA via IA (ou templates locais como fallback). */
+  async generate(request: FastifyRequest, reply: FastifyReply) {
+    const body = generatePostSchema.parse(request.body);
+    const user = request.user!;
+
+    assertSameBarbershop(user, body.barbershopId);
+
+    const result = await generatePostContent(body);
+
+    return reply.status(200).send({ success: true, data: result });
   }
 
   async create(request: FastifyRequest, reply: FastifyReply) {

@@ -56,6 +56,15 @@ export const saveConfigBodySchema = z.object({
   autoPostEnabled: z.boolean(),
 });
 
+export const generatePostSchema = z.object({
+  barbershopId: z.string().uuid(),
+  type: postTypeSchema,
+  postMode: postModeSchema.default("both"),
+  tone: z.enum(["promocional", "informativo", "divertido"]).optional(),
+  extra: z.string().max(500).optional(),
+  count: z.number().int().min(1).max(5).optional(),
+});
+
 export const postParamsSchema = z.object({
   id: z.string().uuid(),
 });
