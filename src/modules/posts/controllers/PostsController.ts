@@ -18,7 +18,10 @@ import {
   pngToDataUrl,
   renderPostSvgToPng,
 } from "../services/postImageService";
-import { generatePostContent } from "../services/postAiService";
+import {
+  generatePostContent,
+  DailyLimitExceededError,
+} from "../services/postAiService";
 
 const ENUM_TO_INPUT = {
   HAIRCUT: "haircut",
@@ -162,9 +165,20 @@ export class PostsController {
 
     assertSameBarbershop(user, body.barbershopId);
 
-    const result = await generatePostContent(body);
-
-    return reply.status(200).send({ success: true, data: result });
+    try {
+      const result = await generatePostContent(body);
+      return reply.status(200).send({ success: true, data: result });
+    } catch (err) {
+      if (err instanceof DailyLimitExceededError) {
+        return reply.status(429).send({
+          success: false,
+          code: err.code,
+          message: err.message,
+          retryAfter: err.retryAfter.toISOString(),
+        });
+      }
+      throw err;
+    }
   }
 
   async create(request: FastifyRequest, reply: FastifyReply) {
