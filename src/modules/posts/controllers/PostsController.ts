@@ -22,6 +22,10 @@ import {
   generatePostContent,
   DailyLimitExceededError,
 } from "../services/postAiService";
+import { broadcastPostToClients } from "../services/postBroadcastService";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("posts:controller");
 
 const ENUM_TO_INPUT = {
   HAIRCUT: "haircut",
@@ -217,6 +221,16 @@ export class PostsController {
       select: postSelect,
     });
 
+    // Fire-and-forget: broadcast post image to clients if status is PUBLISHED
+    if (status === "PUBLISHED") {
+      broadcastPostToClients(
+        body.barbershopId,
+        post.id,
+        body.title ?? "Vem pra cá hoje!",
+        body.ctaText ?? null
+      ).catch((err) => logger.error({ err, postId: post.id }, "Broadcast post failed"));
+    }
+
     return reply.status(201).send({ success: true, data: toPostResponse(post) });
   }
 
@@ -227,11 +241,13 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true },
+      select: { id: true, barbershopId: true, status: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
 
     assertSameBarbershop(user, existing.barbershopId);
+
+    const wasNotPublished = existing.status !== "PUBLISHED";
 
     let statusData: {
       status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
@@ -263,6 +279,16 @@ export class PostsController {
       },
       select: postSelect,
     });
+
+    // Fire-and-forget: broadcast post image to clients on transition to PUBLISHED
+    if (wasNotPublished && statusData?.status === "PUBLISHED") {
+      broadcastPostToClients(
+        existing.barbershopId,
+        post.id,
+        post.title ?? "Vem pra cá hoje!",
+        post.ctaText ?? null
+      ).catch((err) => logger.error({ err, postId: post.id }, "Broadcast post failed"));
+    }
 
     return reply.status(200).send({ success: true, data: toPostResponse(post) });
   }

@@ -8,6 +8,13 @@ const phoneBR = z
     message: "WhatsApp inválido (DDD + número com 8 ou 9 dígitos)",
   });
 
+const scheduleItemSchema = z.object({
+  dayOfWeek: z.number().min(0).max(6),
+  isOpen: z.boolean(),
+  openTime: z.string().min(4).max(5),
+  closeTime: z.string().min(4).max(5),
+});
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -49,6 +56,7 @@ export const registerSchema = z.object({
   marketingOptIn: z.boolean().optional().default(false),
   lgpdConsent: z.boolean().refine(v => v === true, "É necessário consentir com o tratamento de dados (LGPD)"),
   recaptchaToken: z.string().min(1, "Verificação de segurança obrigatória"),
+  schedule: z.array(scheduleItemSchema).min(7).max(7).optional(),
 });
 
 export const forgotPasswordSchema = z.object({

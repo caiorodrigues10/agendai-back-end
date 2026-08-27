@@ -30,6 +30,7 @@ export interface IRegisterDTO {
   termsAccepted: boolean;
   marketingOptIn: boolean;
   lgpdConsent: boolean;
+  schedule?: Array<{ dayOfWeek: number; isOpen: boolean; openTime: string; closeTime: string }>;
 }
 
 function mapRole(role: string): "admin" | "owner" | "employee" {
@@ -128,6 +129,26 @@ export class RegisterUseCase {
             icon: "razor",
           },
         ],
+      });
+
+      // Horário de funcionamento — fallback seguro se o campo não vier
+      const DEFAULT_SCHEDULE = [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+        dayOfWeek,
+        isOpen: dayOfWeek !== 0,
+        openTime: "09:00",
+        closeTime: "19:00",
+      }));
+      const scheduleToCreate =
+        data.schedule?.length === 7 ? data.schedule : DEFAULT_SCHEDULE;
+
+      await tx.schedule.createMany({
+        data: scheduleToCreate.map((s) => ({
+          barbershopId: barbershop.id,
+          dayOfWeek: s.dayOfWeek,
+          isOpen: s.isOpen,
+          openTime: s.openTime,
+          closeTime: s.closeTime,
+        })),
       });
 
       const created = await tx.user.create({

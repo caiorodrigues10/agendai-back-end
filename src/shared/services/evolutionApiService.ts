@@ -112,6 +112,77 @@ export async function sendWhatsAppMessage(
   }
 }
 
+export async function sendWhatsAppMedia(
+  phone: string,
+  imageBase64: string,
+  caption: string,
+  options: string | SendWhatsAppOptions | undefined = undefined
+): Promise<boolean> {
+  const opts: SendWhatsAppOptions =
+    typeof options === "string" || options === null || options === undefined
+      ? options === null || options === undefined
+        ? {}
+        : { instanceName: options }
+      : options;
+
+  const log = opts.log;
+  const finalPhone = normalizeWhatsAppPhone(phone);
+  if (!finalPhone || !imageBase64.trim()) {
+    log?.warn({ phone }, "WhatsApp media: telefone ou imagem inválidos");
+    return false;
+  }
+
+  const baseUrl = process.env.EVOLUTION_API_URL?.trim()?.replace(/\/+$/, "");
+  const apiKey = process.env.EVOLUTION_API_KEY?.trim();
+  const instanceName =
+    opts.instanceName?.trim() || process.env.EVOLUTION_INSTANCE_NAME?.trim();
+
+  if (!baseUrl || !apiKey || !instanceName) {
+    log?.warn(
+      { phone: finalPhone },
+      "Evolution API não configurada — mídia não enviada"
+    );
+    return false;
+  }
+
+  const url = `${baseUrl}/message/sendMedia/${encodeURIComponent(instanceName)}`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: apiKey,
+      },
+      body: JSON.stringify({
+        number: finalPhone,
+        mediatype: "image",
+        mimetype: "image/png",
+        media: imageBase64,
+        caption,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      log?.warn(
+        { status: res.status, phone: finalPhone, body: body.slice(0, 300) },
+        "Falha ao enviar mídia via Evolution API"
+      );
+      return false;
+    }
+
+    log?.info({ phone: finalPhone }, "Mídia enviada via Evolution API");
+    return true;
+  } catch (err) {
+    log?.warn(
+      { err, phone: finalPhone },
+      "Erro ao enviar mídia via Evolution API"
+    );
+    return false;
+  }
+}
+
 /** Expõe se o gateway está pronto (útil para health/settings no futuro). */
 export function isWhatsAppGatewayConfigured(): boolean {
   return isEvolutionConfigured();
