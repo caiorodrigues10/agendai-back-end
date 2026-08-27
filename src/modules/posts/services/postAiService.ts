@@ -598,7 +598,8 @@ export async function generatePostContent(
   }
 
   // 3. Try providers in order
-  let allQuotaErrors = true;
+  let anyConfigured = false;
+  let allConfiguredExhaustedByQuota = true;
 
   for (const providerName of order) {
     const providerFn = PROVIDER_MAP[providerName];
@@ -611,34 +612,30 @@ export async function generatePostContent(
       return { suggestions: result.suggestions, source: "ai", provider: providerName };
     }
 
-    // result has { error }
-    if (result.error === "quota" || result.error === "key") {
-      // key missing = skip silently (not a "failure"), quota = potential block
-      if (result.error === "key") {
-        logger.debug({ provider: providerName }, "Skipping: no API key configured");
-        allQuotaErrors = false; // key missing is not a quota error
-        continue;
-      }
-      // quota error — keep trying next provider
+    if (result.error === "key") {
+      logger.debug({ provider: providerName }, "Skipping: no API key configured");
+      continue; // not configured, doesn't count
+    }
+
+    anyConfigured = true;
+
+    if (result.error === "quota") {
       logger.warn({ provider: providerName, barbershopId }, "Provider quota/rate limit exceeded, trying next");
       continue;
     }
 
-    // other error — not a quota issue
-    allQuotaErrors = false;
+    // erro "other" (chave inválida, 500, parse) em provedor configurado
     logger.warn({ provider: providerName, barbershopId }, "Provider failed with non-quota error");
-    continue;
+    allConfiguredExhaustedByQuota = false;
   }
 
-  // 4. All providers exhausted
-  if (allQuotaErrors) {
-    // All configured providers had quota errors → set daily limit
+  // 4. All configured providers exhausted
+  if (anyConfigured && allConfiguredExhaustedByQuota) {
     await setDailyLimit(barbershopId);
     const limitExpiry = new Date(Date.now() + DAILY_LIMIT_TTL_SECONDS * 1000);
     throw new DailyLimitExceededError(limitExpiry);
   }
 
-  // Some failed with non-quota errors, some had no key — fall through to template
-  logger.warn({ barbershopId }, "All providers exhausted (mixed errors), falling back to templates");
+  logger.warn({ barbershopId }, "All configured providers exhausted or failed, falling back to templates");
   return { suggestions: getTemplateSuggestions(input), source: "template", provider: null };
 }

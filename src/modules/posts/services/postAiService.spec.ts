@@ -180,6 +180,19 @@ describe("postAiService", () => {
       await expect(generatePostContent(baseInput)).rejects.toThrow(DailyLimitExceededError);
       expect(globalThis.fetch).toHaveBeenCalledTimes(2);
     });
+
+    it("dispara limite diário com apenas 1 provedor configurado no chain padrão (6 provedores)", async () => {
+      process.env.GEMINI_API_KEY = "key1";
+      // não define AI_PROVIDER_ORDER -> usa a ordem default de 6 provedores, só gemini tem chave
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        text: () => Promise.resolve('{"error":{"message":"quota exceeded"}}'),
+      }) as any;
+
+      await expect(generatePostContent(baseInput)).rejects.toThrow(DailyLimitExceededError);
+    });
   });
 
   describe("DailyLimitExceededError", () => {
