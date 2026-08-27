@@ -20,7 +20,7 @@ export const SUBSCRIPTION_MESSAGES = {
   NO_SUBSCRIPTION: "Assinatura inativa. Assine um plano para continuar usando a plataforma.",
   LOGIN_EXPIRED: "Seu período de acesso expirou. Assine um plano para continuar.",
   CARD_REQUIRED:
-    "Cadastre um plano e um cartão de crédito para iniciar o trial de 30 dias. Não cobramos agora.",
+    "Cadastre um plano para continuar. O trial de 30 dias não exige cartão.",
   CNPJ_EXPIRED: "Este CNPJ já possui cadastro com acesso expirado. Assine um plano para reativar.",
   CNPJ_DUPLICATE: "Já existe um salão cadastrado com este CNPJ.",
 } as const;

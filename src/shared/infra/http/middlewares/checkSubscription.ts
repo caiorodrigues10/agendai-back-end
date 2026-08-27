@@ -14,13 +14,16 @@ import {
 } from "./subscriptionAccessCache";
 import { TRIAL_DAYS } from "@/shared/constants/subscription";
 import { getAvailablePlans } from "@/shared/utils/planUtils";
-import { subscriptionGrantsAccess } from "@/shared/utils/subscriptionAccess";
+import {
+  shouldBlockOwnerCpfsOnDeniedAccess,
+  subscriptionGrantsAccess,
+} from "@/shared/utils/subscriptionAccess";
 
 export { invalidateSubscriptionCache } from "./subscriptionAccessCache";
 
 /**
  * Middleware que verifica se a barbearia do usuário autenticado
- * possui acesso ativo (trial com cartão vaulted ou assinatura paga).
+ * possui acesso ativo (trial de 30 dias sem cartão, ou assinatura paga).
  */
 export async function checkSubscription(
   request: FastifyRequest,
@@ -94,22 +97,11 @@ export async function checkSubscription(
 
   const plans = await getAvailablePlans();
 
-  if (access.cardRequired) {
-    throw new AppError(
-      JSON.stringify({
-        code: "SUBSCRIPTION_REQUIRED",
-        reason: "CARD_REQUIRED",
-        message: SUBSCRIPTION_MESSAGES.CARD_REQUIRED,
-        plans,
-        barbershopId: user.barbershopId,
-      }),
-      402
+  if (shouldBlockOwnerCpfsOnDeniedAccess(subscription?.status)) {
+    blockOwnerCpfs(user.barbershopId).catch((err) =>
+      request.log.warn({ err }, "checkSubscription: falha ao bloquear CPFs dos owners")
     );
   }
-
-  blockOwnerCpfs(user.barbershopId).catch((err) =>
-    request.log.warn({ err }, "checkSubscription: falha ao bloquear CPFs dos owners")
-  );
 
   const statusMessage = subscription
     ? SUBSCRIPTION_STATUS_CONFIG[subscription.status]?.message

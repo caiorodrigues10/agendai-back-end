@@ -8,6 +8,7 @@ import {
   parseQueueStatus,
   type QueueRequestingUser,
 } from "../../utils/queueAccess";
+import { computeInsertJoinedAt } from "../../utils/computeInsertJoinedAt";
 
 @injectable()
 export class UpdateQueueItemUseCase {
@@ -22,7 +23,7 @@ export class UpdateQueueItemUseCase {
     id: string,
     statusRaw: string,
     requestingUser: QueueRequestingUser,
-    details?: { completedBy?: string; finalPrice?: number }
+    details?: { completedBy?: string; finalPrice?: number; insertAt?: number }
   ) {
     const item = await this.queueRepository.findById(id);
     if (!item) throw new AppError("Item de fila não encontrado", 404);
@@ -32,11 +33,22 @@ export class UpdateQueueItemUseCase {
     const nextStatus = parseQueueStatus(statusRaw);
     assertQueueStatusTransition(item.status, nextStatus);
 
-    const updated = await this.queueRepository.updateStatus(
-      id,
-      nextStatus,
-      details
-    );
+    let joinedAt: Date | undefined;
+    if (nextStatus === "waiting") {
+      const waiting = (await this.queueRepository.findWaitingByBarbershop(item.barbershopId)).filter(
+        (w) => w.id !== id
+      );
+      const insertAt = details?.insertAt ?? waiting.length;
+      joinedAt = computeInsertJoinedAt(
+        waiting.map((w) => w.joinedAt),
+        insertAt
+      );
+    }
+
+    const updated = await this.queueRepository.updateStatus(id, nextStatus, {
+      ...details,
+      joinedAt,
+    });
 
     try {
       await this.notifyQueuePositionUpdates.execute(item.barbershopId);

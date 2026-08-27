@@ -16,6 +16,8 @@ import {
 } from "@/modules/appointments/useCases/appointmentUseCases";
 import * as queueModule from "@/shared/infra/queue";
 import { AppError } from "@/shared/errors/AppError";
+import { isActiveQueueDuplicate } from "../utils/queueDuplicate";
+import { updateQueueItemSchema } from "../schemas/queueSchemas";
 
 let queues: MockQueueRepository;
 let join: JoinQueueUseCase;
@@ -84,6 +86,37 @@ describe("Queue module", () => {
     expect(completed.finalPrice).toBe(50);
     expect(completed.completedBy).toBe("staff-1");
     expect(typeof completed.completedAt).toBe("number");
+  });
+
+  it("ignora completedAt extra no PATCH (timestamp fica no servidor)", () => {
+    const parsed = updateQueueItemSchema.parse({
+      status: "completed",
+      finalPrice: 45,
+      completedAt: Date.now(),
+    });
+    expect(parsed).toEqual({ status: "completed", finalPrice: 45 });
+    expect("completedAt" in parsed).toBe(false);
+  });
+
+  it("volta da cadeira para a espera na posição escolhida", async () => {
+    const first = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Primeiro",
+      whatsapp: "1",
+      serviceId: "svc-1",
+      customerId: "c1",
+    });
+    const second = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Segundo",
+      whatsapp: "2",
+      serviceId: "svc-1",
+      customerId: "c2",
+    });
+    await update.execute(first.id, "in_chair", staffShop1);
+    const back = await update.execute(first.id, "waiting", staffShop1, { insertAt: 0 });
+    expect(back.status).toBe("waiting");
+    expect(back.joinedAt).toBeLessThan(second.joinedAt);
   });
 
   it("cancela item e remove do histórico", async () => {
@@ -612,5 +645,33 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     const jobData = sendSpy.mock.calls[0][0] as { instanceName?: string };
     expect(jobData).toBeDefined();
     expect(jobData.instanceName).toBeUndefined();
+  });
+});
+
+describe("isActiveQueueDuplicate", () => {
+  const base = {
+    customerId: "sess-1",
+    whatsapp: "11988887777",
+    customerName: "Caio",
+  };
+
+  it("bloqueia o mesmo customerId (mesma sessão)", () => {
+    expect(
+      isActiveQueueDuplicate(base, {
+        customerId: "sess-1",
+        whatsappDigits: "11999999999",
+        customerName: "Outra",
+      })
+    ).toBe(true);
+  });
+
+  it("permite outro nome no mesmo WhatsApp (adicionar outra pessoa)", () => {
+    expect(
+      isActiveQueueDuplicate(base, {
+        customerId: "sess-2",
+        whatsappDigits: "11988887777",
+        customerName: "Maria",
+      })
+    ).toBe(false);
   });
 });

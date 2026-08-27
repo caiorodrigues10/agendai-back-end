@@ -34,7 +34,8 @@ export class JoinQueueUseCase {
     const duplicate = await this.queueRepository.findActiveDuplicate(
       data.barbershopId,
       customerId,
-      whatsappDigits
+      whatsappDigits,
+      data.customerName
     );
     if (duplicate) {
       throw new AppError("Você já está na fila", 409);

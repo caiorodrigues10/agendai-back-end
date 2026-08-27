@@ -2,6 +2,7 @@ import { IQueueRepository } from "@/modules/queue/repositories/IQueueRepository"
 import { IJoinQueueDTO } from "@/modules/queue/dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO } from "@/modules/queue/dtos/IQueueItemResponseDTO";
 import { AppError } from "@/shared/errors/AppError";
+import { isActiveQueueDuplicate } from "@/modules/queue/utils/queueDuplicate";
 
 export class MockQueueRepository implements IQueueRepository {
   public data: IQueueItemResponseDTO[] = [];
@@ -10,15 +11,15 @@ export class MockQueueRepository implements IQueueRepository {
   async findActiveDuplicate(
     barbershopId: string,
     customerId: string,
-    whatsappDigits: string
+    whatsappDigits: string,
+    customerName: string
   ): Promise<IQueueItemResponseDTO | null> {
     return (
       this.data.find(
         (q) =>
           q.barbershopId === barbershopId &&
           (q.status === "waiting" || q.status === "in_chair") &&
-          (q.customerId === customerId ||
-            q.whatsapp.replace(/\D/g, "") === whatsappDigits)
+          isActiveQueueDuplicate(q, { customerId, whatsappDigits, customerName })
       ) ?? null
     );
   }
@@ -65,6 +66,11 @@ export class MockQueueRepository implements IQueueRepository {
       patch.completedAt = Date.now();
       if (details?.completedBy) patch.completedBy = details.completedBy;
       if (details?.finalPrice != null) patch.finalPrice = details.finalPrice;
+    }
+
+    if (status === "waiting" && details?.joinedAt) {
+      const at = details.joinedAt;
+      patch.joinedAt = at instanceof Date ? at.getTime() : Number(at);
     }
 
     const updated = { ...current, ...patch };

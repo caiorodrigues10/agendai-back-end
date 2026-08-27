@@ -2,6 +2,7 @@ import { prisma } from "@/libs/prismaClient";
 import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO, QueueStatus } from "../../dtos/IQueueItemResponseDTO";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
+import { isActiveQueueDuplicate } from "../../utils/queueDuplicate";
 
 type PrismaQueueStatus = "WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED";
 
@@ -17,7 +18,8 @@ export class QueueRepository implements IQueueRepository {
   async findActiveDuplicate(
     barbershopId: string,
     customerId: string,
-    whatsappDigits: string
+    whatsappDigits: string,
+    customerName: string
   ): Promise<IQueueItemResponseDTO | null> {
     const items = await prisma.queueItem.findMany({
       where: {
@@ -27,10 +29,8 @@ export class QueueRepository implements IQueueRepository {
       include: { service: true },
     });
 
-    const duplicate = items.find(
-      (i) =>
-        i.customerId === customerId ||
-        i.whatsapp.replace(/\D/g, "") === whatsappDigits
+    const duplicate = items.find((i) =>
+      isActiveQueueDuplicate(i, { customerId, whatsappDigits, customerName })
     );
 
     return duplicate ? this.mapToDTO(duplicate) : null;
@@ -72,7 +72,7 @@ export class QueueRepository implements IQueueRepository {
   async updateStatus(
     id: string,
     status: string,
-    details?: { completedBy?: string; finalPrice?: number }
+    details?: { completedBy?: string; finalPrice?: number; joinedAt?: Date }
   ): Promise<IQueueItemResponseDTO> {
     const prismaStatus = toPrisma(status);
     const data: Record<string, unknown> = { status: prismaStatus };
@@ -81,6 +81,10 @@ export class QueueRepository implements IQueueRepository {
       data.completedAt = new Date();
       if (details?.completedBy)        data.completedBy = details.completedBy;
       if (details?.finalPrice != null) data.finalPrice  = details.finalPrice;
+    }
+
+    if (prismaStatus === "WAITING" && details?.joinedAt) {
+      data.joinedAt = details.joinedAt;
     }
 
     const item = await prisma.queueItem.update({

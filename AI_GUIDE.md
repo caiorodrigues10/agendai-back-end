@@ -307,10 +307,10 @@ Esta é a área de lógica mais complexa. Leia com atenção.
 
 ### 7.1 Fluxo de acesso
 
-1. Toda barbearia tem **30 dias de trial Pro** a partir de `Barbershop.createdAt` — independente do plano escolhido/assinado.
+1. Toda barbearia tem **30 dias de trial Pro** a partir de `Barbershop.createdAt` — independente do plano escolhido/assinado. **Não exige cartão.**
 2. Durante o trial: `checkDashboardAccess` libera Pro completo mesmo com Essencial; após o trial aplica o plano efetivo (downgrade).
-3. Após o trial, é necessária uma `Subscription` com status `ACTIVE` ou `TRIALING`.
-4. O middleware `checkSubscription` verifica isso em cada request.
+3. Após o trial, é necessária uma `Subscription` `ACTIVE` (ou período pago restante) nas APIs (`checkSubscription` → 402).
+4. **Login não 402** quando o trial acaba: emite JWT para o dono poder `POST /subscriptions`. CPF só é bloqueado em inadimplência real (`PAST_DUE` / `UNPAID`).
 5. `MASTER_ADMIN` é **sempre isento** de `checkSubscription`.
 
 ### 7.2 Status de Subscription
@@ -338,11 +338,13 @@ O `message` é um JSON stringificado. O frontend deve fazer `JSON.parse(error.me
 
 ### 7.4 Bloqueio automático de CPF
 
-Quando uma assinatura expira:
+Quando uma assinatura fica inadimplente (`PAST_DUE` / `UNPAID`):
 1. O sistema chama `blockOwnerCpfs(barbershopId)`.
 2. Os CPFs dos `OWNER`s dessa barbearia são inseridos em `BlockedEntity` com `isActive: true`.
 3. No login, `assertCpfNotBlocked(cpf)` é chamado e retorna 403 com `code: "CPF_BLOCKED"`.
 4. No webhook de pagamento aprovado, `unblockOwnerCpfs(barbershopId, ...)` é chamado.
+
+O fim do trial **sem pagamento** gera 402 nas APIs operacionais, mas **não** bloqueia CPF (o dono precisa autenticar para assinar).
 
 ### 7.5 Serviço de bloqueio
 

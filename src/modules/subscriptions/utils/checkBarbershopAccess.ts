@@ -25,47 +25,18 @@ function buildSubscriptionRequiredError(
 }
 
 /**
- * Verifica se a barbearia tem acesso ativo.
- * Se o acesso expirou, bloqueia automaticamente os CPFs dos owners
- * e lança 402 com a lista de planos disponíveis.
+ * Gate de login: só recusa se o CPF já estiver em BlockedEntity (inadimplência).
+ * Trial/assinatura expirados NÃO geram 402 nem bloqueio de CPF aqui —
+ * o JWT é emitido para o dono poder POST /subscriptions. APIs operacionais
+ * continuam protegidas por checkSubscription.
  */
 export async function checkBarbershopAccess(
-  barbershopId: string,
+  _barbershopId: string,
   userCpf?: string
 ): Promise<void> {
-  // Se o usuário forneceu CPF, verifica bloqueio individual primeiro
   if (userCpf) {
     await assertCpfNotBlocked(userCpf);
   }
-
-  const barbershop = await prisma.barbershop.findUnique({
-    where: { id: barbershopId },
-    select: {
-      createdAt: true,
-      subscriptions: {
-        select: { status: true, endDate: true, asaasCreditCardToken: true },
-        orderBy: { createdAt: "desc" },
-        take: 1
-      }
-    }
-  });
-
-  if (!barbershop) return;
-
-  const now = new Date();
-  const trialEnd = new Date(barbershop.createdAt);
-  trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
-
-  const subscription = barbershop.subscriptions[0];
-  const access = subscriptionGrantsAccess(subscription, now, trialEnd);
-
-  // Login libera JWT mesmo sem cartão (CARD_REQUIRED): o FE manda ao checkout.
-  // Bloqueia só quando o calendário de trial acabou e não há assinatura válida.
-  if (access.allowed || access.cardRequired) return;
-
-  await blockOwnerCpfs(barbershopId);
-  const plans = await getAvailablePlans();
-  buildSubscriptionRequiredError(SUBSCRIPTION_MESSAGES.LOGIN_EXPIRED, plans, barbershopId);
 }
 
 /**
@@ -156,11 +127,8 @@ export async function checkCnpjAccess(cnpj: string): Promise<void> {
   // CNPJ já cadastrado sem acesso: pede reativação (plano), não novo cadastro
   const plans = await getAvailablePlans();
   buildSubscriptionRequiredError(
-    access.cardRequired
-      ? SUBSCRIPTION_MESSAGES.CARD_REQUIRED
-      : SUBSCRIPTION_MESSAGES.CNPJ_EXPIRED,
+    SUBSCRIPTION_MESSAGES.CNPJ_EXPIRED,
     plans,
-    existingBarbershop.id,
-    access.cardRequired ? { reason: "CARD_REQUIRED" } : undefined
+    existingBarbershop.id
   );
 }

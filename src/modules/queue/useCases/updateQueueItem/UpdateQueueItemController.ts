@@ -12,13 +12,13 @@ export class UpdateQueueItemController {
     }
 
     const { id } = request.params as { id: string };
-    const parsed = updateQueueItemSchema.parse(request.body);
-    const { status, completedBy, finalPrice } = parsed;
+    const { status, completedBy, finalPrice, insertAt } = updateQueueItemSchema.parse(request.body);
 
     const useCase = container.resolve(UpdateQueueItemUseCase);
     const item = await useCase.execute(id, status, user, {
       completedBy,
       finalPrice,
+      insertAt,
     });
     return reply.status(200).send(item);
   }

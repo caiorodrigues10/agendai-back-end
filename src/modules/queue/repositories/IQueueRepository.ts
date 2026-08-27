@@ -6,7 +6,8 @@ export interface IQueueRepository {
   findActiveDuplicate(
     barbershopId: string,
     customerId: string,
-    whatsappDigits: string
+    whatsappDigits: string,
+    customerName: string
   ): Promise<IQueueItemResponseDTO | null>;
   list(barbershopId?: string): Promise<IQueueItemResponseDTO[]>;
   findById(id: string): Promise<IQueueItemResponseDTO | null>;
