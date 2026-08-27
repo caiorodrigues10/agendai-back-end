@@ -53,6 +53,7 @@ export async function buildApp() {
       }
       cb(new Error("Origin not allowed"), false);
     },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
