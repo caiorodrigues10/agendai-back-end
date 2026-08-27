@@ -6,6 +6,9 @@ import { AppError } from "@/shared/errors/AppError";
 import { checkBarbershopAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { issueAuthSession } from "../../services/issueAuthSession";
 import { prisma } from "@/libs/prismaClient";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("login");
 
 const CURRENT_TERMS_VERSION = "1.0";
 
@@ -30,11 +33,18 @@ export class LoginUseCase {
   async execute(email: string, password: string, reply?: FastifyReply) {
     const user = await this.userRepository.findByEmail(email);
     if (!user || !user.active) {
+      logger.info({ reason: !user ? "not_found" : "inactive" }, "login denied");
       throw new AppError("Credenciais inválidas", 401);
     }
 
-    const passwordOk = await this.hashProvider.compare(password, user.password!);
+    if (!user.password) {
+      logger.info({ reason: "no_password" }, "login denied");
+      throw new AppError("Credenciais inválidas", 401);
+    }
+
+    const passwordOk = await this.hashProvider.compare(password, user.password);
     if (!passwordOk) {
+      logger.info({ reason: "password_mismatch" }, "login denied");
       throw new AppError("Credenciais inválidas", 401);
     }
 

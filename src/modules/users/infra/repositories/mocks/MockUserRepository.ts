@@ -30,7 +30,8 @@ export class MockUserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string): Promise<IUserResponseDTO | null> {
-    return this.data.find((u) => u.email === email) ?? null;
+    const normalized = email.trim().toLowerCase();
+    return this.data.find((u) => u.email.toLowerCase() === normalized) ?? null;
   }
 
   async findByCpf(cpf: string): Promise<IUserResponseDTO | null> {

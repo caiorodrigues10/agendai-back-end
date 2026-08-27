@@ -30,8 +30,9 @@ export class UserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string): Promise<IUserResponseDTO | null> {
-    return prisma.user.findUnique({
-      where: { email },
+    const normalized = email.trim().toLowerCase();
+    return prisma.user.findFirst({
+      where: { email: { equals: normalized, mode: "insensitive" } },
       select: { ...publicSelect, password: true, googleSub: true, emailVerified: true }
     });
   }

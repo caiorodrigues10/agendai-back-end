@@ -20,13 +20,16 @@ export class ForgotPasswordUseCase {
       throw new AppError("Muitas solicitações. Tente novamente em 1 hora.", 429);
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } },
+    });
     if (!user || !user.active) {
       return { message: "Se o e-mail existir, você receberá um link de redefinição." };
     }
 
     await prisma.passwordResetToken.updateMany({
-      where: { email, usedAt: null },
+      where: { email: user.email, usedAt: null },
       data: { usedAt: new Date() },
     });
 
@@ -34,11 +37,11 @@ export class ForgotPasswordUseCase {
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
     await prisma.passwordResetToken.create({
-      data: { email, token, expiresAt },
+      data: { email: user.email, token, expiresAt },
     });
 
-    this.sendResetEmail(email, token).catch((err) => {
-      logger.error({ err, email }, "Falha ao enviar e-mail de redefinição");
+    this.sendResetEmail(user.email, token).catch((err) => {
+      logger.error({ err, email: user.email }, "Falha ao enviar e-mail de redefinição");
     });
 
     return { message: "Se o e-mail existir, você receberá um link de redefinição." };

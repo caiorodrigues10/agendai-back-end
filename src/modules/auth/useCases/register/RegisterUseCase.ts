@@ -56,7 +56,8 @@ export class RegisterUseCase {
   ) {}
 
   async execute(data: IRegisterDTO, reply?: FastifyReply) {
-    const emailValidation = await validateEmail(data.email);
+    const email = data.email.trim().toLowerCase();
+    const emailValidation = await validateEmail(email);
     if (!emailValidation.valid) {
       throw new AppError("E-mail inválido", 400);
     }
@@ -66,7 +67,9 @@ export class RegisterUseCase {
       throw new AppError("CPF inválido", 400);
     }
 
-    const existingEmail = await prisma.user.findUnique({ where: { email: data.email } });
+    const existingEmail = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+    });
     if (existingEmail) {
       throw new AppError("E-mail já cadastrado", 400);
     }
@@ -154,7 +157,7 @@ export class RegisterUseCase {
       const created = await tx.user.create({
         data: {
           name: data.ownerName,
-          email: data.email,
+          email,
           password: hashedPassword,
           role: "OWNER",
           barbershopId: barbershop.id,
