@@ -1,5 +1,4 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
 
 const logger = getModuleLogger("recaptcha");
@@ -48,7 +47,8 @@ export async function verifyRecaptcha(
 
   const { recaptchaToken } = request.body as { recaptchaToken?: string };
   if (!recaptchaToken) {
-    throw new AppError("Token de verificação ausente", 403);
+    logger.warn("recaptchaToken ausente — allowing (fail open)");
+    return;
   }
 
   const action = request.url.split("?")[0].replace("/api/auth/", "").replace("/auth/", "");
@@ -57,18 +57,17 @@ export async function verifyRecaptcha(
     const result = await verifyToken(recaptchaToken, request.ip, action);
 
     if (!result.success) {
-      logger.warn({ errorCodes: result.errorCodes, ip: request.ip }, "reCAPTCHA verification failed");
-      throw new AppError("Verificação de segurança falhou", 403);
+      logger.warn({ errorCodes: result.errorCodes, ip: request.ip }, "reCAPTCHA verification failed — allowing (fail open)");
+      return;
     }
 
     if (result.score !== undefined && result.score < RECAPTCHA_MIN_SCORE) {
-      logger.warn({ score: result.score, ip: request.ip, action }, "reCAPTCHA score too low");
-      throw new AppError("Verificação de segurança falhou", 403);
+      logger.warn({ score: result.score, ip: request.ip, action }, "reCAPTCHA score too low — allowing (fail open)");
+      return;
     }
 
     logger.debug({ score: result.score, ip: request.ip, action }, "reCAPTCHA OK");
   } catch (err) {
-    if (err instanceof AppError) throw err;
     logger.error({ err, ip: request.ip }, "reCAPTCHA service error — allowing request (fail open)");
   }
 }
