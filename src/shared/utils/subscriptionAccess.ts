@@ -1,8 +1,9 @@
 /**
  * Regras de acesso pós-cadastro:
+ * - Sem assinatura: trial de 30 dias liberado automaticamente (ver README).
  * - ACTIVE (ou CANCELED com período pago) → liberado (já pagou).
  * - TRIALING com cartão vaulted Asaas → liberado durante o trial.
- * - Calendário de trial sem cartão → bloqueado (CARD_REQUIRED).
+ * - TRIALING sem cartão → bloqueado (CARD_REQUIRED).
  */
 
 export function hasVaultedCard(sub: {
@@ -21,8 +22,9 @@ export function subscriptionGrantsAccess(
   trialEnd: Date
 ): { allowed: boolean; cardRequired: boolean } {
   if (!subscription) {
-    // Dentro do calendário de trial sem assinatura/cartão → exige setup
-    if (now <= trialEnd) return { allowed: false, cardRequired: true };
+    // Sem nenhuma assinatura ainda: trial de 30 dias liberado
+    // automaticamente, sem exigir cartão (ver README "Trial").
+    if (now <= trialEnd) return { allowed: true, cardRequired: false };
     return { allowed: false, cardRequired: false };
   }
 

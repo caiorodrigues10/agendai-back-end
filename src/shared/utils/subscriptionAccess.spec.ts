@@ -5,9 +5,15 @@ describe("subscriptionGrantsAccess", () => {
   const now = new Date("2026-08-22T12:00:00Z");
   const trialEnd = new Date("2026-09-20T12:00:00Z");
 
-  it("bloqueia trial calendário sem cartão", () => {
+  it("libera trial sem assinatura dentro do calendário", () => {
     const r = subscriptionGrantsAccess(null, now, trialEnd);
-    expect(r).toEqual({ allowed: false, cardRequired: true });
+    expect(r).toEqual({ allowed: true, cardRequired: false });
+  });
+
+  it("bloqueia sem assinatura após fim do trial", () => {
+    const after = new Date("2026-09-21T12:00:00Z");
+    const r = subscriptionGrantsAccess(null, after, trialEnd);
+    expect(r).toEqual({ allowed: false, cardRequired: false });
   });
 
   it("libera TRIALING com token vaulted dentro do trial", () => {
