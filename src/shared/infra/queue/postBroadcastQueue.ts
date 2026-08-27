@@ -12,7 +12,7 @@ export interface PostBroadcastJobData {
   imageBase64: string;
   /** Texto da legenda (título + CTA). */
   caption: string;
-  /** Nome da instância Evolution API da barbearia (fallback para env global). */
+  /** Nome da instância Evolution API da barbearia (sem fallback global). */
   instanceName?: string;
   /** Telefone normalizado do cliente destinatário. */
   clientPhone: string;
@@ -70,6 +70,7 @@ export async function enqueuePostBroadcast(
   data: PostBroadcastJobData
 ): Promise<void> {
   if (process.env.VITEST) return;
+  if (!data.instanceName?.trim()) return;
   const { ensurePostBroadcastWorker } = await import("./postBroadcastWorker");
   await ensurePostBroadcastWorker();
   const jobId = data.deduplicationKey || undefined;

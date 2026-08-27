@@ -24,6 +24,7 @@ import {
 } from "../services/postAiService";
 import { broadcastPostToClients } from "../services/postBroadcastService";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
 
 const logger = getModuleLogger("posts:controller");
 
@@ -102,6 +103,14 @@ function defaultCtaText(postMode: "queue" | "appointments" | "both"): string {
   if (postMode === "queue") return "Entrar na fila";
   if (postMode === "appointments") return "Agendar horário";
   return "Fila ou agenda";
+}
+
+async function assertShopWhatsAppConnected(barbershopId: string): Promise<void> {
+  const shop = await prisma.barbershop.findUnique({
+    where: { id: barbershopId },
+    select: { evolutionInstanceName: true },
+  });
+  if (!shop?.evolutionInstanceName?.trim()) throw whatsAppNotConnectedError();
 }
 
 /** Carrega o contexto visual do post: salão, serviços top 3 e horário de hoje. */
@@ -204,6 +213,10 @@ export class PostsController {
       parsedScheduledFor !== null && parsedScheduledFor.getTime() > Date.now();
     const status = isScheduled ? "SCHEDULED" : "PUBLISHED";
 
+    if (status === "PUBLISHED") {
+      await assertShopWhatsAppConnected(body.barbershopId);
+    }
+
     const post = await prisma.feedPost.create({
       data: {
         barbershopId: body.barbershopId,
@@ -269,6 +282,10 @@ export class PostsController {
       };
     }
 
+    if (wasNotPublished && statusData?.status === "PUBLISHED") {
+      await assertShopWhatsAppConnected(existing.barbershopId);
+    }
+
     const post = await prisma.feedPost.update({
       where: { id },
       data: {
@@ -280,7 +297,6 @@ export class PostsController {
       select: postSelect,
     });
 
-    // Fire-and-forget: broadcast post image to clients on transition to PUBLISHED
     if (wasNotPublished && statusData?.status === "PUBLISHED") {
       broadcastPostToClients(
         existing.barbershopId,

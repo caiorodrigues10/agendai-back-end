@@ -29,12 +29,13 @@ function createWorker(): Worker<WhatsAppJobData> {
     async (job: Job<WhatsAppJobData>) => {
       if (_idleTimer) clearTimeout(_idleTimer);
 
-      const { phone, message, instanceName } = job.data;
+      const { phone, message, instanceName, platform } = job.data;
 
       logger.debug({ jobId: job.id, attempt: job.attemptsMade + 1, maxAttempts: job.opts.attempts }, 'Processing WhatsApp job');
 
       const sent = await sendWhatsAppMessage(phone, message, {
         instanceName: instanceName || undefined,
+        platform: Boolean(platform),
       });
 
       if (!sent) {

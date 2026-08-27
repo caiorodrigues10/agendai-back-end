@@ -11,6 +11,7 @@ import { DeleteBarbershopController }  from "@/modules/barbershops/useCases/dele
 import { GetScheduleController }       from "@/modules/barbershops/useCases/getSchedule/GetScheduleController";
 import { UpdateScheduleController }    from "@/modules/barbershops/useCases/updateSchedule/UpdateScheduleController";
 import { LogoController }              from "@/modules/barbershops/useCases/uploadLogo/LogoController";
+import { WhatsAppConnectionController } from "@/modules/barbershops/useCases/whatsappConnection/WhatsAppConnectionController";
 
 export async function barbershopsRoutes(app: FastifyInstance) {
   const create         = new CreateBarbershopController();
@@ -21,6 +22,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const getSchedule    = new GetScheduleController();
   const updateSchedule = new UpdateScheduleController();
   const logo           = new LogoController();
+  const whatsapp       = new WhatsAppConnectionController();
 
   // ─── Admin — sem checkSubscription (operação de plataforma) ────────────────
   app.post("/barbershops",     { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] }, create.handle.bind(create));
@@ -36,6 +38,16 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.patch("/barbershops/:id",          { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, update.handle.bind(update));
   app.put("/barbershops/:id/schedule",   { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, updateSchedule.handle.bind(updateSchedule));
   app.patch("/barbershops/:id/schedule", { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, updateSchedule.handle.bind(updateSchedule));
+
+  const ownerWhatsAppGuard = [
+    authenticate,
+    authorize(["MASTER_ADMIN", "OWNER"]),
+    checkSubscription,
+    setRlsContext,
+  ];
+  app.get("/barbershops/:id/whatsapp", { preHandler: ownerWhatsAppGuard }, whatsapp.status.bind(whatsapp));
+  app.post("/barbershops/:id/whatsapp/connect", { preHandler: ownerWhatsAppGuard }, whatsapp.connect.bind(whatsapp));
+  app.post("/barbershops/:id/whatsapp/disconnect", { preHandler: ownerWhatsAppGuard }, whatsapp.disconnect.bind(whatsapp));
 
   // ─── Logo — Fluxo 1: Signed URL (upload direto cliente → GCS) ─────────────
   //

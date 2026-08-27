@@ -41,7 +41,7 @@ export class MockBarbershopRepository implements IBarbershopRepository {
     const updated: IBarbershopResponseDTO = {
       ...current,
       ...payload,
-      // string vazia é normalizada para null: sinaliza "sem instância própria, usar fallback".
+      // string vazia é normalizada para null (salão sem pairing).
       evolutionInstanceName:
         payload.evolutionInstanceName === ""
           ? null

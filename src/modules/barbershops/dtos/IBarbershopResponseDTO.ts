@@ -7,6 +7,6 @@ export interface IBarbershopResponseDTO {
   address?: string | null;
   createdAt: Date;
   active: boolean;
-  /** Nome da instância da Evolution API desta barbearia (fallback para env global se vazio). */
+  /** Nome da instância Evolution — só o fluxo de connect/disconnect altera. */
   evolutionInstanceName?: string | null;
 }

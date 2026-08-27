@@ -55,9 +55,8 @@ export class NotifyQueuePositionUpdatesUseCase {
 
     const shop = await this.barbershopRepository.findById(barbershopId);
     const shopLabel = shop?.name?.trim() || "a barbearia";
-    // Usa a instância da Evolution API configurada pela barbearia, se houver.
-    // Fallback para a env var global é feito dentro de `sendWhatsAppMessage`.
-    const instanceName = shop?.evolutionInstanceName?.trim() || undefined;
+    const instanceName = shop?.evolutionInstanceName?.trim();
+    if (!instanceName) return { notified: 0, failed: 0 };
 
     let notified = 0;
     let failed = 0;

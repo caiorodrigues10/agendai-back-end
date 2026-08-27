@@ -29,14 +29,6 @@ export const updateBarbershopSchema = z.object({
     .optional()
     .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
     .transform((v) => (v ? normalizeCnpj(v) : v)),
-  /**
-   * Nome da instância da Evolution API desta barbearia.
-   * Aceita string (1..100), null, ou string vazia — string vazia é normalizada
-   * para null (= "usar fallback da env var global").
-   */
-  evolutionInstanceName: z
-    .union([z.string().min(1).max(100), z.null(), z.literal("")])
-    .optional(),
 });
 
 export const scheduleItemSchema = z.object({

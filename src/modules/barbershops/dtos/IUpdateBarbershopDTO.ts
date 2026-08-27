@@ -3,6 +3,6 @@ export interface IUpdateBarbershopDTO {
   whatsapp?: string;
   logoUrl?: string | null;
   active?: boolean;
-  /** Nome da instância da Evolution API desta barbearia (string vazia para resetar / usar fallback). */
+  /** Nome da instância Evolution — gravado pelo pairing, não pelo PATCH genérico. */
   evolutionInstanceName?: string | null;
 }

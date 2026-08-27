@@ -474,14 +474,16 @@ export class SendAppointmentRemindersUseCase {
           shopCache.set(appt.barbershopId, shop);
         }
 
-        const sendOpts = {
-          instanceName: shop.evolutionInstanceName ?? undefined,
-        };
+        const instanceName = shop.evolutionInstanceName?.trim();
+        if (!instanceName) {
+          failed++;
+          continue;
+        }
 
         await enqueueWhatsApp({
           phone: appt.whatsapp,
           message: mainMessage,
-          instanceName: sendOpts.instanceName,
+          instanceName,
           deduplicationKey: `reminder:${appt.id}`,
         });
         await this.repo.markReminderSent(appt.id);
@@ -493,7 +495,7 @@ export class SendAppointmentRemindersUseCase {
             await enqueueWhatsApp({
               phone: appt.whatsapp,
               message: queueMsg,
-              instanceName: sendOpts.instanceName,
+              instanceName,
               deduplicationKey: `reminder-queue:${appt.id}`,
             });
           } catch {

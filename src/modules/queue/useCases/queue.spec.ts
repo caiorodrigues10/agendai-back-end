@@ -675,7 +675,7 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     expect(jobData.instanceName).toBe("instancia-zeca");
   });
 
-  it("sem evolutionInstanceName na barbearia, passa instanceName = undefined (fallback)", async () => {
+  it("sem evolutionInstanceName na barbearia, não enfileira WhatsApp", async () => {
     shops.findById = vi
       .fn()
       .mockResolvedValue({ id: "shop-1", name: "Barbearia Central", evolutionInstanceName: null }) as any;
@@ -687,10 +687,7 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
 
     await notifyUseCase.execute("shop-1");
 
-    expect(sendSpy).toHaveBeenCalledTimes(1);
-    const jobData = sendSpy.mock.calls[0][0] as { instanceName?: string };
-    expect(jobData).toBeDefined();
-    expect(jobData.instanceName).toBeUndefined();
+    expect(sendSpy).not.toHaveBeenCalled();
   });
 });
 

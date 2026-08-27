@@ -236,7 +236,7 @@ export async function qualifyReferralOnPayment(
 				`O salão *${referral.refereeBarbershop.name}* assinou o AGENDAI.`,
 				`+${totalDays} dias creditados na sua assinatura.`,
 			].join('\n')
-			await sendWhatsAppMessage(whatsapp, msg).catch((err) => logger.error({ err }, 'Failed to send referral converted WhatsApp'))
+			await sendWhatsAppMessage(whatsapp, msg, { platform: true }).catch((err) => logger.error({ err }, 'Failed to send referral converted WhatsApp'))
 		}
 	} else {
 		logger.warn({ referralId: referral.id, referrerBarbershopId: referral.referrerBarbershopId }, 'Referral marked REWARDED without referrer subscription')
@@ -334,7 +334,7 @@ export async function revokeReferralOnCancellation(
 			`O salão *${referral.refereeBarbershop.name}* cancelou/estornou.`,
 			`-${daysForNotify} dias removidos da sua assinatura.`,
 		].join('\n')
-		await sendWhatsAppMessage(referrerShop.whatsapp, msg).catch((err) => logger.error({ err }, 'Failed to send referral revoked WhatsApp'))
+		await sendWhatsAppMessage(referrerShop.whatsapp, msg, { platform: true }).catch((err) => logger.error({ err }, 'Failed to send referral revoked WhatsApp'))
 	}
 
 	await prisma.adminNotification

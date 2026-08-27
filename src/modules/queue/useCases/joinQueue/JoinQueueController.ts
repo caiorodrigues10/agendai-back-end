@@ -56,7 +56,7 @@ export class JoinQueueController {
             },
           },
         });
-        if (shop?.whatsapp) {
+        if (shop?.whatsapp && shop.evolutionInstanceName?.trim()) {
           const serviceName = shop.services[0]?.name ?? "Serviço";
           const msg =
             `*Novo cliente na fila*\n\n` +
@@ -67,7 +67,7 @@ export class JoinQueueController {
           await enqueueWhatsApp({
             phone: shop.whatsapp,
             message: msg,
-            instanceName: shop.evolutionInstanceName ?? undefined,
+            instanceName: shop.evolutionInstanceName?.trim() || undefined,
             deduplicationKey: `join:${data.barbershopId}:${item.id}`,
           });
         }

@@ -9,6 +9,8 @@ export interface WhatsAppJobData {
   phone: string;
   message: string;
   instanceName?: string;
+  /** Mensagem da plataforma (contato/indicação) — pode usar instância global da env. */
+  platform?: boolean;
   /** Chave de deduplicação (ex: "join:barbershopId:queueItemId") */
   deduplicationKey?: string;
 }
@@ -61,6 +63,7 @@ export const whatsappQueueEvents = new Proxy({} as QueueEvents, {
 
 export async function enqueueWhatsApp(data: WhatsAppJobData): Promise<void> {
   if (process.env.VITEST) return;
+  if (!data.platform && !data.instanceName?.trim()) return;
   const { ensureWhatsAppWorker } = await import("./whatsappWorker");
   await ensureWhatsAppWorker();
   const jobId = data.deduplicationKey || undefined;

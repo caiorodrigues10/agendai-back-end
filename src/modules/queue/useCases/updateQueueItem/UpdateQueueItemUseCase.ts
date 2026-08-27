@@ -59,12 +59,15 @@ export class UpdateQueueItemUseCase {
       try {
         const shop = await this.barbershopRepository.findById(item.barbershopId);
         const shopLabel = shop?.name?.trim() || "a barbearia";
-        await enqueueWhatsApp({
-          phone: item.whatsapp,
-          message: buildQueueCalledMessage(item.customerName, shopLabel),
-          instanceName: shop?.evolutionInstanceName?.trim() || undefined,
-          deduplicationKey: `call:${item.id}`,
-        });
+        const instanceName = shop?.evolutionInstanceName?.trim();
+        if (instanceName) {
+          await enqueueWhatsApp({
+            phone: item.whatsapp,
+            message: buildQueueCalledMessage(item.customerName, shopLabel),
+            instanceName,
+            deduplicationKey: `call:${item.id}`,
+          });
+        }
       } catch {
         // notificação não bloqueia a mutação
       }

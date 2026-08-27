@@ -88,6 +88,7 @@ beforeEach(() => {
     id: BARBERSHOP_ID,
     name: "Barber Test",
     logoUrl: null,
+    evolutionInstanceName: "shop-connected",
   });
   mockServiceFindMany.mockResolvedValue([]);
   mockScheduleFindFirst.mockResolvedValue(null);
@@ -160,6 +161,25 @@ describe("PostsController.create — broadcast wiring", () => {
       "Vem pra cá hoje!",
       "Agende já"
     );
+  });
+
+  it("rejeita publicar sem instância WhatsApp (409)", async () => {
+    mockBarbershopFindUnique.mockResolvedValue({
+      id: BARBERSHOP_ID,
+      name: "Barber Test",
+      logoUrl: null,
+      evolutionInstanceName: null,
+    });
+
+    const controller = new PostsController();
+    const request = buildCreateBody() as unknown as FastifyRequest;
+    const reply = fakeReply();
+
+    await expect(controller.create(request, reply)).rejects.toMatchObject({
+      statusCode: 409,
+    });
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+    expect(mockBroadcast).not.toHaveBeenCalled();
   });
 
   it("passes null ctaText when ctaText is undefined", async () => {

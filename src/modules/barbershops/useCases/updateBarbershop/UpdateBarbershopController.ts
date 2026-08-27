@@ -7,15 +7,8 @@ export class UpdateBarbershopController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { id } = request.params as { id: string };
     const parsed = updateBarbershopSchema.parse(request.body);
-
-    // Normaliza string vazia → null (= "sem instância própria, usar fallback").
-    const data =
-      "evolutionInstanceName" in parsed && parsed.evolutionInstanceName === ""
-        ? { ...parsed, evolutionInstanceName: null }
-        : parsed;
-
     const useCase = container.resolve(UpdateBarbershopUseCase);
-    const updated = await useCase.execute(id, data);
+    const updated = await useCase.execute(id, parsed);
     reply.send({ success: true, data: updated });
   }
 }

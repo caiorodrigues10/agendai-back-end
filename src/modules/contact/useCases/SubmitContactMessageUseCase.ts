@@ -53,6 +53,7 @@ export class SubmitContactMessageUseCase {
             `${input.name} · ${input.email}` +
             (input.phone ? `\nTel: ${input.phone}` : "") +
             `\n\n${input.message.slice(0, 500)}`,
+          platform: true,
           deduplicationKey: `contact:${notification.id}`,
         });
       } catch {

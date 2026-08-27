@@ -386,7 +386,7 @@ describe("Appointments module", () => {
       sendSpy.mockRestore();
     });
 
-    it("barbearia sem evolutionInstanceName: passa instanceName = undefined (cai no fallback do env)", async () => {
+    it("barbearia sem evolutionInstanceName: não enfileira lembrete", async () => {
       const sendSpy = vi
         .spyOn(queueModule, "enqueueWhatsApp")
         .mockResolvedValue(undefined);
@@ -420,11 +420,9 @@ describe("Appointments module", () => {
       );
       const result = await useCase.execute();
 
-      expect(result.sent).toBe(1);
-      expect(sendSpy).toHaveBeenCalledOnce();
-      const jobData = sendSpy.mock.calls[0][0] as { instanceName?: string };
-      expect(jobData).toBeDefined();
-      expect(jobData.instanceName).toBeUndefined();
+      expect(result.sent).toBe(0);
+      expect(result.failed).toBe(1);
+      expect(sendSpy).not.toHaveBeenCalled();
 
       sendSpy.mockRestore();
     });

@@ -46,7 +46,7 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
     });
     globalThis.fetch = fetchMock as any;
 
-    const sent = await sendWhatsAppMessage("11988887777", "Olá");
+    const sent = await sendWhatsAppMessage("11988887777", "Olá", { platform: true });
     expect(sent).toBe(true);
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
@@ -67,7 +67,7 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
     });
     globalThis.fetch = fetchMock as any;
 
-    await sendWhatsAppMessage("11988887777", "Oi");
+    await sendWhatsAppMessage("11988887777", "Oi", { platform: true });
     expect(fetchMock.mock.calls[0][0]).toBe(
       "http://localhost:8080/message/sendText/barberqueue"
     );
@@ -89,8 +89,11 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
       text: async () => "unauthorized",
     });
     globalThis.fetch = fetchMock as any;
-    const sent = await sendWhatsAppMessage("11988887777", "Olá");
+    const sent = await sendWhatsAppMessage("11988887777", "Olá", {
+      instanceName: "barberqueue",
+    });
     expect(sent).toBe(false);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("usa instanceName da opção quando informado (não cai no fallback do env)", async () => {
@@ -111,21 +114,32 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
     expect(init.headers.apikey).toBe("evo-key-1");
   });
 
-  it("sem instanceName na opção, cai no fallback do env EVOLUTION_INSTANCE_NAME", async () => {
+  it("sem instanceName e sem platform não envia (não cai no fallback global)", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       text: async () => "{}",
     });
     globalThis.fetch = fetchMock as any;
 
-    // Passa opções sem instanceName — função deve usar env.
     const sent = await sendWhatsAppMessage("11988887777", "Olá", {});
+    expect(sent).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("platform: true sem instanceName usa EVOLUTION_INSTANCE_NAME", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => "{}",
+    });
+    globalThis.fetch = fetchMock as any;
+
+    const sent = await sendWhatsAppMessage("11988887777", "Olá", { platform: true });
     expect(sent).toBe(true);
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("http://localhost:8080/message/sendText/barberqueue");
   });
 
-  it("instanceName vazio na opção também cai no fallback do env", async () => {
+  it("instanceName vazio com platform: true também usa a env", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       text: async () => "{}",
@@ -134,6 +148,7 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
 
     const sent = await sendWhatsAppMessage("11988887777", "Olá", {
       instanceName: "   ",
+      platform: true,
     });
     expect(sent).toBe(true);
     const [url] = fetchMock.mock.calls[0];
@@ -141,8 +156,6 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
   });
 
   it("aceita log como segundo argumento posicional (compatibilidade legada)", async () => {
-    // Compat: callers antigos passam o logger do Fastify como 3º parâmetro posicional.
-    // A função deve normalizar para { log } e continuar funcionando com fallback de env.
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       text: async () => "{}",
@@ -150,11 +163,10 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
     globalThis.fetch = fetchMock as any;
     const legacyLog = { info: vi.fn(), warn: vi.fn() };
 
-    const sent = await sendWhatsAppMessage(
-      "11988887777",
-      "Olá",
-      legacyLog as any
-    );
+    const sent = await sendWhatsAppMessage("11988887777", "Olá", {
+      instanceName: "barberqueue",
+      log: legacyLog as any,
+    });
     expect(sent).toBe(true);
     expect(fetchMock.mock.calls[0][0]).toBe(
       "http://localhost:8080/message/sendText/barberqueue"

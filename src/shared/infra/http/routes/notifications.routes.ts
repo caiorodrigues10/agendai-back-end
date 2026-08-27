@@ -8,12 +8,13 @@ import { setRlsContext } from "../middlewares/setRlsContext";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { SendAppointmentRemindersUseCase } from "@/modules/appointments/useCases/appointmentUseCases";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
+import { AppError } from "@/shared/errors/AppError";
+import { requireOpenShopWhatsAppInstance } from "@/modules/barbershops/utils/requireOpenShopWhatsApp";
 
 const whatsappBodySchema = z.object({
   phone: z.string().min(8).max(20),
   message: z.string().min(1).max(2000),
-  /** Opcional: se informado, usa a instanceName da Evolution API da barbearia. */
-  barbershopId: z.string().uuid().optional(),
+  barbershopId: z.string().uuid(),
 });
 
 export async function notificationsRoutes(app: FastifyInstance) {
@@ -27,14 +28,16 @@ export async function notificationsRoutes(app: FastifyInstance) {
   /** POST /notifications/whatsapp — envio manual pelo staff (ex.: aviso ao cliente). */
   app.post("/notifications/whatsapp", { preHandler: staffGuard }, async (request, reply) => {
     const { phone, message, barbershopId } = whatsappBodySchema.parse(request.body);
+    const user = request.user!;
 
-    let instanceName: string | undefined;
-    if (barbershopId) {
-      const shop = await container
-        .resolve<IBarbershopRepository>("BarbershopRepository")
-        .findById(barbershopId);
-      instanceName = shop?.evolutionInstanceName?.trim() || undefined;
+    if (user.role !== "MASTER_ADMIN" && user.barbershopId !== barbershopId) {
+      throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
+
+    const shop = await container
+      .resolve<IBarbershopRepository>("BarbershopRepository")
+      .findById(barbershopId);
+    const instanceName = await requireOpenShopWhatsAppInstance(shop);
 
     await enqueueWhatsApp({
       phone,

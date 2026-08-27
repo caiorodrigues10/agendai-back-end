@@ -28,6 +28,11 @@ export async function broadcastPostToClients(
 
     if (!barbershop) return;
 
+    if (!barbershop.evolutionInstanceName?.trim()) {
+      logger.warn({ postId, barbershopId }, "Broadcast skipped — salão sem WhatsApp conectado");
+      return;
+    }
+
     const clients = await prisma.salonClient.findMany({
       where: {
         barbershopId,
