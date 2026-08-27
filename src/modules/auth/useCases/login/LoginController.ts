@@ -26,7 +26,7 @@ export class LoginController {
     try {
       const result = await useCase.execute(email, password, reply);
       await resetAttempts(email, ip);
-      await logAccess({
+      logAccess({
         email,
         action: "LOGIN",
         ipAddress: ip,
@@ -44,7 +44,7 @@ export class LoginController {
           );
         }
       }
-      await logAccess({
+      logAccess({
         email,
         action: "LOGIN_FAILED",
         ipAddress: ip,

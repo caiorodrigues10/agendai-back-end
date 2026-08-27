@@ -14,7 +14,7 @@ export class GoogleLoginController {
       const { idToken } = request.body as { idToken: string };
       const useCase = container.resolve(GoogleLoginUseCase);
       const result = await useCase.execute(idToken, reply);
-      await logAccess({
+      logAccess({
         userId: (result as any)?.user?.id,
         action: "GOOGLE_LOGIN",
         ipAddress: request.ip,
@@ -23,7 +23,7 @@ export class GoogleLoginController {
       });
       return reply.status(200).send(result);
     } catch (err) {
-      await logAccess({
+      logAccess({
         action: "LOGIN_FAILED",
         ipAddress: request.ip,
         userAgent: request.headers["user-agent"],

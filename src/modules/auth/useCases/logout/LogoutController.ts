@@ -17,7 +17,7 @@ export class LogoutController {
     const userRepo = new UserRepository();
     const fullUser = await userRepo.findById(user.id);
 
-    await logAccess({
+    logAccess({
       userId: user.id,
       email: fullUser?.email,
       action: "LOGOUT",
@@ -49,7 +49,7 @@ export class LogoutController {
     const userRepo = new UserRepository();
     const fullUser = await userRepo.findById(user.id);
 
-    await logAccess({
+    logAccess({
       userId: user.id,
       email: fullUser?.email,
       action: "REVOKE_ALL_SESSIONS",

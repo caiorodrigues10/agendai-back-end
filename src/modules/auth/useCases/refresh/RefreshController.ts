@@ -42,7 +42,7 @@ export class RefreshController {
           expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn))
         }
       });
-      await logAccess({
+      logAccess({
         userId: user.id,
         email: user.email,
         action: "REFRESH",
