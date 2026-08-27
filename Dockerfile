@@ -26,7 +26,9 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
+RUN chmod +x docker-entrypoint.sh
 RUN chown -R nodejs:nodejs /app
 USER nodejs
 
@@ -34,4 +36,4 @@ EXPOSE 3333
 
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/shared/infra/http/server.js"]
+CMD ["./docker-entrypoint.sh"]
