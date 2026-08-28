@@ -53,7 +53,7 @@ npx prisma migrate status
 
 Deve mostrar: **"Database schema is up to date!"**
 
-### 5. Verificar应用 da aplicação
+### 5. Verificar funcionamento da aplicação
 
 ```bash
 # Confirmar que a API sobe e responde
@@ -74,11 +74,34 @@ curl -s http://localhost:3333/health | jq .
 
 ## Drift conhecido
 
+### password_reset_tokens
+
 O diff estrutural (`prisma migrate diff --from-migrations ... --to-schema-datamodel`)
-mostra 1 divergência pré-existente: a tabela `password_reset_tokens` foi criada
-com tipos `TEXT` na migration `20260826160000`, mas o `schema.prisma` atual define
-`id` como UUID, `email` como VARCHAR(100), e `token` como VARCHAR(64). Isso
-precisará de uma migration de correção futura (gerada via `prisma migrate dev`).
+mostra divergências na tabela `password_reset_tokens`:
+
+1. **Tipos**: A migration `20260826160000` cria com tipos `TEXT` para `id`, `email`,
+   `token`. O `schema.prisma` atual define `id` como UUID, `email` como VARCHAR(100),
+   `token` como VARCHAR(64). Precisará de migration de correção futura.
+
+2. **Coluna `userId` (UUID, FK → users)**: Existia no banco de dev local mas NÃO
+   existia em nenhuma migration nem no `schema.prisma`. Era um vestígio de
+   implementação abandonada — nenhum código usava essa coluna (nem Prisma Client,
+   nem SQL raw). **Removida do banco de dev em 2026-08-28.** Verificar se staging/
+   produção também têm essa coluna e removê-la se existir.
+
+3. **Coluna `email`**: Faltava no banco de dev local (provavelmente perdida em
+   algum `db push` conflitante). **Restaurada em 2026-08-28.** O código
+   `ForgotPasswordUseCase` depende dela para criar tokens.
+
+### Outros drifts detectados (dev vs schema.prisma)
+
+- `users.phone` — existe no schema.prisma mas não em nenhuma migration
+- `feed_posts.videoUrl` — removido do schema.prisma mas ainda existe no banco dev
+- `password_reset_otps` — tabela definida no schema.prisma mas não criada por
+  nenhuma migration (provavelmente feature em desenvolvimento)
+
+**Recomendação**: Antes de deploy em staging/produção, rodar o mesmo diff
+estrutural contra cada banco para mapear drifts e corrigi-los.
 
 ## Contato
 
