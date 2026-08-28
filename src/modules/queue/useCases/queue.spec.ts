@@ -508,10 +508,12 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
   let reminders: SendAppointmentRemindersUseCase;
   let shops2: MockBarbershopRepository;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     apptRepo = new MockAppointmentRepository();
     queueRepo = new MockQueueRepository();
     shops2 = new MockBarbershopRepository();
+    const shop = await shops2.create({ name: "Barbearia Central", whatsapp: "11900000000" });
+    await shops2.update(shop.id, { evolutionInstanceName: "inst-shop-1" });
     getEstimate = new GetQueueWaitEstimateUseCase(queueRepo as any);
     reminders = new SendAppointmentRemindersUseCase(apptRepo as any, getEstimate, shops2 as any);
   });

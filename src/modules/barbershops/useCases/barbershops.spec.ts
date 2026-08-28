@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { MockBarbershopRepository } from "@/modules/barbershops/infra/repositories/mocks/MockBarbershopRepository";
 import { CreateBarbershopUseCase } from "./createBarbershop/CreateBarbershopUseCase";
 import { ListBarbershopsUseCase } from "./listBarbershops/ListBarbershopsUseCase";
+import { GetBarbershopUseCase } from "./getBarbershop/GetBarbershopUseCase";
 import { ListPublicStaffUseCase } from "./getBarbershop/ListPublicStaffUseCase";
 import { UpdateBarbershopUseCase } from "./updateBarbershop/UpdateBarbershopUseCase";
 import { DeleteBarbershopUseCase } from "./deleteBarbershop/DeleteBarbershopUseCase";

@@ -184,6 +184,9 @@ describe("Appointments module", () => {
         .spyOn(queueModule, "enqueueWhatsApp")
         .mockResolvedValue(undefined);
 
+      const shop = await shops.create({ name: "Barbearia Central", whatsapp: "11900000000" });
+      await shops.update(shop.id, { evolutionInstanceName: "inst-shop-1" });
+
       const create = new CreateAppointmentUseCase(repo as any);
       const apt = await create.execute(
         {
@@ -289,6 +292,10 @@ describe("Appointments module", () => {
     it("exceção em um agendamento não aborta o loop e contabiliza failed", async () => {
       // Cria dois agendamentos para hoje.
       const create = new CreateAppointmentUseCase(repo as any);
+
+      const shop = await shops.create({ name: "Barbearia Central", whatsapp: "11900000000" });
+      await shops.update(shop.id, { evolutionInstanceName: "inst-shop-1" });
+
       const aptOk = await create.execute(
         {
           barbershopId: "shop-1",
