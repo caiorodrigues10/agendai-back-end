@@ -42,7 +42,7 @@ export class LoginUseCase {
     private hashProvider: IHashProvider
   ) { }
 
-  async execute(email: string, password: string, reply?: FastifyReply) {
+  async execute(email: string, password: string, reply?: FastifyReply, rememberMe = true) {
     const user = await this.userRepository.findByEmail(email) as UserWithEmailPassword | null;
     if (!user || !user.active) {
       logger.info({ reason: !user ? "not_found" : "inactive" }, "login denied");
@@ -83,6 +83,6 @@ export class LoginUseCase {
       cpf: user.cpf ?? null,
     };
 
-    return issueAuthSession(userLike, reply);
+    return issueAuthSession(userLike, reply, rememberMe);
   }
 }

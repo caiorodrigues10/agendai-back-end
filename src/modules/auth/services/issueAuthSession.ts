@@ -28,7 +28,7 @@ function parseDuration(input: string): number {
   return value * multipliers[unit];
 }
 
-export async function issueAuthSession(user: UserLike, reply?: FastifyReply) {
+export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rememberMe = true) {
   const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
   const accessToken = sign(
     { role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: user.cpf ?? undefined },
@@ -39,7 +39,7 @@ export async function issueAuthSession(user: UserLike, reply?: FastifyReply) {
   const expiresAt = new Date(Date.now() + parseDuration(auth.refreshExpiresIn));
   const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
   const refreshToken = sign(
-    { sub: user.id, jti: randomUUID() },
+    { sub: user.id, jti: randomUUID(), persistent: rememberMe },
     auth.refreshSecret as Secret,
     refreshOpts
   );
@@ -56,9 +56,9 @@ export async function issueAuthSession(user: UserLike, reply?: FastifyReply) {
     reply.setCookie('refresh_token', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.AUTH_COOKIE_SAME_SITE === 'none' ? 'none' : 'lax',
       path: '/api/auth',
-      maxAge: 7 * 24 * 60 * 60,
+      ...(rememberMe ? { maxAge: 7 * 24 * 60 * 60 } : {}),
     });
   }
 

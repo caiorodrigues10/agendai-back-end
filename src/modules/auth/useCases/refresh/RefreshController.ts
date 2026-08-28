@@ -19,7 +19,8 @@ export class RefreshController {
       return reply.status(401).send({ message: "Refresh token não fornecido" });
     }
     try {
-      const decoded = verify(refreshToken, auth.refreshSecret as Secret) as any;
+      const decoded = verify(refreshToken, auth.refreshSecret as Secret) as { sub: string; persistent?: boolean };
+      const rememberMe = decoded.persistent === true;
       const tokenRecord = await prisma.refreshToken.findFirst({ where: { token: refreshToken } });
       if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
         return reply.status(401).send({ message: "Refresh token inválido" });
@@ -31,7 +32,7 @@ export class RefreshController {
       const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: (user as any).cpf ?? undefined }, auth.secret as Secret, accessOpts);
       const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
       const newRefreshToken = sign(
-        { sub: user.id, jti: randomUUID() },
+        { sub: user.id, jti: randomUUID(), persistent: rememberMe },
         auth.refreshSecret as Secret,
         refreshOpts
       );
@@ -56,9 +57,9 @@ export class RefreshController {
       reply.setCookie('refresh_token', newRefreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: process.env.AUTH_COOKIE_SAME_SITE === 'none' ? 'none' : 'lax',
         path: '/api/auth',
-        maxAge: 7 * 24 * 60 * 60,
+        ...(rememberMe ? { maxAge: 7 * 24 * 60 * 60 } : {}),
       });
 
       return reply.status(200).send({

@@ -11,7 +11,7 @@ export const validateLogin = validateSchema(loginSchema);
 
 export class LoginController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
-    const { email, password } = request.body as { email: string; password: string };
+    const { email, password, rememberMe = true } = request.body as { email: string; password: string; rememberMe?: boolean };
     const ip = request.ip;
 
     const lock = await checkLock(email, ip);
@@ -24,7 +24,7 @@ export class LoginController {
 
     const useCase = container.resolve(LoginUseCase);
     try {
-      const result = await useCase.execute(email, password, reply);
+      const result = await useCase.execute(email, password, reply, rememberMe);
       await resetAttempts(email, ip);
       logAccess({
         email,
