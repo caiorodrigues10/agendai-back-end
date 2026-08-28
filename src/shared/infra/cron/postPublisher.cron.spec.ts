@@ -210,4 +210,44 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
       "CTA 2"
     );
   });
+
+  it("salon without WhatsApp: post is still PUBLISHED and broadcast fails silently without breaking cron", async () => {
+    mockFeedPostFindMany.mockResolvedValue([
+      {
+        id: POST_ID_1,
+        barbershopId: BARBERSHOP_ID,
+        title: "Post sem WhatsApp",
+        ctaText: null,
+      },
+    ]);
+    mockFeedPostUpdate.mockResolvedValue({});
+
+    // Simulates broadcastPostToClients returning silently (no WhatsApp configured)
+    mockBroadcast.mockResolvedValue(undefined);
+
+    await handler();
+
+    // Post must be marked as PUBLISHED regardless
+    expect(mockFeedPostUpdate).toHaveBeenCalledWith({
+      where: { id: POST_ID_1 },
+      data: { status: "PUBLISHED", publishedAt: expect.any(Date) },
+    });
+
+    // Broadcast was called (fire-and-forget)
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      BARBERSHOP_ID,
+      POST_ID_1,
+      "Post sem WhatsApp",
+      null
+    );
+
+    // No error should have been logged — broadcast succeeded silently
+    expect(log.error).not.toHaveBeenCalled();
+
+    // Info log for the published count should still fire
+    expect(log.info).toHaveBeenCalledWith(
+      { count: 1 },
+      "Posts agendados publicados pelo cron"
+    );
+  });
 });
