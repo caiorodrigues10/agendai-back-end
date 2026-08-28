@@ -24,6 +24,23 @@ describe("buildPostSvg", () => {
     expect(svg).toContain("Vem pra cá hoje!");
   });
 
+  it("usa a paleta preta + esmeralda do site, sem ouro", () => {
+    const svg = buildPostSvg(minimalInput);
+    expect(svg).toContain("#10B981");
+    expect(svg).toContain("#0F0F0F");
+    expect(svg).not.toContain("#F59E0B");
+    expect(svg).toContain("HOJE");
+  });
+
+  it("quebra título longo em duas linhas", () => {
+    const svg = buildPostSvg({
+      ...minimalInput,
+      title: "Corte e barba com desconto especial hoje",
+    });
+    expect(svg).toContain("Corte e barba com");
+    expect(svg).toContain("desconto especial hoje");
+  });
+
   it("escapa & do nome do salão para XML", () => {
     const svg = buildPostSvg({ ...minimalInput, shopName: "Barba & Cia" });
     expect(svg).toContain("BARBA &amp; CIA");
