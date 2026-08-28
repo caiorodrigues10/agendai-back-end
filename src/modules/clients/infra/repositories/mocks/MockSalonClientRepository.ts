@@ -6,6 +6,11 @@ import {
   ISalonClientResponseDTO,
 } from "@/modules/clients/dtos/ISalonClientDTO";
 import { AppError } from "@/shared/errors/AppError";
+import {
+  salonClientCrmKey,
+  salonClientDisplayName,
+  salonClientPublicWhatsapp,
+} from "@/modules/clients/utils/ensureSalonClient";
 
 export class MockSalonClientRepository implements ISalonClientRepository {
   public clients: ISalonClientResponseDTO[] = [];
@@ -33,22 +38,53 @@ export class MockSalonClientRepository implements ISalonClientRepository {
       appointments: [],
     };
     this.clients.push(entity);
-    return entity;
+    return { ...entity, whatsapp: salonClientPublicWhatsapp(entity.whatsapp) };
   }
 
   async findById(id: string): Promise<ISalonClientResponseDTO | null> {
-    return this.clients.find((c) => c.id === id) ?? null;
+    const found = this.clients.find((c) => c.id === id);
+    if (!found) return null;
+    return { ...found, whatsapp: salonClientPublicWhatsapp(found.whatsapp) };
   }
 
   async findByWhatsapp(
     barbershopId: string,
     whatsapp: string
   ): Promise<ISalonClientResponseDTO | null> {
-    return (
-      this.clients.find(
-        (c) => c.barbershopId === barbershopId && c.whatsapp === whatsapp
-      ) ?? null
+    const found = this.clients.find(
+      (c) => c.barbershopId === barbershopId && c.whatsapp === whatsapp
     );
+    return found
+      ? { ...found, whatsapp: salonClientPublicWhatsapp(found.whatsapp) }
+      : null;
+  }
+
+  async upsertFromVisit(
+    barbershopId: string,
+    name: string,
+    whatsapp: string
+  ): Promise<{ id: string } | null> {
+    const key = salonClientCrmKey(whatsapp, name);
+    const displayName = salonClientDisplayName(name);
+    if (!key || !displayName) return null;
+    const existing = this.clients.find(
+      (c) => c.barbershopId === barbershopId && c.whatsapp === key
+    );
+    if (existing) {
+      existing.name = displayName;
+      existing.updatedAt = new Date();
+      return { id: existing.id };
+    }
+    const created = await this.create({
+      barbershopId,
+      name: displayName,
+      whatsapp: key,
+    });
+    return { id: created.id };
+  }
+
+  async syncFromHistory(_barbershopId: string): Promise<void> {
+    /* no-op no mock — testes de sync usam o helper com prisma */
   }
 
   async list(
@@ -66,7 +102,13 @@ export class MockSalonClientRepository implements ISalonClientRepository {
     }
     const total = results.length;
     const start = (query.page - 1) * query.limit;
-    return { data: results.slice(start, start + query.limit), total };
+    return {
+      data: results.slice(start, start + query.limit).map((c) => ({
+        ...c,
+        whatsapp: salonClientPublicWhatsapp(c.whatsapp),
+      })),
+      total,
+    };
   }
 
   async update(
@@ -93,6 +135,9 @@ export class MockSalonClientRepository implements ISalonClientRepository {
       ...(data.notes !== undefined && { notes: data.notes }),
       updatedAt: new Date(),
     };
-    return this.clients[idx];
+    return {
+      ...this.clients[idx],
+      whatsapp: salonClientPublicWhatsapp(this.clients[idx].whatsapp),
+    };
   }
 }

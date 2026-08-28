@@ -8,6 +8,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { assertPublicShopOperationalAccess } from "@/shared/utils/assertPublicShopOperationalAccess";
 import { prisma } from "@/libs/prismaClient";
 import { notifyCustomerJoinedQueue } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
+import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
 
 @injectable()
 export class JoinQueueUseCase {
@@ -15,7 +16,9 @@ export class JoinQueueUseCase {
     @inject("QueueRepository")
     private queueRepository: IQueueRepository,
     @inject("BarbershopRepository")
-    private barbershopRepository: IBarbershopRepository
+    private barbershopRepository: IBarbershopRepository,
+    @inject("SalonClientRepository")
+    private salonClients?: ISalonClientRepository
   ) {}
 
   async execute(data: IJoinQueueDTO): Promise<IQueueItemResponseDTO> {
@@ -50,6 +53,16 @@ export class JoinQueueUseCase {
       customerId,
       addedByStaff: data.addedByStaff ?? false,
     });
+
+    try {
+      await this.salonClients?.upsertFromVisit(
+        item.barbershopId,
+        item.customerName,
+        item.whatsapp
+      );
+    } catch {
+      // CRM não bloqueia entrada na fila
+    }
 
     try {
       await notifyCustomerJoinedQueue(

@@ -7,6 +7,7 @@ import { IAppointmentRepository } from "../repositories/IAppointmentRepository";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
 import { IClientPackageRepository } from "@/modules/packages/repositories/IClientPackageRepository";
 import { debitClientPackageInTx, restoreClientPackageInTx } from "@/modules/packages/utils/clientPackageCredits";
+import { upsertSalonClientRecord } from "@/modules/clients/utils/ensureSalonClient";
 import {
   ICreateAppointmentDTO,
   IUpdateAppointmentDTO,
@@ -82,6 +83,16 @@ async function createAppointmentAtomic(
         count: 1,
       });
       clientId = credited.clientId;
+    }
+
+    if (!clientId) {
+      const salon = await upsertSalonClientRecord(
+        tx,
+        data.barbershopId,
+        data.customerName,
+        data.whatsapp
+      );
+      clientId = salon?.id ?? null;
     }
 
     const record = await tx.appointment.create({

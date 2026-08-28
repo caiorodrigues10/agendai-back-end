@@ -16,6 +16,7 @@ import {
 import { computeInsertJoinedAt } from "../../utils/computeInsertJoinedAt";
 import { isPlaceholderWhatsApp } from "../../utils/queueDuplicate";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
+import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
 
 @injectable()
 export class UpdateQueueItemUseCase {
@@ -25,7 +26,9 @@ export class UpdateQueueItemUseCase {
     @inject(NotifyQueuePositionUpdatesUseCase)
     private notifyQueuePositionUpdates: NotifyQueuePositionUpdatesUseCase,
     @inject("BarbershopRepository")
-    private barbershopRepository: IBarbershopRepository
+    private barbershopRepository: IBarbershopRepository,
+    @inject("SalonClientRepository")
+    private salonClients?: ISalonClientRepository
   ) {}
 
   async execute(
@@ -58,6 +61,18 @@ export class UpdateQueueItemUseCase {
       ...details,
       joinedAt,
     });
+
+    if (nextStatus === "completed" || nextStatus === "waiting") {
+      try {
+        await this.salonClients?.upsertFromVisit(
+          item.barbershopId,
+          item.customerName,
+          item.whatsapp
+        );
+      } catch {
+        // CRM não bloqueia a mutação
+      }
+    }
 
     const shouldNotifyCustomer =
       !isPlaceholderWhatsApp(item.whatsapp) &&

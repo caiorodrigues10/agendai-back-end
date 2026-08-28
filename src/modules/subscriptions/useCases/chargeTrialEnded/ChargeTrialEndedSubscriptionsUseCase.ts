@@ -4,6 +4,9 @@ import { AsaasService } from "@/modules/payments/services/AsaasService";
 import { IPaymentRepository } from "@/modules/payments/repositories/IPaymentRepository";
 import { handleSubscriptionPaymentWebhook } from "@/modules/subscriptions/services/handleSubscriptionPaymentWebhook";
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("subscriptions:charge-trial-ended");
 
 export interface ChargeTrialEndedResult {
   scanned: number;
@@ -152,8 +155,8 @@ export class ChargeTrialEndedSubscriptionsUseCase {
             data: { status: "PAST_DUE" },
           });
           await invalidateSubscriptionCache(sub.barbershopId);
-        } catch {
-          /* ignore */
+        } catch (recoveryErr) {
+          logger.error({ err: recoveryErr, subscriptionId: sub.id }, "Falha ao recuperar subscription (PAST_DUE) após erro de cobrança");
         }
       }
     }

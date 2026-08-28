@@ -10,6 +10,11 @@ import {
   ISalonClientPackageSummaryDTO,
   ISalonClientAppointmentDTO,
 } from "../../dtos/ISalonClientDTO";
+import {
+  salonClientCrmKey,
+  salonClientPublicWhatsapp,
+  upsertSalonClientRecord,
+} from "../../utils/ensureSalonClient";
 
 type ClientListRecord = Prisma.SalonClientGetPayload<{
   include: {
@@ -43,7 +48,7 @@ function mapList(record: ClientListRecord): ISalonClientResponseDTO {
     id: record.id,
     barbershopId: record.barbershopId,
     name: record.name,
-    whatsapp: record.whatsapp,
+    whatsapp: salonClientPublicWhatsapp(record.whatsapp),
     notes: record.notes,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -86,7 +91,7 @@ function mapDetail(record: ClientDetailRecord): ISalonClientResponseDTO {
     id: record.id,
     barbershopId: record.barbershopId,
     name: record.name,
-    whatsapp: record.whatsapp,
+    whatsapp: salonClientPublicWhatsapp(record.whatsapp),
     notes: record.notes,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -129,6 +134,24 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export class SalonClientRepository implements ISalonClientRepository {
+  /**
+   * O backfill existe apenas para trazer histórico anterior à integração CRM.
+   * Depois disso, fila e agenda mantêm o CRM atualizado no próprio fluxo.
+   */
+  private readonly historySyncedBarbershops = new Set<string>();
+
+  async upsertFromVisit(
+    barbershopId: string,
+    name: string,
+    whatsapp: string
+  ): Promise<{ id: string } | null> {
+    try {
+      return await upsertSalonClientRecord(prisma, barbershopId, name, whatsapp);
+    } catch {
+      return null;
+    }
+  }
+
   async create(data: ICreateSalonClientDTO): Promise<ISalonClientResponseDTO> {
     try {
       const record = await prisma.salonClient.create({
@@ -218,5 +241,48 @@ export class SalonClientRepository implements ISalonClientRepository {
       }
       throw err;
     }
+  }
+
+  async syncFromHistory(barbershopId: string): Promise<void> {
+    if (this.historySyncedBarbershops.has(barbershopId)) return;
+
+    const [queueRows, apptRows] = await Promise.all([
+      prisma.queueItem.findMany({
+        where: {
+          barbershopId,
+          status: { in: ["WAITING", "IN_CHAIR", "COMPLETED"] },
+        },
+        select: { customerName: true, whatsapp: true },
+        orderBy: { joinedAt: "desc" },
+        take: 400,
+      }),
+      prisma.appointment.findMany({
+        where: { barbershopId, status: { not: "CANCELLED" } },
+        select: { customerName: true, whatsapp: true },
+        orderBy: { createdAt: "desc" },
+        take: 400,
+      }),
+    ]);
+
+    const seen = new Set<string>();
+    const visits: Array<{ name: string; whatsapp: string }> = [];
+    for (const row of [...queueRows, ...apptRows]) {
+      const key = salonClientCrmKey(row.whatsapp, row.customerName);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      visits.push({ name: row.customerName, whatsapp: row.whatsapp });
+    }
+
+    // Limita as escritas paralelas para não tornar a primeira listagem lenta.
+    const batchSize = 20;
+    for (let index = 0; index < visits.length; index += batchSize) {
+      await Promise.all(
+        visits.slice(index, index + batchSize).map((visit) =>
+          this.upsertFromVisit(barbershopId, visit.name, visit.whatsapp)
+        )
+      );
+    }
+
+    this.historySyncedBarbershops.add(barbershopId);
   }
 }

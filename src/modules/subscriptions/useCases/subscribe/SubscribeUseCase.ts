@@ -10,6 +10,9 @@ import { ISubscribeDTO, ISubscriptionResponseDTO } from "../../dtos/ISubscriptio
 import { buildSubscriptionResponse } from "../../utils/subscriptionMapper";
 import { TRIAL_DAYS, billingPeriodDays } from "@/shared/constants/subscription";
 import { Prisma } from "@prisma/client";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("subscriptions:subscribe");
 
 function frontendBaseUrl(): string {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
@@ -284,7 +287,9 @@ export class SubscribeUseCase {
           const { qualifyReferralOnPayment } = await import(
             "@/modules/referrals/services/referralService"
           );
-          await qualifyReferralOnPayment(data.barbershopId).catch(() => {});
+          await qualifyReferralOnPayment(data.barbershopId).catch((err) => {
+            logger.warn({ err, barbershopId: data.barbershopId }, "Falha ao qualificar indicação após pagamento");
+          });
         } else {
           await prisma.subscription.update({
             where: { id: subscription.id },
@@ -300,7 +305,9 @@ export class SubscribeUseCase {
           where: { id: subscription.id },
           data: { status: "PAST_DUE" },
         })
-        .catch(() => {});
+        .catch((err) => {
+          logger.error({ err, subscriptionId: subscription.id }, "Falha ao marcar subscription como PAST_DUE na recuperação de erro");
+        });
 
       throw new AppError(
         `Erro ao processar pagamento: ${error.message ?? "Erro desconhecido"}`,

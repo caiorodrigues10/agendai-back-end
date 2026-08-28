@@ -68,6 +68,11 @@ export class ListSalonClientsUseCase {
     requestingUser: RequestingUser
   ): Promise<{ data: ISalonClientResponseDTO[]; total: number }> {
     assertShopAccess(requestingUser, query.barbershopId);
+    try {
+      await this.repo.syncFromHistory(query.barbershopId);
+    } catch {
+      // listagem não depende do backfill
+    }
     return this.repo.list(query);
   }
 }
