@@ -31,11 +31,11 @@ describe("HTTP routes smoke (inject)", () => {
     if (harness) await harness.stop();
   });
 
-  it("GET /health → 200 (ok ou degraded)", async () => {
+  it("GET /health → 200", async () => {
     const res = await app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { status: string };
-    expect(["ok", "degraded"]).toContain(body.status);
+    expect(body.status).toBe("ok");
   });
 
   it("GET /api/plans → 200 + data[]", async () => {
@@ -63,15 +63,12 @@ describe("HTTP routes smoke (inject)", () => {
     expect([200, 404]).toContain(res.statusCode);
   });
 
-  it("GET /api/queue/metrics → 401 sem token, 200 com token", async () => {
-    const qs = sampleBarbershopId
-      ? `?barbershopId=${sampleBarbershopId}`
-      : "";
+  it("GET /api/queue/metrics → 401 sem token (autenticação obrigatória)", async () => {
     const res = await app.inject({
       method: "GET",
-      url: `/api/queue/metrics${qs}`,
+      url: `/api/queue/metrics`,
     });
-    expect([200, 401]).toContain(res.statusCode);
+    expect(res.statusCode).toBe(401);
   });
 
   it("GET /api/queue sem token exige barbershopId → 400 sem query; 200 com id", async () => {

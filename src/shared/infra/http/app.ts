@@ -101,25 +101,29 @@ export async function buildApp() {
   }
 
   async function checkRedis(): Promise<boolean> {
+    let client: import("ioredis").default | null = null;
     try {
       const redisUrl = process.env.REDIS_URL;
       if (!redisUrl) return false;
-      const parsed = new URL(redisUrl.replace(/^rediss?:\/\//, "https://"));
-      const host = parsed.hostname;
-      const token = parsed.password;
-      if (!host || !token) return false;
-      const resp = await fetch(`https://${host}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(["ping"]),
-        signal: AbortSignal.timeout(5000),
+      const IORedis = (await import("ioredis")).default;
+      client = new IORedis(redisUrl, {
+        connectTimeout: 3000,
+        maxRetriesPerRequest: 0,
+        lazyConnect: true,
+        retryStrategy: () => null,
       });
-      return resp.ok;
+      await new Promise<void>((resolve, reject) => {
+        client!.on("error", reject);
+        client!.connect().then(resolve, reject);
+      });
+      const pong = await client.ping();
+      return pong === "PONG";
     } catch {
       return false;
+    } finally {
+      if (client) {
+        try { client.disconnect(); } catch { /* ignore */ }
+      }
     }
   }
 
