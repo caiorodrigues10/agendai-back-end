@@ -44,6 +44,11 @@ npx prisma migrate deploy
 As migrations pendentes reais são:
 - `20260827000000_add_user_avatar` — adiciona coluna `avatarUrl` na tabela `users`
 - `20260827190000_fix_rls_unset_guc` — corrige RLS policies para tratar NULL no GUC
+- `20260828000000_fix_schema_drift` — corrige drifts entre schema.prisma e banco:
+  * Corrige tipos em `password_reset_tokens` (TEXT → UUID/VARCHAR)
+  * Adiciona coluna `videoUrl` em `feed_posts` (se ausente)
+  * Remove tabela `password_reset_otps` (se existir)
+  * Remove coluna `phone` de `users` (se existir)
 
 ### 4. Validar
 
@@ -71,37 +76,43 @@ curl -s http://localhost:3333/health | jq .
   Não precisa repetir esse passo.
 - Se o `migrate deploy` falhar em algum passo, o banco fica em estado
   inconsistente. Restaure do backup e tente novamente.
+- A migration `20260828000000_fix_schema_drift` usa SQL condicional (`DO`
+  blocks) para ser idempotente — funciona tanto em bancos com drift quanto
+  em bancos limpos (fresh).
 
-## Drift conhecido
+## Drift corrigido pela migration `20260828000000_fix_schema_drift`
 
 ### password_reset_tokens
 
-O diff estrutural (`prisma migrate diff --from-migrations ... --to-schema-datamodel`)
-mostra divergências na tabela `password_reset_tokens`:
+A migration `20260826160000` cria a tabela com tipos `TEXT` para `id`, `email`,
+`token`. O `schema.prisma` atual define `id` como UUID, `email` como VARCHAR(100),
+`token` como VARCHAR(64). A migration `20260828000000` corrige isso com SQL
+condicional que só executa se os tipos ainda estiverem como TEXT.
 
-1. **Tipos**: A migration `20260826160000` cria com tipos `TEXT` para `id`, `email`,
-   `token`. O `schema.prisma` atual define `id` como UUID, `email` como VARCHAR(100),
-   `token` como VARCHAR(64). Precisará de migration de correção futura.
+### Coluna `userId` (UUID, FK → users)
 
-2. **Coluna `userId` (UUID, FK → users)**: Existia no banco de dev local mas NÃO
-   existia em nenhuma migration nem no `schema.prisma`. Era um vestígio de
-   implementação abandonada — nenhum código usava essa coluna (nem Prisma Client,
-   nem SQL raw). **Removida do banco de dev em 2026-08-28.** Verificar se staging/
-   produção também têm essa coluna e removê-la se existir.
+Existia no banco de dev local mas NUNCA existiu em nenhuma migration nem no
+`schema.prisma`. Nenhum código usava essa coluna (nem Prisma Client, nem SQL raw).
+Foi um vestígio de implementação abandonada. **Removida via SQL direto em
+2026-08-28** (cirurgia manual) e agora formalizada na migration.
 
-3. **Coluna `email`**: Faltava no banco de dev local (provavelmente perdida em
-   algum `db push` conflitante). **Restaurada em 2026-08-28.** O código
-   `ForgotPasswordUseCase` depende dela para criar tokens.
+### Outros drifts corrigidos pela migration
 
-### Outros drifts detectados (dev vs schema.prisma)
+- `feed_posts.videoUrl` — estava ausente do banco dev mas presente no schema.prisma.
+  A migration adiciona a coluna com `IF NOT EXISTS` (idempotente).
+- `users.phone` — existia no banco dev mas NÃO existe no schema.prisma e nenhum
+  código usa `User.phone` (os `.phone` no código são `card.phone`, `input.phone`,
+  etc.). A migration remove com `DROP COLUMN IF EXISTS`.
+- `password_reset_otps` — tabela existia no banco dev mas NUNCA existiu no
+  `schema.prisma` e nenhum código a referencía. A migration remove com
+  `DROP TABLE IF EXISTS`.
 
-- `users.phone` — existe no schema.prisma mas não em nenhuma migration
-- `feed_posts.videoUrl` — removido do schema.prisma mas ainda existe no banco dev
-- `password_reset_otps` — tabela definida no schema.prisma mas não criada por
-  nenhuma migration (provavelmente feature em desenvolvimento)
+### Recomendação para staging/produção
 
-**Recomendação**: Antes de deploy em staging/produção, rodar o mesmo diff
-estrutural contra cada banco para mapear drifts e corrigi-los.
+Antes de deploy, rodar o diff estrutural contra cada banco para mapear drifts:
+```bash
+npx prisma migrate diff --from-url "postgresql://..." --to-schema-datamodel prisma/schema.prisma --script
+```
 
 ## Contato
 
