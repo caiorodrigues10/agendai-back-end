@@ -1,3 +1,16 @@
+-- =============================================================================
+-- ⚠️  BASELINE MIGRATION — NÃO EXECUTAR EM BANCOS EXISTENTES SEM PREPARAÇÃO
+-- =============================================================================
+-- Esta migration foi adicionada em 2026-08-28 (commit feeb155) para corrigir
+-- o CI que nunca passou desde 25/08/2026. Ela cria tabelas que JÁ EXISTEM
+-- em dev, staging e produção (foram criadas via `prisma db push`).
+--
+-- ANTES de rodar `prisma migrate deploy` em staging/produção, execute:
+--   npx prisma migrate resolve --applied 20260726000000_init
+--
+-- Consulte o runbook completo em: docs/RUNBOOK_MIGRATIONS.md
+-- =============================================================================
+
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('MASTER_ADMIN', 'OWNER', 'EMPLOYEE', 'CUSTOMER');
 
