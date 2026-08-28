@@ -1,5 +1,8 @@
 import { AppError } from "@/shared/errors/AppError";
 import type { QueueStatus } from "../dtos/IQueueItemResponseDTO";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("queue-access");
 
 export type QueueRequestingUser = {
   id: string;
@@ -53,15 +56,14 @@ export function assertQueueTenantAccess(
 ): void {
   if (user.role === "MASTER_ADMIN") return;
   if (!user.barbershopId || user.barbershopId !== itemBarbershopId) {
-    console.error(
-      "[QueueAccess]",
-      JSON.stringify({
+    logger.error(
+      {
         event: "tenant_access_denied",
         resource: "queue",
         userId: user.id,
         userRole: user.role,
-        // sem CPF / WhatsApp / tokens
-      })
+      },
+      "Acesso negado: item de fila de outro estabelecimento"
     );
     throw new AppError(
       "Acesso negado: item de fila de outro estabelecimento",

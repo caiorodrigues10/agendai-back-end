@@ -17,7 +17,7 @@ function frontendBaseUrl(): string {
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean)[0];
-  return (firstOrigin || "http://localhost:5173").replace(/\/$/, "");
+  return (firstOrigin || "http://localhost:3003").replace(/\/$/, "");
 }
 
 @injectable()

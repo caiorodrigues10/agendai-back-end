@@ -36,7 +36,6 @@ describe("CreateUserUseCase", () => {
       role: "MASTER_ADMIN"
     });
     expect(user.id).toBeDefined();
-    expect(user.password).toBe("hashed:123456");
     expect(user.role).toBe("MASTER_ADMIN");
     expect(user.cpf).toBeNull();
   });

@@ -21,6 +21,18 @@ interface UserLike {
   cpf: string | null;
 }
 
+interface UserWithEmailPassword {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  barbershopId: string | null;
+  cpf: string | null;
+  active: boolean;
+  password: string | null;
+  termsVersion: string | null;
+}
+
 @injectable()
 export class LoginUseCase {
   constructor(
@@ -31,7 +43,7 @@ export class LoginUseCase {
   ) { }
 
   async execute(email: string, password: string, reply?: FastifyReply) {
-    const user = await this.userRepository.findByEmail(email);
+    const user = await this.userRepository.findByEmail(email) as UserWithEmailPassword | null;
     if (!user || !user.active) {
       logger.info({ reason: !user ? "not_found" : "inactive" }, "login denied");
       throw new AppError("Credenciais inválidas", 401);

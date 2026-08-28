@@ -16,6 +16,10 @@ import {
   ensureReferralCode,
 } from "@/modules/referrals/services/referralService";
 import { validateEmail } from "@/shared/services/emailValidationService";
+import { mapRole, parseDuration } from "@/shared/utils/authUtils";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("register");
 
 export interface IRegisterDTO {
   ownerName: string;
@@ -31,21 +35,6 @@ export interface IRegisterDTO {
   marketingOptIn: boolean;
   lgpdConsent: boolean;
   schedule?: Array<{ dayOfWeek: number; isOpen: boolean; openTime: string; closeTime: string }>;
-}
-
-function mapRole(role: string): "admin" | "owner" | "employee" {
-  if (role === "MASTER_ADMIN") return "admin";
-  if (role === "OWNER") return "owner";
-  return "employee";
-}
-
-function parseDuration(input: string): number {
-  const match = input.match(/^(\d+)([smhd])$/);
-  if (!match) return 0;
-  const value = Number(match[1]);
-  const unit = match[2];
-  const multipliers: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
-  return value * multipliers[unit];
 }
 
 @injectable()
@@ -218,7 +207,7 @@ export class RegisterUseCase {
         ownerUserId: user.id,
         barbershopId: user.barbershopId,
       }).catch((err) => {
-        console.error("[Register] Falha ao gerar código de indicação:", err?.message ?? err);
+        logger.error({ err }, "Falha ao gerar código de indicação");
       });
 
       await attachReferralOnRegister({
@@ -229,7 +218,7 @@ export class RegisterUseCase {
         refereeEmail: user.email,
         refereeCpf: normalizedCpf,
       }).catch((err) => {
-        console.error("[Register] Falha ao anexar indicação:", err?.message ?? err);
+        logger.error({ err }, "Falha ao anexar indicação");
       });
     }
 
@@ -240,7 +229,7 @@ export class RegisterUseCase {
       token: verificationToken,
       deduplicationKey: `verify-email:${user.id}`,
     }).catch((err) => {
-      console.error("[Register] Falha ao enfileirar verificação de e-mail:", err?.message ?? err);
+      logger.error({ err }, "Falha ao enfileirar verificação de e-mail");
     });
 
     // Boas-vindas (não bloqueia cadastro se fila/e-mail falhar)
@@ -251,7 +240,7 @@ export class RegisterUseCase {
       email: user.email,
       deduplicationKey: `welcome:${user.id}`,
     }).catch((err) => {
-      console.error("[Register] Falha ao enfileirar e-mail de boas-vindas:", err?.message ?? err);
+      logger.error({ err }, "Falha ao enfileirar e-mail de boas-vindas");
     });
 
     if (reply) {

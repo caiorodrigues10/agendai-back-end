@@ -1,3 +1,5 @@
+import { getFrontendUrl } from '@/shared/constants/env'
+
 const ACCENT = '#047857'
 
 export function emailLayout(opts: {
@@ -43,10 +45,7 @@ export function emailLayout(opts: {
 }
 
 export function frontendUrl(path = ''): string {
-	const base = (process.env.FRONTEND_URL || 'http://localhost:3002').replace(
-		/\/$/,
-		'',
-	)
+	const base = getFrontendUrl()
 	if (!path) return base
 	return `${base}${path.startsWith('/') ? path : `/${path}`}`
 }

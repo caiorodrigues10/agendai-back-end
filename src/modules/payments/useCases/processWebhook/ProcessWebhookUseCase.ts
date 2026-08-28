@@ -3,6 +3,9 @@ import { MercadoPagoService } from "../../services/MercadoPagoService";
 import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { IMercadoPagoWebhookDTO, PaymentStatus } from "../../dtos/IPaymentDTO";
 import { handleSubscriptionPaymentWebhook } from "@/modules/subscriptions/services/handleSubscriptionPaymentWebhook";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("process-webhook");
 
 @injectable()
 export class ProcessWebhookUseCase {
@@ -24,9 +27,7 @@ export class ProcessWebhookUseCase {
     try {
       mpData = await this.mpService.getPaymentById(mpPaymentIdStr);
     } catch (err: any) {
-      console.error(
-        `[ProcessWebhook] Falha ao buscar mpPaymentId=${mpPaymentIdStr}: ${err?.message ?? err}`
-      );
+      logger.error({ err, mpPaymentId: mpPaymentIdStr }, "Falha ao buscar pagamento no Mercado Pago");
       return;
     }
 
@@ -46,7 +47,7 @@ export class ProcessWebhookUseCase {
       updatedPayment.externalReference,
       mpData.status
     ).catch((err) => {
-      console.error(`[ProcessWebhook] Falha ao atualizar subscription: ${err?.message ?? err}`);
+      logger.error({ err, externalReference: updatedPayment.externalReference }, "Falha ao atualizar subscription");
     });
   }
 }

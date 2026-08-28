@@ -25,5 +25,5 @@ export async function queueRoutes(app: FastifyInstance) {
   app.post("/queue", { preHandler: [authenticateOptional] }, join.handle.bind(join));
   app.patch("/queue/:id", { preHandler: [authenticate, checkSubscription, setRlsContext, validateSchema(updateQueueItemSchema)] }, update.handle.bind(update));
   app.delete("/queue/:id", { preHandler: [authenticate, checkSubscription, setRlsContext] }, del.handle.bind(del));
-  app.get("/queue/metrics", metrics.handle.bind(metrics));
+  app.get("/queue/metrics", { preHandler: [authenticate, checkSubscription, setRlsContext] }, metrics.handle.bind(metrics));
 }

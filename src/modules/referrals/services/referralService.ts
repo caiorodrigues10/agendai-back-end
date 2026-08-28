@@ -15,6 +15,7 @@ import { validateEmail } from '@/shared/services/emailValidationService'
 import { normalizeCpf } from '@/shared/utils/cpfUtils'
 import { sendWhatsAppMessage } from '@/shared/services/whatsappNotificationService'
 import { getModuleLogger } from '@/shared/utils/logger'
+import { getFrontendUrl } from '@/shared/constants/env'
 
 const logger = getModuleLogger('referrals');
 
@@ -383,10 +384,7 @@ export async function getReferralDashboard(input: {
 	const nextTier = getNextTier(currentTier)
 	const conversionsToNext = getConversionsToNextTier(converted)
 
-	const frontend = (process.env.FRONTEND_URL || 'http://localhost:3002').replace(
-		/\/$/,
-		'',
-	)
+	const frontend = getFrontendUrl()
 
 	return {
 		code: code.code,

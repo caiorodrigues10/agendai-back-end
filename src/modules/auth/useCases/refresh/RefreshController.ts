@@ -6,7 +6,9 @@ import { verify, sign, Secret, SignOptions } from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
-import { UserRepository } from "@/modules/users/infra/repositories/UserRepository";
+import { container } from "tsyringe";
+import type { IUserRepository } from "@/modules/users/repositories/IUserRepository";
+import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 
 export const validateRefresh = validateSchema(refreshSchema);
 
@@ -22,7 +24,7 @@ export class RefreshController {
       if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
         return reply.status(401).send({ message: "Refresh token inválido" });
       }
-      const userRepo = new UserRepository();
+      const userRepo = container.resolve<IUserRepository>("UserRepository");
       const user = await userRepo.findById(decoded.sub);
       if (!user) return reply.status(401).send({ message: "Usuário inválido" });
       const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
@@ -73,20 +75,4 @@ export class RefreshController {
       return reply.status(401).send({ message: "Refresh token inválido" });
     }
   }
-}
-
-function parseDuration(input: string): number {
-  const match = input.match(/^(\d+)([smhd])$/);
-  if (!match) return 0;
-  const value = Number(match[1]);
-  const unit = match[2];
-  const multipliers: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
-  return value * multipliers[unit];
-}
-
-function mapRole(role: string): "admin" | "owner" | "employee" | "customer" {
-  if (role === "MASTER_ADMIN") return "admin";
-  if (role === "OWNER") return "owner";
-  if (role === "CUSTOMER") return "customer";
-  return "employee";
 }

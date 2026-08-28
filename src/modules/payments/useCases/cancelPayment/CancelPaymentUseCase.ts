@@ -5,6 +5,9 @@ import { AsaasService } from "../../services/AsaasService";
 import { IPaymentRepository } from "../../repositories/IPaymentRepository";
 import { IPaymentResponseDTO } from "../../dtos/IPaymentDTO";
 import { AppError } from "@/shared/errors/AppError";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("cancel-payment");
 
 @injectable()
 export class CancelPaymentUseCase {
@@ -76,14 +79,14 @@ export class CancelPaymentUseCase {
         });
       } catch (error: any) {
         if (error instanceof AppError) throw error;
-        console.error(
-          "[CancelPayment]",
-          JSON.stringify({
+        logger.error(
+          {
             event: "payment_cancel_remote_failed",
             provider: "ABACATEPAY",
             paymentId: payment.id,
             reason: error?.message ?? "unknown",
-          })
+          },
+          "Falha ao cancelar pagamento no AbacatePay"
         );
         throw new AppError(
           `Falha ao cancelar no AbacatePay: ${error?.message ?? "erro desconhecido"}`,
@@ -117,14 +120,14 @@ export class CancelPaymentUseCase {
         });
       } catch (error: any) {
         if (error instanceof AppError) throw error;
-        console.error(
-          "[CancelPayment]",
-          JSON.stringify({
+        logger.error(
+          {
             event: "payment_cancel_remote_failed",
             provider: "ASAAS",
             paymentId: payment.id,
             reason: error?.message ?? "unknown",
-          })
+          },
+          "Falha ao cancelar pagamento no Asaas"
         );
         throw new AppError(
           `Falha ao cancelar no Asaas: ${error?.message ?? "erro desconhecido"}`,

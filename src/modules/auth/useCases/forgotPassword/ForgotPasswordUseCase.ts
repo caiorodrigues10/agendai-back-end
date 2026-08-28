@@ -5,6 +5,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { container } from "tsyringe";
 import type { IEmailProvider } from "@/shared/container/providers/EmailProvider/IEmailProvider";
+import { getFrontendUrl } from "@/shared/constants/env";
 
 const logger = getModuleLogger("forgot-password");
 const TOKEN_EXPIRY_HOURS = 1;
@@ -64,7 +65,7 @@ export class ForgotPasswordUseCase {
   private async sendResetEmail(email: string, token: string) {
     const emailProvider = container.resolve<IEmailProvider>("EmailProvider");
 
-    const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3003"}/reset-password?token=${token}`;
+    const resetUrl = `${getFrontendUrl()}/reset-password?token=${token}`;
 
     await emailProvider.send({
       to: email,

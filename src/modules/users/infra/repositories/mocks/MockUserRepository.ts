@@ -18,8 +18,7 @@ export class MockUserRepository implements IUserRepository {
       barbershopId: payload.barbershopId ?? null,
       cpf: payload.cpf ?? null,
       createdAt: now,
-      active: true,
-      password: payload.password
+      active: true
     };
     this.data.push(entity);
     return entity;

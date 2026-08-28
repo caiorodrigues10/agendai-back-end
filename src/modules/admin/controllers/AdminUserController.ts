@@ -59,7 +59,10 @@ export class AdminUserController {
       if (cpfInUse) throw new AppError("CPF já cadastrado", 400);
     }
 
-    const passwordHash = await hash(password || '123456', 8);
+    if (!password) {
+      throw new AppError("Senha é obrigatória", 400);
+    }
+    const passwordHash = await hash(password, 8);
 
     const user = await prisma.user.create({
       data: { name, email, password: passwordHash, role, barbershopId: sanitizedBarbershopId, active, cpf: normalizedCpf },

@@ -9,7 +9,6 @@ export interface IUserResponseDTO {
   cpf: string | null;  
   createdAt: Date;
   active: boolean;
-  password?: string;
   googleSub?: string | null;
   emailVerified?: boolean;
   deletedAt?: Date | null;
