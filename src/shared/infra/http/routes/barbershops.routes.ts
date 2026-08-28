@@ -32,6 +32,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.get("/barbershops",              list.handle.bind(list));
   app.get("/barbershops/:id",          get.handle.bind(get));
   app.get("/barbershops/:id/schedule", getSchedule.handle.bind(getSchedule));
+  app.get("/barbershops/:id/staff",    get.listStaff.bind(get));
 
   // ─── Edição com assinatura (PUT e PATCH aceitos — o front usa PATCH) ──────
   app.put("/barbershops/:id",            { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] }, update.handle.bind(update));

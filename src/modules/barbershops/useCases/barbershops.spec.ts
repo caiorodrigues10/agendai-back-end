@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { MockBarbershopRepository } from "@/modules/barbershops/infra/repositories/mocks/MockBarbershopRepository";
 import { CreateBarbershopUseCase } from "./createBarbershop/CreateBarbershopUseCase";
 import { ListBarbershopsUseCase } from "./listBarbershops/ListBarbershopsUseCase";
-import { GetBarbershopUseCase } from "./getBarbershop/GetBarbershopUseCase";
+import { ListPublicStaffUseCase } from "./getBarbershop/ListPublicStaffUseCase";
 import { UpdateBarbershopUseCase } from "./updateBarbershop/UpdateBarbershopUseCase";
 import { DeleteBarbershopUseCase } from "./deleteBarbershop/DeleteBarbershopUseCase";
 import { GetScheduleUseCase } from "./getSchedule/GetScheduleUseCase";
@@ -57,5 +57,10 @@ describe("Barbershops module", () => {
 
   it("lança erro ao buscar id inexistente", async () => {
     await expect(get.execute("not-found")).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("equipe pública: 404 se o salão não existe", async () => {
+    const listStaff = new ListPublicStaffUseCase(repo as any);
+    await expect(listStaff.execute("not-found")).rejects.toBeInstanceOf(AppError);
   });
 });
