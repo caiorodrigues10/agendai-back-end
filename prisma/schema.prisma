@@ -27,6 +27,7 @@ model User {
   marketingOptIn    Boolean   @default(false)
   marketingOptInAt  DateTime?
   lgpdConsentAt     DateTime?
+  avatarUrl         String?   @db.VarChar(500)
 
   barbershop          Barbershop?         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   refreshTokens       RefreshToken[]

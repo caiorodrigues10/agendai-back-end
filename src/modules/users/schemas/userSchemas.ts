@@ -87,6 +87,7 @@ export const staffUpdateUserSchema = z.object({
   email: z.string().email().max(100).optional(),
   role: z.enum(["OWNER", "EMPLOYEE"]).optional(),
   active: z.boolean().optional(),
+  avatarUrl: z.string().url().max(500).nullable().optional(),
 }).strict();
 
 export type CreateUserDTO = z.infer<typeof createUserSchema>;

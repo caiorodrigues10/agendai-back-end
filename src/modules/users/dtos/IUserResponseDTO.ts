@@ -18,4 +18,5 @@ export interface IUserResponseDTO {
   marketingOptIn?: boolean;
   marketingOptInAt?: Date | null;
   lgpdConsentAt?: Date | null;
+  avatarUrl?: string | null;
 }

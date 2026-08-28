@@ -3,6 +3,7 @@ import { CreateUserController } from "@/modules/users/useCases/createUser/Create
 import { StaffUserController } from "@/modules/users/controllers/StaffUserController";
 import { DeleteAccountController, validateDeleteAccount } from "@/modules/users/useCases/deleteAccount/DeleteAccountController";
 import { ExportUserDataController } from "@/modules/users/useCases/exportData/ExportUserDataController";
+import { AvatarController } from "@/modules/users/useCases/uploadAvatar/AvatarController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
@@ -13,6 +14,7 @@ export async function usersRoutes(app: FastifyInstance) {
   const staff = new StaffUserController();
   const deleteAccountController = new DeleteAccountController();
   const exportUserDataController = new ExportUserDataController();
+  const avatarController = new AvatarController();
 
   // ─── Gestão de equipe (OWNER da barbearia; MASTER_ADMIN via ?barbershopId=) ─
   const ownerGuard = [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext];
@@ -118,4 +120,12 @@ export async function usersRoutes(app: FastifyInstance) {
       },
     },
   }, exportUserDataController.handle.bind(exportUserDataController));
+
+  // ─── Avatar: upload, confirm, delete ──────────────────────────────────────
+  // Owner/Admin pode alterar qualquer usuário; employee só a si mesmo
+  const avatarGuard = [authenticate, setRlsContext];
+  app.get("/users/:id/avatar/upload-url", { preHandler: avatarGuard }, avatarController.getUploadUrl.bind(avatarController));
+  app.patch("/users/:id/avatar", { preHandler: avatarGuard }, avatarController.confirmAvatar.bind(avatarController));
+  app.delete("/users/:id/avatar", { preHandler: avatarGuard }, avatarController.deleteAvatar.bind(avatarController));
+  app.post("/users/:id/avatar/upload", { preHandler: avatarGuard }, avatarController.uploadDirect.bind(avatarController));
 }

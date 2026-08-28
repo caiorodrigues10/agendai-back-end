@@ -11,6 +11,7 @@ const publicSelect = {
   active: true,
   barbershopId: true,
   createdAt: true,
+  avatarUrl: true,
 } as const;
 
 /**
@@ -66,7 +67,7 @@ export class StaffUserController {
     const target = await this.findScopedUser(request, id);
 
     const parsed = staffUpdateUserSchema.parse(request.body);
-    const { name, email, role, active } = parsed;
+    const { name, email, role, active, avatarUrl } = parsed;
     // OWNER não pode rebaixar/alterar outro OWNER (evita golpe de acesso)
     if (requester.role === "OWNER" && target.role === "OWNER" && target.id !== requester.id && role) {
       throw new AppError("Você não pode alterar o papel de outro proprietário", 403);
@@ -84,6 +85,7 @@ export class StaffUserController {
         ...(email && { email }),
         ...(role && { role: role as any }),
         ...(active !== undefined && { active }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
       },
       select: publicSelect,
     });
