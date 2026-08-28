@@ -20,8 +20,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # /ready: retorna 503 quando DB ou Redis estão indisponíveis → container restarta.
+    # /health: sempre retorna 200 (informativo) — NÃO usar para HEALTHCHECK.
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3333/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3333/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
