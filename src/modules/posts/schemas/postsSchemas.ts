@@ -23,6 +23,8 @@ export const previewPostQuerySchema = z.object({
   barbershopId: z.string().uuid(),
   postMode: postModeSchema.default("both"),
   type: postTypeSchema.default("announcement"),
+  title: z.string().max(80).optional(),
+  ctaText: z.string().max(40).optional(),
 });
 
 export const createPostSchema = z.object({

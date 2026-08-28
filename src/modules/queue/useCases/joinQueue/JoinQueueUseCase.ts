@@ -1,17 +1,21 @@
 import { inject, injectable } from "tsyringe";
 import { randomUUID } from "node:crypto";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
+import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
 import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO } from "../../dtos/IQueueItemResponseDTO";
 import { AppError } from "@/shared/errors/AppError";
 import { assertPublicShopOperationalAccess } from "@/shared/utils/assertPublicShopOperationalAccess";
 import { prisma } from "@/libs/prismaClient";
+import { notifyCustomerJoinedQueue } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
 
 @injectable()
 export class JoinQueueUseCase {
   constructor(
     @inject("QueueRepository")
-    private queueRepository: IQueueRepository
+    private queueRepository: IQueueRepository,
+    @inject("BarbershopRepository")
+    private barbershopRepository: IBarbershopRepository
   ) {}
 
   async execute(data: IJoinQueueDTO): Promise<IQueueItemResponseDTO> {
@@ -41,10 +45,22 @@ export class JoinQueueUseCase {
       throw new AppError("Você já está na fila", 409);
     }
 
-    return this.queueRepository.create({
+    const item = await this.queueRepository.create({
       ...data,
       customerId,
       addedByStaff: data.addedByStaff ?? false,
     });
+
+    try {
+      await notifyCustomerJoinedQueue(
+        item,
+        this.queueRepository,
+        this.barbershopRepository
+      );
+    } catch {
+      // notificação não bloqueia entrada na fila
+    }
+
+    return item;
   }
 }

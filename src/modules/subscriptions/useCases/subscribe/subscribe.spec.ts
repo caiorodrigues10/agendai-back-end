@@ -365,4 +365,56 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     const invoiceCreate = prismaMock.invoice.create.mock.calls[0][0].data;
     expect(invoiceCreate.paymentMethod).toBe("credit_card");
   });
+
+  it("[FIX] TRIALING pode gerar PIX Asaas sem 409 e permanece TRIALING até o webhook", async () => {
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      ...makeSubscription(),
+      status: "TRIALING",
+      endDate: null,
+    });
+    prismaMock.subscription.upsert.mockResolvedValue({
+      ...makeSubscription(),
+      status: "TRIALING",
+    });
+
+    const asaasService = {
+      ensureCustomer: vi.fn().mockResolvedValue("cus_1"),
+      createPayment: vi.fn().mockResolvedValue({
+        id: "pay_asaas_trial",
+        status: "PENDING",
+        value: 1199,
+        billingType: "PIX",
+        externalReference: "ag-sub-sub-1-inv-inv-1",
+        pixQrCode: {
+          encodedImage: "base64qr",
+          payload: "00020126",
+          expirationDate: "2026-01-16T12:00:00.000Z",
+        },
+      }),
+      getPixQrCode: vi.fn(),
+    };
+
+    const useCase = new SubscribeUseCase(
+      mpService as any,
+      {} as any,
+      asaasService as any,
+      repo as any
+    );
+
+    const result = await useCase.execute(
+      {
+        barbershopId: "shop-1",
+        planId: "plan-yearly",
+        paymentMethod: "asaas",
+        asaasBillingType: "PIX",
+        payerEmail: "owner@example.com",
+      },
+      { role: "OWNER", barbershopId: "shop-1" }
+    );
+
+    expect(result.payment?.pixQrCode?.qrCode).toBe("00020126");
+    const upsertCall = prismaMock.subscription.upsert.mock.calls[0][0];
+    expect(upsertCall.update.status).toBe("TRIALING");
+    expect(upsertCall.update.planId).toBe("plan-yearly");
+  });
 });

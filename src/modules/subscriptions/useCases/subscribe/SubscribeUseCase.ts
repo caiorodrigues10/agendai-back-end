@@ -85,12 +85,11 @@ export class SubscribeUseCase {
           where: { barbershopId: data.barbershopId },
         });
 
-        if (existing && ["TRIALING", "ACTIVE"].includes(existing.status)) {
-          throw new AppError(
-            "Já existe uma assinatura ativa. Cancele a atual antes de assinar um novo plano.",
-            409
-          );
-        }
+        // Trial ou plano já pago: o dono pode gerar PIX/cartão para ativar ou
+        // trocar o ciclo. Não rebaixar para PAST_DUE no meio do checkout —
+        // senão o painel trava antes do pagamento. O webhook promove a ACTIVE.
+        const keepAccessUntilPaid =
+          existing?.status === "TRIALING" || existing?.status === "ACTIVE";
 
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 30);
@@ -99,15 +98,23 @@ export class SubscribeUseCase {
           data.paymentMethod === "pix" ||
           data.paymentMethod === "payment_link" ||
           data.paymentMethod === "asaas";
-        const initialStatus = pendingUntilWebhook ? "PAST_DUE" : "ACTIVE";
+        const initialStatus = keepAccessUntilPaid
+          ? existing!.status
+          : pendingUntilWebhook
+            ? "PAST_DUE"
+            : "ACTIVE";
 
         const subscription = await tx.subscription.upsert({
           where: { barbershopId: data.barbershopId },
           update: {
             planId: plan.id,
             status: initialStatus,
-            startDate: new Date(),
-            endDate: pendingUntilWebhook ? null : dueDate,
+            startDate: keepAccessUntilPaid ? existing!.startDate : new Date(),
+            endDate: keepAccessUntilPaid
+              ? existing!.endDate
+              : pendingUntilWebhook
+                ? null
+                : dueDate,
             cancelDate: null,
           },
           create: {

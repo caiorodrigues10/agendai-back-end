@@ -29,7 +29,8 @@ describe("buildPostSvg", () => {
     expect(svg).toContain("#10B981");
     expect(svg).toContain("#0F0F0F");
     expect(svg).not.toContain("#F59E0B");
-    expect(svg).toContain("HOJE");
+    expect(svg).toContain("AGEND");
+    expect(svg).toContain("#00C2B3");
   });
 
   it("quebra título longo em duas linhas", () => {
@@ -58,6 +59,12 @@ describe("buildPostSvg", () => {
 });
 
 describe("renderPostSvgToPng", () => {
+  it("renderiza o post completo em PNG com tamanho de arte (fonte empacotada)", () => {
+    const png = renderPostSvgToPng(buildPostSvg(minimalInput));
+    expect(png.length).toBeGreaterThan(20_000);
+    expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  });
+
   it("renderiza SVG pequeno em PNG com magic bytes válidos", () => {
     const png = renderPostSvgToPng(
       '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#0B0F19"/></svg>'

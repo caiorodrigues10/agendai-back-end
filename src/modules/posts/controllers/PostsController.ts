@@ -167,6 +167,8 @@ export class PostsController {
     const query = previewPostQuerySchema.parse(request.query);
     const imageUrl = await buildPostImage(query.barbershopId, {
       postMode: query.postMode,
+      title: query.title,
+      ctaText: query.ctaText,
     });
     return reply.status(200).send({ success: true, data: { imageUrl } });
   }

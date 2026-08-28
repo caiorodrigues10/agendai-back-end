@@ -6,7 +6,12 @@ import { JoinQueueUseCase } from "./joinQueue/JoinQueueUseCase";
 import { ListQueueUseCase } from "./listQueue/ListQueueUseCase";
 import { UpdateQueueItemUseCase } from "./updateQueueItem/UpdateQueueItemUseCase";
 import { DeleteQueueItemUseCase } from "./deleteQueueItem/DeleteQueueItemUseCase";
-import { NotifyQueuePositionUpdatesUseCase } from "./notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
+import {
+  NotifyQueuePositionUpdatesUseCase,
+  notifyCustomerJoinedQueue,
+  buildQueueJoinedMessage,
+  buildQueueCancelledMessage,
+} from "./notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
 import { GetQueueWaitEstimateUseCase } from "./getQueueWaitEstimate/GetQueueWaitEstimateUseCase";
 import {
   buildReminderMessage,
@@ -39,10 +44,10 @@ beforeEach(() => {
     findById: vi.fn().mockResolvedValue({
       id: "shop-1",
       name: "Barbearia Central",
-      evolutionInstanceName: null,
+      evolutionInstanceName: "inst-shop-1",
     }),
   };
-  join = new JoinQueueUseCase(queues as any);
+  join = new JoinQueueUseCase(queues as any, shopsStub as any);
   list = new ListQueueUseCase(queues as any);
   update = new UpdateQueueItemUseCase(queues as any, notifyPosition, shopsStub as any);
   del = new DeleteQueueItemUseCase(queues as any, notifyPosition);
@@ -115,6 +120,40 @@ describe("Queue module", () => {
     sendSpy.mockRestore();
   });
 
+  it("Cancelar enfileira WhatsApp ao cliente", async () => {
+    const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "11988887777",
+      serviceId: "svc-1",
+      customerId: "cust-cancel",
+    });
+    await update.execute(q.id, "cancelled", staffShop1);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy.mock.calls[0][0]).toMatchObject({
+      phone: "11988887777",
+      deduplicationKey: `cancel:${q.id}`,
+    });
+    expect(sendSpy.mock.calls[0][0].message).toContain("foi cancelado");
+    expect(sendSpy.mock.calls[0][0].message).toContain("Ana");
+    sendSpy.mockRestore();
+  });
+
+  it("Cancelar não enfileira WhatsApp para placeholder", async () => {
+    const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Sem Zap",
+      whatsapp: STAFF_QUEUE_PLACEHOLDER_WHATSAPP,
+      serviceId: "svc-1",
+      customerId: "cust-cancel-placeholder",
+    });
+    await update.execute(q.id, "cancelled", staffShop1);
+    expect(sendSpy).not.toHaveBeenCalled();
+    sendSpy.mockRestore();
+  });
+
   it("Chamar não enfileira WhatsApp para placeholder", async () => {
     const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
     const q = await queues.create({
@@ -127,6 +166,51 @@ describe("Queue module", () => {
     await update.execute(q.id, "in_chair", staffShop1);
     expect(sendSpy).not.toHaveBeenCalled();
     sendSpy.mockRestore();
+  });
+
+  it("entrada na fila avisa o cliente (posição 2) e grava lastNotifiedPosition", async () => {
+    const sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
+    const shopsForJoin = {
+      findById: vi.fn().mockResolvedValue({
+        id: "shop-1",
+        name: "Barbearia Central",
+        evolutionInstanceName: "inst-shop-1",
+      }),
+    };
+    const first = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Frente",
+      whatsapp: "11911111111",
+      serviceId: "svc-1",
+      customerId: "cust-front",
+    });
+    queues.data.find((q) => q.id === first.id)!.serviceAvgTimeMinutes = 25;
+    const joiner = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Caio",
+      whatsapp: "11988887777",
+      serviceId: "svc-1",
+      customerId: "cust-join",
+    });
+    await notifyCustomerJoinedQueue(joiner, queues as any, shopsForJoin as any);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy.mock.calls[0][0]).toMatchObject({
+      phone: "11988887777",
+      deduplicationKey: `join-customer:${joiner.id}`,
+    });
+    expect(sendSpy.mock.calls[0][0].message).toContain("Posição: *2ª*");
+    expect(sendSpy.mock.calls[0][0].message).toContain("25 min");
+    expect(sendSpy.mock.calls[0][0].message).not.toContain("Chegou sua vez");
+    expect(queues.data.find((q) => q.id === joiner.id)!.lastNotifiedPosition).toBe(2);
+    sendSpy.mockRestore();
+  });
+
+  it("buildQueueJoinedMessage na 1ª posição pede para aguardar ser chamado", () => {
+    const msg = buildQueueJoinedMessage("Caio", "AgendAI", 1, 0);
+    expect(msg).toContain("é o próximo");
+    expect(msg).toContain("Aguarde ser chamado");
+    expect(msg).not.toContain("Chegou sua vez");
+    expect(buildQueueCancelledMessage("Ana", "AgendAI")).toContain("foi cancelado");
   });
 
   it("ignora completedAt extra no PATCH (timestamp fica no servidor)", () => {
@@ -520,7 +604,11 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
   beforeEach(() => {
     queues3 = new MockQueueRepository();
     shops = new MockBarbershopRepository() as any;
-    shops.findById = vi.fn().mockResolvedValue({ id: "shop-1", name: "Barbearia Central" }) as any;
+    shops.findById = vi.fn().mockResolvedValue({
+      id: "shop-1",
+      name: "Barbearia Central",
+      evolutionInstanceName: "inst-shop-1",
+    }) as any;
     notifyUseCase = new NotifyQueuePositionUpdatesUseCase(queues3 as any, shops as any);
     sendSpy = vi.spyOn(queueModule, "enqueueWhatsApp").mockResolvedValue(undefined);
   });
@@ -608,6 +696,30 @@ describe("NotifyQueuePositionUpdatesUseCase", () => {
     await delUseCase.execute(a.id, staffShop1);
     expect(sendSpy).toHaveBeenCalledTimes(1);
     expect(sendSpy.mock.calls[0][0].phone).toBe("5522222222222");
+    expect(queues3.data.find((q) => q.id === b.id)!.lastNotifiedPosition).toBe(1);
+  });
+
+  it("Cancelar o da frente avisa o cancelado e o novo primeiro", async () => {
+    const a = await queues3.create({
+      barbershopId: "shop-1", serviceId: "svc", customerId: "c1",
+      customerName: "Primeiro", whatsapp: "5511111111111",
+    });
+    const b = await queues3.create({
+      barbershopId: "shop-1", serviceId: "svc", customerId: "c2",
+      customerName: "Segundo", whatsapp: "5522222222222",
+    });
+    const updateUc = new UpdateQueueItemUseCase(queues3 as any, notifyUseCase, shops);
+    await updateUc.execute(a.id, "cancelled", staffShop1);
+
+    expect(sendSpy).toHaveBeenCalledTimes(2);
+    const cancelCall = sendSpy.mock.calls.find(
+      (m: any) => m[0].deduplicationKey === `cancel:${a.id}`
+    );
+    expect(cancelCall?.[0].phone).toBe("5511111111111");
+    expect(cancelCall?.[0].message).toContain("foi cancelado");
+
+    const nextCall = sendSpy.mock.calls.find((m: any) => m[0].phone === "5522222222222");
+    expect(nextCall?.[0].message).toContain("Chegou sua vez, Segundo");
     expect(queues3.data.find((q) => q.id === b.id)!.lastNotifiedPosition).toBe(1);
   });
 

@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1787758899.2790968,
-    "ast_hash": "3ef3edc3bda151924628c759f386a2b9",
+    "mtime": 1787778014.7874255,
+    "ast_hash": "853a5243a8cababded2c76fa7f7effc5",
     "semantic_hash": ""
   },
   "prisma/migrations/20260727120000_add_appointment_reminder_sent_at/migration.sql": {
@@ -95,8 +95,8 @@
     "semantic_hash": ""
   },
   "src/modules/admin/controllers/AdminBarbershopController.ts": {
-    "mtime": 1787762579.3143878,
-    "ast_hash": "32dcc7f55fe0eebcbd0561cd98c2bbc7",
+    "mtime": 1787773074.9471283,
+    "ast_hash": "a6629c28127010d0e37e954f9688ddc4",
     "semantic_hash": ""
   },
   "src/modules/admin/controllers/AdminDashboardController.ts": {
@@ -120,13 +120,13 @@
     "semantic_hash": ""
   },
   "src/modules/admin/controllers/AdminUserController.ts": {
-    "mtime": 1787762562.9889402,
-    "ast_hash": "9502aea409972ef957e70b4f25091642",
+    "mtime": 1787773059.0294683,
+    "ast_hash": "3922ac5d0210291573adff5480edcc9c",
     "semantic_hash": ""
   },
   "src/modules/admin/controllers/BlockedEntityController.ts": {
-    "mtime": 1783103933.9225495,
-    "ast_hash": "5d1711ce555a4d0a51e536d37932088e",
+    "mtime": 1787773103.3877897,
+    "ast_hash": "6c3081e487f4880c39b1b8833a7b79df",
     "semantic_hash": ""
   },
   "src/modules/admin/schemas/blockedEntitySchemas.ts": {
@@ -920,8 +920,8 @@
     "semantic_hash": ""
   },
   "src/modules/subscriptions/useCases/listSubscriptions/ListSubscriptionsController.ts": {
-    "mtime": 1787150997.9429393,
-    "ast_hash": "eb41bd1c81e4ba412063ea15cd90185f",
+    "mtime": 1787773129.8278399,
+    "ast_hash": "9216a681bac675422b5940254a0b836b",
     "semantic_hash": ""
   },
   "src/modules/subscriptions/useCases/subscribe/SubscribeController.ts": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/app.ts": {
-    "mtime": 1787764798.25065,
-    "ast_hash": "fd62c716b34fa4d0a80ab6812c5f2258",
+    "mtime": 1787778503.840037,
+    "ast_hash": "52e2df0f423e6b7c541a748b2cef277d",
     "semantic_hash": ""
   },
   "src/shared/infra/http/middlewares/authenticate.ts": {
@@ -1270,8 +1270,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/queue/redisConnection.ts": {
-    "mtime": 1787694698.6354609,
-    "ast_hash": "55093f9f12a4b406d50103d72b32d5ad",
+    "mtime": 1787777818.2663746,
+    "ast_hash": "3ee3a37333d82f69e8fb4421feac2fa5",
     "semantic_hash": ""
   },
   "src/shared/infra/queue/whatsappQueue.ts": {
@@ -1650,8 +1650,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/app.security.spec.ts": {
-    "mtime": 1787690734.931354,
-    "ast_hash": "40747bb11e9f357a4e1fbb4d1e7a2f56",
+    "mtime": 1787773427.9887464,
+    "ast_hash": "6843a911c77a0d6d49871c12772fa511",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/clients.routes.ts": {
@@ -1720,8 +1720,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/cron/cleanOldLogs.cron.ts": {
-    "mtime": 1787680883.5808666,
-    "ast_hash": "c9e854e3da918b014e43d2b21a830003",
+    "mtime": 1787772982.216506,
+    "ast_hash": "817c462c39673d3e34b3c5457096ce7b",
     "semantic_hash": ""
   },
   "src/shared/services/accessLogService.ts": {
@@ -1835,8 +1835,8 @@
     "semantic_hash": ""
   },
   "src/modules/admin/schemas/adminSchemas.ts": {
-    "mtime": 1787762549.5100834,
-    "ast_hash": "5450ca6b25dac00c7080c0fddfbb25a1",
+    "mtime": 1787773028.579813,
+    "ast_hash": "ac84ce84b31a7ce4428302de101682dc",
     "semantic_hash": ""
   },
   "src/modules/admin/schemas/index.ts": {
@@ -1895,13 +1895,13 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/redisRateLimitStore.ts": {
-    "mtime": 1787764670.8505628,
-    "ast_hash": "6fb343dcb93b537cdf8848411ac02673",
+    "mtime": 1787777063.4756227,
+    "ast_hash": "74aedb32ae57a3f64e61a961f18c9447",
     "semantic_hash": ""
   },
   "src/shared/infra/http/middlewares/verifyRecaptcha.ts": {
-    "mtime": 1787765356.944243,
-    "ast_hash": "9a47a9cad2eb8969360fe2e4d0694290",
+    "mtime": 1787774723.1361744,
+    "ast_hash": "ceceaf45f1e1ea82805b3a6ab30be495",
     "semantic_hash": ""
   }
 }

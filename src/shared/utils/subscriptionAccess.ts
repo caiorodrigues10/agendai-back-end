@@ -9,42 +9,47 @@
  */
 
 export function hasVaultedCard(sub: {
-  asaasCreditCardToken?: string | null;
+	asaasCreditCardToken?: string | null
 }): boolean {
-  return Boolean(sub.asaasCreditCardToken);
+	return Boolean(sub.asaasCreditCardToken)
 }
 
 /** CPF só é bloqueado em inadimplência real, não só porque o trial calendário acabou. */
-export function shouldBlockOwnerCpfsOnDeniedAccess(status?: string | null): boolean {
-  return status === "PAST_DUE" || status === "UNPAID";
+export function shouldBlockOwnerCpfsOnDeniedAccess(
+	status?: string | null,
+): boolean {
+	return status === 'PAST_DUE' || status === 'UNPAID'
 }
 
 export function subscriptionGrantsAccess(
-  subscription: {
-    status: string;
-    endDate?: Date | null;
-    asaasCreditCardToken?: string | null;
-  } | null | undefined,
-  now: Date,
-  trialEnd: Date
+	subscription:
+		| {
+				status: string
+				endDate?: Date | null
+				asaasCreditCardToken?: string | null
+		  }
+		| null
+		| undefined,
+	now: Date,
+	trialEnd: Date,
 ): { allowed: boolean; cardRequired: boolean } {
-  if (!subscription) {
-    if (now <= trialEnd) return { allowed: true, cardRequired: false };
-    return { allowed: false, cardRequired: false };
-  }
+	if (!subscription) {
+		if (now <= trialEnd) return { allowed: true, cardRequired: false }
+		return { allowed: false, cardRequired: false }
+	}
 
-  const hasPaidPeriodLeft =
-    subscription.status === "CANCELED" &&
-    subscription.endDate != null &&
-    subscription.endDate > now;
+	const hasPaidPeriodLeft =
+		subscription.status === 'CANCELED' &&
+		subscription.endDate != null &&
+		subscription.endDate > now
 
-  if (subscription.status === "ACTIVE" || hasPaidPeriodLeft) {
-    return { allowed: true, cardRequired: false };
-  }
+	if (subscription.status === 'ACTIVE' || hasPaidPeriodLeft) {
+		return { allowed: true, cardRequired: false }
+	}
 
-  if (subscription.status === "TRIALING" && now <= trialEnd) {
-    return { allowed: true, cardRequired: false };
-  }
+	if (subscription.status === 'TRIALING' && now <= trialEnd) {
+		return { allowed: true, cardRequired: false }
+	}
 
-  return { allowed: false, cardRequired: false };
+	return { allowed: false, cardRequired: false }
 }

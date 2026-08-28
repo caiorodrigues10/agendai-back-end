@@ -42,6 +42,9 @@ export class JoinQueueController {
       addedByStaff: isStaff,
     });
 
+    // Cliente recebe confirmação no JoinQueueUseCase. O salão só é avisado
+    // quando o próprio cliente entra (não quando o staff adiciona).
+
     if (!isStaff) {
       try {
         const shop = await prisma.barbershop.findUnique({

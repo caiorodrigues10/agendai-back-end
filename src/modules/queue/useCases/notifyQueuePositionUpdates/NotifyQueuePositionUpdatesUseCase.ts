@@ -16,6 +16,76 @@ export function buildQueueCalledMessage(customerName: string, shopLabel: string)
   );
 }
 
+/** Confirmação para o cliente ao entrar na fila (não é “chegou sua vez”). */
+export function buildQueueJoinedMessage(
+  customerName: string,
+  shopLabel: string,
+  position: number,
+  estimatedWaitMinutes: number
+): string {
+  if (position <= 1) {
+    return (
+      `Olá ${customerName}! Você entrou na fila da *${shopLabel}* e é o próximo.\n\n` +
+      `Aguarde ser chamado no salão — avisamos por aqui. 💈`
+    );
+  }
+  return (
+    `Olá ${customerName}! Você entrou na fila da *${shopLabel}*.\n\n` +
+    `Posição: *${position}ª*\n` +
+    `⏱️ Tempo médio estimado: ${estimatedWaitMinutes} min\n\n` +
+    `Assim que chegar sua vez, avisamos por aqui. 💈`
+  );
+}
+
+/** Aviso ao cliente quando o staff cancela o lugar na fila. */
+export function buildQueueCancelledMessage(customerName: string, shopLabel: string): string {
+  return (
+    `Olá ${customerName}, seu lugar na fila da *${shopLabel}* foi cancelado.\n\n` +
+    `Se quiser voltar, é só entrar de novo pelo link do salão.`
+  );
+}
+
+/** Envia WhatsApp de entrada na fila e grava lastNotifiedPosition. */
+export async function notifyCustomerJoinedQueue(
+  item: {
+    id: string;
+    barbershopId: string;
+    customerName: string;
+    whatsapp: string;
+  },
+  queueRepository: IQueueRepository,
+  barbershopRepository: IBarbershopRepository
+): Promise<void> {
+  if (isPlaceholderWhatsApp(item.whatsapp)) return;
+
+  const shop = await barbershopRepository.findById(item.barbershopId);
+  const instanceName = shop?.evolutionInstanceName?.trim();
+  if (!instanceName) return;
+
+  const waiting = await queueRepository.findWaitingByBarbershop(item.barbershopId);
+  const index = waiting.findIndex((w) => w.id === item.id);
+  const position = index >= 0 ? index + 1 : Math.max(waiting.length, 1);
+  let estimatedWaitMinutes = 0;
+  const aheadUntil = index >= 0 ? index : waiting.length;
+  for (let j = 0; j < aheadUntil; j++) {
+    estimatedWaitMinutes += Number(waiting[j].serviceAvgTimeMinutes) || 0;
+  }
+
+  const shopLabel = shop?.name?.trim() || "a barbearia";
+  await enqueueWhatsApp({
+    phone: item.whatsapp,
+    message: buildQueueJoinedMessage(
+      item.customerName,
+      shopLabel,
+      position,
+      estimatedWaitMinutes
+    ),
+    instanceName,
+    deduplicationKey: `join-customer:${item.id}`,
+  });
+  await queueRepository.markNotifiedPosition(item.id, position);
+}
+
 export interface NotifyQueuePositionResult {
   notified: number;
   failed: number;

@@ -67,6 +67,8 @@ export class CancelSubscriptionController {
           details: JSON.stringify({ barbershopId, cancelReason: body.cancelReason ?? null }),
           ipAddress: request.ip
         }
+      }).catch((err) => {
+        request.log?.error({ err }, "Failed to audit CANCEL_SUBSCRIPTION");
       });
     }
 

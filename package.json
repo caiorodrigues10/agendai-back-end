@@ -51,6 +51,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "@sentry/node": "^9.0.0",
     "@sentry/profiling-node": "^9.0.0",
+    "@upstash/redis": "^1.38.3",
     "bcryptjs": "^2.4.3",
     "bullmq": "^6.0.9",
     "busboy": "^1.6.0",

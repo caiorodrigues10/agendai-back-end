@@ -2,7 +2,11 @@ import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
-import { NotifyQueuePositionUpdatesUseCase, buildQueueCalledMessage } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
+import {
+  NotifyQueuePositionUpdatesUseCase,
+  buildQueueCalledMessage,
+  buildQueueCancelledMessage,
+} from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
 import {
   assertQueueStatusTransition,
   assertQueueTenantAccess,
@@ -55,17 +59,24 @@ export class UpdateQueueItemUseCase {
       joinedAt,
     });
 
-    if (item.status === "waiting" && nextStatus === "in_chair" && !isPlaceholderWhatsApp(item.whatsapp)) {
+    const shouldNotifyCustomer =
+      !isPlaceholderWhatsApp(item.whatsapp) &&
+      ((item.status === "waiting" && nextStatus === "in_chair") || nextStatus === "cancelled");
+
+    if (shouldNotifyCustomer) {
       try {
         const shop = await this.barbershopRepository.findById(item.barbershopId);
         const shopLabel = shop?.name?.trim() || "a barbearia";
         const instanceName = shop?.evolutionInstanceName?.trim();
         if (instanceName) {
+          const called = item.status === "waiting" && nextStatus === "in_chair";
           await enqueueWhatsApp({
             phone: item.whatsapp,
-            message: buildQueueCalledMessage(item.customerName, shopLabel),
+            message: called
+              ? buildQueueCalledMessage(item.customerName, shopLabel)
+              : buildQueueCancelledMessage(item.customerName, shopLabel),
             instanceName,
-            deduplicationKey: `call:${item.id}`,
+            deduplicationKey: called ? `call:${item.id}` : `cancel:${item.id}`,
           });
         }
       } catch {
