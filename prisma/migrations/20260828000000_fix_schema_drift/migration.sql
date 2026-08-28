@@ -49,8 +49,32 @@ END $$;
 
 -- 3. Remover tabela password_reset_otps (existente no banco mas removida do schema.prisma)
 --    Does NOT exist on fresh DBs — only on drifted real DBs.
-DROP TABLE IF EXISTS "password_reset_otps";
+--    ABORTS if table contains data — forces manual review before destructive drop.
+DO $$
+DECLARE
+  row_count INTEGER;
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'password_reset_otps') THEN
+    SELECT count(*) INTO row_count FROM password_reset_otps;
+    IF row_count > 0 THEN
+      RAISE EXCEPTION 'password_reset_otps contains % row(s) — migration aborted. Review manually before proceeding.', row_count;
+    END IF;
+    DROP TABLE "password_reset_otps";
+  END IF;
+END $$;
 
 -- 4. Remover coluna phone de users (existente no banco mas removida do schema.prisma)
 --    Does NOT exist on fresh DBs — only on drifted real DBs.
-ALTER TABLE "users" DROP COLUMN IF EXISTS "phone";
+--    ABORTS if column contains non-null data — forces manual review before destructive drop.
+DO $$
+DECLARE
+  non_null_count INTEGER;
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'phone') THEN
+    SELECT count(*) INTO non_null_count FROM users WHERE phone IS NOT NULL;
+    IF non_null_count > 0 THEN
+      RAISE EXCEPTION 'users.phone has % non-null value(s) — migration aborted. Review manually before proceeding.', non_null_count;
+    END IF;
+    ALTER TABLE "users" DROP COLUMN "phone";
+  END IF;
+END $$;

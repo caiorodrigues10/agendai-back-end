@@ -1,5 +1,25 @@
 # Runbook: Aplicar migrations do backend em Staging/Produção
 
+---
+
+## ⚠️ AÇÃO DESTRUTIVA PENDENTE DE APROVAÇÃO HUMANA
+
+A migration `20260828000000_fix_schema_drift` contém duas operações **irreversíveis**:
+
+1. **DROP TABLE `password_reset_otps`** — remove permanentemente a tabela.
+2. **ALTER TABLE `users` DROP COLUMN `phone`** — remove permanentemente a coluna.
+
+**NÃO execute esta migration em staging ou produção sem que uma pessoa real
+tenha confirmado por escrito que concorda com a remoção dessas duas estruturas.**
+
+A migration foi escrita com guardas de segurança (`RAISE EXCEPTION`) que abortam
+se houver dados nelas, mas a confirmação de que a estrutura deve ser removida
+é uma decisão de negócio que não pode ser automatizada.
+
+Status: **PENDENTE DE APROVAÇÃO** — confirme antes de `prisma migrate deploy`.
+
+---
+
 ## Contexto
 
 O commit `feeb155` adicionou uma migration baseline (`20260726000000_init`) que
@@ -47,8 +67,8 @@ As migrations pendentes reais são:
 - `20260828000000_fix_schema_drift` — corrige drifts entre schema.prisma e banco:
   * Corrige tipos em `password_reset_tokens` (TEXT → UUID/VARCHAR)
   * Adiciona coluna `videoUrl` em `feed_posts` (se ausente)
-  * Remove tabela `password_reset_otps` (se existir)
-  * Remove coluna `phone` de `users` (se existir)
+   * Remove tabela `password_reset_otps` (ABORTA se contiver dados)
+   * Remove coluna `phone` de `users` (ABORTA se contiver valores não-nulos)
 
 ### 4. Validar
 
@@ -78,7 +98,8 @@ curl -s http://localhost:3333/health | jq .
   inconsistente. Restaure do backup e tente novamente.
 - A migration `20260828000000_fix_schema_drift` usa SQL condicional (`DO`
   blocks) para ser idempotente — funciona tanto em bancos com drift quanto
-  em bancos limpos (fresh).
+  em bancos limpos (fresh). Operações destrutivas possuem guardas `RAISE
+  EXCEPTION` que abortam se houver dados reais.
 
 ## Drift corrigido pela migration `20260828000000_fix_schema_drift`
 
@@ -102,10 +123,12 @@ Foi um vestígio de implementação abandonada. **Removida via SQL direto em
   A migration adiciona a coluna com `IF NOT EXISTS` (idempotente).
 - `users.phone` — existia no banco dev mas NÃO existe no schema.prisma e nenhum
   código usa `User.phone` (os `.phone` no código são `card.phone`, `input.phone`,
-  etc.). A migration remove com `DROP COLUMN IF EXISTS`.
+  etc.). A migration verifica se há valores não-nulos; se houver, **aborta com
+  RAISE EXCEPTION** em vez de apagar silenciosamente.
 - `password_reset_otps` — tabela existia no banco dev mas NUNCA existiu no
-  `schema.prisma` e nenhum código a referencía. A migration remove com
-  `DROP TABLE IF EXISTS`.
+  `schema.prisma` e nenhum código a referencía. A migration verifica se há
+  linhas na tabela; se houver, **aborta com RAISE EXCEPTION** em vez de apagar
+  silenciosamente.
 
 ### Recomendação para staging/produção
 
