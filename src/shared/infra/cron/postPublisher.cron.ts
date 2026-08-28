@@ -5,6 +5,7 @@ import {
   pngToDataUrl,
   renderPostSvgToPng,
 } from "@/modules/posts/services/postImageService";
+import { broadcastPostToClients } from "@/modules/posts/services/postBroadcastService";
 
 type CronLogger = {
   info: (obj: object | string, msg?: string) => void;
@@ -64,12 +65,31 @@ function dateKeyInSaoPaulo(date: Date): string {
 
 /** Publica posts agendados vencidos e gera auto-posts no horário de abertura. */
 async function runPostPublisherTick(log: CronLogger) {
-  const published = await prisma.feedPost.updateMany({
+  const scheduledPosts = await prisma.feedPost.findMany({
     where: { status: "SCHEDULED", scheduledFor: { lte: new Date() } },
-    data: { status: "PUBLISHED", publishedAt: new Date() },
+    select: { id: true, barbershopId: true, title: true, ctaText: true },
   });
-  if (published.count > 0) {
-    log.info({ count: published.count }, "Posts agendados publicados pelo cron");
+
+  for (const post of scheduledPosts) {
+    try {
+      await prisma.feedPost.update({
+        where: { id: post.id },
+        data: { status: "PUBLISHED", publishedAt: new Date() },
+      });
+
+      broadcastPostToClients(
+        post.barbershopId,
+        post.id,
+        post.title ?? "Vem pra cá hoje!",
+        post.ctaText ?? null
+      ).catch((err) => log.error({ err, postId: post.id }, "Broadcast post failed"));
+    } catch (err) {
+      log.error({ err, postId: post.id }, "Falha ao publicar post agendado");
+    }
+  }
+
+  if (scheduledPosts.length > 0) {
+    log.info({ count: scheduledPosts.length }, "Posts agendados publicados pelo cron");
   }
 
   const now = nowInSaoPaulo();
@@ -127,7 +147,7 @@ async function runPostPublisherTick(log: CronLogger) {
       });
       const imageUrl = pngToDataUrl(renderPostSvgToPng(svg));
 
-      await prisma.feedPost.create({
+      const createdPost = await prisma.feedPost.create({
         data: {
           barbershopId: shop.id,
           authorId: null,
@@ -141,6 +161,13 @@ async function runPostPublisherTick(log: CronLogger) {
           publishedAt: new Date(),
         },
       });
+
+      broadcastPostToClients(
+        shop.id,
+        createdPost.id,
+        title,
+        ctaText
+      ).catch((err) => log.error({ err, postId: createdPost.id }, "Broadcast auto-post failed"));
 
       await prisma.barbershop.update({
         where: { id: shop.id },
