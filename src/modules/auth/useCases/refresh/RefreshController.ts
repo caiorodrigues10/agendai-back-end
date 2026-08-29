@@ -59,7 +59,7 @@ export class RefreshController {
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.AUTH_COOKIE_SAME_SITE === 'none' ? 'none' : 'lax',
         path: '/api/auth',
-        ...(rememberMe ? { maxAge: 7 * 24 * 60 * 60 } : {}),
+        ...(rememberMe ? { maxAge: parseDuration(auth.refreshExpiresIn) / 1000 } : {}),
       });
 
       return reply.status(200).send({

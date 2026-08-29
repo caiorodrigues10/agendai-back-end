@@ -25,7 +25,9 @@ function validateAuthConfig(): AuthConfig {
     secret,
     refreshSecret,
     expiresIn: process.env.JWT_EXPIRES_IN || "15m",
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
+    // O refresh token é a sessão de longa duração usada por "Manter conectado".
+    // Sessões sem essa opção continuam sendo descartadas quando o navegador fecha.
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d",
   };
 }
 

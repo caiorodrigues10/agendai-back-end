@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { FastifyReply } from "fastify";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
+import { parseDuration } from "@/shared/utils/authUtils";
 
 interface UserLike {
   id: string;
@@ -17,15 +18,6 @@ function mapRole(role: string): "admin" | "owner" | "employee" {
   if (role === "MASTER_ADMIN") return "admin";
   if (role === "OWNER") return "owner";
   return "employee";
-}
-
-function parseDuration(input: string): number {
-  const match = input.match(/^(\d+)([smhd])$/);
-  if (!match) return 0;
-  const value = Number(match[1]);
-  const unit = match[2];
-  const multipliers: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
-  return value * multipliers[unit];
 }
 
 export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rememberMe = true) {
@@ -58,7 +50,7 @@ export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rem
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.AUTH_COOKIE_SAME_SITE === 'none' ? 'none' : 'lax',
       path: '/api/auth',
-      ...(rememberMe ? { maxAge: 7 * 24 * 60 * 60 } : {}),
+      ...(rememberMe ? { maxAge: parseDuration(auth.refreshExpiresIn) / 1000 } : {}),
     });
   }
 

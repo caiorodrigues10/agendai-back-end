@@ -249,7 +249,7 @@ export class RegisterUseCase {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         path: '/api/auth',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: parseDuration(auth.refreshExpiresIn) / 1000,
       });
     }
 
