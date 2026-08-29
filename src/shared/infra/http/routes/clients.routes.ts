@@ -18,4 +18,5 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.get("/clients", { preHandler: staffGuard }, clients.list.bind(clients));
   app.get("/clients/:id", { preHandler: staffGuard }, clients.get.bind(clients));
   app.patch("/clients/:id", { preHandler: staffGuard }, clients.update.bind(clients));
+  app.delete("/clients/:id", { preHandler: staffGuard }, clients.delete.bind(clients));
 }

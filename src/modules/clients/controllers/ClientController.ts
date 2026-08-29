@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import {
   CreateSalonClientUseCase,
+  DeleteSalonClientUseCase,
   GetSalonClientUseCase,
   ListSalonClientsUseCase,
   UpdateSalonClientUseCase,
@@ -73,5 +74,12 @@ export class ClientController {
     const useCase = container.resolve(UpdateSalonClientUseCase);
     const client = await useCase.execute(id, body, request.user!);
     reply.send({ success: true, data: client });
+  }
+
+  async delete(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { id } = request.params as { id: string };
+    const useCase = container.resolve(DeleteSalonClientUseCase);
+    await useCase.execute(id, request.user!);
+    reply.status(204).send();
   }
 }

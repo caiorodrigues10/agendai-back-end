@@ -27,7 +27,7 @@ export class CheckInAppointmentUseCase {
   async execute(data: ICheckInDTO): Promise<ICheckInResult> {
     const { appointmentId, barbershopId, userId, userRole } = data;
 
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx: typeof prisma) => {
       const appointment = await tx.appointment.findUnique({
         where: { id: appointmentId },
         select: {

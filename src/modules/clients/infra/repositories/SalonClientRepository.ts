@@ -285,4 +285,8 @@ export class SalonClientRepository implements ISalonClientRepository {
 
     this.historySyncedBarbershops.add(barbershopId);
   }
+
+  async delete(id: string): Promise<void> {
+    await prisma.salonClient.delete({ where: { id } });
+  }
 }

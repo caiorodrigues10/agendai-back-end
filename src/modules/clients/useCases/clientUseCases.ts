@@ -78,6 +78,21 @@ export class ListSalonClientsUseCase {
 }
 
 @injectable()
+export class DeleteSalonClientUseCase {
+  constructor(
+    @inject("SalonClientRepository")
+    private repo: ISalonClientRepository
+  ) {}
+
+  async execute(id: string, requestingUser: RequestingUser): Promise<void> {
+    const client = await this.repo.findById(id);
+    if (!client) throw new AppError("Cliente não encontrado", 404);
+    assertShopAccess(requestingUser, client.barbershopId);
+    await this.repo.delete(id);
+  }
+}
+
+@injectable()
 export class UpdateSalonClientUseCase {
   constructor(
     @inject("SalonClientRepository")

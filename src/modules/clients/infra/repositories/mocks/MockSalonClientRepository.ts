@@ -140,4 +140,8 @@ export class MockSalonClientRepository implements ISalonClientRepository {
       whatsapp: salonClientPublicWhatsapp(this.clients[idx].whatsapp),
     };
   }
+
+  async delete(id: string): Promise<void> {
+    this.clients = this.clients.filter(c => c.id !== id);
+  }
 }

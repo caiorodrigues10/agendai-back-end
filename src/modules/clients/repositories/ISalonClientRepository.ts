@@ -24,4 +24,5 @@ export interface ISalonClientRepository {
     query: ISalonClientListQuery & { barbershopId: string }
   ): Promise<{ data: ISalonClientResponseDTO[]; total: number }>;
   update(id: string, data: IUpdateSalonClientDTO): Promise<ISalonClientResponseDTO>;
+  delete(id: string): Promise<void>;
 }
