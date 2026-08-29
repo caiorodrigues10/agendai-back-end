@@ -247,10 +247,13 @@ model QueueItem {
   completedAt      DateTime?
   completedBy      String?     @db.Uuid
   finalPrice       Float?      @db.Real
+  appointmentId    String?     @db.Uuid
 
-  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  service    Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  service    Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
+  @@index([appointmentId])
   @@map("queue")
 }
 
@@ -283,6 +286,7 @@ model Appointment {
   staff         User?          @relation("staff", fields: [staffId], references: [id], onDelete: SetNull)
   client        SalonClient?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   clientPackage ClientPackage? @relation(fields: [clientPackageId], references: [id], onDelete: SetNull)
+  queueItems    QueueItem[]
 
   @@index([barbershopId, staffId, date, status])
   @@index([clientId])
@@ -294,6 +298,7 @@ enum AppointmentStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+  CHECKED_IN
 }
 
 enum PackagePaymentMethod {
