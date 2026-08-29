@@ -24,7 +24,7 @@ export class BarbershopFinancialController {
     if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
 
     const { period: raw } = request.query as { period?: string };
-    const period = (["7d", "30d", "90d"].includes(raw ?? "")
+    const period = (["7d", "30d", "90d", "1y"].includes(raw ?? "")
       ? raw
       : "30d") as InsightsPeriod;
 

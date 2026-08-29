@@ -1,6 +1,6 @@
 import { prisma } from "@/libs/prismaClient";
 
-export type InsightsPeriod = "7d" | "30d" | "90d";
+export type InsightsPeriod = "7d" | "30d" | "90d" | "1y";
 
 export interface BarbershopInsightsDTO {
   period: InsightsPeriod;
@@ -47,6 +47,7 @@ export interface BarbershopInsightsDTO {
     daysSince: number;
     visits: number;
   }>;
+  byMonth: Array<{ month: string; label: string; volume: number; revenue: number }>;
   /** Frases acionáveis geradas a partir dos números */
   highlights: string[];
 }
@@ -56,6 +57,7 @@ const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 function periodDays(period: InsightsPeriod): number {
   if (period === "7d") return 7;
   if (period === "90d") return 90;
+  if (period === "1y") return 365;
   return 30;
 }
 
@@ -293,6 +295,34 @@ export class GetBarbershopInsightsUseCase {
       .sort((a, b) => b.daysSince - a.daysSince)
       .slice(0, 10);
 
+    // ── byMonth (agrupamento mensal) ──
+    const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const monthMap = new Map<string, { volume: number; revenue: number }>();
+
+    for (const q of completed) {
+      const doneAt = q.completedAt;
+      if (!doneAt) continue;
+      const key = `${doneAt.getFullYear()}-${String(doneAt.getMonth() + 1).padStart(2, "0")}`;
+      const cur = monthMap.get(key) ?? { volume: 0, revenue: 0 };
+      const price = q.finalPrice ?? serviceMap.get(q.serviceId)?.price ?? 0;
+      cur.volume += 1;
+      cur.revenue = round2(cur.revenue + price);
+      monthMap.set(key, cur);
+    }
+
+    const byMonth = [...monthMap.entries()]
+      .map(([key, v]) => {
+        const [year, m] = key.split("-");
+        const monthIndex = parseInt(m, 10) - 1;
+        return {
+          month: key,
+          label: `${MONTH_LABELS[monthIndex]}/${year.slice(2)}`,
+          volume: v.volume,
+          revenue: v.revenue,
+        };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+
     const peakHour = [...byHour].sort((a, b) => b.volume - a.volume)[0];
     const peakDay = [...byWeekday].sort((a, b) => b.volume - a.volume)[0];
     const topService = topServices[0];
@@ -347,6 +377,22 @@ export class GetBarbershopInsightsUseCase {
           `Espera média de ${avgWaitMinutes} min — considere mais cadeiras no pico ou enxugar serviços longos.`
         );
       }
+      if (period === "1y" && byMonth.length > 0) {
+        const bestMonth = [...byMonth].sort((a, b) => b.revenue - a.revenue)[0];
+        if (bestMonth && bestMonth.revenue > 0) {
+          highlights.push(
+            `Melhor mês do ano: ${bestMonth.label} com R$ ${bestMonth.revenue.toFixed(0)} em ${bestMonth.volume} atendimentos.`
+          );
+        }
+        const avgMonthlyRevenue = round2(
+          byMonth.reduce((s, m) => s + m.revenue, 0) / byMonth.length
+        );
+        if (avgMonthlyRevenue > 0) {
+          highlights.push(
+            `Faturamento médio mensal: R$ ${avgMonthlyRevenue.toFixed(0)} ao longo de ${byMonth.length} mês(es).`
+          );
+        }
+      }
     }
 
     return {
@@ -381,6 +427,7 @@ export class GetBarbershopInsightsUseCase {
         cancelled: apptCancelled,
       },
       inactiveCustomers,
+      byMonth,
       highlights,
     };
   }
