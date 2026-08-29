@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const createServiceSchema = z.object({
   barbershopId: z.string().uuid(),
+  categoryId: z.string().uuid().nullable().optional(),
   name: z.string().min(2).max(100),
   price: z.number().min(0),
   avgTimeMinutes: z.number().min(1),
@@ -9,6 +10,7 @@ export const createServiceSchema = z.object({
 });
 
 export const updateServiceSchema = z.object({
+  categoryId: z.string().uuid().nullable().optional(),
   name: z.string().min(2).max(100).optional(),
   price: z.number().min(0).optional(),
   avgTimeMinutes: z.number().min(1).optional(),

@@ -13,6 +13,7 @@ export class MockServiceRepository implements IServiceRepository {
     const entity: IServiceResponseDTO = {
       id,
       barbershopId: payload.barbershopId,
+      categoryId: payload.categoryId ?? null,
       name: payload.name,
       price: payload.price,
       avgTimeMinutes: payload.avgTimeMinutes,

@@ -11,6 +11,7 @@ export class ServiceRepository implements IServiceRepository {
       select: {
         id: true,
         barbershopId: true,
+        categoryId: true,
         name: true,
         price: true,
         avgTimeMinutes: true,
@@ -26,6 +27,7 @@ export class ServiceRepository implements IServiceRepository {
       select: {
         id: true,
         barbershopId: true,
+        categoryId: true,
         name: true,
         price: true,
         avgTimeMinutes: true,
@@ -42,6 +44,7 @@ export class ServiceRepository implements IServiceRepository {
       select: {
         id: true,
         barbershopId: true,
+        categoryId: true,
         name: true,
         price: true,
         avgTimeMinutes: true,
@@ -58,6 +61,7 @@ export class ServiceRepository implements IServiceRepository {
       select: {
         id: true,
         barbershopId: true,
+        categoryId: true,
         name: true,
         price: true,
         avgTimeMinutes: true,

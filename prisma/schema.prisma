@@ -686,12 +686,34 @@ model ServiceCategory {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  barbershop Barbershop? @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  services   Service[]   @relation("ServiceToCategory")
+  barbershop Barbershop?           @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  services   Service[]             @relation("ServiceToCategory")
+  catalogItems ServiceCatalogItem[]
 
   @@map("service_categories")
   @@index([barbershopId])
   @@index([active])
+}
+
+model ServiceCatalogItem {
+  id                       String   @id @default(uuid()) @db.Uuid
+  catalogKey               String   @unique @db.VarChar(80)
+  categoryId               String   @db.Uuid
+  name                     String   @db.VarChar(100)
+  description              String?  @db.Text
+  iconKey                  String   @db.VarChar(80)
+  suggestedDurationMinutes Int
+  sortOrder                Int      @default(0)
+  active                   Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("service_catalog_items")
+  @@index([categoryId])
+  @@index([active])
+  @@index([sortOrder])
 }
 
 model ExpenseCategory {
