@@ -1,5 +1,38 @@
 type RoleLiteral = "MASTER_ADMIN" | "OWNER" | "EMPLOYEE" | "CUSTOMER";
 
+export type EmployeePermission =
+  | "QUEUE_MANAGE"
+  | "APPOINTMENTS_MANAGE"
+  | "APPOINTMENTS_VIEW_ALL"
+  | "APPOINTMENTS_CANCEL"
+  | "CLIENTS_MANAGE"
+  | "PACKAGES_SELL"
+  | "FINANCE_VIEW"
+  | "FINANCE_MANAGE"
+  | "REPORTS_VIEW"
+  | "MARKETING_MANAGE";
+
+export const ALL_PERMISSIONS: EmployeePermission[] = [
+  "QUEUE_MANAGE",
+  "APPOINTMENTS_MANAGE",
+  "APPOINTMENTS_VIEW_ALL",
+  "APPOINTMENTS_CANCEL",
+  "CLIENTS_MANAGE",
+  "PACKAGES_SELL",
+  "FINANCE_VIEW",
+  "FINANCE_MANAGE",
+  "REPORTS_VIEW",
+  "MARKETING_MANAGE",
+];
+
+/** Default permissions for EMPLOYEE role on creation */
+export const DEFAULT_EMPLOYEE_PERMISSIONS: EmployeePermission[] = [
+  "QUEUE_MANAGE",
+  "APPOINTMENTS_MANAGE",
+  "CLIENTS_MANAGE",
+  "PACKAGES_SELL",
+];
+
 export interface IUserResponseDTO {
   id: string;
   name: string;
@@ -18,4 +51,5 @@ export interface IUserResponseDTO {
   marketingOptInAt?: Date | null;
   lgpdConsentAt?: Date | null;
   avatarUrl?: string | null;
+  permissions?: EmployeePermission[];
 }

@@ -28,6 +28,7 @@ model User {
   marketingOptInAt  DateTime?
   lgpdConsentAt     DateTime?
   avatarUrl         String?   @db.VarChar(500)
+  permissions       String[]  @default([])
 
   barbershop          Barbershop?         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   refreshTokens       RefreshToken[]
@@ -248,12 +249,16 @@ model QueueItem {
   completedBy      String?     @db.Uuid
   finalPrice       Float?      @db.Real
   appointmentId    String?     @db.Uuid
+  responsibleQueueItemId String? @db.Uuid
 
   barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service    Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  responsibleQueueItem QueueItem?  @relation("QueueDependents", fields: [responsibleQueueItemId], references: [id], onDelete: SetNull)
+  dependents           QueueItem[] @relation("QueueDependents")
 
   @@index([appointmentId])
+  @@index([responsibleQueueItemId])
   @@map("queue")
 }
 

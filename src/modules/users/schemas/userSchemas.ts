@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidCpf, normalizeCpf } from "@/shared/utils/cpfUtils";
+import { ALL_PERMISSIONS, type EmployeePermission } from "@/modules/users/dtos/IUserResponseDTO";
 
 const cpfSchema = z
   .string()
@@ -7,6 +8,10 @@ const cpfSchema = z
   .max(14, "CPF inválido")
   .refine((v) => isValidCpf(v), { message: "CPF inválido (dígitos verificadores incorretos)" })
   .transform((v) => normalizeCpf(v));
+
+const permissionsSchema = z
+  .array(z.enum(ALL_PERMISSIONS as [string, ...string[]]))
+  .optional();
 
 export const createUserSchema = z.object({
   name: z
@@ -88,6 +93,7 @@ export const staffUpdateUserSchema = z.object({
   role: z.enum(["OWNER", "EMPLOYEE"]).optional(),
   active: z.boolean().optional(),
   avatarUrl: z.string().url().max(500).nullable().optional(),
+  permissions: permissionsSchema,
 }).strict();
 
 export type CreateUserDTO = z.infer<typeof createUserSchema>;

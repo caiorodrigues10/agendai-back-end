@@ -11,13 +11,22 @@ export class MeController {
     const userRepo = new UserRepository();
     const user = await userRepo.findById(request.user!.id);
     if (!user) return reply.status(404).send({ message: "Usuário não encontrado" });
+
+    const mappedRole = mapRole(user.role);
+    const permissions =
+      mappedRole === "owner" || mappedRole === "admin"
+        ? undefined
+        : (user as any).permissions ?? [];
+
     return reply.status(200).send({
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: mapRole(user.role),
-        barbershopId: user.barbershopId ?? undefined
+        role: mappedRole,
+        barbershopId: user.barbershopId ?? undefined,
+        avatarUrl: (user as any).avatarUrl ?? undefined,
+        permissions,
       }
     });
   }
