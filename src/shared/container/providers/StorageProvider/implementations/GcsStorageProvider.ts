@@ -159,6 +159,35 @@ export class GcsStorageProvider implements IStorageProvider {
 		return this._bucket
 	}
 
+	// ── Error helpers ─────────────────────────────────────────────────────────
+
+	private static isCredentialError(err: unknown): boolean {
+		const msg = (err instanceof Error ? err.message : '') || ''
+		const code = (err as { code?: string | number } | undefined)?.code
+		return (
+			/credentials|could not load|permission|unauthorized|invalid_grant|ADC|cloud\.google\.com\/docs/i.test(msg) ||
+			code === 'UNAUTHENTICATED' ||
+			code === 'ENOENT'
+		)
+	}
+
+	private wrapStorageError(err: unknown, context: string): never {
+		if (err instanceof AppError) {
+			throw err
+		}
+		if (GcsStorageProvider.isCredentialError(err)) {
+			throw new AppError(
+				`Não foi possível conectar ao storage de imagens. ${GCS_SETUP_HINT}`,
+				503,
+			)
+		}
+		console.error(`[GcsStorageProvider] ${context}:`, err)
+		throw new AppError(
+			`Erro ao acessar o storage de imagens. Tente novamente.`,
+			502,
+		)
+	}
+
 	// ── Signed URL de upload (PUT direto cliente → GCS) ──────────────────────
 
 	async generateSignedUploadUrl(
@@ -167,21 +196,25 @@ export class GcsStorageProvider implements IStorageProvider {
 		mimeType: string,
 		expiresInSeconds = 900,
 	): Promise<ISignedUploadUrlResult> {
-		const objectName = `${folder}/${fileName}`
-		const file = this.bucket.file(objectName)
+		try {
+			const objectName = `${folder}/${fileName}`
+			const file = this.bucket.file(objectName)
 
-		const [uploadUrl] = await file.getSignedUrl({
-			version: 'v4',
-			action: 'write',
-			expires: Date.now() + expiresInSeconds * 1000,
-			contentType: mimeType,
-		})
+			const [uploadUrl] = await file.getSignedUrl({
+				version: 'v4',
+				action: 'write',
+				expires: Date.now() + expiresInSeconds * 1000,
+				contentType: mimeType,
+			})
 
-		return {
-			uploadUrl,
-			publicUrl: `${this.publicBaseUrl}/${objectName}`,
-			objectName,
-			expiresInSeconds,
+			return {
+				uploadUrl,
+				publicUrl: `${this.publicBaseUrl}/${objectName}`,
+				objectName,
+				expiresInSeconds,
+			}
+		} catch (err) {
+			this.wrapStorageError(err, 'generateSignedUploadUrl')
 		}
 	}
 
@@ -193,21 +226,25 @@ export class GcsStorageProvider implements IStorageProvider {
 		buffer: Buffer,
 		mimeType: string,
 	): Promise<IUploadBufferResult> {
-		const objectName = `${folder}/${fileName}`
-		const file = this.bucket.file(objectName)
+		try {
+			const objectName = `${folder}/${fileName}`
+			const file = this.bucket.file(objectName)
 
-		await file.save(buffer, {
-			metadata: {
-				contentType: mimeType,
-				cacheControl: 'public, max-age=31536000',
-			},
-			resumable: false,
-		})
+			await file.save(buffer, {
+				metadata: {
+					contentType: mimeType,
+					cacheControl: 'public, max-age=31536000',
+				},
+				resumable: false,
+			})
 
-		return {
-			publicUrl: `${this.publicBaseUrl}/${objectName}`,
-			objectName,
-			size: buffer.byteLength,
+			return {
+				publicUrl: `${this.publicBaseUrl}/${objectName}`,
+				objectName,
+				size: buffer.byteLength,
+			}
+		} catch (err) {
+			this.wrapStorageError(err, 'uploadBuffer')
 		}
 	}
 
