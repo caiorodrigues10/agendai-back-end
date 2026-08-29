@@ -78,12 +78,12 @@ export class AdminBarbershopController {
 
     // Usa o UseCase para garantir que checkCnpjAccess() seja executado
     const useCase = container.resolve(CreateBarbershopUseCase);
-    const barbershopData = await useCase.execute({ name, whatsapp, cnpj });
+    const barbershopData = await useCase.execute({ name, whatsapp, cnpj: cnpj ?? undefined });
 
     // Aplica campos extras que só o admin pode definir (address, active, approvalStatus)
     const barbershop = await prisma.barbershop.update({
       where: { id: barbershopData.id },
-      data: { address, active, approvalStatus: 'APPROVED' },
+      data: { address: address ?? undefined, active, approvalStatus: 'APPROVED' },
     });
 
     if (request.user) {

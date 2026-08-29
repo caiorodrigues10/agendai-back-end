@@ -178,7 +178,7 @@ export class AppointmentRepository implements IAppointmentRepository {
 			},
 		})
 
-		return records.map((r) => ({
+		return records.map((r: { time: string; staffId: string | null; service: { avgTimeMinutes: number } | null }) => ({
 			time: r.time,
 			staffId: r.staffId ?? null,
 			durationMinutes: r.service?.avgTimeMinutes ?? 30,

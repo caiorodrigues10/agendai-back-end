@@ -71,7 +71,7 @@ async function createAppointmentAtomic(
     return fallbackRepo.create(data);
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     await assertAppointmentBookable(data, tx);
 
     let clientId = data.clientId ?? null;
@@ -336,7 +336,7 @@ export class CancelAppointmentUseCase {
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.appointment.update({
         where: { id },
         data: { status: "CANCELLED" },

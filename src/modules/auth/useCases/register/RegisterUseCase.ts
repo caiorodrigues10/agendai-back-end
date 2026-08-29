@@ -87,7 +87,7 @@ export class RegisterUseCase {
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const now = new Date();
 
-    const user = await prisma.$transaction(async (tx) => {
+    const user = await prisma.$transaction(async (tx: any) => {
       const barbershop = await tx.barbershop.create({
         data: {
           name: data.barbershopName,

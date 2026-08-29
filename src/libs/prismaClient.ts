@@ -10,5 +10,6 @@ const pool = new Pool({
 });
 const adapter = new PrismaPg(pool as any);
 
-export const prisma = new PrismaClient({ adapter: adapter as any } as any).$extends(rlsExtension);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const prisma: any = new PrismaClient({ adapter: adapter as any } as any).$extends(rlsExtension);
 export { Prisma };

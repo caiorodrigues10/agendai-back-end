@@ -220,7 +220,7 @@ export async function issueProratedRefund(
           }),
         },
       })
-      .catch((err) => logger.error({ err }, 'Failed to create refund admin notification'));
+      .catch((err: unknown) => logger.error({ err }, 'Failed to create refund admin notification'));
 
     return { refundId: refund.id, amount: amountReais, status: "SUCCEEDED", reason };
   } catch (error: any) {
@@ -232,7 +232,7 @@ export async function issueProratedRefund(
         where: { id: refund.id },
         data: { status: "FAILED", errorMessage: message },
       })
-      .catch((err) => logger.error({ err }, 'Failed to update refund status to FAILED'));
+      .catch((err: unknown) => logger.error({ err }, 'Failed to update refund status to FAILED'));
 
     await prisma.adminNotification
       .create({
@@ -250,7 +250,7 @@ export async function issueProratedRefund(
           }),
         },
       })
-      .catch((err) => logger.error({ err }, 'Failed to create refund failure admin notification'));
+      .catch((err: unknown) => logger.error({ err }, 'Failed to create refund failure admin notification'));
 
     return { refundId: refund.id, amount: amountReais, status: "FAILED", reason: message };
   }

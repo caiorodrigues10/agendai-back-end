@@ -58,7 +58,7 @@ const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
 							where: { id: delivery.id },
 						data: { status: 'SKIPPED', error: msg },
 					})
-					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to SKIPPED'))
+					.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to SKIPPED'))
 				}
 				return { ok: true, skipped: true, error: msg }
 			}
@@ -77,7 +77,7 @@ const client = this.getClient()
 							error: 'RESEND_API_KEY not configured',
 						},
 					})
-					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to SKIPPED'))
+					.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to SKIPPED'))
 			}
 			return { ok: true, skipped: true }
 		}
@@ -100,7 +100,7 @@ if (error) {
 							where: { id: delivery.id },
 						data: { status: 'FAILED', error: errMsg },
 					})
-					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
+					.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
 				}
 				return { ok: false, error: errMsg }
 			}
@@ -114,7 +114,7 @@ if (error) {
 							providerId: data?.id ?? null,
 						},
 					})
-					.catch((err) => logger.error({ err }, 'Failed to update email delivery status to SENT'))
+					.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to SENT'))
 			}
 
 			return { ok: true, providerId: data?.id }
@@ -127,7 +127,7 @@ if (error) {
 						where: { id: delivery.id },
 					data: { status: 'FAILED', error: errMsg },
 				})
-				.catch((err) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
+				.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
 			}
 			return { ok: false, error: errMsg }
 		}

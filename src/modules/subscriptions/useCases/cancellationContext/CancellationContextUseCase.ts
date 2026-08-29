@@ -97,15 +97,15 @@ export class CancellationContextUseCase {
         }),
       ]);
 
-    const serviceMap = new Map(services.map((s) => [s.id, s.price]));
+    const serviceMap = new Map<string, number>(services.map((s: { id: string; price: number }) => [s.id, s.price]));
 
-    const revenue = completedQueueItems.reduce((sum, q) => {
+    const revenue = completedQueueItems.reduce((sum: number, q: { finalPrice: number | null; serviceId: string }) => {
       return sum + (q.finalPrice ?? serviceMap.get(q.serviceId) ?? 0);
     }, 0);
 
     const uniqueCustomers = new Set(
       completedQueueItems
-        .map((q) => (q.whatsapp || "").trim())
+        .map((q: { whatsapp: string }) => (q.whatsapp || "").trim())
         .filter(Boolean)
     ).size;
 

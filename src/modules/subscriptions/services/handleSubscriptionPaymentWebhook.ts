@@ -87,7 +87,7 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         logger.error({ err }, 'Failed to create payment received admin notification');
       });
 
@@ -124,7 +124,7 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         logger.error({ err }, 'Failed to create subscription in mediation admin notification');
       });
 
@@ -187,7 +187,7 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         logger.error({ err }, 'Failed to create chargeback/refund admin notification');
       });
 
@@ -224,7 +224,7 @@ export async function handleSubscriptionPaymentWebhook(
           }),
         },
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         logger.error({ err }, 'Failed to create payment rejected admin notification');
       });
 

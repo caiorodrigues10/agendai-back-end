@@ -183,7 +183,7 @@ export class RefundPaymentUseCase {
             }),
           },
         })
-        .catch((err) => logger.error({ err }, 'Failed to create refund admin notification'));
+        .catch((err: unknown) => logger.error({ err }, 'Failed to create refund admin notification'));
 
       await prisma.auditLog
         .create({
@@ -201,7 +201,7 @@ export class RefundPaymentUseCase {
             }),
           },
         })
-        .catch((err) => logger.error({ err }, 'Failed to create audit log'));
+        .catch((err: unknown) => logger.error({ err }, 'Failed to create audit log'));
 
       return prisma.refund.findUniqueOrThrow({ where: { id: refund.id } });
     } catch (error: any) {
@@ -215,7 +215,7 @@ export class RefundPaymentUseCase {
           where: { id: refund.id },
           data: { status: "FAILED", errorMessage: message },
         })
-        .catch((err) => logger.error({ err }, 'Failed to update refund status to FAILED'));
+        .catch((err: unknown) => logger.error({ err }, 'Failed to update refund status to FAILED'));
 
       throw new AppError(message, 422);
     }

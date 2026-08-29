@@ -156,7 +156,7 @@ export async function buildApp() {
       geolocation: [],
       payment: ["'self'"],
     },
-  });
+  } as any);
 
   // Rate-limit global — Redis store em produção, in-memory em testes
   const rateLimitWindowMs = 60_000; // 1 minute

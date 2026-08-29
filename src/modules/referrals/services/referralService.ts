@@ -185,7 +185,7 @@ export async function qualifyReferralOnPayment(
 		where: { barbershopId: referral.referrerBarbershopId },
 	})
 
-	await prisma.$transaction(async (tx) => {
+	await prisma.$transaction(async (tx: any) => {
 		await tx.referral.update({
 			where: { id: referral.id },
 			data: {
@@ -266,7 +266,7 @@ export async function revokeReferralOnCancellation(
 
 	let daysActuallyRevoked = 0
 
-	await prisma.$transaction(async (tx) => {
+	await prisma.$transaction(async (tx: any) => {
 		await tx.referral.update({
 			where: { id: referral.id },
 			data: { status: 'REJECTED' },
@@ -352,7 +352,7 @@ export async function revokeReferralOnCancellation(
 				}),
 			},
 		})
-		.catch((err) => logger.error({ err }, 'Failed to create referral revoked admin notification'))
+		.catch((err: unknown) => logger.error({ err }, 'Failed to create referral revoked admin notification'))
 }
 
 export async function getReferralDashboard(input: {
@@ -369,9 +369,9 @@ export async function getReferralDashboard(input: {
 		take: 100,
 	})
 
-	const pending = referrals.filter((r) => r.status === 'PENDING').length
-	const converted = referrals.filter((r) => r.status === 'REWARDED').length
-	const rejected = referrals.filter((r) => r.status === 'REJECTED').length
+	const pending = referrals.filter((r: { status: string }) => r.status === 'PENDING').length
+	const converted = referrals.filter((r: { status: string }) => r.status === 'REWARDED').length
+	const rejected = referrals.filter((r: { status: string }) => r.status === 'REJECTED').length
 	const total = referrals.length
 
 	const creditDays = await prisma.subscription.findUnique({
@@ -409,7 +409,7 @@ export async function getReferralDashboard(input: {
 			creditDays: creditDays?.referralCreditDays ?? 0,
 			subscriptionEndDate: creditDays?.endDate?.toISOString() ?? null,
 		},
-		referrals: referrals.map((r) => ({
+		referrals: referrals.map((r: { id: string; status: string; refereeBarbershop: { name: string }; rewardDays: number; createdAt: Date; qualifiedAt: Date | null; rewardedAt: Date | null }) => ({
 			id: r.id,
 			status: r.status,
 			shopName: r.refereeBarbershop.name,

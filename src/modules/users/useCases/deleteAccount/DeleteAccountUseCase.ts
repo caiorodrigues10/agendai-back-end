@@ -48,7 +48,7 @@ export class DeleteAccountUseCase {
     const now = new Date();
     const deletedEmail = `deleted-${user.id}@agendai.local`;
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.user.update({
         where: { id: user.id },
         data: {

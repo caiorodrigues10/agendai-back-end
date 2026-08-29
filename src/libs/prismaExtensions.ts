@@ -21,7 +21,8 @@ const insideRlsTx = new AsyncLocalStorage<boolean>();
  * isso roda em outra conexão do pool e o SET LOCAL não vale — login de OWNER
  * vira 401 "Credenciais inválidas" (usuário invisível).
  */
-export const rlsExtension = Prisma.defineExtension({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const rlsExtension: any = Prisma.defineExtension({
   name: "rls",
   query: {
     $allModels: {

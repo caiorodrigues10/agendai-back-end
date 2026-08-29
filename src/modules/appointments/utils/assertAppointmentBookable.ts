@@ -126,7 +126,7 @@ export async function assertAppointmentBookable(
   const requestStart = timeToMinutes(data.time);
   const requestDuration = service.avgTimeMinutes;
 
-  const overlapping = existing.filter((a) =>
+  const overlapping = existing.filter((a: { time: string; staffId: string | null; service: { avgTimeMinutes: number } | null }) =>
     overlaps(
       requestStart,
       requestDuration,
@@ -137,7 +137,7 @@ export async function assertAppointmentBookable(
 
   if (data.staffId) {
     const blocksStaff = overlapping.some(
-      (a) => !a.staffId || a.staffId === data.staffId
+      (a: { staffId: string | null }) => !a.staffId || a.staffId === data.staffId
     );
     if (blocksStaff) {
       console.warn(

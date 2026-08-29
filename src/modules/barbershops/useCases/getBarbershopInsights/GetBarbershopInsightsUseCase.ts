@@ -144,44 +144,44 @@ export class GetBarbershopInsightsUseCase {
       }),
     ]);
 
-    const serviceMap = new Map(services.map((s) => [s.id, s]));
-    const staffMap = new Map(staffUsers.map((u) => [u.id, u.name]));
+    const serviceMap = new Map<string, { id: string; name: string; price: number }>(services.map((s: any) => [s.id, s]));
+    const staffMap = new Map<string, string>(staffUsers.map((u: any) => [u.id, u.name]));
 
     const completed = queueItems.filter(
-      (q) =>
+      (q: { status: string; completedAt: Date | null; joinedAt: Date }) =>
         q.status === "COMPLETED" &&
         q.completedAt &&
         q.completedAt >= from &&
         q.completedAt <= to
     );
     const joinedInPeriod = queueItems.filter(
-      (q) => q.joinedAt >= from && q.joinedAt <= to
+      (q: { joinedAt: Date }) => q.joinedAt >= from && q.joinedAt <= to
     );
 
-    const revenue = completed.reduce((s, q) => {
+    const revenue = completed.reduce((s: number, q: { serviceId: string; finalPrice: number | null }) => {
       const fallback = serviceMap.get(q.serviceId)?.price ?? 0;
       return s + (q.finalPrice ?? fallback);
     }, 0);
 
     const waitSamples = completed
-      .filter((q) => q.completedAt && q.joinedAt)
-      .map((q) => (q.completedAt!.getTime() - q.joinedAt.getTime()) / 60000)
-      .filter((m) => m >= 0 && m < 24 * 60);
+      .filter((q: { completedAt: Date | null; joinedAt: Date }) => q.completedAt && q.joinedAt)
+      .map((q: { completedAt: Date; joinedAt: Date }) => (q.completedAt.getTime() - q.joinedAt.getTime()) / 60000)
+      .filter((m: number) => m >= 0 && m < 24 * 60);
 
     const avgWaitMinutes =
       waitSamples.length > 0
-        ? round2(waitSamples.reduce((a, b) => a + b, 0) / waitSamples.length)
+        ? round2(waitSamples.reduce((a: number, b: number) => a + b, 0) / waitSamples.length)
         : null;
 
     const queueDenom = joinedInPeriod.length || 1;
     const queueCancelRate = round2(
-      (joinedInPeriod.filter((q) => q.status === "CANCELLED").length / queueDenom) * 100
+      (joinedInPeriod.filter((q: { status: string }) => q.status === "CANCELLED").length / queueDenom) * 100
     );
 
     const apptTotal = appointments.length;
-    const apptCancelled = appointments.filter((a) => a.status === "CANCELLED").length;
-    const apptCompleted = appointments.filter((a) => a.status === "COMPLETED").length;
-    const apptConfirmed = appointments.filter((a) => a.status === "CONFIRMED").length;
+    const apptCancelled = appointments.filter((a: { status: string }) => a.status === "CANCELLED").length;
+    const apptCompleted = appointments.filter((a: { status: string }) => a.status === "COMPLETED").length;
+    const apptConfirmed = appointments.filter((a: { status: string }) => a.status === "CONFIRMED").length;
     const appointmentCancelRate =
       apptTotal > 0 ? round2((apptCancelled / apptTotal) * 100) : 0;
 
@@ -211,15 +211,15 @@ export class GetBarbershopInsightsUseCase {
     const returningCustomerRate =
       uniqueCustomers > 0 ? round2((returning / uniqueCustomers) * 100) : 0;
 
-    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+    const totalExpenses = expenses.reduce((s: number, e: { amount: number }) => s + e.amount, 0);
     const now = new Date();
     const openFiado = fiadosOpen.reduce(
-      (s, f) => s + (f.originalAmount - f.paidAmount),
+      (s: number, f: { originalAmount: number; paidAmount: number }) => s + (f.originalAmount - f.paidAmount),
       0
     );
     const overdueFiado = fiadosOpen
-      .filter((f) => f.dueDate && f.dueDate < now)
-      .reduce((s, f) => s + (f.originalAmount - f.paidAmount), 0);
+      .filter((f: { dueDate: Date | null; originalAmount: number; paidAmount: number }) => f.dueDate && f.dueDate < now)
+      .reduce((s: number, f: { originalAmount: number; paidAmount: number }) => s + (f.originalAmount - f.paidAmount), 0);
 
     const byWeekday = WEEKDAY_LABELS.map((label, day) => ({
       day: String(day),
@@ -260,7 +260,7 @@ export class GetBarbershopInsightsUseCase {
     }
 
     const topServices = [...serviceAgg.entries()]
-      .map(([serviceId, v]) => ({
+      .map(([serviceId, v]: [string, { count: number; revenue: number }]) => ({
         serviceId,
         name: serviceMap.get(serviceId)?.name ?? "Serviço",
         count: v.count,
@@ -270,7 +270,7 @@ export class GetBarbershopInsightsUseCase {
       .slice(0, 8);
 
     const byStaff = [...staffAgg.entries()]
-      .map(([staffId, v]) => ({
+      .map(([staffId, v]: [string, { count: number; revenue: number }]) => ({
         staffId,
         name: staffMap.get(staffId) ?? "Profissional",
         count: v.count,

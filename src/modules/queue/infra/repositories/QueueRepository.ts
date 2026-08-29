@@ -29,7 +29,7 @@ export class QueueRepository implements IQueueRepository {
       include: { service: true },
     });
 
-    const duplicate = items.find((i) =>
+    const duplicate = items.find((i: any) =>
       isActiveQueueDuplicate(i, { customerId, whatsappDigits, customerName })
     );
 

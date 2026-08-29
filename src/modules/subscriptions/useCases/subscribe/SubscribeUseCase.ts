@@ -74,7 +74,7 @@ export class SubscribeUseCase {
     }
 
     const result = await prisma.$transaction(
-      async (tx) => {
+      async (tx: any) => {
         const lockedBarbershop = await tx.barbershop.findUnique({
           where: { id: data.barbershopId },
           select: { id: true, active: true },
@@ -297,7 +297,7 @@ export class SubscribeUseCase {
           });
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof AppError) throw error;
 
       await prisma.subscription
@@ -305,12 +305,12 @@ export class SubscribeUseCase {
           where: { id: subscription.id },
           data: { status: "PAST_DUE" },
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           logger.error({ err, subscriptionId: subscription.id }, "Falha ao marcar subscription como PAST_DUE na recuperação de erro");
         });
 
       throw new AppError(
-        `Erro ao processar pagamento: ${error.message ?? "Erro desconhecido"}`,
+        `Erro ao processar pagamento: ${error instanceof Error ? error.message : "Erro desconhecido"}`,
         422
       );
     }

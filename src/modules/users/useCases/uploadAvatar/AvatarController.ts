@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { z } from "zod";
+import type { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { GetAvatarUploadUrlUseCase } from "./GetAvatarUploadUrlUseCase";
 import { ConfirmAvatarUseCase } from "./ConfirmAvatarUseCase";
 import { DeleteAvatarUseCase } from "./DeleteAvatarUseCase";
@@ -133,9 +134,8 @@ export class AvatarController {
 
     const { prisma } = await import("@/libs/prismaClient");
     const { randomUUID } = await import("node:crypto");
-    const { IStorageProvider } = await import("@/shared/container/providers/StorageProvider/IStorageProvider");
 
-    const storageProvider = container.resolve<IStorageProvider>("StorageProvider");
+    const storageProvider = container.resolve("StorageProvider") as IStorageProvider;
 
     // Delete old avatar
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
