@@ -7,6 +7,7 @@ import { scheduleAppointmentReminders } from "@/shared/infra/cron/appointmentRem
 import { schedulePostPublisher } from "@/shared/infra/cron/postPublisher.cron";
 import { scheduleTrialCardCharges } from "@/shared/infra/cron/trialCardCharges.cron";
 import { scheduleCleanOldLogs } from "@/shared/infra/cron/cleanOldLogs.cron";
+import { scheduleDailyWeatherLog } from "@/shared/infra/cron/dailyWeatherLog.cron";
 import {
   stopWhatsAppWorker,
   stopEmailWorker,
@@ -57,6 +58,13 @@ async function start() {
       scheduleCleanOldLogs(app.log);
     } catch (err) {
       serverLogger.error({ err }, "Falha ao iniciar cron de limpeza de logs");
+    }
+
+    // Cron de weather logs diários (popula dados de clima + fila do dia anterior)
+    try {
+      scheduleDailyWeatherLog(app.log);
+    } catch (err) {
+      serverLogger.error({ err }, "Falha ao iniciar cron de daily weather log");
     }
 
     // Graceful shutdown

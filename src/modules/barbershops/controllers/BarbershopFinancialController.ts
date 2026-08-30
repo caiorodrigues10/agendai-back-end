@@ -5,6 +5,8 @@ import {
   GetBarbershopInsightsUseCase,
   type InsightsPeriod,
 } from "../useCases/getBarbershopInsights/GetBarbershopInsightsUseCase";
+import { GetWeatherInsightsUseCase } from "../useCases/getWeatherInsights/GetWeatherInsightsUseCase";
+import { container } from "tsyringe";
 
 type ExpenseRow = { amount: number; paidAt: Date | null; type: string };
 type FiadoRow = { originalAmount: number; paidAmount: number; dueDate: Date | null };
@@ -250,5 +252,18 @@ export class BarbershopFinancialController {
         overdueCount,
       },
     });
+  }
+
+  async weatherInsights(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const user = request.user!;
+    const barbershopId = user.barbershopId;
+    if (!barbershopId) throw new AppError("barbershopId é obrigatório", 400);
+
+    const { days } = request.query as { days?: string };
+    const parsedDays = days ? parseInt(days, 10) : 7;
+
+    const useCase = container.resolve(GetWeatherInsightsUseCase);
+    const insights = await useCase.execute(barbershopId, user, Math.min(parsedDays, 16));
+    reply.send({ success: true, data: insights });
   }
 }

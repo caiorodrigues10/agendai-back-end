@@ -15,4 +15,5 @@ export async function barbershopFinancialRoutes(app: FastifyInstance) {
   app.get("/barbershop/financial/summary", { preHandler }, financial.summary.bind(financial));
   app.get("/barbershop/financial/expenses", { preHandler }, financial.expenses.bind(financial));
   app.get("/barbershop/financial/fiados", { preHandler }, financial.fiados.bind(financial));
+  app.get("/barbershop/weather-insights", { preHandler }, financial.weatherInsights.bind(financial));
 }

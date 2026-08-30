@@ -50,6 +50,8 @@ import { ServicePackageRepository } from '@/modules/packages/infra/repositories/
 import { IClientPackageRepository } from '@/modules/packages/repositories/IClientPackageRepository'
 import { ClientPackageRepository } from '@/modules/packages/infra/repositories/ClientPackageRepository'
 
+import { GetWeatherInsightsUseCase } from '@/modules/barbershops/useCases/getWeatherInsights/GetWeatherInsightsUseCase'
+
 container.registerSingleton<IUserRepository>('UserRepository', UserRepository)
 container.registerSingleton<IServiceRepository>(
 	'ServiceRepository',
@@ -109,3 +111,4 @@ container.registerSingleton<IClientPackageRepository>(
 	'ClientPackageRepository',
 	ClientPackageRepository,
 )
+container.registerSingleton('GetWeatherInsightsUseCase', GetWeatherInsightsUseCase)
