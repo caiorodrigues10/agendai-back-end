@@ -183,8 +183,6 @@ model Barbershop {
   referralsAsReferrer Referral[]        @relation("ReferralReferrerShop")
   referralsAsReferee  Referral[]        @relation("ReferralRefereeShop")
   refunds             Refund[]
-  latitude            Float?
-  longitude           Float?
   salonClients        SalonClient[]
   servicePackages     ServicePackage[]
   clientPackages      ClientPackage[]
