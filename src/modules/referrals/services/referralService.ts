@@ -16,6 +16,7 @@ import { normalizeCpf } from '@/shared/utils/cpfUtils'
 import { sendWhatsAppMessage } from '@/shared/services/whatsappNotificationService'
 import { getModuleLogger } from '@/shared/utils/logger'
 import { getFrontendUrl } from '@/shared/constants/env'
+import { AppError } from '@/shared/errors/AppError'
 
 const logger = getModuleLogger('referrals');
 
@@ -141,6 +142,46 @@ export async function attachReferralOnRegister(input: {
 		referrerShopName: code.barbershop.name,
 		deduplicationKey: `referral-applied:${input.refereeBarbershopId}`,
 	}).catch((err) => logger.error({ err }, 'Failed to send referral applied email'))
+}
+
+/** Allows an existing owner to attach a referral once, before their first payment. */
+export async function applyReferralCode(input: {
+	referralCode: string
+	refereeUserId: string
+	refereeBarbershopId: string
+}): Promise<void> {
+	const raw = input.referralCode.trim().toUpperCase()
+	if (!raw) throw new AppError('Informe o código de indicação.', 400)
+
+	const [referee, existing, code] = await Promise.all([
+		prisma.user.findUnique({
+			where: { id: input.refereeUserId },
+			select: { name: true, email: true, cpf: true },
+		}),
+		prisma.referral.findUnique({ where: { refereeBarbershopId: input.refereeBarbershopId } }),
+		prisma.referralCode.findUnique({ where: { code: raw } }),
+	])
+
+	if (!referee) throw new AppError('Usuário não encontrado.', 404)
+	if (existing) throw new AppError('Este salão já possui uma indicação registrada.', 409)
+	if (!code || !code.active) throw new AppError('Código de indicação inválido ou inativo.', 404)
+	if (code.barbershopId === input.refereeBarbershopId || code.ownerUserId === input.refereeUserId) {
+		throw new AppError('Você não pode usar o seu próprio código.', 400)
+	}
+
+	await attachReferralOnRegister({
+		referralCode: raw,
+		refereeUserId: input.refereeUserId,
+		refereeBarbershopId: input.refereeBarbershopId,
+		refereeOwnerName: referee.name,
+		refereeEmail: referee.email,
+		refereeCpf: referee.cpf ?? undefined,
+	})
+
+	const applied = await prisma.referral.findUnique({
+		where: { refereeBarbershopId: input.refereeBarbershopId },
+	})
+	if (!applied) throw new AppError('Este código não pode ser aplicado à sua conta.', 400)
 }
 
 /**
