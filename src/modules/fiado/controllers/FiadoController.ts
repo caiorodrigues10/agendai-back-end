@@ -8,16 +8,27 @@ import {
   DeleteFiadoUseCase,
   AddFiadoPaymentUseCase,
   GetFiadoSummaryUseCase,
+  ChargeFiadoUseCase,
 } from "../useCases/fiadoUseCases";
 import {
   createFiadoSchema,
   updateFiadoSchema,
   createFiadoPaymentSchema,
   listFiadoQuerySchema,
+  chargeFiadoSchema,
 } from "../schemas/fiadoSchemas";
 import { AppError } from "@/shared/errors/AppError";
 
 export class FiadoController {
+  async charge(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const user = request.user!;
+    const { id } = request.params as { id: string };
+    const body = chargeFiadoSchema.parse(request.body);
+    const useCase = container.resolve(ChargeFiadoUseCase);
+    await useCase.execute(id, body, user);
+    reply.status(202).send({ success: true, message: "Cobrança enfileirada para envio" });
+  }
+
   async create(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const body = createFiadoSchema.parse(request.body);

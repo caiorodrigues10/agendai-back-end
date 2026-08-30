@@ -37,6 +37,7 @@ export class MockQueueRepository implements IQueueRepository {
       joinedAt: now,
       status: "waiting",
       addedByStaff: payload.addedByStaff ?? false,
+      responsibleQueueItemId: payload.responsibleQueueItemId ?? null,
     };
     this.data.push(entity);
     return entity;
@@ -62,10 +63,13 @@ export class MockQueueRepository implements IQueueRepository {
     const current = this.data[idx];
     const patch: Partial<IQueueItemResponseDTO> = { status: status as any };
 
+    if (status === "in_chair") patch.calledAt = Date.now();
+
     if (status === "completed") {
       patch.completedAt = Date.now();
       if (details?.completedBy) patch.completedBy = details.completedBy;
       if (details?.finalPrice != null) patch.finalPrice = details.finalPrice;
+      if (details?.paymentMethod) patch.paymentMethod = details.paymentMethod;
     }
 
     if (status === "waiting" && details?.joinedAt) {

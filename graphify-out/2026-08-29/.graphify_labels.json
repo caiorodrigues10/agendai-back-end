@@ -179,10 +179,8 @@
   "177": "@sentry/node",
   "178": "ListSubscriptionsController",
   "179": "queue.spec.ts",
-  "180": "GetPaymentStatusUseCase",
   "181": "ForgotPasswordUseCase",
   "182": "payments.routes.ts",
-  "183": "payments.routes.ts",
   "184": "AdminBarbershopController",
   "185": "ResetPasswordUseCase",
   "186": "bruteForceProtection.spec.ts",
@@ -193,10 +191,9 @@
   "191": "Runbook: Aplicar migrations do backend em Staging/Produção",
   "192": "IClientPackageRepository",
   "193": "packageUseCases.ts",
-  "194": "referrals.routes.ts",
   "195": "MercadoPagoService",
-  "196": "QueueStatus",
   "198": "AppointmentRepository",
   "199": ".execute",
+  "201": "app.ts",
   "203": "postPublisher.cron.spec.ts"
 }

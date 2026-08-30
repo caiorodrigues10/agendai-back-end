@@ -9,8 +9,8 @@ export class GetServiceUseCase {
     @inject("ServiceRepository")
     private serviceRepository: IServiceRepository
   ) {}
-  async execute(id: string): Promise<IServiceResponseDTO> {
-    const service = await this.serviceRepository.findById(id);
+  async execute(id: string, barbershopId?: string): Promise<IServiceResponseDTO> {
+    const service = await this.serviceRepository.findById(id, barbershopId);
     if (!service) throw new AppError("Serviço não encontrado", 404);
     return service;
   }

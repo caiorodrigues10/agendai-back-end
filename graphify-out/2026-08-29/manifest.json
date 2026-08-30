@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/getBarbershopInsights/GetBarbershopInsightsUseCase.ts": {
-    "mtime": 1788023497.677931,
-    "ast_hash": "e4b741052bfe4afaec04f26983663805",
+    "mtime": 1788007822.850889,
+    "ast_hash": "1eb2f3da45f51ee346813e844d9376ea",
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/getBarbershop/GetBarbershopController.ts": {
@@ -665,8 +665,8 @@
     "semantic_hash": ""
   },
   "src/modules/queue/dtos/IQueueItemResponseDTO.ts": {
-    "mtime": 1788023492.7477403,
-    "ast_hash": "d3aed1eb5d50069cd0b285b74ed1a1ec",
+    "mtime": 1788010797.638534,
+    "ast_hash": "f5a3c41503c232cacec9b506393c7c0a",
     "semantic_hash": ""
   },
   "src/modules/queue/dtos/IUpdateQueueItemDTO.ts": {
@@ -675,13 +675,13 @@
     "semantic_hash": ""
   },
   "src/modules/queue/infra/repositories/QueueRepository.ts": {
-    "mtime": 1788023492.750736,
-    "ast_hash": "ed457de520e924fdeb5272f934ac635c",
+    "mtime": 1788010797.6405292,
+    "ast_hash": "66b5eebae54e668a34f651c57e64ff26",
     "semantic_hash": ""
   },
   "src/modules/queue/infra/repositories/mocks/MockQueueRepository.ts": {
-    "mtime": 1788023492.75387,
-    "ast_hash": "fb5fc6e20324d3511086c81776c2244e",
+    "mtime": 1788010765.7996054,
+    "ast_hash": "3cc43a36bad00082179a5220e6b89b38",
     "semantic_hash": ""
   },
   "src/modules/queue/repositories/IQueueRepository.ts": {
@@ -740,8 +740,8 @@
     "semantic_hash": ""
   },
   "src/modules/queue/useCases/queue.spec.ts": {
-    "mtime": 1788023529.0362356,
-    "ast_hash": "32d0ffb0dc5ad23b88f74dc3b8b0967a",
+    "mtime": 1788007822.4707048,
+    "ast_hash": "c7f37520b4dab470df072d215d75dd40",
     "semantic_hash": ""
   },
   "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemController.ts": {
@@ -820,18 +820,18 @@
     "semantic_hash": ""
   },
   "src/modules/services/infra/repositories/ServiceRepository.ts": {
-    "mtime": 1788023510.5106814,
-    "ast_hash": "436c2dff7a7ffa889e4deece1906ae94",
+    "mtime": 1783103938.0174415,
+    "ast_hash": "23b7d37c64c8884b1ab24fd25cf9946f",
     "semantic_hash": ""
   },
   "src/modules/services/infra/repositories/mocks/MockServiceRepository.ts": {
-    "mtime": 1788023536.1918375,
-    "ast_hash": "4bbe97329b61df29bc2f3b37963c5c2c",
+    "mtime": 1783103937.9731884,
+    "ast_hash": "b907980943593037ebc7bf19086d6cf2",
     "semantic_hash": ""
   },
   "src/modules/services/repositories/IServiceRepository.ts": {
-    "mtime": 1788023510.5096753,
-    "ast_hash": "3338be782a99e9229a4dc67754895a3d",
+    "mtime": 1783103938.043392,
+    "ast_hash": "6bf16ddfb18cf978c4e3b9e7b2210ee9",
     "semantic_hash": ""
   },
   "src/modules/services/schemas/serviceSchemas.ts": {
@@ -860,18 +860,18 @@
     "semantic_hash": ""
   },
   "src/modules/services/useCases/getService/GetServiceController.ts": {
-    "mtime": 1788023510.5131972,
-    "ast_hash": "db916262cb60d6da28a1863f15805fa4",
+    "mtime": 1783103938.2225716,
+    "ast_hash": "4000157bef38436a97320aa77171124a",
     "semantic_hash": ""
   },
   "src/modules/services/useCases/getService/GetServiceUseCase.ts": {
-    "mtime": 1788023510.5121875,
-    "ast_hash": "bf5d5158848bf6b584f10fe59b071ef2",
+    "mtime": 1783103938.2601295,
+    "ast_hash": "95936b25308df0803c09d5c0f5720db2",
     "semantic_hash": ""
   },
   "src/modules/services/useCases/listServices/ListServicesController.ts": {
-    "mtime": 1788023510.5141966,
-    "ast_hash": "17656ee1cea8ea6b75d0292c95c110e4",
+    "mtime": 1783103938.3079722,
+    "ast_hash": "fb87cbb9e450ea41988f73af19e77814",
     "semantic_hash": ""
   },
   "src/modules/services/useCases/listServices/ListServicesUseCase.ts": {
@@ -880,8 +880,8 @@
     "semantic_hash": ""
   },
   "src/modules/services/useCases/services.spec.ts": {
-    "mtime": 1788023514.332866,
-    "ast_hash": "bd4ff10792bc72f94b81e2abdc96dc94",
+    "mtime": 1783103938.3597574,
+    "ast_hash": "71bc4afedc1cf2bfd5c69ebcb717096e",
     "semantic_hash": ""
   },
   "src/modules/services/useCases/updateService/UpdateServiceController.ts": {
@@ -1430,8 +1430,8 @@
     "semantic_hash": ""
   },
   "src/modules/clients/controllers/ClientController.ts": {
-    "mtime": 1788012927.3195696,
-    "ast_hash": "1176d64b64b4d956fd6f5388ec3974cd",
+    "mtime": 1787762609.19131,
+    "ast_hash": "5f442f5df0943f73e8c19dcf03056bcb",
     "semantic_hash": ""
   },
   "src/modules/clients/dtos/ISalonClientDTO.ts": {
@@ -1440,18 +1440,18 @@
     "semantic_hash": ""
   },
   "src/modules/clients/infra/repositories/SalonClientRepository.ts": {
-    "mtime": 1788012920.992153,
-    "ast_hash": "8daec4325dc36f9cf1aff67dcfada880",
+    "mtime": 1787951316.9138627,
+    "ast_hash": "00d201bc0ec43385681ce2fd9405235d",
     "semantic_hash": ""
   },
   "src/modules/clients/infra/repositories/mocks/MockSalonClientRepository.ts": {
-    "mtime": 1788012981.2909226,
-    "ast_hash": "91f8a18af7dbbbd9fd2aabbb8f33aa49",
+    "mtime": 1787952008.091128,
+    "ast_hash": "88c5bcf3a9f03d7f253bfeb00bc768d4",
     "semantic_hash": ""
   },
   "src/modules/clients/repositories/ISalonClientRepository.ts": {
-    "mtime": 1788012919.9053192,
-    "ast_hash": "ce98944156c8716848d5fc93f9a7c0f9",
+    "mtime": 1787941553.715114,
+    "ast_hash": "1a7e0ca0cb96f3d71e8730988eb6068c",
     "semantic_hash": ""
   },
   "src/modules/clients/schemas/clientSchemas.ts": {
@@ -1460,8 +1460,8 @@
     "semantic_hash": ""
   },
   "src/modules/clients/useCases/clientUseCases.ts": {
-    "mtime": 1788012922.8219035,
-    "ast_hash": "d64341105271ee0cda985596d0a6e770",
+    "mtime": 1787952008.0836325,
+    "ast_hash": "bd593e4586358d202d3a658e4304e49d",
     "semantic_hash": ""
   },
   "src/modules/packages/controllers/PackageController.ts": {
@@ -1655,8 +1655,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/clients.routes.ts": {
-    "mtime": 1788012928.3418734,
-    "ast_hash": "9f486f09692563957857bb371b694389",
+    "mtime": 1787761747.986318,
+    "ast_hash": "6630c03978013a466a0d23a87776ea31",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/packages.routes.ts": {
@@ -2090,8 +2090,8 @@
     "semantic_hash": ""
   },
   "src/modules/appointments/useCases/checkIn/CheckInAppointmentUseCase.ts": {
-    "mtime": 1788012992.9565334,
-    "ast_hash": "9967d45fa8d4e22836f224d4e056c542",
+    "mtime": 1788008429.9413784,
+    "ast_hash": "fab297b44f6a1a9cae3efebd20bdd0c4",
     "semantic_hash": ""
   },
   "prisma/migrations/20260829010000_add_user_permissions/migration.sql": {
@@ -2107,11 +2107,6 @@
   "src/modules/fiado/useCases/fiadoCharge.spec.ts": {
     "mtime": 1788011143.3420682,
     "ast_hash": "96f6d8cae55dbcc4837c132e08b4e593",
-    "semantic_hash": ""
-  },
-  "prisma/migrations/20260829030000_add_queue_called_at/migration.sql": {
-    "mtime": 1788023497.6799324,
-    "ast_hash": "4c8f09c5d4a94529ffeb53b70540537f",
     "semantic_hash": ""
   }
 }

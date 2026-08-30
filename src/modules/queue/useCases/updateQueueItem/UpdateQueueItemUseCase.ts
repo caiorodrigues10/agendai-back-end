@@ -35,7 +35,7 @@ export class UpdateQueueItemUseCase {
     id: string,
     statusRaw: string,
     requestingUser: QueueRequestingUser,
-    details?: { completedBy?: string; finalPrice?: number; insertAt?: number }
+    details?: { completedBy?: string; finalPrice?: number; paymentMethod?: string; insertAt?: number }
   ) {
     const item = await this.queueRepository.findById(id);
     if (!item) throw new AppError("Item de fila não encontrado", 404);

@@ -8,6 +8,7 @@ export const updateQueueItemSchema = z.object({
   status: z.enum(["waiting", "in_chair", "completed", "cancelled"]),
   completedBy: z.string().uuid().optional(),
   finalPrice: z.number().min(0).optional(),
+  paymentMethod: z.enum(["pix", "credit_card", "debit_card", "fiado"]).optional(),
   /** Índice na fila WAITING (0 = frente, N = fim). Usado ao voltar da cadeira. */
   insertAt: z.number().int().min(0).max(500).optional(),
 });

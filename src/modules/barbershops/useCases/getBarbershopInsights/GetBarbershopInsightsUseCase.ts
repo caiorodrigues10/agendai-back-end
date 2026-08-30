@@ -52,6 +52,9 @@ export interface BarbershopInsightsDTO {
   highlights: string[];
 }
 
+// Wait insights require enough observations to avoid misleading conclusions.
+const MIN_WAIT_SAMPLES_FOR_INSIGHTS = 3;
+
 const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function periodDays(period: InsightsPeriod): number {
@@ -105,6 +108,7 @@ export class GetBarbershopInsightsUseCase {
           customerName: true,
           whatsapp: true,
           joinedAt: true,
+          calledAt: true,
           completedAt: true,
           completedBy: true,
           finalPrice: true,
@@ -166,12 +170,12 @@ export class GetBarbershopInsightsUseCase {
     }, 0);
 
     const waitSamples = completed
-      .filter((q: { completedAt: Date | null; joinedAt: Date }) => q.completedAt && q.joinedAt)
-      .map((q: { completedAt: Date; joinedAt: Date }) => (q.completedAt.getTime() - q.joinedAt.getTime()) / 60000)
+      .filter((q: { calledAt?: Date | null; joinedAt: Date }) => q.calledAt && q.joinedAt)
+      .map((q: { calledAt: Date; joinedAt: Date }) => (q.calledAt.getTime() - q.joinedAt.getTime()) / 60000)
       .filter((m: number) => m >= 0 && m < 24 * 60);
 
     const avgWaitMinutes =
-      waitSamples.length > 0
+      waitSamples.length >= MIN_WAIT_SAMPLES_FOR_INSIGHTS
         ? round2(waitSamples.reduce((a: number, b: number) => a + b, 0) / waitSamples.length)
         : null;
 
@@ -333,12 +337,13 @@ export class GetBarbershopInsightsUseCase {
         "Ainda há poucos atendimentos concluídos neste período — use a fila e a agenda para gerar histórico."
       );
     } else {
-      if (peakHour && peakHour.volume > 0) {
+      // Peak recommendations are only meaningful with a minimally representative sample.
+      if (completed.length >= MIN_WAIT_SAMPLES_FOR_INSIGHTS && peakHour && peakHour.volume > 0) {
         highlights.push(
           `Horário de pico: ${peakHour.label} (${peakHour.volume} atendimentos). Reforce a equipe nesse intervalo.`
         );
       }
-      if (peakDay && peakDay.volume > 0) {
+      if (completed.length >= MIN_WAIT_SAMPLES_FOR_INSIGHTS && peakDay && peakDay.volume > 0) {
         highlights.push(
           `Dia mais forte: ${peakDay.label} com ${peakDay.volume} atendimentos e R$ ${peakDay.revenue.toFixed(0)}.`
         );

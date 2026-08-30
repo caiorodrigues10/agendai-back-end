@@ -20,9 +20,9 @@ export class ServiceRepository implements IServiceRepository {
       }
     });
   }
-  async findById(id: string): Promise<IServiceResponseDTO | null> {
-    return prisma.service.findUnique({
-      where: { id },
+  async findById(id: string, barbershopId?: string): Promise<IServiceResponseDTO | null> {
+    return prisma.service.findFirst({
+      where: { id, ...(barbershopId ? { barbershopId } : {}) },
       select: {
         id: true,
         barbershopId: true,
@@ -36,6 +36,7 @@ export class ServiceRepository implements IServiceRepository {
     });
   }
   async list(barbershopId?: string): Promise<IServiceResponseDTO[]> {
+    if (!barbershopId) return [];
     return prisma.service.findMany({
       where: { barbershopId },
       orderBy: { name: "asc" },

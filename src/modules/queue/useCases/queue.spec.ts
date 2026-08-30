@@ -90,6 +90,8 @@ describe("Queue module", () => {
     });
     const inChair = await update.execute(q.id, "in_chair", staffShop1);
     expect(inChair.status).toBe("in_chair");
+    expect(typeof inChair.calledAt).toBe("number");
+    expect(inChair.calledAt).toBeGreaterThanOrEqual(inChair.joinedAt);
     const completed = await update.execute(q.id, "completed", staffShop1, {
       completedBy: "staff-1",
       finalPrice: 50,

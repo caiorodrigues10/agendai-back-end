@@ -11,7 +11,12 @@ function toPublicView(
   return items.map((item) => ({
     ...item,
     whatsapp: "",
-    customerId: sessionId && item.customerId === sessionId ? item.customerId : "",
+    customerId:
+      sessionId &&
+      (item.customerId === sessionId || item.responsibleCustomerId === sessionId)
+        ? sessionId
+        : "",
+    responsibleCustomerId: null,
   }));
 }
 

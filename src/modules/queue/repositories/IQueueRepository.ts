@@ -11,7 +11,11 @@ export interface IQueueRepository {
   ): Promise<IQueueItemResponseDTO | null>;
   list(barbershopId?: string): Promise<IQueueItemResponseDTO[]>;
   findById(id: string): Promise<IQueueItemResponseDTO | null>;
-  updateStatus(id: string, status: string, details?: any): Promise<IQueueItemResponseDTO>;
+  updateStatus(
+    id: string,
+    status: string,
+    details?: { completedBy?: string; finalPrice?: number; paymentMethod?: string; joinedAt?: Date }
+  ): Promise<IQueueItemResponseDTO>;
   delete(id: string): Promise<void>;
   countCompleted(barbershopId?: string): Promise<number>;
   /**

@@ -20,12 +20,38 @@ export class JoinQueueController {
       whatsapp: z.string().max(20).optional().default(""),
       /** UUID persistido no localStorage do cliente (dedup na fila). */
       sessionId: z.string().uuid().optional(),
+      /** Sessão local do responsável quando a entrada é de um dependente. */
+      responsibleSessionId: z.string().uuid().optional(),
       // addedByStaff do body é IGNORADO — derivado só de request.user
     });
 
     const data = schema.parse(request.body);
-    const whatsapp = resolveQueueWhatsApp(data.whatsapp);
     const isStaff = isQueueStaffForShop(request.user, data.barbershopId);
+
+    const responsible = data.responsibleSessionId
+      ? await prisma.queueItem.findFirst({
+          where: {
+            barbershopId: data.barbershopId,
+            customerId: data.responsibleSessionId,
+            status: { in: ["WAITING", "IN_CHAIR"] },
+            responsibleQueueItemId: null,
+          },
+          orderBy: { joinedAt: "desc" },
+          select: { id: true, whatsapp: true },
+        })
+      : null;
+
+    if (data.responsibleSessionId && !responsible) {
+      return reply.status(400).send({
+        success: false,
+        message: "O responsável precisa estar na fila para adicionar um dependente",
+      });
+    }
+
+    // Telefone próprio é opcional para dependente; nesse caso, herdamos o contato do responsável.
+    const whatsapp = resolveQueueWhatsApp(
+      data.whatsapp.trim() || responsible?.whatsapp || ""
+    );
 
     // Staff adiciona cliente com ID novo; visitante reutiliza sessionId se enviado.
     const customerId = isStaff
@@ -40,6 +66,7 @@ export class JoinQueueController {
       whatsapp,
       customerId,
       addedByStaff: isStaff,
+      responsibleQueueItemId: responsible?.id,
     });
 
     // Cliente recebe confirmação no JoinQueueUseCase. O salão só é avisado

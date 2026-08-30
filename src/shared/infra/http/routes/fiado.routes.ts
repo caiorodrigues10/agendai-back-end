@@ -26,6 +26,7 @@ export async function fiadoRoutes(app: FastifyInstance) {
 
   // ─── CRUD principal ──────────────────────────────────────────────────────
   app.post("/fiado", { preHandler: staffGuard }, fiado.create.bind(fiado));
+  app.post("/fiado/:id/charge", { preHandler: staffGuard }, fiado.charge.bind(fiado));
   app.get("/fiado", { preHandler: staffGuard }, fiado.list.bind(fiado));
   app.get("/fiado/:id", { preHandler: staffGuard }, fiado.get.bind(fiado));
   app.patch("/fiado/:id", { preHandler: staffGuard }, fiado.update.bind(fiado));

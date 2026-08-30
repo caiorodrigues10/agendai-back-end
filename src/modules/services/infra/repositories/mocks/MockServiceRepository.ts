@@ -24,12 +24,12 @@ export class MockServiceRepository implements IServiceRepository {
     return entity;
   }
 
-  async findById(id: string): Promise<IServiceResponseDTO | null> {
-    return this.data.find((s) => s.id === id) ?? null;
+  async findById(id: string, barbershopId?: string): Promise<IServiceResponseDTO | null> {
+    return this.data.find((s) => s.id === id && (!barbershopId || s.barbershopId === barbershopId)) ?? null;
   }
 
   async list(barbershopId?: string): Promise<IServiceResponseDTO[]> {
-    if (!barbershopId) return [...this.data];
+    if (!barbershopId) return [];
     return this.data.filter((s) => s.barbershopId === barbershopId);
   }
 

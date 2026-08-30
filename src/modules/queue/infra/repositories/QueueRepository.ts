@@ -45,9 +45,10 @@ export class QueueRepository implements IQueueRepository {
         customerName: data.customerName,
         whatsapp:     data.whatsapp,
         addedByStaff: data.addedByStaff ?? false,
+        responsibleQueueItemId: data.responsibleQueueItemId ?? null,
         status:       "WAITING"
       },
-      include: { service: true }
+      include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
     });
     return this.mapToDTO(item);
   }
@@ -56,7 +57,7 @@ export class QueueRepository implements IQueueRepository {
     const items = await prisma.queueItem.findMany({
       where:   barbershopId ? { barbershopId } : {},
       orderBy: { joinedAt: "asc" },
-      include: { service: true }
+      include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
     });
     return items.map((i: any) => this.mapToDTO(i));
   }
@@ -64,7 +65,7 @@ export class QueueRepository implements IQueueRepository {
   async findById(id: string): Promise<IQueueItemResponseDTO | null> {
     const item = await prisma.queueItem.findUnique({
       where:   { id },
-      include: { service: true }
+      include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
     });
     return item ? this.mapToDTO(item) : null;
   }
@@ -72,15 +73,20 @@ export class QueueRepository implements IQueueRepository {
   async updateStatus(
     id: string,
     status: string,
-    details?: { completedBy?: string; finalPrice?: number; joinedAt?: Date }
+    details?: { completedBy?: string; finalPrice?: number; paymentMethod?: string; joinedAt?: Date }
   ): Promise<IQueueItemResponseDTO> {
     const prismaStatus = toPrisma(status);
     const data: Record<string, unknown> = { status: prismaStatus };
+
+    if (prismaStatus === "IN_CHAIR") {
+      data.calledAt = new Date();
+    }
 
     if (prismaStatus === "COMPLETED") {
       data.completedAt = new Date();
       if (details?.completedBy)        data.completedBy = details.completedBy;
       if (details?.finalPrice != null) data.finalPrice  = details.finalPrice;
+      if (details?.paymentMethod)     data.paymentMethod = details.paymentMethod;
     }
 
     if (prismaStatus === "WAITING" && details?.joinedAt) {
@@ -90,7 +96,7 @@ export class QueueRepository implements IQueueRepository {
     const item = await prisma.queueItem.update({
       where:   { id },
       data,
-      include: { service: true }
+      include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
     });
     return this.mapToDTO(item);
   }
@@ -112,7 +118,7 @@ export class QueueRepository implements IQueueRepository {
     const items = await prisma.queueItem.findMany({
       where: { barbershopId, status: { in: ["WAITING", "IN_CHAIR"] } },
       orderBy: { joinedAt: "asc" },
-      include: { service: true },
+      include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } },
     });
     return items.map((i: any) => this.mapToDTO(i));
   }
@@ -121,7 +127,7 @@ export class QueueRepository implements IQueueRepository {
     const items = await prisma.queueItem.findMany({
       where: { barbershopId, status: "WAITING" },
       orderBy: { joinedAt: "asc" },
-      include: { service: true },
+      include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } },
     });
     return items.map((i: any) => this.mapToDTO(i));
   }
@@ -144,17 +150,24 @@ export class QueueRepository implements IQueueRepository {
       joinedAt:        item.joinedAt instanceof Date
                          ? item.joinedAt.getTime()
                          : Number(item.joinedAt),
+      calledAt:        item.calledAt instanceof Date
+                         ? item.calledAt.getTime()
+                         : (item.calledAt ?? null),
       status:          toDTO(item.status),
       estimatedStartAt: item.estimatedStartAt instanceof Date
                          ? item.estimatedStartAt.getTime()
                          : (item.estimatedStartAt ?? null),
       lastNotifiedPosition: item.lastNotifiedPosition ?? null,
       addedByStaff:    item.addedByStaff,
+      responsibleQueueItemId: item.responsibleQueueItemId ?? null,
+      responsibleName: item.responsibleQueueItem?.customerName ?? null,
+      responsibleCustomerId: item.responsibleQueueItem?.customerId ?? null,
       completedAt:     item.completedAt instanceof Date
                          ? item.completedAt.getTime()
                          : (item.completedAt ?? null),
       completedBy:     item.completedBy  ?? null,
       finalPrice:      item.finalPrice   ?? null,
+      paymentMethod:   item.paymentMethod ?? null,
       serviceName:     item.service?.name ?? null,
       serviceAvgTimeMinutes: item.service?.avgTimeMinutes ?? null,
     };

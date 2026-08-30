@@ -28,7 +28,7 @@ describe("Services module", () => {
     const s1 = await create.execute({ barbershopId: "shop-1", name: "Corte", price: 50, avgTimeMinutes: 30, icon: "scissors" });
     const s2 = await create.execute({ barbershopId: "shop-2", name: "Barba", price: 40, avgTimeMinutes: 20, icon: "beard" });
     const listAll = await list.execute();
-    expect(listAll.length).toBe(2);
+    expect(listAll.length).toBe(0);
     const listShop1 = await list.execute("shop-1");
     expect(listShop1.length).toBe(1);
     expect(listShop1[0].id).toBe(s1.id);
@@ -40,6 +40,12 @@ describe("Services module", () => {
     expect(fetched.name).toBe("Corte");
     const updated = await update.execute(s.id, { price: 55 });
     expect(updated.price).toBe(55);
+  });
+
+  it("não permite obter serviço de outro tenant quando escopado", async () => {
+    const s = await create.execute({ barbershopId: "shop-1", name: "Corte", price: 50, avgTimeMinutes: 30, icon: "scissors" });
+    await expect(get.execute(s.id, "shop-2")).rejects.toMatchObject({ statusCode: 404 });
+    await expect(get.execute(s.id, "shop-1")).resolves.toMatchObject({ id: s.id });
   });
 
   it("desativa serviço", async () => {
