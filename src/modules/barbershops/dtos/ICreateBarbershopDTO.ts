@@ -3,4 +3,8 @@ export interface ICreateBarbershopDTO {
   whatsapp: string;
   logoUrl?: string;
   cnpj?: string;
+  address?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
 }

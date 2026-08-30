@@ -1,9 +1,11 @@
 import { FastifyInstance } from "fastify";
+import { container } from "tsyringe";
 import { CreateUserController } from "@/modules/users/useCases/createUser/CreateUserController";
 import { StaffUserController } from "@/modules/users/controllers/StaffUserController";
 import { DeleteAccountController, validateDeleteAccount } from "@/modules/users/useCases/deleteAccount/DeleteAccountController";
 import { ExportUserDataController } from "@/modules/users/useCases/exportData/ExportUserDataController";
 import { AvatarController } from "@/modules/users/useCases/uploadAvatar/AvatarController";
+import { ProfileController } from "@/modules/users/controllers/ProfileController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
@@ -15,6 +17,7 @@ export async function usersRoutes(app: FastifyInstance) {
   const deleteAccountController = new DeleteAccountController();
   const exportUserDataController = new ExportUserDataController();
   const avatarController = new AvatarController();
+  const profileController = container.resolve(ProfileController);
 
   // ─── Gestão de equipe (OWNER da barbearia; MASTER_ADMIN via ?barbershopId=) ─
   const ownerGuard = [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext];
@@ -72,6 +75,7 @@ export async function usersRoutes(app: FastifyInstance) {
 
   // ─── LGPD: Exclusão de conta (Art. 18) ─
   const authGuard = [authenticate, setRlsContext];
+  app.patch("/users/me", { preHandler: authGuard }, profileController.update.bind(profileController));
   app.delete("/users/me", {
     preHandler: [...authGuard, validateDeleteAccount],
     schema: {

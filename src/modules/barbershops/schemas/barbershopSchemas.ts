@@ -17,6 +17,10 @@ export const createBarbershopSchema = z.object({
     .optional()
     .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
     .transform((v) => (v ? normalizeCnpj(v) : v)),
+  address: z.string().max(500).optional(),
+  city: z.string().max(120).optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
 });
 
 export const updateBarbershopSchema = z.object({
@@ -29,6 +33,10 @@ export const updateBarbershopSchema = z.object({
     .optional()
     .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
     .transform((v) => (v ? normalizeCnpj(v) : v)),
+  address: z.string().max(500).nullable().optional(),
+  city: z.string().max(120).nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
 });
 
 export const scheduleItemSchema = z.object({

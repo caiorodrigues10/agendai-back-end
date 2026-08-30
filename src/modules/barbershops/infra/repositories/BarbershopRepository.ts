@@ -15,6 +15,9 @@ export class BarbershopRepository implements IBarbershopRepository {
         logoUrl: true,
         cnpj: true,
         address: true,
+        city: true,
+        latitude: true,
+        longitude: true,
         createdAt: true,
         active: true,
         evolutionInstanceName: true
@@ -31,6 +34,9 @@ export class BarbershopRepository implements IBarbershopRepository {
         logoUrl: true,
         cnpj: true,
         address: true,
+        city: true,
+        latitude: true,
+        longitude: true,
         createdAt: true,
         active: true,
         evolutionInstanceName: true
@@ -47,6 +53,9 @@ export class BarbershopRepository implements IBarbershopRepository {
         logoUrl: true,
         cnpj: true,
         address: true,
+        city: true,
+        latitude: true,
+        longitude: true,
         createdAt: true,
         active: true,
         evolutionInstanceName: true
@@ -64,6 +73,9 @@ export class BarbershopRepository implements IBarbershopRepository {
         logoUrl: true,
         cnpj: true,
         address: true,
+        city: true,
+        latitude: true,
+        longitude: true,
         createdAt: true,
         active: true,
         evolutionInstanceName: true

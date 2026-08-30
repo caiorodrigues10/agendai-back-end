@@ -41,6 +41,10 @@ export const registerSchema = z.object({
     .refine((v) => isValidCpf(v), { message: "CPF inválido (dígitos verificadores incorretos)" }),
   barbershopName: z.string().min(3, "Nome do salão deve ter no mínimo 3 caracteres"),
   whatsapp: phoneBR,
+  address: z.string().max(500).optional(),
+  city: z.string().max(120).optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
   cnpj: z
     .string()
     .optional()

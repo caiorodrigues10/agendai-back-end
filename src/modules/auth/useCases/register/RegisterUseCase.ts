@@ -28,6 +28,10 @@ export interface IRegisterDTO {
   cpf: string;
   barbershopName: string;
   whatsapp: string;
+  address?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
   cnpj?: string;
   referralCode?: string;
   termsVersion: string;
@@ -93,6 +97,10 @@ export class RegisterUseCase {
           name: data.barbershopName,
           whatsapp: data.whatsapp.replace(/\D/g, ""),
           ...(normalizedCnpj ? { cnpj: normalizedCnpj } : {}),
+          ...(data.address ? { address: data.address.trim() } : {}),
+          ...(data.city ? { city: data.city.trim() } : {}),
+          ...(data.latitude !== undefined ? { latitude: data.latitude } : {}),
+          ...(data.longitude !== undefined ? { longitude: data.longitude } : {}),
         },
       });
 

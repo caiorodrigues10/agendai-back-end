@@ -148,6 +148,9 @@ model Barbershop {
   logoUrl               String?        @db.VarChar(500)
   cnpj                  String?        @db.VarChar(20)
   address               String?        @db.Text
+  city                  String?        @db.VarChar(120)
+  latitude              Float?
+  longitude             Float?
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   active                Boolean        @default(true)
