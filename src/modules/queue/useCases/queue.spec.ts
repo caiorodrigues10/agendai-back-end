@@ -23,6 +23,7 @@ import * as queueModule from "@/shared/infra/queue";
 import { AppError } from "@/shared/errors/AppError";
 import { isActiveQueueDuplicate, resolveQueueWhatsApp, STAFF_QUEUE_PLACEHOLDER_WHATSAPP } from "../utils/queueDuplicate";
 import { updateQueueItemSchema } from "../schemas/queueSchemas";
+import { MockFiadoRepository } from "@/modules/fiado/infra/repositories/mocks/MockFiadoRepository";
 
 let queues: MockQueueRepository;
 let join: JoinQueueUseCase;
@@ -31,6 +32,7 @@ let update: UpdateQueueItemUseCase;
 let del: DeleteQueueItemUseCase;
 let notifyPosition: NotifyQueuePositionUpdatesUseCase;
 let notifySpy: ReturnType<typeof vi.fn>;
+let fiados: MockFiadoRepository;
 
 const staffShop1 = { id: "u1", role: "OWNER", barbershopId: "shop-1" };
 const staffShop2 = { id: "u2", role: "OWNER", barbershopId: "shop-2" };
@@ -40,6 +42,7 @@ beforeEach(() => {
   queues = new MockQueueRepository();
   notifySpy = vi.fn().mockResolvedValue({ notified: 0, failed: 0 });
   notifyPosition = { execute: notifySpy } as any;
+  fiados = new MockFiadoRepository();
   const shopsStub = {
     findById: vi.fn().mockResolvedValue({
       id: "shop-1",
@@ -49,7 +52,7 @@ beforeEach(() => {
   };
   join = new JoinQueueUseCase(queues as any, shopsStub as any);
   list = new ListQueueUseCase(queues as any);
-  update = new UpdateQueueItemUseCase(queues as any, notifyPosition, shopsStub as any);
+  update = new UpdateQueueItemUseCase(queues as any, notifyPosition, shopsStub as any, undefined, fiados);
   del = new DeleteQueueItemUseCase(queues as any, notifyPosition);
 });
 
@@ -100,6 +103,35 @@ describe("Queue module", () => {
     expect(completed.finalPrice).toBe(50);
     expect(completed.completedBy).toBe("staff-1");
     expect(typeof completed.completedAt).toBe("number");
+  });
+
+  it("cria um fiado ao concluir atendimento com essa forma de pagamento", async () => {
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "11988887777",
+      serviceId: "svc-1",
+      customerId: "cust-fiado",
+    });
+    q.serviceName = "Corte";
+
+    await update.execute(q.id, "in_chair", staffShop1);
+    await update.execute(q.id, "completed", staffShop1, {
+      completedBy: "staff-1",
+      finalPrice: 50,
+      paymentMethod: "fiado",
+    });
+
+    expect(fiados.fiados).toHaveLength(1);
+    expect(fiados.fiados[0]).toMatchObject({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "11988887777",
+      description: "Corte",
+      originalAmount: 50,
+      createdById: "staff-1",
+      status: "PENDING",
+    });
   });
 
   it("Chamar enfileira WhatsApp ao ir para in_chair", async () => {

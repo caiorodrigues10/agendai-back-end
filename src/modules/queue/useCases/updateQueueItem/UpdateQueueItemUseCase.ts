@@ -17,6 +17,7 @@ import { computeInsertJoinedAt } from "../../utils/computeInsertJoinedAt";
 import { isPlaceholderWhatsApp } from "../../utils/queueDuplicate";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
+import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
 
 @injectable()
 export class UpdateQueueItemUseCase {
@@ -28,7 +29,9 @@ export class UpdateQueueItemUseCase {
     @inject("BarbershopRepository")
     private barbershopRepository: IBarbershopRepository,
     @inject("SalonClientRepository")
-    private salonClients?: ISalonClientRepository
+    private salonClients?: ISalonClientRepository,
+    @inject("FiadoRepository")
+    private fiadoRepository?: IFiadoRepository
   ) {}
 
   async execute(
@@ -44,6 +47,11 @@ export class UpdateQueueItemUseCase {
 
     const nextStatus = parseQueueStatus(statusRaw);
     assertQueueStatusTransition(item.status, nextStatus);
+
+    const isFiadoCompletion = nextStatus === "completed" && details?.paymentMethod === "fiado";
+    if (isFiadoCompletion && (!details?.finalPrice || details.finalPrice <= 0)) {
+      throw new AppError("Informe um valor maior que zero para registrar o fiado", 400);
+    }
 
     let joinedAt: Date | undefined;
     if (nextStatus === "waiting") {
@@ -61,6 +69,18 @@ export class UpdateQueueItemUseCase {
       ...details,
       joinedAt,
     });
+
+    if (isFiadoCompletion) {
+      await this.fiadoRepository?.create({
+        barbershopId: item.barbershopId,
+        customerName: item.customerName,
+        whatsapp: item.whatsapp,
+        description: item.serviceName || "Atendimento na fila",
+        amount: details!.finalPrice!,
+        notes: `Gerado automaticamente ao finalizar o atendimento da fila (${item.id}).`,
+        createdById: details?.completedBy || requestingUser.id,
+      });
+    }
 
     if (nextStatus === "completed" || nextStatus === "waiting") {
       try {
