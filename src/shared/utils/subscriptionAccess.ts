@@ -33,8 +33,18 @@ export function subscriptionGrantsAccess(
 	now: Date,
 	trialEnd: Date,
 ): { allowed: boolean; cardRequired: boolean } {
+	// O período gratuito pertence ao salão, não à assinatura criada durante ele.
+	// Portanto, cancelar uma assinatura opcional não pode retirar os dias de trial
+	// que ainda restam. Inadimplência real continua bloqueando o acesso.
+	if (
+		now <= trialEnd &&
+		subscription?.status !== 'PAST_DUE' &&
+		subscription?.status !== 'UNPAID'
+	) {
+		return { allowed: true, cardRequired: false }
+	}
+
 	if (!subscription) {
-		if (now <= trialEnd) return { allowed: true, cardRequired: false }
 		return { allowed: false, cardRequired: false }
 	}
 
@@ -44,10 +54,6 @@ export function subscriptionGrantsAccess(
 		subscription.endDate > now
 
 	if (subscription.status === 'ACTIVE' || hasPaidPeriodLeft) {
-		return { allowed: true, cardRequired: false }
-	}
-
-	if (subscription.status === 'TRIALING' && now <= trialEnd) {
 		return { allowed: true, cardRequired: false }
 	}
 

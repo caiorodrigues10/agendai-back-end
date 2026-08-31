@@ -42,6 +42,24 @@ describe('subscriptionGrantsAccess', () => {
 		expect(r).toEqual({ allowed: true, cardRequired: false })
 	})
 
+	it('mantém o trial após cancelamento de uma assinatura opcional', () => {
+		const r = subscriptionGrantsAccess(
+			{ status: 'CANCELED', endDate: null, asaasCreditCardToken: null },
+			now,
+			trialEnd,
+		)
+		expect(r).toEqual({ allowed: true, cardRequired: false })
+	})
+
+	it('não libera trial quando existe inadimplência real', () => {
+		const r = subscriptionGrantsAccess(
+			{ status: 'PAST_DUE', endDate: null, asaasCreditCardToken: null },
+			now,
+			trialEnd,
+		)
+		expect(r).toEqual({ allowed: false, cardRequired: false })
+	})
+
 	it('libera ACTIVE sem exigir token Asaas', () => {
 		const r = subscriptionGrantsAccess(
 			{ status: 'ACTIVE', endDate: null, asaasCreditCardToken: null },
