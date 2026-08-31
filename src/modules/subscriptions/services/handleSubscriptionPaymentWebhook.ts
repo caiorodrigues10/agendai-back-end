@@ -33,6 +33,13 @@ export async function handleSubscriptionPaymentWebhook(
   });
   if (!subscription) return;
 
+  const invoicePlan = invoice.planId
+    ? await prisma.plan.findUnique({
+        where: { id: invoice.planId },
+        select: { id: true, billingCycle: true },
+      })
+    : null;
+
   if (newPaymentStatus === "approved") {
     // Idempotência: invoice já paga → não reestende endDate (OpenCode checkpoint)
     if (invoice.status === "PAID") {
@@ -43,7 +50,9 @@ export async function handleSubscriptionPaymentWebhook(
     }
 
     const now = new Date();
-    const periodDays = billingPeriodDays(subscription.plan?.billingCycle);
+    const periodDays = billingPeriodDays(
+      invoicePlan?.billingCycle ?? subscription.plan?.billingCycle
+    );
     const base =
       subscription.endDate && subscription.endDate > now
         ? new Date(subscription.endDate)
@@ -58,7 +67,11 @@ export async function handleSubscriptionPaymentWebhook(
       }),
       prisma.subscription.update({
         where: { id: subscriptionId },
-        data: { status: "ACTIVE", endDate: newEndDate },
+        data: {
+          status: "ACTIVE",
+          endDate: newEndDate,
+          ...(invoicePlan ? { planId: invoicePlan.id } : {}),
+        },
       }),
     ]);
 

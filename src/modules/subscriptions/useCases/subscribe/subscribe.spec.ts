@@ -219,7 +219,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     );
   });
 
-  it("[ASAAS] PIX embutido: cria cobrança PIX, salva QR Code e fica PAST_DUE até webhook", async () => {
+  it("[ASAAS] PIX embutido: cria cobrança PIX, salva QR Code e mantém trial até webhook", async () => {
     const asaasService = {
       ensureCustomer: vi.fn().mockResolvedValue("cus_1"),
       createPayment: vi.fn().mockResolvedValue({
@@ -281,7 +281,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     expect(result.payment?.status).toBe("pending");
 
     const upsertCall = prismaMock.subscription.upsert.mock.calls[0][0];
-    expect(upsertCall.create.status).toBe("PAST_DUE");
+    expect(upsertCall.create.status).toBe("TRIALING");
     expect(upsertCall.create.endDate).toBeNull();
 
     const invoiceCreate = prismaMock.invoice.create.mock.calls[0][0].data;
@@ -289,7 +289,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     expect(invoiceCreate.paymentMethod).toBe("pix");
   });
 
-  it("[ASAAS] cartão embutido: envia creditCard ao Asaas e fica PAST_DUE até webhook", async () => {
+  it("[ASAAS] cartão embutido: envia creditCard ao Asaas e mantém trial até webhook", async () => {
     const asaasService = {
       ensureCustomer: vi.fn().mockResolvedValue("cus_1"),
       createPayment: vi.fn().mockResolvedValue({
@@ -416,5 +416,39 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     const upsertCall = prismaMock.subscription.upsert.mock.calls[0][0];
     expect(upsertCall.update.status).toBe("TRIALING");
     expect(upsertCall.update.planId).toBe("plan-yearly");
+  });
+
+  it("[FIX] PIX pendente não troca o plano de uma assinatura já ativa", async () => {
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      ...makeSubscription(),
+      planId: "plan-current",
+      status: "ACTIVE",
+    });
+
+    const asaasService = {
+      ensureCustomer: vi.fn().mockResolvedValue("cus_1"),
+      createPayment: vi.fn().mockResolvedValue({
+        id: "pay_pending",
+        status: "PENDING",
+        pixQrCode: { encodedImage: "base64qr", payload: "00020126", expirationDate: "2026-01-16T12:00:00.000Z" },
+      }),
+      getPixQrCode: vi.fn(),
+    };
+    const useCase = new SubscribeUseCase(mpService as any, {} as any, asaasService as any, repo as any);
+
+    await useCase.execute(
+      {
+        barbershopId: "shop-1",
+        planId: "plan-yearly",
+        paymentMethod: "asaas",
+        asaasBillingType: "PIX",
+        payerEmail: "owner@example.com",
+      },
+      { role: "OWNER", barbershopId: "shop-1" }
+    );
+
+    const upsertCall = prismaMock.subscription.upsert.mock.calls[0][0];
+    expect(upsertCall.update.planId).toBe("plan-current");
+    expect(prismaMock.invoice.create.mock.calls[0][0].data.planId).toBe("plan-yearly");
   });
 });

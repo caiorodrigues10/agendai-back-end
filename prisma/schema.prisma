@@ -481,6 +481,7 @@ model Plan {
   active           Boolean          @default(true)
 
   subscriptions Subscription[]
+  invoices      Invoice[]
 
   @@index([billingCycle])
   @@index([tierKey])
@@ -530,6 +531,8 @@ enum SubscriptionStatus {
 model Invoice {
   id             String        @id @default(uuid()) @db.Uuid
   subscriptionId String        @db.Uuid
+  /// Plano solicitado nesta cobrança. A troca só entra em vigor após o pagamento aprovado.
+  planId         String?       @db.Uuid
   amount         Float         @db.Real
   dueDate        DateTime
   paidAt         DateTime?
@@ -539,10 +542,12 @@ model Invoice {
   updatedAt      DateTime      @updatedAt
 
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  plan         Plan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([dueDate])
   @@index([subscriptionId, status, dueDate])
+  @@index([planId])
   @@map("invoices")
 }
 

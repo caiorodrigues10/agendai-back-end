@@ -3,6 +3,7 @@ import { handleSubscriptionPaymentWebhook } from "./handleSubscriptionPaymentWeb
 
 const prismaMock = vi.hoisted(() => ({
   invoice: { findUnique: vi.fn(), update: vi.fn() },
+  plan: { findUnique: vi.fn() },
   subscription: { findUnique: vi.fn(), update: vi.fn() },
   payment: { findFirst: vi.fn() },
   refund: { findFirst: vi.fn() },
@@ -143,6 +144,27 @@ describe("handleSubscriptionPaymentWebhook — eventos negativos", () => {
     );
     expect(prismaMock.invoice.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: "PAID" }) })
+    );
+  });
+
+  it("approved → aplica o plano que estava pendente na fatura", async () => {
+    prismaMock.invoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      subscriptionId: "1",
+      status: "PENDING",
+      planId: "plan-pro-yearly",
+    });
+    prismaMock.plan.findUnique.mockResolvedValue({
+      id: "plan-pro-yearly",
+      billingCycle: "YEARLY",
+    });
+
+    await handleSubscriptionPaymentWebhook(REF, "approved");
+
+    expect(prismaMock.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "ACTIVE", planId: "plan-pro-yearly" }),
+      })
     );
   });
 });

@@ -77,7 +77,7 @@ export class SubscribeUseCase {
       async (tx: any) => {
         const lockedBarbershop = await tx.barbershop.findUnique({
           where: { id: data.barbershopId },
-          select: { id: true, active: true },
+          select: { id: true, active: true, createdAt: true },
         });
 
         if (!lockedBarbershop || !lockedBarbershop.active) {
@@ -101,8 +101,13 @@ export class SubscribeUseCase {
           data.paymentMethod === "pix" ||
           data.paymentMethod === "payment_link" ||
           data.paymentMethod === "asaas";
+        const trialEnd = new Date(lockedBarbershop.createdAt);
+        trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
+        const isInCalendarTrial = new Date() <= trialEnd;
         const initialStatus = keepAccessUntilPaid
           ? existing!.status
+          : isInCalendarTrial
+            ? "TRIALING"
           : pendingUntilWebhook
             ? "PAST_DUE"
             : "ACTIVE";
@@ -110,7 +115,9 @@ export class SubscribeUseCase {
         const subscription = await tx.subscription.upsert({
           where: { barbershopId: data.barbershopId },
           update: {
-            planId: plan.id,
+            // PIX/cartão Asaas ainda não foi confirmado: manter o plano em vigor.
+            // O webhook aplica o plano escolhido somente após o pagamento aprovado.
+            planId: pendingUntilWebhook && existing ? existing.planId : plan.id,
             status: initialStatus,
             startDate: keepAccessUntilPaid ? existing!.startDate : new Date(),
             endDate: keepAccessUntilPaid
@@ -136,6 +143,7 @@ export class SubscribeUseCase {
         const invoice = await tx.invoice.create({
           data: {
             subscriptionId: subscription.id,
+            planId: plan.id,
             amount: plan.price,
             dueDate,
             status: "PENDING",
