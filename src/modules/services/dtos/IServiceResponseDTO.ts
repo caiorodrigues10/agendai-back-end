@@ -7,4 +7,5 @@ export interface IServiceResponseDTO {
   icon: string;
   createdAt: Date;
   active: boolean;
+  commissionPercent: number;
 }

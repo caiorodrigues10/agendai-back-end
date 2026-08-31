@@ -17,6 +17,7 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
+        ,commissionPercent: true
       }
     });
   }
@@ -32,6 +33,7 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
+        ,commissionPercent: true
       }
     });
   }
@@ -49,6 +51,7 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
+        ,commissionPercent: true
       }
     });
   }
@@ -65,6 +68,7 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
+        ,commissionPercent: true
       }
     });
   }

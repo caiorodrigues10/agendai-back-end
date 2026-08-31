@@ -4,4 +4,5 @@ export interface ICreateServiceDTO {
   price: number;
   avgTimeMinutes: number;
   icon: string;
+  commissionPercent?: number;
 }

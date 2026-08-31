@@ -40,6 +40,7 @@ model User {
   verificationTokens  VerificationToken[]
   refunds             Refund[]            @relation("RefundRequestedBy")
   soldClientPackages  ClientPackage[]     @relation("PackageSoldBy")
+  commissionEntries   CommissionEntry[]
 
   @@index([cpf])
   @@index([deletedAt])
@@ -187,6 +188,7 @@ model Barbershop {
   servicePackages     ServicePackage[]
   clientPackages      ClientPackage[]
   dailyWeatherLogs    DailyWeatherLog[]
+  CommissionEntry     CommissionEntry[]
 
   @@index([approvalStatus])
   @@index([active])
@@ -215,23 +217,25 @@ model Schedule {
 }
 
 model Service {
-  id             String   @id @default(uuid()) @db.Uuid
-  barbershopId   String   @db.Uuid
-  categoryId     String?  @db.Uuid
-  name           String   @db.VarChar(100)
-  price          Float    @db.Real
-  avgTimeMinutes Int
-  icon           String   @db.VarChar(50)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  active         Boolean  @default(true)
+  id                String   @id @default(uuid()) @db.Uuid
+  barbershopId      String   @db.Uuid
+  categoryId        String?  @db.Uuid
+  name              String   @db.VarChar(100)
+  price             Float    @db.Real
+  avgTimeMinutes    Int
+  icon              String   @db.VarChar(50)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  active            Boolean  @default(true)
+  commissionPercent Float    @default(0) @db.Real
 
-  barbershop      Barbershop       @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  category        ServiceCategory? @relation("ServiceToCategory", fields: [categoryId], references: [id], onDelete: SetNull)
-  queue           QueueItem[]
-  appointments    Appointment[]
-  servicePackages ServicePackage[]
-  clientPackages  ClientPackage[]
+  barbershop        Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  category          ServiceCategory?  @relation("ServiceToCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+  queue             QueueItem[]
+  appointments      Appointment[]
+  servicePackages   ServicePackage[]
+  clientPackages    ClientPackage[]
+  commissionEntries CommissionEntry[]
 
   @@map("services")
 }
@@ -258,15 +262,38 @@ model QueueItem {
   appointmentId          String?     @db.Uuid
   responsibleQueueItemId String?     @db.Uuid
 
-  barbershop           Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  service              Service      @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  appointment          Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  responsibleQueueItem QueueItem?   @relation("QueueDependents", fields: [responsibleQueueItemId], references: [id], onDelete: SetNull)
-  dependents           QueueItem[]  @relation("QueueDependents")
+  barbershop           Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  service              Service           @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointment          Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  responsibleQueueItem QueueItem?        @relation("QueueDependents", fields: [responsibleQueueItemId], references: [id], onDelete: SetNull)
+  dependents           QueueItem[]       @relation("QueueDependents")
+  commissionEntries    CommissionEntry[]
 
   @@index([appointmentId])
   @@index([responsibleQueueItemId])
   @@map("queue")
+}
+
+/// Lançamento imutável de comissão gerado ao concluir um atendimento da fila.
+model CommissionEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  barbershopId   String   @db.Uuid
+  queueItemId    String   @db.Uuid
+  serviceId      String   @db.Uuid
+  professionalId String   @db.Uuid
+  percentage     Float    @db.Real
+  amount         Float    @db.Real
+  createdAt      DateTime @default(now())
+
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  queueItem    QueueItem  @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  professional User       @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+
+  @@unique([queueItemId, professionalId])
+  @@index([barbershopId, createdAt])
+  @@index([professionalId, createdAt])
+  @@map("commission_entries")
 }
 
 enum QueueStatus {

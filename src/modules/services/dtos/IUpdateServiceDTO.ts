@@ -4,4 +4,5 @@ export interface IUpdateServiceDTO {
   avgTimeMinutes?: number;
   icon?: string;
   active?: boolean;
+  commissionPercent?: number;
 }
