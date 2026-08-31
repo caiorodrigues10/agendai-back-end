@@ -41,4 +41,11 @@ export class UserRepository implements IUserRepository {
   async findByCpf(cpf: string): Promise<IUserResponseDTO | null> {
     return prisma.user.findFirst({ where: { cpf }, select: publicSelect });
   }
+
+  async listActiveByBarbershop(barbershopId: string, ids: string[]): Promise<Array<{ id: string }>> {
+    return prisma.user.findMany({
+      where: { id: { in: ids }, barbershopId, active: true, role: { in: ["OWNER", "EMPLOYEE"] } },
+      select: { id: true },
+    });
+  }
 }

@@ -82,6 +82,14 @@ export class MockQueueRepository implements IQueueRepository {
     return updated;
   }
 
+  async completeWithCommissions(
+    id: string,
+    details: { completedBy?: string; finalPrice: number; paymentMethod?: string; splits: Array<{ professionalId: string; percentage: number }> },
+  ): Promise<IQueueItemResponseDTO> {
+    const item = await this.updateStatus(id, "completed", details);
+    return item;
+  }
+
   async delete(id: string): Promise<void> {
     this.data = this.data.filter((q) => q.id !== id);
   }

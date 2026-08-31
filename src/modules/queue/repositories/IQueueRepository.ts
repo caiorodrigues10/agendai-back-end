@@ -16,6 +16,15 @@ export interface IQueueRepository {
     status: string,
     details?: { completedBy?: string; finalPrice?: number; paymentMethod?: string; joinedAt?: Date }
   ): Promise<IQueueItemResponseDTO>;
+  completeWithCommissions(
+    id: string,
+    details: {
+      completedBy?: string;
+      finalPrice: number;
+      paymentMethod?: string;
+      splits: Array<{ professionalId: string; percentage: number }>;
+    },
+  ): Promise<IQueueItemResponseDTO>;
   delete(id: string): Promise<void>;
   countCompleted(barbershopId?: string): Promise<number>;
   /**

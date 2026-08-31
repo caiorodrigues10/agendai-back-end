@@ -3,6 +3,9 @@ import { ICreateUserDTO } from "@/modules/users/dtos/ICreateUserDTO";
 import { IUserResponseDTO } from "@/modules/users/dtos/IUserResponseDTO";
 
 export class MockUserRepository implements IUserRepository {
+  async listActiveByBarbershop(_barbershopId: string, ids: string[]): Promise<Array<{ id: string }>> {
+    return ids.map((id) => ({ id }));
+  }
   private data: IUserResponseDTO[] = [];
   private seq = 1;
 

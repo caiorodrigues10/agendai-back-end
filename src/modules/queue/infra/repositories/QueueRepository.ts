@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { Prisma } from "@prisma/client";
 import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO, QueueStatus } from "../../dtos/IQueueItemResponseDTO";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
@@ -99,6 +100,53 @@ export class QueueRepository implements IQueueRepository {
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
     });
     return this.mapToDTO(item);
+  }
+
+  async completeWithCommissions(
+    id: string,
+    details: {
+      completedBy?: string;
+      finalPrice: number;
+      paymentMethod?: string;
+      splits: Array<{ professionalId: string; percentage: number }>;
+    },
+  ): Promise<IQueueItemResponseDTO> {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const queueItem = await tx.queueItem.findUnique({
+        where: { id },
+        select: { barbershopId: true, serviceId: true },
+      });
+      if (!queueItem) throw new Error("QUEUE_ITEM_NOT_FOUND");
+      const updated = await tx.queueItem.updateMany({
+        where: { id, status: "IN_CHAIR" },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+          ...(details.completedBy ? { completedBy: details.completedBy } : {}),
+          finalPrice: details.finalPrice,
+          ...(details.paymentMethod ? { paymentMethod: details.paymentMethod } : {}),
+        },
+      });
+      if (updated.count !== 1) {
+        throw new Error("QUEUE_ITEM_ALREADY_COMPLETED");
+      }
+      await tx.commissionEntry.createMany({
+        data: details.splits.map((split) => ({
+          barbershopId: queueItem.barbershopId,
+          queueItemId: id,
+          serviceId: queueItem.serviceId,
+          professionalId: split.professionalId,
+          percentage: split.percentage,
+          amount: Math.round(details.finalPrice * split.percentage) / 100,
+        })),
+      });
+    }).catch((error: unknown) => {
+      if (error instanceof Error && error.message === "QUEUE_ITEM_ALREADY_COMPLETED") {
+        throw new Error("QUEUE_ITEM_ALREADY_COMPLETED");
+      }
+      throw error;
+    });
+    return this.findById(id) as Promise<IQueueItemResponseDTO>;
   }
 
   async delete(id: string): Promise<void> {
