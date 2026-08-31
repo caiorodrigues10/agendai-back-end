@@ -11,4 +11,8 @@ export const updateQueueItemSchema = z.object({
   paymentMethod: z.enum(["pix", "credit_card", "debit_card", "fiado"]).optional(),
   /** Índice na fila WAITING (0 = frente, N = fim). Usado ao voltar da cadeira. */
   insertAt: z.number().int().min(0).max(500).optional(),
+  commissionSplits: z.array(z.object({
+    professionalId: z.string().uuid(),
+    percentage: z.number().min(0).max(100),
+  })).max(20).optional(),
 });

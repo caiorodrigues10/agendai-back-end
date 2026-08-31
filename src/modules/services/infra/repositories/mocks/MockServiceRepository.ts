@@ -18,7 +18,8 @@ export class MockServiceRepository implements IServiceRepository {
       avgTimeMinutes: payload.avgTimeMinutes,
       icon: payload.icon,
       createdAt: now,
-      active: true
+      active: true,
+      commissionPercent: payload.commissionPercent ?? 0
     };
     this.data.push(entity);
     return entity;

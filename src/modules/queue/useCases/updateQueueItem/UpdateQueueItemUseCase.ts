@@ -38,7 +38,7 @@ export class UpdateQueueItemUseCase {
     id: string,
     statusRaw: string,
     requestingUser: QueueRequestingUser,
-    details?: { completedBy?: string; finalPrice?: number; paymentMethod?: string; insertAt?: number }
+    details?: { completedBy?: string; finalPrice?: number; paymentMethod?: string; insertAt?: number; commissionSplits?: { professionalId: string; percentage: number }[] }
   ) {
     const item = await this.queueRepository.findById(id);
     if (!item) throw new AppError("Item de fila não encontrado", 404);
@@ -51,6 +51,26 @@ export class UpdateQueueItemUseCase {
     const isFiadoCompletion = nextStatus === "completed" && details?.paymentMethod === "fiado";
     if (isFiadoCompletion && (!details?.finalPrice || details.finalPrice <= 0)) {
       throw new AppError("Informe um valor maior que zero para registrar o fiado", 400);
+    }
+
+    if (nextStatus === "completed" && details?.commissionSplits) {
+      const service = await (await import("@/libs/prismaClient")).prisma.service.findUnique({
+        where: { id: item.serviceId },
+        select: { commissionPercent: true },
+      });
+      const total = details.commissionSplits.reduce((sum, split) => sum + split.percentage, 0);
+      const expected = service?.commissionPercent ?? 0;
+      if (Math.abs(total - expected) > 0.01) {
+        throw new AppError(`A divisão deve totalizar ${expected}% de comissão`, 400);
+      }
+      const ids = details.commissionSplits.map((split) => split.professionalId);
+      const professionals = await (await import("@/libs/prismaClient")).prisma.user.findMany({
+        where: { id: { in: ids }, barbershopId: item.barbershopId, active: true },
+        select: { id: true },
+      });
+      if (professionals.length !== new Set(ids).size) {
+        throw new AppError("Uma das profissionais não pertence a este salão", 400);
+      }
     }
 
     let joinedAt: Date | undefined;
@@ -79,6 +99,20 @@ export class UpdateQueueItemUseCase {
         amount: details!.finalPrice!,
         notes: `Gerado automaticamente ao finalizar o atendimento da fila (${item.id}).`,
         createdById: details?.completedBy || requestingUser.id,
+      });
+    }
+
+    if (nextStatus === "completed" && details?.commissionSplits?.length && details.finalPrice != null) {
+      const prisma = (await import("@/libs/prismaClient")).prisma;
+      await prisma.commissionEntry.createMany({
+        data: details.commissionSplits.map((split) => ({
+          barbershopId: item.barbershopId,
+          queueItemId: item.id,
+          serviceId: item.serviceId,
+          professionalId: split.professionalId,
+          percentage: split.percentage,
+          amount: Math.round(details.finalPrice! * split.percentage) / 100,
+        })),
       });
     }
 

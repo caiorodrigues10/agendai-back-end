@@ -12,7 +12,7 @@ export class UpdateQueueItemController {
     }
 
     const { id } = request.params as { id: string };
-    const { status, completedBy, finalPrice, paymentMethod, insertAt } = updateQueueItemSchema.parse(request.body);
+    const { status, completedBy, finalPrice, paymentMethod, insertAt, commissionSplits } = updateQueueItemSchema.parse(request.body);
 
     const useCase = container.resolve(UpdateQueueItemUseCase);
     const item = await useCase.execute(id, status, user, {
@@ -20,6 +20,7 @@ export class UpdateQueueItemController {
       finalPrice,
       paymentMethod,
       insertAt,
+      commissionSplits,
     });
     return reply.status(200).send(item);
   }
