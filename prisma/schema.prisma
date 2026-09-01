@@ -189,6 +189,8 @@ model Barbershop {
   clientPackages      ClientPackage[]
   dailyWeatherLogs    DailyWeatherLog[]
   CommissionEntry     CommissionEntry[]
+  crmFinancialEvents  CrmFinancialEvent[]
+  crmCampaigns        CrmCampaign[]
 
   @@index([approvalStatus])
   @@index([active])
@@ -260,16 +262,20 @@ model QueueItem {
   finalPrice             Float?      @db.Real
   paymentMethod          String?     @db.VarChar(50)
   appointmentId          String?     @db.Uuid
+  /// Cliente do CRM. customerId continua sendo apenas a sessão/dispositivo público.
+  clientId               String?     @db.Uuid
   responsibleQueueItemId String?     @db.Uuid
 
   barbershop           Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service              Service           @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   appointment          Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  client               SalonClient?      @relation("ClientQueueItems", fields: [clientId], references: [id], onDelete: SetNull)
   responsibleQueueItem QueueItem?        @relation("QueueDependents", fields: [responsibleQueueItemId], references: [id], onDelete: SetNull)
   dependents           QueueItem[]       @relation("QueueDependents")
   commissionEntries    CommissionEntry[]
 
   @@index([appointmentId])
+  @@index([clientId])
   @@index([responsibleQueueItemId])
   @@map("queue")
 }
@@ -359,16 +365,26 @@ model SalonClient {
   id           String   @id @default(uuid()) @db.Uuid
   barbershopId String   @db.Uuid
   name         String   @db.VarChar(200)
-  whatsapp     String   @db.VarChar(20)
+  /// Contato exibido. Pode ficar vazio para registros criados sem telefone.
+  whatsapp     String   @default("") @db.VarChar(20)
+  /// Chave normalizada (DDD + telefone); nula quando o cliente não informou WhatsApp.
+  normalizedWhatsapp String? @db.VarChar(11)
   notes        String?  @db.Text
+  marketingOptIn Boolean @default(false)
+  marketingOptInAt DateTime?
+  marketingOptInSource String? @db.VarChar(80)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   barbershop   Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   packages     ClientPackage[]
   appointments Appointment[]
+  queueItems   QueueItem[] @relation("ClientQueueItems")
+  fiados       Fiado[]
+  financialEvents CrmFinancialEvent[]
+  campaignRecipients CrmCampaignRecipient[]
 
-  @@unique([barbershopId, whatsapp])
+  @@unique([barbershopId, normalizedWhatsapp])
   @@index([barbershopId])
   @@index([whatsapp])
   @@map("salon_clients")
@@ -806,6 +822,7 @@ model Fiado {
   barbershopId   String      @db.Uuid
   customerName   String      @db.VarChar(200)
   whatsapp       String      @db.VarChar(20)
+  clientId       String?     @db.Uuid
   description    String      @db.VarChar(500)
   originalAmount Float       @db.Real
   paidAmount     Float       @default(0) @db.Real
@@ -817,11 +834,13 @@ model Fiado {
   updatedAt      DateTime    @updatedAt
 
   barbershop Barbershop     @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client     SalonClient?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   payments   FiadoPayment[]
 
   @@index([barbershopId])
   @@index([status])
   @@index([whatsapp])
+  @@index([clientId])
   @@index([dueDate])
   @@map("fiados")
 }
@@ -845,6 +864,93 @@ model FiadoPayment {
 
   @@index([fiadoId])
   @@map("fiado_payments")
+}
+
+/// Livro imutável usado pelo CRM para separar faturamento, recebimento e saldo devedor.
+model CrmFinancialEvent {
+  id               String   @id @default(uuid()) @db.Uuid
+  barbershopId     String   @db.Uuid
+  clientId         String   @db.Uuid
+  kind             CrmFinancialEventKind
+  sourceType       String   @db.VarChar(40)
+  sourceId         String   @db.Uuid
+  grossAmount      Float    @default(0) @db.Real
+  receivedAmount   Float    @default(0) @db.Real
+  outstandingDelta Float    @default(0) @db.Real
+  occurredAt       DateTime
+  metadata         String?  @db.Text
+  createdAt        DateTime @default(now())
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client     SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId, sourceType, sourceId, kind])
+  @@index([barbershopId, occurredAt])
+  @@index([clientId, occurredAt])
+  @@map("crm_financial_events")
+}
+
+enum CrmFinancialEventKind {
+  SERVICE_COMPLETED
+  PACKAGE_SOLD
+  FIADO_CREATED
+  FIADO_PAYMENT
+  REFUND
+}
+
+model CrmCampaign {
+  id             String            @id @default(uuid()) @db.Uuid
+  barbershopId   String            @db.Uuid
+  createdById    String            @db.Uuid
+  name           String            @db.VarChar(160)
+  segment        String            @db.VarChar(60)
+  message        String            @db.Text
+  status         CrmCampaignStatus @default(DRAFT)
+  recipientCount Int               @default(0)
+  sentCount      Int               @default(0)
+  failedCount    Int               @default(0)
+  skippedCount   Int               @default(0)
+  createdAt      DateTime          @default(now())
+  confirmedAt    DateTime?
+
+  barbershop Barbershop              @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  recipients CrmCampaignRecipient[]
+
+  @@index([barbershopId, createdAt])
+  @@map("crm_campaigns")
+}
+
+model CrmCampaignRecipient {
+  id         String                     @id @default(uuid()) @db.Uuid
+  campaignId String                     @db.Uuid
+  clientId   String                     @db.Uuid
+  status     CrmCampaignRecipientStatus @default(PENDING)
+  error      String?                    @db.Text
+  sentAt     DateTime?
+  createdAt  DateTime                   @default(now())
+
+  campaign CrmCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  client   SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, clientId])
+  @@index([clientId])
+  @@map("crm_campaign_recipients")
+}
+
+enum CrmCampaignStatus {
+  DRAFT
+  QUEUED
+  SENT
+  PARTIAL
+  FAILED
+  CANCELED
+}
+
+enum CrmCampaignRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 /// Código de indicação dono→dono (um por salão, gerado sob demanda).

@@ -55,11 +55,12 @@ export class JoinQueueUseCase {
     });
 
     try {
-      await this.salonClients?.upsertFromVisit(
+      const client = await this.salonClients?.upsertFromVisit(
         item.barbershopId,
         item.customerName,
         item.whatsapp
       );
+      if (client) await this.queueRepository.assignClient(item.id, client.id);
     } catch {
       // CRM não bloqueia entrada na fila
     }

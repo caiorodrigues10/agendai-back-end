@@ -12,6 +12,7 @@ import { isPlaceholderWhatsApp } from "../../utils/queueDuplicate";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
 import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
+import { recordFiadoCreated, recordQueueCompletion } from "@/modules/crm/services/crmLedger";
 
 type CommissionSplit = { professionalId: string; percentage: number };
 
@@ -82,13 +83,24 @@ export class UpdateQueueItemUseCase {
     }
 
     if (isFiadoCompletion) {
-      await this.fiadoRepository?.create({ barbershopId: item.barbershopId, customerName: item.customerName, whatsapp: item.whatsapp,
+      let clientId = item.clientId ?? null;
+      if (!clientId) {
+        const client = await this.salonClients?.upsertFromVisit(item.barbershopId, item.customerName, item.whatsapp);
+        clientId = client?.id ?? null;
+        if (clientId) await this.queueRepository.assignClient(updated.id, clientId);
+      }
+      const fiado = await this.fiadoRepository?.create({ barbershopId: item.barbershopId, customerName: item.customerName, whatsapp: item.whatsapp, clientId,
         description: item.serviceName || "Atendimento na fila", amount: details!.finalPrice!,
         notes: `Gerado automaticamente ao finalizar o atendimento da fila (${item.id}).`, createdById: details?.completedBy || requestingUser.id });
+      if (fiado) await recordFiadoCreated(fiado.id);
     }
     if (nextStatus === "completed" || nextStatus === "waiting") {
-      try { await this.salonClients?.upsertFromVisit(item.barbershopId, item.customerName, item.whatsapp); } catch { /* CRM nao bloqueia */ }
+      try {
+        const client = await this.salonClients?.upsertFromVisit(item.barbershopId, item.customerName, item.whatsapp);
+        if (client) await this.queueRepository.assignClient(updated.id, client.id);
+      } catch { /* CRM nao bloqueia */ }
     }
+    if (nextStatus === "completed") await recordQueueCompletion(updated.id);
     const shouldNotifyCustomer = !isPlaceholderWhatsApp(item.whatsapp) && ((item.status === "waiting" && nextStatus === "in_chair") || nextStatus === "cancelled");
     if (shouldNotifyCustomer) {
       try {

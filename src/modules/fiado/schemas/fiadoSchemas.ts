@@ -9,6 +9,7 @@ export const createFiadoSchema = z.object({
     .refine((value) => value.length >= 10 && value.length <= 13, {
       message: "WhatsApp inválido: informe DDD e telefone",
     }),
+  clientId: z.string().uuid().optional().nullable(),
   description: z.string().min(2, "Descrição obrigatória").max(500),
   amount: z.number().positive("Valor deve ser positivo"),
   dueDate: z.coerce.date().optional().nullable(),

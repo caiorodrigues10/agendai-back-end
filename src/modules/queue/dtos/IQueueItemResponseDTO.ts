@@ -5,6 +5,7 @@ export interface IQueueItemResponseDTO {
   barbershopId: string;
   serviceId: string;
   customerId: string;
+  clientId?: string | null;
   customerName: string;
   whatsapp: string;
   joinedAt: number;

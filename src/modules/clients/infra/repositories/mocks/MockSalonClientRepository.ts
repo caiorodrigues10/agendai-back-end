@@ -28,7 +28,8 @@ export class MockSalonClientRepository implements ISalonClientRepository {
       id: `client-${this.seq++}`,
       barbershopId: data.barbershopId,
       name: data.name,
-      whatsapp: data.whatsapp,
+      whatsapp: data.whatsapp ?? "",
+      normalizedWhatsapp: salonClientCrmKey(data.whatsapp ?? "", data.name),
       notes: data.notes ?? null,
       createdAt: now,
       updatedAt: now,
@@ -81,10 +82,6 @@ export class MockSalonClientRepository implements ISalonClientRepository {
       whatsapp: key,
     });
     return { id: created.id };
-  }
-
-  async syncFromHistory(_barbershopId: string): Promise<void> {
-    /* no-op no mock — testes de sync usam o helper com prisma */
   }
 
   async list(

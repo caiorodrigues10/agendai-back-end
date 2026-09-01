@@ -1,7 +1,5 @@
 import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
 
-const SYNTHETIC_PREFIX = "np:";
-
 /** WhatsApp em dígitos (10–11) para a chave única do CRM; null se inválido/placeholder. */
 export function salonClientWhatsappKey(whatsapp: string): string | null {
   if (isPlaceholderWhatsApp(whatsapp)) return null;
@@ -20,26 +18,16 @@ export function salonClientDisplayName(name: string): string | null {
 }
 
 /**
- * Chave única do CRM: telefone válido, ou `np:{slug}` quando a fila/agenda
- * não tem WhatsApp (VarChar(20); um registro por salão + nome normalizado).
+ * A identidade automática do CRM é apenas telefone válido. Nome não é uma
+ * identidade: duas pessoas podem ter o mesmo nome e nunca devem ser unidas.
  */
 export function salonClientCrmKey(whatsapp: string, name: string): string | null {
-  const phone = salonClientWhatsappKey(whatsapp);
-  if (phone) return phone;
-  const display = salonClientDisplayName(name);
-  if (!display) return null;
-  const slug = display
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 17);
-  if (slug.length < 2) return null;
-  return `${SYNTHETIC_PREFIX}${slug}`.slice(0, 20);
+  void name;
+  return salonClientWhatsappKey(whatsapp);
 }
 
 export function isSyntheticSalonClientWhatsapp(whatsapp: string): boolean {
-  return whatsapp.startsWith(SYNTHETIC_PREFIX);
+  return whatsapp.startsWith("np:");
 }
 
 /** Esconde chave sintética na API (UI mostra “Sem WhatsApp”). */
@@ -49,12 +37,9 @@ export function salonClientPublicWhatsapp(whatsapp: string): string {
 
 type SalonClientWriter = {
   salonClient: {
-    upsert: (args: {
-      where: { barbershopId_whatsapp: { barbershopId: string; whatsapp: string } };
-      create: { barbershopId: string; name: string; whatsapp: string };
-      update: { name: string };
-      select: { id: true };
-    }) => Promise<{ id: string }>;
+    findFirst: (args: { where: { barbershopId: string; normalizedWhatsapp: string }; select: { id: true } }) => Promise<{ id: string } | null>;
+    create: (args: { data: { barbershopId: string; name: string; whatsapp: string; normalizedWhatsapp: string }; select: { id: true } }) => Promise<{ id: string }>;
+    update: (args: { where: { id: string }; data: { name: string }; select: { id: true } }) => Promise<{ id: string }>;
   };
 };
 
@@ -68,11 +53,15 @@ export async function upsertSalonClientRecord(
   const key = salonClientCrmKey(whatsapp, name);
   const displayName = salonClientDisplayName(name);
   if (!key || !displayName) return null;
-
-  return db.salonClient.upsert({
-    where: { barbershopId_whatsapp: { barbershopId, whatsapp: key } },
-    create: { barbershopId, name: displayName, whatsapp: key },
-    update: { name: displayName },
+  const existing = await db.salonClient.findFirst({
+    where: { barbershopId, normalizedWhatsapp: key },
+    select: { id: true },
+  });
+  if (existing) {
+    return db.salonClient.update({ where: { id: existing.id }, data: { name: displayName }, select: { id: true } });
+  }
+  return db.salonClient.create({
+    data: { barbershopId, name: displayName, whatsapp: key, normalizedWhatsapp: key },
     select: { id: true },
   });
 }

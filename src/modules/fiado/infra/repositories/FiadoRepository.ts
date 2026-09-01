@@ -20,6 +20,7 @@ export class FiadoRepository implements IFiadoRepository {
         barbershopId: data.barbershopId,
         customerName: data.customerName,
         whatsapp: data.whatsapp,
+        clientId: data.clientId ?? null,
         description: data.description,
         originalAmount: data.amount,
         paidAmount: 0,

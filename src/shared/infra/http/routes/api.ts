@@ -21,6 +21,7 @@ import { postsRoutes } from './posts.routes'
 import { clientsRoutes } from './clients.routes'
 import { packagesRoutes } from './packages.routes'
 import { commissionsRoutes } from './commissions.routes'
+import { crmRoutes } from './crm.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	await authRoutes(app)
@@ -45,4 +46,5 @@ export async function apiRoutes(app: FastifyInstance) {
 	await clientsRoutes(app)
 	await packagesRoutes(app)
 	await commissionsRoutes(app)
+	await crmRoutes(app)
 }

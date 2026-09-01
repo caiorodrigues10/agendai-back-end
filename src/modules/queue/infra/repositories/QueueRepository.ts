@@ -102,6 +102,10 @@ export class QueueRepository implements IQueueRepository {
     return this.mapToDTO(item);
   }
 
+  async assignClient(id: string, clientId: string): Promise<void> {
+    await prisma.queueItem.update({ where: { id }, data: { clientId } });
+  }
+
   async completeWithCommissions(
     id: string,
     details: {
@@ -193,6 +197,7 @@ export class QueueRepository implements IQueueRepository {
       barbershopId:    item.barbershopId,
       serviceId:       item.serviceId,
       customerId:      item.customerId,
+      clientId:        item.clientId ?? null,
       customerName:    item.customerName,
       whatsapp:        item.whatsapp,
       joinedAt:        item.joinedAt instanceof Date

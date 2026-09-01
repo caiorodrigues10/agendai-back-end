@@ -7,6 +7,7 @@ import { getRedisConnection } from "./redisConnection";
 import { WhatsAppJobData } from "./whatsappQueue";
 import { sendWhatsAppMessage } from "@/shared/services/evolutionApiService";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { prisma } from "@/libs/prismaClient";
 
 const logger = getModuleLogger('queue:whatsapp');
 
@@ -29,7 +30,7 @@ function createWorker(): Worker<WhatsAppJobData> {
     async (job: Job<WhatsAppJobData>) => {
       if (_idleTimer) clearTimeout(_idleTimer);
 
-      const { phone, message, instanceName, platform } = job.data;
+      const { phone, message, instanceName, platform, campaignRecipientId } = job.data;
 
       logger.debug({ jobId: job.id, attempt: job.attemptsMade + 1, maxAttempts: job.opts.attempts }, 'Processing WhatsApp job');
 
@@ -40,6 +41,10 @@ function createWorker(): Worker<WhatsAppJobData> {
 
       if (!sent) {
         throw new Error(`Falha ao enviar WhatsApp`);
+      }
+      if (campaignRecipientId) {
+        await prisma.crmCampaignRecipient.update({ where: { id: campaignRecipientId }, data: { status: "SENT", sentAt: new Date() } });
+        await prisma.crmCampaign.updateMany({ where: { recipients: { some: { id: campaignRecipientId } } }, data: { sentCount: { increment: 1 } } });
       }
 
       resetIdleTimer();
@@ -54,6 +59,11 @@ function createWorker(): Worker<WhatsAppJobData> {
 
   worker.on("failed", (job, err) => {
     logger.error({ err, jobId: job?.id }, 'WhatsApp job failed');
+    if (job?.data.campaignRecipientId) {
+      prisma.crmCampaignRecipient.update({ where: { id: job.data.campaignRecipientId }, data: { status: "FAILED", error: err.message.slice(0, 2000) } })
+        .then(() => prisma.crmCampaign.updateMany({ where: { recipients: { some: { id: job.data.campaignRecipientId } } }, data: { failedCount: { increment: 1 }, status: "PARTIAL" } }))
+        .catch((updateErr: unknown) => logger.error({ err: updateErr }, "Falha ao registrar resultado da campanha"));
+    }
     resetIdleTimer();
   });
 

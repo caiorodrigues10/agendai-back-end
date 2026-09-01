@@ -43,6 +43,11 @@ export class MockQueueRepository implements IQueueRepository {
     return entity;
   }
 
+  async assignClient(id: string, clientId: string): Promise<void> {
+    const index = this.data.findIndex((item) => item.id === id);
+    if (index >= 0) this.data[index] = { ...this.data[index], clientId };
+  }
+
   async list(barbershopId?: string): Promise<IQueueItemResponseDTO[]> {
     if (!barbershopId) return [...this.data];
     return this.data.filter((q) => q.barbershopId === barbershopId);

@@ -1,4 +1,5 @@
 import { injectable } from "tsyringe";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
@@ -75,9 +76,11 @@ export class CheckInAppointmentUseCase {
       const duplicate = await tx.queueItem.findFirst({
         where: {
           barbershopId,
-          customerId: appointment.clientId ?? "",
           status: { in: ["WAITING", "IN_CHAIR"] },
           appointmentId: null,
+          ...(appointment.clientId
+            ? { clientId: appointment.clientId }
+            : { whatsapp: appointment.whatsapp }),
         },
         select: { id: true },
       });
@@ -93,7 +96,8 @@ export class CheckInAppointmentUseCase {
         data: {
           barbershopId,
           serviceId: appointment.serviceId,
-          customerId: appointment.clientId ?? "",
+          customerId: randomUUID(),
+          clientId: appointment.clientId,
           customerName: appointment.customerName,
           whatsapp: appointment.whatsapp,
           status: "IN_CHAIR",

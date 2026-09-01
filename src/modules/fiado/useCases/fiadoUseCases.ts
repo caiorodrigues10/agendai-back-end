@@ -2,6 +2,8 @@ import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { IFiadoRepository } from "../repositories/IFiadoRepository";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
+import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
+import { recordFiadoCreated, recordFiadoPayment } from "@/modules/crm/services/crmLedger";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import {
   ICreateFiadoDTO,
@@ -19,7 +21,8 @@ import {
 export class CreateFiadoUseCase {
   constructor(
     @inject("FiadoRepository")
-    private fiadoRepository: IFiadoRepository
+    private fiadoRepository: IFiadoRepository,
+    @inject("SalonClientRepository") private clients?: ISalonClientRepository
   ) { }
 
   async execute(
@@ -33,7 +36,14 @@ export class CreateFiadoUseCase {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
-    return this.fiadoRepository.create(data);
+    let clientId = data.clientId ?? null;
+    if (!clientId) {
+      const client = await this.clients?.upsertFromVisit(data.barbershopId, data.customerName, data.whatsapp);
+      clientId = client?.id ?? null;
+    }
+    const created = await this.fiadoRepository.create({ ...data, clientId });
+    await recordFiadoCreated(created.id);
+    return created;
   }
 }
 
@@ -181,7 +191,9 @@ export class AddFiadoPaymentUseCase {
       );
     }
 
-    return this.fiadoRepository.addPayment(data);
+    const payment = await this.fiadoRepository.addPayment(data);
+    await recordFiadoPayment(payment.id);
+    return payment;
   }
 }
 

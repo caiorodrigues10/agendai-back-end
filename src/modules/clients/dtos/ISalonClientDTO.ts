@@ -1,13 +1,17 @@
 export interface ICreateSalonClientDTO {
   barbershopId: string;
   name: string;
-  whatsapp: string;
+  whatsapp?: string;
   notes?: string | null;
+  marketingOptIn?: boolean;
+  marketingOptInSource?: string | null;
 }
 
 export interface IUpdateSalonClientDTO {
   name?: string;
   whatsapp?: string;
+  marketingOptIn?: boolean;
+  marketingOptInSource?: string | null;
   notes?: string | null;
 }
 
@@ -47,7 +51,11 @@ export interface ISalonClientResponseDTO {
   barbershopId: string;
   name: string;
   whatsapp: string;
+  normalizedWhatsapp?: string | null;
   notes: string | null;
+  marketingOptIn?: boolean;
+  marketingOptInAt?: Date | null;
+  marketingOptInSource?: string | null;
   createdAt: Date;
   updatedAt: Date;
   remainingSessions: number;

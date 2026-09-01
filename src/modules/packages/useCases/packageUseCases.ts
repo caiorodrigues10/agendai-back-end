@@ -10,6 +10,7 @@ import { IAppointmentResponseDTO } from "@/modules/appointments/dtos/IAppointmen
 import { assertAppointmentBookable } from "@/modules/appointments/utils/assertAppointmentBookable";
 import { batchSlotsOverlap } from "../utils/batchSlotOverlap";
 import { debitClientPackageInTx } from "../utils/clientPackageCredits";
+import { recordPackageSale } from "@/modules/crm/services/crmLedger";
 import {
   ICreateServicePackageDTO,
   IUpdateServicePackageDTO,
@@ -166,7 +167,7 @@ export class SellClientPackageUseCase {
         ? new Date(Date.now() + template.validityDays * 24 * 60 * 60 * 1000)
         : null;
 
-    return this.sold.create({
+    const sold = await this.sold.create({
       barbershopId: data.barbershopId,
       clientId: client.id,
       packageId: template.id,
@@ -178,6 +179,8 @@ export class SellClientPackageUseCase {
       expiresAt,
       soldById: data.soldById ?? user.id ?? null,
     });
+    await recordPackageSale(sold.id);
+    return sold;
   }
 }
 

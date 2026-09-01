@@ -13,6 +13,8 @@ export interface WhatsAppJobData {
   platform?: boolean;
   /** Chave de deduplicação (ex: "join:barbershopId:queueItemId") */
   deduplicationKey?: string;
+  /** Destinatário de campanha CRM; permite auditar êxito/falha no worker. */
+  campaignRecipientId?: string;
 }
 
 const QUEUE_NAME = "whatsapp";

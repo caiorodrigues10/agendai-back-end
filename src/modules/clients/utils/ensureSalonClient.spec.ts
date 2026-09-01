@@ -27,16 +27,12 @@ describe("salonClientCrmKey", () => {
     expect(salonClientCrmKey("(11) 98888-7777", "Caio Rodrigues")).toBe("11988887777");
   });
 
-  it("gera chave por nome quando a fila não tem WhatsApp", () => {
-    expect(salonClientCrmKey(STAFF_QUEUE_PLACEHOLDER_WHATSAPP, "Caio Rodrigues")).toBe(
-      "np:caiorodrigues"
-    );
+  it("não une pessoas por nome quando a fila não tem WhatsApp", () => {
+    expect(salonClientCrmKey(STAFF_QUEUE_PLACEHOLDER_WHATSAPP, "Caio Rodrigues")).toBeNull();
   });
 
-  it("cabe em VarChar(20)", () => {
-    const key = salonClientCrmKey("", "Maria da Conceicao Silva Extra");
-    expect(key).toBeTruthy();
-    expect(key!.length).toBeLessThanOrEqual(20);
+  it("retorna null sem telefone válido", () => {
+    expect(salonClientCrmKey("", "Maria da Conceicao Silva Extra")).toBeNull();
   });
 });
 
@@ -55,25 +51,13 @@ describe("salonClientDisplayName", () => {
 });
 
 describe("upsertSalonClientRecord", () => {
-  it("cria cliente sem WhatsApp pela chave de nome", async () => {
+  it("cria ou atualiza cliente pelo telefone normalizado", async () => {
     const store = new Map<string, { id: string; name: string; whatsapp: string }>();
     const db = {
       salonClient: {
-        upsert: async (args: {
-          where: { barbershopId_whatsapp: { barbershopId: string; whatsapp: string } };
-          create: { barbershopId: string; name: string; whatsapp: string };
-          update: { name: string };
-        }) => {
-          const key = args.where.barbershopId_whatsapp.whatsapp;
-          const existing = store.get(key);
-          if (existing) {
-            existing.name = args.update.name;
-            return { id: existing.id };
-          }
-          const created = { id: "c1", name: args.create.name, whatsapp: args.create.whatsapp };
-          store.set(key, created);
-          return { id: created.id };
-        },
+        findFirst: async (args: { where: { normalizedWhatsapp: string } }) => store.get(args.where.normalizedWhatsapp) ? { id: "c1" } : null,
+        create: async (args: { data: { name: string; whatsapp: string; normalizedWhatsapp: string } }) => { const created = { id: "c1", name: args.data.name, whatsapp: args.data.whatsapp }; store.set(args.data.normalizedWhatsapp, created); return { id: created.id }; },
+        update: async (args: { data: { name: string } }) => { const existing = store.get("11988887777")!; existing.name = args.data.name; return { id: existing.id }; },
       },
     };
 
@@ -81,16 +65,16 @@ describe("upsertSalonClientRecord", () => {
       db,
       "shop-1",
       "Caio Rodrigues",
-      STAFF_QUEUE_PLACEHOLDER_WHATSAPP
+      "11988887777"
     );
     const second = await upsertSalonClientRecord(
       db,
       "shop-1",
       "Caio Rodrigues",
-      STAFF_QUEUE_PLACEHOLDER_WHATSAPP
+      "11988887777"
     );
     expect(first).toEqual({ id: "c1" });
     expect(second).toEqual({ id: "c1" });
-    expect(store.get("np:caiorodrigues")?.name).toBe("Caio Rodrigues");
+    expect(store.get("11988887777")?.name).toBe("Caio Rodrigues");
   });
 });

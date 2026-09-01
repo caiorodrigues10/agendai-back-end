@@ -3,6 +3,7 @@ import { IQueueItemResponseDTO } from "../dtos/IQueueItemResponseDTO";
 
 export interface IQueueRepository {
   create(data: IJoinQueueDTO): Promise<IQueueItemResponseDTO>;
+  assignClient(id: string, clientId: string): Promise<void>;
   findActiveDuplicate(
     barbershopId: string,
     customerId: string,

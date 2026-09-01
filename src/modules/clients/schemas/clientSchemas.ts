@@ -10,14 +10,18 @@ const phoneBR = z
 export const createClientSchema = z.object({
   barbershopId: z.string().uuid().optional(),
   name: z.string().min(2, "Nome obrigatório").max(200),
-  whatsapp: phoneBR,
+  whatsapp: phoneBR.optional().or(z.literal("")),
   notes: z.string().max(2000).optional().nullable(),
+  marketingOptIn: z.boolean().optional(),
+  marketingOptInSource: z.string().max(80).optional().nullable(),
 });
 
 export const updateClientSchema = z.object({
   name: z.string().min(2).max(200).optional(),
   whatsapp: phoneBR.optional(),
   notes: z.string().max(2000).optional().nullable(),
+  marketingOptIn: z.boolean().optional(),
+  marketingOptInSource: z.string().max(80).optional().nullable(),
 });
 
 export const listClientsQuerySchema = z.object({

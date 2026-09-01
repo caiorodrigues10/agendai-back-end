@@ -12,6 +12,7 @@ export interface ICreateFiadoDTO {
   barbershopId: string;      // barbearia onde o fiado foi gerado
   customerName: string;      // nome do cliente devedor
   whatsapp: string;          // contato do cliente
+  clientId?: string | null;  // vínculo explícito com CRM
   description: string;       // o que foi fiado (ex: "Corte + barba")
   amount: number;            // valor total da dívida em reais
   dueDate?: Date | null;     // prazo combinado para pagamento (opcional)
@@ -55,6 +56,7 @@ export interface IFiadoResponseDTO {
   barbershopId: string;      // barbearia dona do fiado
   customerName: string;      // nome do cliente devedor
   whatsapp: string;          // contato do cliente
+  clientId?: string | null;
   description: string;       // o que foi fiado
   originalAmount: number;    // valor original cobrado pelo serviço
   paidAmount: number;        // soma de tudo que já foi pago até agora

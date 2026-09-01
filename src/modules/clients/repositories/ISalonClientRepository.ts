@@ -18,8 +18,6 @@ export interface ISalonClientRepository {
     name: string,
     whatsapp: string
   ): Promise<{ id: string } | null>;
-  /** Importa clientes que já passaram pela fila ou agenda e ainda não estão no CRM. */
-  syncFromHistory(barbershopId: string): Promise<void>;
   list(
     query: ISalonClientListQuery & { barbershopId: string }
   ): Promise<{ data: ISalonClientResponseDTO[]; total: number }>;

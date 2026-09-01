@@ -49,7 +49,11 @@ function mapList(record: ClientListRecord): ISalonClientResponseDTO {
     barbershopId: record.barbershopId,
     name: record.name,
     whatsapp: salonClientPublicWhatsapp(record.whatsapp),
+    normalizedWhatsapp: record.normalizedWhatsapp,
     notes: record.notes,
+    marketingOptIn: record.marketingOptIn,
+    marketingOptInAt: record.marketingOptInAt,
+    marketingOptInSource: record.marketingOptInSource,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     remainingSessions,
@@ -92,7 +96,11 @@ function mapDetail(record: ClientDetailRecord): ISalonClientResponseDTO {
     barbershopId: record.barbershopId,
     name: record.name,
     whatsapp: salonClientPublicWhatsapp(record.whatsapp),
+    normalizedWhatsapp: record.normalizedWhatsapp,
     notes: record.notes,
+    marketingOptIn: record.marketingOptIn,
+    marketingOptInAt: record.marketingOptInAt,
+    marketingOptInSource: record.marketingOptInSource,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     remainingSessions,
@@ -134,11 +142,6 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export class SalonClientRepository implements ISalonClientRepository {
-  /**
-   * O backfill existe apenas para trazer histórico anterior à integração CRM.
-   * Depois disso, fila e agenda mantêm o CRM atualizado no próprio fluxo.
-   */
-  private readonly historySyncedBarbershops = new Set<string>();
 
   async upsertFromVisit(
     barbershopId: string,
@@ -158,8 +161,12 @@ export class SalonClientRepository implements ISalonClientRepository {
         data: {
           barbershopId: data.barbershopId,
           name: data.name,
-          whatsapp: data.whatsapp,
+          whatsapp: data.whatsapp ?? "",
+          normalizedWhatsapp: salonClientCrmKey(data.whatsapp ?? "", data.name),
           notes: data.notes ?? null,
+          marketingOptIn: data.marketingOptIn ?? false,
+          marketingOptInAt: data.marketingOptIn ? new Date() : null,
+          marketingOptInSource: data.marketingOptInSource ?? null,
         },
         include: detailInclude,
       });
@@ -184,8 +191,10 @@ export class SalonClientRepository implements ISalonClientRepository {
     barbershopId: string,
     whatsapp: string
   ): Promise<ISalonClientResponseDTO | null> {
-    const record = await prisma.salonClient.findUnique({
-      where: { barbershopId_whatsapp: { barbershopId, whatsapp } },
+    const normalizedWhatsapp = salonClientCrmKey(whatsapp, "");
+    if (!normalizedWhatsapp) return null;
+    const record = await prisma.salonClient.findFirst({
+      where: { barbershopId, normalizedWhatsapp },
       include: detailInclude,
     });
     return record ? mapDetail(record) : null;
@@ -229,8 +238,19 @@ export class SalonClientRepository implements ISalonClientRepository {
         where: { id },
         data: {
           ...(data.name !== undefined && { name: data.name }),
-          ...(data.whatsapp !== undefined && { whatsapp: data.whatsapp }),
+          ...(data.whatsapp !== undefined && {
+            whatsapp: data.whatsapp,
+            normalizedWhatsapp: salonClientCrmKey(data.whatsapp, data.name ?? ""),
+          }),
           ...(data.notes !== undefined && { notes: data.notes }),
+          ...(data.marketingOptIn !== undefined && {
+            marketingOptIn: data.marketingOptIn,
+            marketingOptInAt: data.marketingOptIn ? new Date() : null,
+            marketingOptInSource: data.marketingOptIn
+              ? data.marketingOptInSource ?? "manual"
+              : null,
+          }),
+          ...(data.marketingOptInSource !== undefined && { marketingOptInSource: data.marketingOptInSource }),
         },
         include: detailInclude,
       });
@@ -241,49 +261,6 @@ export class SalonClientRepository implements ISalonClientRepository {
       }
       throw err;
     }
-  }
-
-  async syncFromHistory(barbershopId: string): Promise<void> {
-    if (this.historySyncedBarbershops.has(barbershopId)) return;
-
-    const [queueRows, apptRows] = await Promise.all([
-      prisma.queueItem.findMany({
-        where: {
-          barbershopId,
-          status: { in: ["WAITING", "IN_CHAIR", "COMPLETED"] },
-        },
-        select: { customerName: true, whatsapp: true },
-        orderBy: { joinedAt: "desc" },
-        take: 400,
-      }),
-      prisma.appointment.findMany({
-        where: { barbershopId, status: { not: "CANCELLED" } },
-        select: { customerName: true, whatsapp: true },
-        orderBy: { createdAt: "desc" },
-        take: 400,
-      }),
-    ]);
-
-    const seen = new Set<string>();
-    const visits: Array<{ name: string; whatsapp: string }> = [];
-    for (const row of [...queueRows, ...apptRows]) {
-      const key = salonClientCrmKey(row.whatsapp, row.customerName);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      visits.push({ name: row.customerName, whatsapp: row.whatsapp });
-    }
-
-    // Limita as escritas paralelas para não tornar a primeira listagem lenta.
-    const batchSize = 20;
-    for (let index = 0; index < visits.length; index += batchSize) {
-      await Promise.all(
-        visits.slice(index, index + batchSize).map((visit) =>
-          this.upsertFromVisit(barbershopId, visit.name, visit.whatsapp)
-        )
-      );
-    }
-
-    this.historySyncedBarbershops.add(barbershopId);
   }
 
   async delete(id: string): Promise<void> {

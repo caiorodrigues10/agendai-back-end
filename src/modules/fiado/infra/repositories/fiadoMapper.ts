@@ -31,6 +31,7 @@ export function mapFiadoToDTO(record: FiadoWithPayments): IFiadoResponseDTO {
     barbershopId: record.barbershopId,
     customerName: record.customerName,
     whatsapp: record.whatsapp,
+    clientId: record.clientId ?? null,
     description: record.description,
     originalAmount: record.originalAmount,
     paidAmount: record.paidAmount,

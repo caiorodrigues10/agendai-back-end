@@ -10,7 +10,9 @@ export type EmployeePermission =
   | "FINANCE_VIEW"
   | "FINANCE_MANAGE"
   | "REPORTS_VIEW"
-  | "MARKETING_MANAGE";
+  | "MARKETING_MANAGE"
+  | "CRM_ANALYTICS_VIEW"
+  | "CRM_CAMPAIGNS_MANAGE";
 
 export const ALL_PERMISSIONS: EmployeePermission[] = [
   "QUEUE_MANAGE",
@@ -23,6 +25,8 @@ export const ALL_PERMISSIONS: EmployeePermission[] = [
   "FINANCE_MANAGE",
   "REPORTS_VIEW",
   "MARKETING_MANAGE",
+  "CRM_ANALYTICS_VIEW",
+  "CRM_CAMPAIGNS_MANAGE",
 ];
 
 /** Default permissions for EMPLOYEE role on creation */
