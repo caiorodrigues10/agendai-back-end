@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1788290627.3618236,
-    "ast_hash": "2b2b1ef56d8665e6ca520a3ba03bd4e1",
+    "mtime": 1788314609.6049993,
+    "ast_hash": "c220036c1fa7d8e87910bad11d88b3f9",
     "semantic_hash": ""
   },
   "prisma/migrations/20260727120000_add_appointment_reminder_sent_at/migration.sql": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/app.ts": {
-    "mtime": 1788289545.2625551,
-    "ast_hash": "35bc9d90f0af2ea87d02082a188aa98c",
+    "mtime": 1788312260.0927384,
+    "ast_hash": "4e1cc717b23cc40650876d0314f83462",
     "semantic_hash": ""
   },
   "src/shared/infra/http/middlewares/authenticate.ts": {
@@ -1250,8 +1250,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/server.ts": {
-    "mtime": 1788311261.537619,
-    "ast_hash": "a483782e1a3e48f784dd1f489671a42b",
+    "mtime": 1788314650.8239381,
+    "ast_hash": "00e787a6f262569694f6b3925bcb6716",
     "semantic_hash": ""
   },
   "src/shared/infra/queue/emailQueue.ts": {
@@ -1270,8 +1270,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/queue/redisConnection.ts": {
-    "mtime": 1787777818.2663746,
-    "ast_hash": "3ee3a37333d82f69e8fb4421feac2fa5",
+    "mtime": 1788314609.6009994,
+    "ast_hash": "3ecb4838cbf4b6491b7670d924ad3853",
     "semantic_hash": ""
   },
   "src/shared/infra/queue/whatsappQueue.ts": {
@@ -1780,8 +1780,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1788291215.2878962,
-    "ast_hash": "7bf58901b8156cfe527cb24d1ab36eca",
+    "mtime": 1788314609.6030023,
+    "ast_hash": "79cc70cc517d92c911a3faa38f9e3889",
     "semantic_hash": ""
   },
   "scripts/deploy.sh": {
@@ -2175,8 +2175,8 @@
     "semantic_hash": ""
   },
   "src/modules/barbershops/routes/onboarding.routes.ts": {
-    "mtime": 1788311600.4885037,
-    "ast_hash": "38bfb216a632473be463594bf6f3c0da",
+    "mtime": 1788314433.7271779,
+    "ast_hash": "b4622900d0bd94562703d58e098bf755",
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/getBarbershopInsights/getBarbershopInsights.spec.ts": {
@@ -2185,18 +2185,18 @@
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/getWeatherInsights/GetWeatherInsightsUseCase.ts": {
-    "mtime": 1788092759.7776632,
-    "ast_hash": "e25fc7c20ee1c8560a4ae87e3f791fa4",
+    "mtime": 1788312388.303573,
+    "ast_hash": "945b9d0dc33a651ec90327770ecf3507",
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/onboarding/GetOnboardingUseCase.ts": {
-    "mtime": 1788311592.5152617,
-    "ast_hash": "762585a20e8c5831f0041993c9ee968d",
+    "mtime": 1788314551.6691082,
+    "ast_hash": "d95df3fd9569a9d9db66c3ae47f7bd3f",
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/onboarding/UpdateOnboardingStepUseCase.ts": {
-    "mtime": 1788311597.0795693,
-    "ast_hash": "7195782c06ea639c67b7f42fd763d3c6",
+    "mtime": 1788314551.6710978,
+    "ast_hash": "ccd6101f0019609be71bbfb26935a84a",
     "semantic_hash": ""
   },
   "src/modules/commissions/controllers/CommissionController.ts": {
@@ -2345,8 +2345,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/crm.routes.ts": {
-    "mtime": 1788290034.989065,
-    "ast_hash": "b8fa91a9701a66abc36ee817ab3986ef",
+    "mtime": 1788312531.4854581,
+    "ast_hash": "3e9c7de757359978fe26937e5c156500",
     "semantic_hash": ""
   },
   "src/shared/infra/redis/advisoryLock.ts": {
@@ -2365,8 +2365,8 @@
     "semantic_hash": ""
   },
   "src/shared/providers/ml/DemandPredictor.ts": {
-    "mtime": 1788092759.784692,
-    "ast_hash": "1ef6d9b1cc717ee6d7908deec4fa0c31",
+    "mtime": 1788312277.051479,
+    "ast_hash": "b568ba453ca4ace965f96f5aecbe99a8",
     "semantic_hash": ""
   },
   "src/shared/providers/ml/RandomForest.ts": {
@@ -2422,6 +2422,26 @@
   "docs/OPENCODE_MIMO.md": {
     "mtime": 1788277273.8308692,
     "ast_hash": "d9829ac8b4f70e96e38099384c55bdd2",
+    "semantic_hash": ""
+  },
+  "prisma/migrations/20260901230000_complete_mvp_readiness/migration.sql": {
+    "mtime": 1788314541.2160563,
+    "ast_hash": "835b2c1525163d733f37de1fe6d71583",
+    "semantic_hash": ""
+  },
+  "src/modules/crm/useCases/exportFinancialData/ExportFinancialDataUseCase.ts": {
+    "mtime": 1788312486.94213,
+    "ast_hash": "77456646a55e477a10cdd66dafa3306b",
+    "semantic_hash": ""
+  },
+  "src/shared/infra/http/health.ts": {
+    "mtime": 1788312241.5139403,
+    "ast_hash": "43f11f79c51d433ae35c4f6f4db1eb9c",
+    "semantic_hash": ""
+  },
+  "src/shared/infra/http/middlewares/correlationId.ts": {
+    "mtime": 1788312243.937953,
+    "ast_hash": "ffc318ee00511d153e2b0b5940cda06a",
     "semantic_hash": ""
   }
 }

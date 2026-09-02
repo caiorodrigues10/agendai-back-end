@@ -231,6 +231,7 @@ model BarbershopOnboarding {
   servicesConfirmedAt   DateTime?
   publicLinkValidatedAt DateTime?
   whatsappConfiguredAt  DateTime?
+  firstServiceCompletedAt DateTime?
   completedAt           DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -1176,13 +1177,15 @@ model CronRun {
 
 model IdempotencyRecord {
   id               String   @id @default(uuid()) @db.Uuid
-  idempotencyKey   String   @unique
+  idempotencyKey   String   @db.VarChar(100)
+  scope            String   @db.VarChar(160)
+  requestFingerprint String  @db.VarChar(64)
   status           String   @default("IN_PROGRESS")
   response         Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  @@index([idempotencyKey])
+  @@unique([scope, idempotencyKey])
   @@index([createdAt])
   @@map("idempotency_records")
 }

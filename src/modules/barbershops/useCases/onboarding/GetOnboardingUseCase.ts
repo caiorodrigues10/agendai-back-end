@@ -16,15 +16,29 @@ const ONBOARDING_STEPS: Array<{ key: string; label: string; field: string; requi
   { key: 'SERVICES', label: 'Revisar serviços sugeridos', field: 'servicesConfirmedAt', required: true },
   { key: 'PUBLIC_LINK', label: 'Abrir e validar o link público', field: 'publicLinkValidatedAt', required: true },
   { key: 'WHATSAPP', label: 'Configurar WhatsApp', field: 'whatsappConfiguredAt', required: false },
-  { key: 'FIRST_SERVICE', label: 'Registrar primeiro atendimento', field: 'completedAt', required: true },
+  { key: 'FIRST_SERVICE', label: 'Registrar primeiro atendimento', field: 'firstServiceCompletedAt', required: true },
 ];
 
 @injectable()
 export class GetOnboardingUseCase {
-  async execute(barbershopId: string, requestingUserId: string, requestingUserRole: string) {
+  async execute(
+    barbershopId: string,
+    requestingUserId: string,
+    requestingUserRole: string,
+    requestingUserBarbershopId?: string,
+  ) {
     if (requestingUserRole !== 'MASTER_ADMIN' && requestingUserRole !== 'OWNER') {
       throw new AppError('Acesso negado', 403);
     }
+    if (requestingUserRole !== 'MASTER_ADMIN' && requestingUserBarbershopId !== barbershopId) {
+      throw new AppError('Acesso negado', 403);
+    }
+
+    const barbershop = await prisma.barbershop.findUnique({
+      where: { id: barbershopId },
+      select: { id: true },
+    });
+    if (!barbershop) throw new AppError('Salão não encontrado', 404);
 
     let onboarding = await prisma.barbershopOnboarding.findUnique({
       where: { barbershopId },

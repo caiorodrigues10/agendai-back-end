@@ -39,6 +39,7 @@ jobs:
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       ASAAS_WEBHOOK_TOKEN: ci-test-webhook-token-that-is-at-least-32-chars
+      ALLOW_TEST_REDIS: "1"
 
     steps:
       - uses: actions/checkout@v4

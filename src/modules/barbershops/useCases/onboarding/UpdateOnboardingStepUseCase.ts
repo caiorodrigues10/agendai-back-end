@@ -10,13 +10,21 @@ const STEP_FIELDS: Record<StepName, string> = {
   SERVICES: 'servicesConfirmedAt',
   PUBLIC_LINK: 'publicLinkValidatedAt',
   WHATSAPP: 'whatsappConfiguredAt',
-  FIRST_SERVICE: 'completedAt',
+  FIRST_SERVICE: 'firstServiceCompletedAt',
 };
 
 @injectable()
 export class UpdateOnboardingStepUseCase {
-  async execute(barbershopId: string, step: StepName, requestingUserRole: string) {
+  async execute(
+    barbershopId: string,
+    step: StepName,
+    requestingUserRole: string,
+    requestingUserBarbershopId?: string,
+  ) {
     if (requestingUserRole !== 'MASTER_ADMIN' && requestingUserRole !== 'OWNER') {
+      throw new AppError('Acesso negado', 403);
+    }
+    if (requestingUserRole !== 'MASTER_ADMIN' && requestingUserBarbershopId !== barbershopId) {
       throw new AppError('Acesso negado', 403);
     }
 
@@ -42,7 +50,7 @@ export class UpdateOnboardingStepUseCase {
       });
     }
 
-    const allRequired = ['profileConfirmedAt', 'scheduleConfirmedAt', 'servicesConfirmedAt', 'publicLinkValidatedAt', 'completedAt'];
+    const allRequired = ['profileConfirmedAt', 'scheduleConfirmedAt', 'servicesConfirmedAt', 'publicLinkValidatedAt', 'firstServiceCompletedAt'];
     const allComplete = allRequired.every(f => onboarding[f as keyof typeof onboarding] !== null);
 
     if (allComplete && !onboarding.completedAt) {

@@ -9,6 +9,8 @@ import { scheduleTrialCardCharges } from "@/shared/infra/cron/trialCardCharges.c
 import { scheduleCleanOldLogs } from "@/shared/infra/cron/cleanOldLogs.cron";
 import { scheduleDailyWeatherLog } from "@/shared/infra/cron/dailyWeatherLog.cron";
 import {
+  startWhatsAppWorker,
+  startEmailWorker,
   stopWhatsAppWorker,
   stopEmailWorker,
 } from "@/shared/infra/queue";
@@ -31,9 +33,15 @@ async function start() {
   const role = process.env.PROCESS_ROLE || 'all';
   serverLogger.info({ role }, 'Starting with process role');
 
+  if (shouldRunWorkers()) {
+    await startEmailWorker();
+    await startWhatsAppWorker();
+  }
+
   if (!shouldRunApi()) {
     serverLogger.info('Skipping API server (not api/all role)');
-    startWorkersOnly();
+    if (shouldRunCrons()) registerCrons(serverLogger);
+    startBackgroundOnly();
     return;
   }
 
@@ -42,37 +50,8 @@ async function start() {
       await app.listen({ port, host: "0.0.0.0" });
       serverLogger.info({ port }, 'Server started');
 
-      // Crons — only run when PROCESS_ROLE is 'all' or 'scheduler'
     if (shouldRunCrons()) {
-      try {
-        scheduleAppointmentReminders(app.log);
-      } catch (err) {
-        serverLogger.error({ err }, "Falha ao iniciar cron de lembretes de agendamento");
-      }
-
-      try {
-        schedulePostPublisher(app.log);
-      } catch (err) {
-        serverLogger.error({ err }, "Falha ao iniciar cron de publicação de posts");
-      }
-
-      try {
-        scheduleTrialCardCharges(app.log);
-      } catch (err) {
-        serverLogger.error({ err }, "Falha ao iniciar cron de cobrança pós-trial");
-      }
-
-      try {
-        scheduleCleanOldLogs(app.log);
-      } catch (err) {
-        serverLogger.error({ err }, "Falha ao iniciar cron de limpeza de logs");
-      }
-
-      try {
-        scheduleDailyWeatherLog(app.log);
-      } catch (err) {
-        serverLogger.error({ err }, "Falha ao iniciar cron de daily weather log");
-      }
+      registerCrons(app.log);
     }
 
     // Graceful shutdown
@@ -96,11 +75,10 @@ async function start() {
 }
 
 /**
- * Worker-only mode: no HTTP server, just queues.
- * Used when PROCESS_ROLE=worker.
+ * Background-only mode: workers and/or scheduler, without HTTP.
  */
-async function startWorkersOnly() {
-  serverLogger.info('Starting in worker-only mode (no HTTP)');
+function startBackgroundOnly() {
+  serverLogger.info('Starting background-only mode (no HTTP)');
 
   // Workers are started by the queue barrel on import.
   // We just keep the process alive and handle shutdown.
@@ -115,6 +93,29 @@ async function startWorkersOnly() {
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+type CronLog = {
+  info: (obj: unknown, msg?: string) => void;
+  error: (obj: unknown, msg?: string) => void;
+};
+
+function registerCrons(log: CronLog): void {
+  const jobs = [
+    ['lembretes de agendamento', () => scheduleAppointmentReminders(log)],
+    ['publicação de posts', () => schedulePostPublisher(log)],
+    ['cobrança pós-trial', () => scheduleTrialCardCharges(log)],
+    ['limpeza de logs', () => scheduleCleanOldLogs(log)],
+    ['daily weather log', () => scheduleDailyWeatherLog(log)],
+  ] as const;
+
+  for (const [name, startJob] of jobs) {
+    try {
+      startJob();
+    } catch (err) {
+      serverLogger.error({ err }, `Falha ao iniciar cron de ${name}`);
+    }
+  }
 }
 
 start();

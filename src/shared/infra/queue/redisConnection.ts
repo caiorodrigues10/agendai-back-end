@@ -11,7 +11,7 @@ const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 let _redis: IORedis | null = null;
 
 export function getRedisConnection(): IORedis {
-  if (process.env.VITEST) {
+  if (process.env.VITEST && process.env.ALLOW_TEST_REDIS !== "1") {
     throw new Error(
       "Redis não deve ser usado em unit tests — mocke enqueueWhatsApp/enqueueEmail"
     );
