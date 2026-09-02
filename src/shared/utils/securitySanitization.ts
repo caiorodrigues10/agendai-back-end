@@ -15,6 +15,18 @@ const AUDIT_VALUE_ALLOWLIST = new Set([
 
 const SENSITIVE_KEY = /password|secret|token|authorization|cookie|credit.?card|card.?number|number|ccv|cvv|cpf|cnpj|tax.?id|document|recaptcha/i;
 
+export function sanitizeSensitivePayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeSensitivePayload);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+      key,
+      SENSITIVE_KEY.test(key) ? "[REDACTED]" : sanitizeSensitivePayload(child),
+    ]),
+  );
+}
+
 export function buildSafeAuditDetails(body: unknown): string | null {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
 
@@ -50,4 +62,13 @@ export function sanitizeSensitiveText(value: unknown, maxLength: number): string
     .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [REDACTED]");
 
   return text.substring(0, maxLength);
+}
+
+export function sanitizeJsonForStorage(value: unknown, maxLength: number): string | null {
+  if (value == null) return null;
+  try {
+    return sanitizeSensitiveText(JSON.stringify(sanitizeSensitivePayload(value)), maxLength);
+  } catch {
+    return null;
+  }
 }

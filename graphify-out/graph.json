@@ -10384,7 +10384,7 @@
       "label": "PaymentRepository",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L55",
+      "source_location": "L57",
       "_origin": "ast"
     },
     {
@@ -10392,7 +10392,7 @@
       "label": ".create()",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L56",
+      "source_location": "L58",
       "_origin": "ast"
     },
     {
@@ -10400,7 +10400,7 @@
       "label": ".findById()",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L86",
+      "source_location": "L88",
       "_origin": "ast"
     },
     {
@@ -10408,7 +10408,7 @@
       "label": ".findByMpPaymentId()",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L91",
+      "source_location": "L93",
       "_origin": "ast"
     },
     {
@@ -10416,7 +10416,7 @@
       "label": ".findByProviderPaymentId()",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L98",
+      "source_location": "L100",
       "_origin": "ast"
     },
     {
@@ -10424,7 +10424,7 @@
       "label": ".findByExternalReference()",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L107",
+      "source_location": "L109",
       "_origin": "ast"
     },
     {
@@ -10432,7 +10432,7 @@
       "label": ".findByBarbershopId()",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L118",
+      "source_location": "L120",
       "_origin": "ast"
     },
     {
@@ -10440,7 +10440,7 @@
       "label": ".updateStatus()",
       "file_type": "code",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L137",
+      "source_location": "L139",
       "_origin": "ast"
     },
     {
@@ -21504,7 +21504,7 @@
       "label": "memoryResults",
       "file_type": "code",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L6",
+      "source_location": "L7",
       "_origin": "ast"
     },
     {
@@ -21512,7 +21512,7 @@
       "label": "memoryLocks",
       "file_type": "code",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L7",
+      "source_location": "L8",
       "_origin": "ast"
     },
     {
@@ -21520,7 +21520,7 @@
       "label": "requireIdempotencyKey()",
       "file_type": "code",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L9",
+      "source_location": "L10",
       "_origin": "ast"
     },
     {
@@ -21528,7 +21528,23 @@
       "label": "storageKey()",
       "file_type": "code",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L24",
+      "source_location": "L25",
+      "_origin": "ast"
+    },
+    {
+      "id": "src_shared_services_idempotencyservice_requestfingerprint",
+      "label": "requestFingerprint()",
+      "file_type": "code",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L33",
+      "_origin": "ast"
+    },
+    {
+      "id": "src_shared_services_idempotencyservice_executewithdatabase",
+      "label": "executeWithDatabase()",
+      "file_type": "code",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L39",
       "_origin": "ast"
     },
     {
@@ -21536,7 +21552,7 @@
       "label": "executeIdempotent()",
       "file_type": "code",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L32",
+      "source_location": "L92",
       "_origin": "ast"
     },
     {
@@ -21544,7 +21560,7 @@
       "label": "resetIdempotencyMemoryForTests()",
       "file_type": "code",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L78",
+      "source_location": "L143",
       "_origin": "ast"
     },
     {
@@ -21868,11 +21884,19 @@
       "_origin": "ast"
     },
     {
+      "id": "src_shared_utils_securitysanitization_sanitizesensitivepayload",
+      "label": "sanitizeSensitivePayload()",
+      "file_type": "code",
+      "source_file": "src/shared/utils/securitySanitization.ts",
+      "source_location": "L18",
+      "_origin": "ast"
+    },
+    {
       "id": "src_shared_utils_securitysanitization_buildsafeauditdetails",
       "label": "buildSafeAuditDetails()",
       "file_type": "code",
       "source_file": "src/shared/utils/securitySanitization.ts",
-      "source_location": "L18",
+      "source_location": "L30",
       "_origin": "ast"
     },
     {
@@ -21880,7 +21904,15 @@
       "label": "sanitizeSensitiveText()",
       "file_type": "code",
       "source_file": "src/shared/utils/securitySanitization.ts",
-      "source_location": "L40",
+      "source_location": "L52",
+      "_origin": "ast"
+    },
+    {
+      "id": "src_shared_utils_securitysanitization_sanitizejsonforstorage",
+      "label": "sanitizeJsonForStorage()",
+      "file_type": "code",
+      "source_file": "src/shared/utils/securitySanitization.ts",
+      "source_location": "L67",
       "_origin": "ast"
     },
     {
@@ -49943,7 +49975,7 @@
     },
     {
       "source": "src_modules_payments_infra_repositories_paymentrepository",
-      "target": "src_shared_utils_securitysanitization_sanitizesensitivetext",
+      "target": "src_shared_utils_securitysanitization_sanitizejsonforstorage",
       "relation": "imports",
       "context": "import",
       "confidence": "EXTRACTED",
@@ -49975,7 +50007,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L55",
+      "source_location": "L57",
       "weight": 1.0
     },
     {
@@ -49984,7 +50016,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L56",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -49993,7 +50025,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L86",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -50002,7 +50034,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L91",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -50011,7 +50043,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L98",
+      "source_location": "L100",
       "weight": 1.0
     },
     {
@@ -50020,7 +50052,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L107",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -50029,7 +50061,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L118",
+      "source_location": "L120",
       "weight": 1.0
     },
     {
@@ -50038,7 +50070,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L137",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -50048,7 +50080,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L80",
+      "source_location": "L82",
       "weight": 1.0
     },
     {
@@ -50058,7 +50090,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L83",
+      "source_location": "L85",
       "weight": 1.0
     },
     {
@@ -50068,7 +50100,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L88",
+      "source_location": "L90",
       "weight": 1.0
     },
     {
@@ -50078,7 +50110,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L95",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -50088,7 +50120,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L104",
+      "source_location": "L106",
       "weight": 1.0
     },
     {
@@ -50098,7 +50130,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L114",
+      "source_location": "L116",
       "weight": 1.0
     },
     {
@@ -50108,7 +50140,7 @@
       "context": "argument",
       "confidence": "INFERRED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L134",
+      "source_location": "L136",
       "weight": 1.0
     },
     {
@@ -50118,7 +50150,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L147",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -50128,7 +50160,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L151",
+      "source_location": "L153",
       "weight": 1.0
     },
     {
@@ -82454,16 +82486,27 @@
     },
     {
       "source": "src_shared_services_idempotencyservice",
-      "target": "src_shared_services_idempotencyservice_memoryresults",
-      "relation": "contains",
+      "target": "src_libs_prismaclient",
+      "relation": "imports_from",
+      "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L6",
+      "source_location": "L5",
       "weight": 1.0
     },
     {
       "source": "src_shared_services_idempotencyservice",
-      "target": "src_shared_services_idempotencyservice_memorylocks",
+      "target": "src_libs_prismaclient_prisma",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_services_idempotencyservice",
+      "target": "src_shared_services_idempotencyservice_memoryresults",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
@@ -82472,11 +82515,20 @@
     },
     {
       "source": "src_shared_services_idempotencyservice",
+      "target": "src_shared_services_idempotencyservice_memorylocks",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_services_idempotencyservice",
       "target": "src_shared_services_idempotencyservice_requireidempotencykey",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L9",
+      "source_location": "L10",
       "weight": 1.0
     },
     {
@@ -82485,7 +82537,25 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L24",
+      "source_location": "L25",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_services_idempotencyservice",
+      "target": "src_shared_services_idempotencyservice_requestfingerprint",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L33",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_services_idempotencyservice",
+      "target": "src_shared_services_idempotencyservice_executewithdatabase",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L39",
       "weight": 1.0
     },
     {
@@ -82494,7 +82564,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L32",
+      "source_location": "L92",
       "weight": 1.0
     },
     {
@@ -82503,7 +82573,17 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L78",
+      "source_location": "L143",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_services_idempotencyservice_executewithdatabase",
+      "target": "src_shared_services_idempotencyservice_requestfingerprint",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L45",
       "weight": 1.0
     },
     {
@@ -82513,7 +82593,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L37",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -82523,7 +82603,17 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L38",
+      "source_location": "L98",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_services_idempotencyservice_executeidempotent",
+      "target": "src_shared_services_idempotencyservice_executewithdatabase",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/services/idempotencyService.ts",
+      "source_location": "L135",
       "weight": 1.0
     },
     {
@@ -83221,7 +83311,7 @@
     },
     {
       "source": "src_shared_utils_securitysanitization",
-      "target": "src_shared_utils_securitysanitization_buildsafeauditdetails",
+      "target": "src_shared_utils_securitysanitization_sanitizesensitivepayload",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/utils/securitySanitization.ts",
@@ -83230,11 +83320,49 @@
     },
     {
       "source": "src_shared_utils_securitysanitization",
+      "target": "src_shared_utils_securitysanitization_buildsafeauditdetails",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/utils/securitySanitization.ts",
+      "source_location": "L30",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_utils_securitysanitization",
       "target": "src_shared_utils_securitysanitization_sanitizesensitivetext",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/utils/securitySanitization.ts",
-      "source_location": "L40",
+      "source_location": "L52",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_utils_securitysanitization",
+      "target": "src_shared_utils_securitysanitization_sanitizejsonforstorage",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/utils/securitySanitization.ts",
+      "source_location": "L67",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_utils_securitysanitization_sanitizejsonforstorage",
+      "target": "src_shared_utils_securitysanitization_sanitizesensitivetext",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/utils/securitySanitization.ts",
+      "source_location": "L70",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_utils_securitysanitization_sanitizejsonforstorage",
+      "target": "src_shared_utils_securitysanitization_sanitizesensitivepayload",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/utils/securitySanitization.ts",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -87676,12 +87804,12 @@
     },
     {
       "source": "src_modules_payments_infra_repositories_paymentrepository_truncateraw",
-      "target": "src_shared_utils_securitysanitization_sanitizesensitivetext",
+      "target": "src_shared_utils_securitysanitization_sanitizejsonforstorage",
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L50",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -91471,7 +91599,7 @@
       "context": "type",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L55",
+      "source_location": "L57",
       "weight": 1.0
     },
     {
@@ -91481,7 +91609,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L56",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -91491,7 +91619,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L56",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -91501,7 +91629,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L86",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -91511,7 +91639,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L91",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -91521,7 +91649,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L98",
+      "source_location": "L100",
       "weight": 1.0
     },
     {
@@ -91531,7 +91659,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L107",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -91541,7 +91669,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L118",
+      "source_location": "L120",
       "weight": 1.0
     },
     {
@@ -91551,7 +91679,7 @@
       "context": "parameter_type",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L137",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -91561,7 +91689,7 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/payments/infra/repositories/PaymentRepository.ts",
-      "source_location": "L137",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -99704,7 +99832,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/shared/services/idempotencyService.ts",
-      "source_location": "L53",
+      "source_location": "L114",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_utils_securitysanitization_sanitizesensitivepayload",
+      "target": "src_shared_infra_http_redisratelimitstore_redisratelimitstore_child",
+      "relation": "indirect_call",
+      "context": "argument",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/shared/utils/securitySanitization.ts",
+      "source_location": "L25",
       "weight": 1.0
     },
     {
@@ -102245,7 +102384,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/shared/utils/securitySanitization.ts",
-      "source_location": "L29",
+      "source_location": "L41",
       "weight": 1.0
     }
   ]

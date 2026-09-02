@@ -25,7 +25,7 @@
     "security:audit-logs": "tsx scripts/remediateSensitiveAuditLogs.ts",
     "prisma:studio": "prisma studio",
     "db:push": "prisma db push",
-    "db:push:prod": "prisma db push",
+    "db:push:prod": "node -e \"console.error('Blocked: production schema changes must use prisma migrate deploy'); process.exit(1)\"",
     "db:studio": "prisma studio"
   },
   "dependencies": {
