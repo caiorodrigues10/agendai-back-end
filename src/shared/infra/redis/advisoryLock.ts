@@ -13,12 +13,12 @@ export class AdvisoryLock {
    * Returns a release function.
    */
   async acquire(lockId: number): Promise<() => Promise<void>> {
-    await this.prisma.$queryRawUnsafe(
+    await this.prisma.$executeRawUnsafe(
       'SELECT pg_advisory_lock($1)',
       lockId
     );
     return async () => {
-      await this.prisma.$queryRawUnsafe(
+      await this.prisma.$executeRawUnsafe(
         'SELECT pg_advisory_unlock($1)',
         lockId
       );
@@ -36,7 +36,7 @@ export class AdvisoryLock {
     ) as Array<{ acquired: boolean }>;
     if (result[0]?.acquired) {
       return async () => {
-        await this.prisma.$queryRawUnsafe(
+        await this.prisma.$executeRawUnsafe(
           'SELECT pg_advisory_unlock($1)',
           lockId
         );
