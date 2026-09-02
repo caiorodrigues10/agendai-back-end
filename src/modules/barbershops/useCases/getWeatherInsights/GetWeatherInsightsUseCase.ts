@@ -2,7 +2,12 @@ import { injectable, inject } from 'tsyringe';
 import { prisma } from '@/libs/prismaClient';
 import { AppError } from '@/shared/errors/AppError';
 import { IWeatherProvider } from '@/shared/container/providers/WeatherProvider/IWeatherProvider';
-import { DemandPredictor, WeatherDataPoint, WeatherForecastPoint } from '@/shared/providers/ml/DemandPredictor';
+import {
+  DemandPredictor,
+  WeatherDataPoint,
+  WeatherForecastPoint,
+  classifyMaturity,
+} from '@/shared/providers/ml/DemandPredictor';
 
 type RequestingUser = { role: string; barbershopId?: string };
 
@@ -62,6 +67,9 @@ export class GetWeatherInsightsUseCase {
     });
 
     const predictor = new DemandPredictor();
+    const maturityLevel = classifyMaturity(historicalLogs.length);
+    let backtestMae = Infinity;
+    let backtestMape = Infinity;
 
     if (historicalLogs.length >= 14) {
       const trainingData: WeatherDataPoint[] = historicalLogs.map((log: typeof historicalLogs[number]) => ({
@@ -78,6 +86,10 @@ export class GetWeatherInsightsUseCase {
         weatherCode: log.weatherCode ?? 0,
       }));
       predictor.train(trainingData);
+
+      const backtestResult = predictor.runBacktest(trainingData);
+      backtestMae = backtestResult.mae;
+      backtestMape = backtestResult.mape;
     }
 
     const forecastInput: WeatherForecastPoint[] = forecast.map(f => ({
@@ -115,11 +127,21 @@ export class GetWeatherInsightsUseCase {
       highlights.push(`Média de queda da semana: ${Math.abs(Math.round(avgDrop))}%. Considere ajustar equipe.`);
     }
 
+    const modelNote = maturityLevel === 'insufficient'
+      ? 'Dados históricos insuficientes. Previsões são pouco confiáveis.'
+      : maturityLevel === 'preliminary'
+        ? 'Modelo preliminar. Previsões tendem a melhorar com mais dados.'
+        : undefined;
+
     return {
       barbershopName: barbershop.name,
       location: { lat: barbershop.latitude, lng: barbershop.longitude },
       historicalDays: historicalLogs.length,
+      maturityLevel,
       modelTrained: predictor.isTrained(),
+      modelNote,
+      backtestMae: Math.round(backtestMae * 100) / 100,
+      backtestMape: Math.round(backtestMape * 100) / 100,
       predictions,
       summary: {
         avgDropPct: Math.round(avgDrop),

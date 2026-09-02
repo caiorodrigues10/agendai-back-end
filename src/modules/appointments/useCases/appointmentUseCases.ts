@@ -3,6 +3,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { sendWhatsAppMessage } from "@/shared/services/whatsappNotificationService";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { prisma } from "@/libs/prismaClient";
+import { AdvisoryLock } from "@/shared/infra/redis/advisoryLock";
 import { IAppointmentRepository } from "../repositories/IAppointmentRepository";
 import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
 import { IClientPackageRepository } from "@/modules/packages/repositories/IClientPackageRepository";
@@ -71,51 +72,59 @@ async function createAppointmentAtomic(
     return fallbackRepo.create(data);
   }
 
-  return prisma.$transaction(async (tx: any) => {
-    await assertAppointmentBookable(data, tx);
+  const lock = new AdvisoryLock(prisma);
+  const lockId = AdvisoryLock.generateLockId(data.barbershopId, data.date);
+  const release = await lock.acquire(lockId);
 
-    let clientId = data.clientId ?? null;
-    if (data.clientPackageId) {
-      const credited = await debitClientPackageInTx(tx, {
-        clientPackageId: data.clientPackageId,
-        barbershopId: data.barbershopId,
-        serviceId: data.serviceId,
-        count: 1,
+  try {
+    return await prisma.$transaction(async (tx: any) => {
+      await assertAppointmentBookable(data, tx);
+
+      let clientId = data.clientId ?? null;
+      if (data.clientPackageId) {
+        const credited = await debitClientPackageInTx(tx, {
+          clientPackageId: data.clientPackageId,
+          barbershopId: data.barbershopId,
+          serviceId: data.serviceId,
+          count: 1,
+        });
+        clientId = credited.clientId;
+      }
+
+      if (!clientId) {
+        const salon = await upsertSalonClientRecord(
+          tx,
+          data.barbershopId,
+          data.customerName,
+          data.whatsapp
+        );
+        clientId = salon?.id ?? null;
+      }
+
+      const record = await tx.appointment.create({
+        data: {
+          barbershopId: data.barbershopId,
+          serviceId: data.serviceId,
+          staffId: data.staffId ?? null,
+          customerName: data.customerName,
+          whatsapp: data.whatsapp,
+          date: new Date(data.date),
+          time: data.time,
+          status: "CONFIRMED",
+          clientId,
+          clientPackageId: data.clientPackageId ?? null,
+        },
+        include: {
+          service: { select: { name: true, price: true } },
+          staff: { select: { name: true } },
+          barbershop: { select: { name: true } },
+        },
       });
-      clientId = credited.clientId;
-    }
-
-    if (!clientId) {
-      const salon = await upsertSalonClientRecord(
-        tx,
-        data.barbershopId,
-        data.customerName,
-        data.whatsapp
-      );
-      clientId = salon?.id ?? null;
-    }
-
-    const record = await tx.appointment.create({
-      data: {
-        barbershopId: data.barbershopId,
-        serviceId: data.serviceId,
-        staffId: data.staffId ?? null,
-        customerName: data.customerName,
-        whatsapp: data.whatsapp,
-        date: new Date(data.date),
-        time: data.time,
-        status: "CONFIRMED",
-        clientId,
-        clientPackageId: data.clientPackageId ?? null,
-      },
-      include: {
-        service: { select: { name: true, price: true } },
-        staff: { select: { name: true } },
-        barbershop: { select: { name: true } },
-      },
+      return mapCreatedAppointment(record);
     });
-    return mapCreatedAppointment(record);
-  });
+  } finally {
+    await release();
+  }
 }
 
 // ─── Create ───────────────────────────────────────────────────────────────────

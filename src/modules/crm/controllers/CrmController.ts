@@ -4,8 +4,9 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { GetCrmClientUseCase, GetCrmForecastUseCase, GetCrmOverviewUseCase, ListCrmClientsUseCase, MergeCrmClientsUseCase, BackfillCrmUseCase, assertCrmAccess } from "../useCases/crmUseCases";
-import { campaignSchema, crmClientsSchema, crmForecastSchema, crmPeriodSchema, mergeClientsSchema } from "../schemas/crmSchemas";
+import { campaignSchema, crmCampaignsListSchema, crmClientsSchema, crmForecastSchema, crmPeriodSchema, mergeClientsSchema } from "../schemas/crmSchemas";
 import { ICrmRepository } from "../repositories/ICrmRepository";
+import { refreshCrmCampaignStatus } from "../services/campaignStatusService";
 
 function resolveShop(request: FastifyRequest, supplied?: string): string {
   const user = request.user!;
@@ -33,14 +34,17 @@ export class CrmController {
 
   async listClients(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const query = crmClientsSchema.parse(request.query); const shop = resolveShop(request, query.barbershopId);
+    if (query.from && query.to && query.from > query.to) throw new AppError("Período inválido", 400);
     const result = await container.resolve(ListCrmClientsUseCase).execute(shop, query, request.user!);
     reply.send({ success: true, data: result.data, meta: { total: result.total, page: query.page, limit: query.limit, totalPages: Math.ceil(result.total / query.limit) || 1 } });
   }
 
   async client(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const shop = resolveShop(request, (request.query as { barbershopId?: string }).barbershopId);
+    const query = crmPeriodSchema.parse(request.query);
+    const shop = resolveShop(request, query.barbershopId);
+    if (query.from && query.to && query.from > query.to) throw new AppError("Período inválido", 400);
     const { id } = request.params as { id: string };
-    const data = await container.resolve(GetCrmClientUseCase).execute(shop, id, request.user!);
+    const data = await container.resolve(GetCrmClientUseCase).execute(shop, id, request.user!, { from: query.from, to: query.to });
     reply.send({ success: true, data });
   }
 
@@ -53,6 +57,29 @@ export class CrmController {
   async backfill(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const shop = resolveShop(request, (request.body as { barbershopId?: string } | undefined)?.barbershopId);
     const data = await container.resolve(BackfillCrmUseCase).execute(shop, request.user!);
+    reply.send({ success: true, data });
+  }
+
+  async backfillAll(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    if (request.user!.role !== "MASTER_ADMIN") throw new AppError("Apenas o administrador da plataforma pode executar o backfill global", 403);
+    const shops = await prisma.barbershop.findMany({ where: { active: true }, select: { id: true } });
+    const useCase = container.resolve(BackfillCrmUseCase);
+    const results = [];
+    for (const shop of shops) {
+      try {
+        results.push({ barbershopId: shop.id, run: await useCase.execute(shop.id, request.user!) });
+      } catch (error) {
+        results.push({ barbershopId: shop.id, error: error instanceof Error ? error.message : "Erro desconhecido" });
+      }
+    }
+    reply.send({ success: true, data: results });
+  }
+
+  async backfillRuns(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const query = crmPeriodSchema.parse(request.query);
+    const shop = resolveShop(request, query.barbershopId);
+    if (request.user!.role !== "MASTER_ADMIN" && request.user!.role !== "OWNER") throw new AppError("Acesso negado", 403);
+    const data = await prisma.crmBackfillRun.findMany({ where: { barbershopId: shop }, orderBy: { startedAt: "desc" }, take: 20 });
     reply.send({ success: true, data });
   }
 
@@ -79,8 +106,14 @@ export class CrmController {
       prisma.salonClient.findMany({ where: { barbershopId: shop, marketingOptIn: true, normalizedWhatsapp: { not: null }, ...(clientIds ? { id: { in: clientIds } } : {}) }, select: { id: true, whatsapp: true } }),
     ]);
     if (!barbershop?.evolutionInstanceName?.trim()) throw new AppError("Conecte o WhatsApp do salão antes de confirmar a campanha", 409);
+    if (!clients.length) throw new AppError("Nenhum cliente elegível para esta campanha", 409);
     const campaign = await prisma.crmCampaign.create({ data: { barbershopId: shop, createdById: request.user!.id, name: body.name, segment: body.segment, message: body.message, status: "QUEUED", recipientCount: clients.length, confirmedAt: new Date(), recipients: { create: clients.map((client: any) => ({ clientId: client.id })) } }, include: { recipients: true } });
-    await Promise.all(campaign.recipients.map((recipient: any, index: number) => enqueueWhatsApp({ phone: clients[index].whatsapp, message: body.message, instanceName: barbershop.evolutionInstanceName!, deduplicationKey: `crm-campaign:${campaign.id}:${recipient.id}`, campaignRecipientId: recipient.id })));
+    const phoneByClient = new Map<string, string>(clients.map((client: { id: string; whatsapp: string }) => [client.id, client.whatsapp]));
+    const queued = await Promise.allSettled(campaign.recipients.map((recipient: any) => enqueueWhatsApp({ phone: phoneByClient.get(recipient.clientId)!, message: body.message, instanceName: barbershop.evolutionInstanceName!, deduplicationKey: `crm-campaign:${campaign.id}:${recipient.id}`, campaignRecipientId: recipient.id })));
+    await Promise.all(queued.map((result, index) => result.status === "rejected"
+      ? prisma.crmCampaignRecipient.update({ where: { id: campaign.recipients[index].id }, data: { status: "FAILED", error: "Não foi possível adicionar a mensagem à fila" } })
+      : Promise.resolve()));
+    await refreshCrmCampaignStatus(campaign.id);
     reply.status(201).send({ success: true, data: campaign });
   }
 
@@ -88,5 +121,22 @@ export class CrmController {
     const shop = resolveShop(request, (request.query as { barbershopId?: string }).barbershopId); await assertCrmAccess(request.user!, shop, "CRM_CAMPAIGNS_MANAGE");
     const { id } = request.params as { id: string }; const data = await prisma.crmCampaign.findFirst({ where: { id, barbershopId: shop }, include: { recipients: { include: { client: { select: { id: true, name: true, whatsapp: true } } } } } });
     if (!data) throw new AppError("Campanha não encontrada", 404); reply.send({ success: true, data });
+  }
+
+  async listCampaigns(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const query = crmCampaignsListSchema.parse(request.query);
+    const shop = resolveShop(request, query.barbershopId);
+    await assertCrmAccess(request.user!, shop, "CRM_CAMPAIGNS_MANAGE");
+    if (query.from && query.to && query.from > query.to) throw new AppError("Período inválido", 400);
+    const where = {
+      barbershopId: shop,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.from || query.to ? { createdAt: { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lte: query.to } : {}) } } : {}),
+    };
+    const [data, total] = await Promise.all([
+      prisma.crmCampaign.findMany({ where, orderBy: { createdAt: "desc" }, skip: (query.page - 1) * query.limit, take: query.limit }),
+      prisma.crmCampaign.count({ where }),
+    ]);
+    reply.send({ success: true, data, meta: { total, page: query.page, limit: query.limit, totalPages: Math.ceil(total / query.limit) || 1 } });
   }
 }

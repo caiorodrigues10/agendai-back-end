@@ -52,12 +52,15 @@ function buildClientMetrics(client: {
 }
 
 export class CrmRepository implements ICrmRepository {
-  private async metrics(barbershopId: string): Promise<CrmClientMetrics[]> {
+  private async metrics(barbershopId: string, period?: { from?: Date; to?: Date }): Promise<CrmClientMetrics[]> {
+    const occurredAt = period?.from || period?.to
+      ? { ...(period.from ? { gte: period.from } : {}), ...(period.to ? { lte: period.to } : {}) }
+      : undefined;
     const clients = await prisma.salonClient.findMany({
       where: { barbershopId },
       include: {
-        financialEvents: { orderBy: { occurredAt: "asc" } },
-        queueItems: { where: { status: "COMPLETED" }, select: { completedAt: true, service: { select: { name: true } } } },
+        financialEvents: { where: occurredAt ? { occurredAt } : undefined, orderBy: { occurredAt: "asc" } },
+        queueItems: { where: { status: "COMPLETED", ...(occurredAt ? { completedAt: occurredAt } : {}) }, select: { completedAt: true, service: { select: { name: true } } } },
         packages: { select: { remainingSessions: true, status: true } },
       },
     });
@@ -65,11 +68,15 @@ export class CrmRepository implements ICrmRepository {
   }
 
   async overview(barbershopId: string, from: Date, to: Date, compare: boolean): Promise<CrmOverviewDTO> {
-    const [events, packages, appointments, metrics] = await Promise.all([
+    const [events, packages, appointments, metrics, completedServices] = await Promise.all([
       prisma.crmFinancialEvent.findMany({ where: { barbershopId, occurredAt: { gte: from, lte: to } }, orderBy: { occurredAt: "asc" } }),
       prisma.clientPackage.findMany({ where: { barbershopId, purchasedAt: { gte: from, lte: to }, status: { not: "CANCELLED" } }, select: { pricePaid: true } }),
       prisma.appointment.findMany({ where: { barbershopId, date: { gte: from, lte: to } }, select: { status: true } }),
-      this.metrics(barbershopId),
+      this.metrics(barbershopId, { from, to }),
+      prisma.queueItem.findMany({
+        where: { barbershopId, status: "COMPLETED", completedAt: { gte: from, lte: to }, OR: [{ appointmentId: null }, { appointment: { is: { clientPackageId: null } } }] },
+        select: { finalPrice: true, completedBy: true, service: { select: { id: true, name: true, category: { select: { id: true, name: true } } } } },
+      }),
     ]);
     const dayMap = new Map<string, { grossRevenue: number; receivedRevenue: number; visits: number }>();
     for (const event of events) {
@@ -82,6 +89,10 @@ export class CrmRepository implements ICrmRepository {
     const grossRevenue = events.reduce((sum: number, event: any) => sum + event.grossAmount, 0);
     const receivedRevenue = events.reduce((sum: number, event: any) => sum + event.receivedAmount, 0);
     const visits = events.filter((event: any) => event.kind === "SERVICE_COMPLETED").length;
+    const cancellations = appointments.filter((appointment: { status: string }) => appointment.status === "CANCELLED").length;
+    const noShows = appointments.filter((appointment: { status: string }) => appointment.status === "NO_SHOW").length;
+    const attended = appointments.filter((appointment: { status: string }) => ["COMPLETED", "CHECKED_IN"].includes(appointment.status)).length;
+    const attendanceBase = attended + noShows;
     const firstTime = metrics.filter((metric) => metric.firstVisitAt && new Date(metric.firstVisitAt) >= from && new Date(metric.firstVisitAt) <= to).length;
     const recurring = metrics.filter((metric) => metric.visits >= 2 && metric.lastVisitAt && new Date(metric.lastVisitAt) >= from && new Date(metric.lastVisitAt) <= to).length;
     const reactivated = metrics.filter((metric) => metric.daysSinceLastVisit !== null && metric.daysSinceLastVisit < 30 && metric.visits >= 2).length;
@@ -96,17 +107,38 @@ export class CrmRepository implements ICrmRepository {
     }
     const labels: Record<CrmSegment, string> = { all: "Todos", new: "Novos", recurring: "Recorrentes", vip: "VIP", at_risk: "Em risco", inactive_30: "Inativos 30d", inactive_60: "Inativos 60d", inactive_90: "Inativos 90d", debtors: "Devedores", package_expiring: "Pacotes", low_demand: "Dias de baixa" };
     const segmentKeys: CrmSegment[] = ["new", "recurring", "vip", "at_risk", "inactive_30", "debtors", "package_expiring"];
+    const professionalIds = [...new Set(completedServices.map((item: any) => item.completedBy).filter(Boolean))] as string[];
+    const professionals = professionalIds.length
+      ? await prisma.user.findMany({ where: { id: { in: professionalIds }, barbershopId }, select: { id: true, name: true } })
+      : [];
+    const professionalNames = new Map(professionals.map((item: any) => [item.id, item.name]));
+    const aggregate = (items: Array<{ group: { id: string; name: string }; amount: number }>) => {
+      const map = new Map<string, { id: string; name: string; revenue: number; visits: number }>();
+      for (const item of items) {
+        const current = map.get(item.group.id) ?? { ...item.group, revenue: 0, visits: 0 };
+        current.revenue += item.amount;
+        current.visits += 1;
+        map.set(item.group.id, current);
+      }
+      return [...map.values()].map((item) => ({ ...item, revenue: round(item.revenue) })).sort((a, b) => b.revenue - a.revenue);
+    };
+    const byService = aggregate(completedServices.map((item: any) => ({ group: { id: item.service.id, name: item.service.name }, amount: item.finalPrice ?? 0 })));
+    const byCategory = aggregate(completedServices.filter((item: any) => item.service.category).map((item: any) => ({ group: { id: item.service.category.id, name: item.service.category.name }, amount: item.finalPrice ?? 0 })));
+    const byProfessional = aggregate(completedServices.filter((item: any) => item.completedBy).map((item: any) => ({ group: { id: item.completedBy, name: professionalNames.get(item.completedBy) ?? "Profissional" }, amount: item.finalPrice ?? 0 })));
     return {
       from: from.toISOString(), to: to.toISOString(), compare: previous,
-      kpis: { grossRevenue: round(grossRevenue), receivedRevenue: round(receivedRevenue), outstanding: round(metrics.reduce((sum: number, metric: CrmClientMetrics) => sum + metric.outstanding, 0)), avgTicket: visits ? round(grossRevenue / visits) : 0, newCustomers: firstTime, recurringCustomers: recurring, reactivatedCustomers: reactivated, inactiveCustomers: inactive, retentionRate: metrics.length ? round((recurring / metrics.length) * 100) : 0, averageVisitIntervalDays: intervals.length ? round(intervals.reduce((sum: number, value: number) => sum + value, 0) / intervals.length) : null, packageSales: round(packages.reduce((sum: number, item: { pricePaid: number }) => sum + item.pricePaid, 0)), packageSessions: metrics.reduce((sum: number, metric: CrmClientMetrics) => sum + metric.activePackageSessions, 0), revenueAtRisk: round(atRisk.reduce((sum: number, metric: CrmClientMetrics) => sum + metric.ltv, 0)) },
+      kpis: { grossRevenue: round(grossRevenue), receivedRevenue: round(receivedRevenue), outstanding: round(metrics.reduce((sum: number, metric: CrmClientMetrics) => sum + metric.outstanding, 0)), avgTicket: visits ? round(grossRevenue / visits) : 0, newCustomers: firstTime, recurringCustomers: recurring, reactivatedCustomers: reactivated, inactiveCustomers: inactive, retentionRate: metrics.length ? round((recurring / metrics.length) * 100) : 0, averageVisitIntervalDays: intervals.length ? round(intervals.reduce((sum: number, value: number) => sum + value, 0) / intervals.length) : null, packageSales: round(packages.reduce((sum: number, item: { pricePaid: number }) => sum + item.pricePaid, 0)), packageSessions: metrics.reduce((sum: number, metric: CrmClientMetrics) => sum + metric.activePackageSessions, 0), revenueAtRisk: round(atRisk.reduce((sum: number, metric: CrmClientMetrics) => sum + metric.ltv, 0)), cancellations, noShows, attendanceRate: attendanceBase ? round((attended / attendanceBase) * 100) : 0 },
       byDay: [...dayMap.entries()].map(([date, value]) => ({ date, grossRevenue: round(value.grossRevenue), receivedRevenue: round(value.receivedRevenue), visits: value.visits })),
+      byService,
+      byCategory,
+      byProfessional,
       topClients: [...metrics].sort((a, b) => b.ltv - a.ltv).slice(0, 8),
       segments: segmentKeys.map((segment) => { const matched = metrics.filter((metric) => metric.segment === segment); return { segment, label: labels[segment], count: matched.length, potential: round(matched.reduce((sum: number, metric: CrmClientMetrics) => sum + metric.ltv, 0)) }; }),
     };
   }
 
-  async listClients(barbershopId: string, params: { page: number; limit: number; search?: string; segment?: CrmSegment; sort?: "ltv" | "lastVisit" | "outstanding" }): Promise<{ data: CrmClientMetrics[]; total: number }> {
-    let records = await this.metrics(barbershopId);
+  async listClients(barbershopId: string, params: { page: number; limit: number; search?: string; segment?: CrmSegment; sort?: "ltv" | "lastVisit" | "outstanding"; from?: Date; to?: Date }): Promise<{ data: CrmClientMetrics[]; total: number }> {
+    let records = await this.metrics(barbershopId, { from: params.from, to: params.to });
     if (params.search) { const term = params.search.toLowerCase(); records = records.filter((item) => item.name.toLowerCase().includes(term) || item.whatsapp.includes(term.replace(/\D/g, ""))); }
     if (params.segment && params.segment !== "all") records = records.filter((item) => item.segment === params.segment);
     const sort = params.sort ?? "ltv";
@@ -115,8 +147,9 @@ export class CrmRepository implements ICrmRepository {
     return { data: records.slice((params.page - 1) * params.limit, params.page * params.limit), total };
   }
 
-  async getClientProfile(barbershopId: string, clientId: string): Promise<Record<string, unknown> | null> {
-    const client = await prisma.salonClient.findFirst({ where: { id: clientId, barbershopId }, include: { financialEvents: { orderBy: { occurredAt: "desc" } }, queueItems: { orderBy: { joinedAt: "desc" }, take: 100, include: { service: { select: { name: true } } } }, appointments: { orderBy: { date: "desc" }, take: 50, include: { service: { select: { name: true } } } }, fiados: { include: { payments: true }, orderBy: { createdAt: "desc" } }, packages: { include: { service: { select: { name: true } } }, orderBy: { purchasedAt: "desc" } } } });
+  async getClientProfile(barbershopId: string, clientId: string, period?: { from?: Date; to?: Date }): Promise<Record<string, unknown> | null> {
+    const range = period?.from || period?.to ? { ...(period.from ? { gte: period.from } : {}), ...(period.to ? { lte: period.to } : {}) } : undefined;
+    const client = await prisma.salonClient.findFirst({ where: { id: clientId, barbershopId }, include: { financialEvents: { where: range ? { occurredAt: range } : undefined, orderBy: { occurredAt: "desc" } }, queueItems: { where: range ? { joinedAt: range } : undefined, orderBy: { joinedAt: "desc" }, take: 100, include: { service: { select: { name: true } } } }, appointments: { where: range ? { date: range } : undefined, orderBy: { date: "desc" }, take: 50, include: { service: { select: { name: true } } } }, fiados: { where: range ? { createdAt: range } : undefined, include: { payments: true }, orderBy: { createdAt: "desc" } }, packages: { where: range ? { purchasedAt: range } : undefined, include: { service: { select: { name: true } } }, orderBy: { purchasedAt: "desc" } } } });
     if (!client) return null;
     const metric = buildClientMetrics({ ...client, queueItems: client.queueItems.filter((item: any) => item.status === "COMPLETED").map((item: any) => ({ completedAt: item.completedAt, service: item.service })) });
     return { ...metric, client: { id: client.id, name: client.name, whatsapp: client.whatsapp, notes: client.notes, marketingOptIn: client.marketingOptIn, marketingOptInAt: client.marketingOptInAt }, timeline: client.financialEvents, appointments: client.appointments, fiados: client.fiados, packages: client.packages };

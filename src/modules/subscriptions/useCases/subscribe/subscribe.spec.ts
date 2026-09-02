@@ -11,7 +11,12 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
     findUniqueOrThrow: vi.fn(),
   },
-  invoice: { create: vi.fn(), update: vi.fn(), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  invoice: {
+    create: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
   $transaction: vi.fn(),
 }));
 

@@ -47,6 +47,7 @@ export class QueueRepository implements IQueueRepository {
         whatsapp:     data.whatsapp,
         addedByStaff: data.addedByStaff ?? false,
         responsibleQueueItemId: data.responsibleQueueItemId ?? null,
+        activeIdentityKey: data.activeIdentityKey ?? null,
         status:       "WAITING"
       },
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }

@@ -39,10 +39,29 @@ export interface CrmOverviewDTO {
     packageSales: number;
     packageSessions: number;
     revenueAtRisk: number;
+    cancellations: number;
+    noShows: number;
+    attendanceRate: number;
   };
   byDay: Array<{ date: string; grossRevenue: number; receivedRevenue: number; visits: number }>;
+  byService: Array<{ id: string; name: string; revenue: number; visits: number }>;
+  byCategory: Array<{ id: string; name: string; revenue: number; visits: number }>;
+  byProfessional: Array<{ id: string; name: string; revenue: number; visits: number }>;
   topClients: CrmClientMetrics[];
   segments: Array<{ segment: CrmSegment; label: string; count: number; potential: number }>;
+}
+
+export interface CrmCampaignListItem {
+  id: string;
+  name: string;
+  segment: string;
+  status: "DRAFT" | "QUEUED" | "SENT" | "PARTIAL" | "FAILED" | "CANCELED";
+  recipientCount: number;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  createdAt: string;
+  confirmedAt: string | null;
 }
 
 export interface CrmForecastDTO {

@@ -18,6 +18,10 @@ export class CreatePixPaymentUseCase {
     data: ICreatePixPaymentDTO,
     requestingUser?: { role: string; barbershopId?: string }
   ): Promise<IPaymentResponseDTO> {
+    if (data.externalReference) {
+      const existing = await this.paymentRepo.findByExternalReference(data.externalReference);
+      if (existing) return existing;
+    }
     if (data.transactionAmount < 0.5) {
       throw new AppError("O valor mínimo de pagamento é R$ 0,50", 400);
     }

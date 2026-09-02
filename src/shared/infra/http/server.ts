@@ -16,6 +16,7 @@ import { cleanupTimers as cleanupBruteForceTimers } from "@/shared/services/brut
 import { initSentry } from "@/shared/utils/sentry";
 import { initTracing } from "@/shared/utils/tracing";
 import { logger, getModuleLogger } from "@/shared/utils/logger";
+import { shouldRunCrons, shouldRunWorkers, shouldRunApi } from "@/shared/config/processRole";
 
 initSentry();
 const tracing = initTracing();
@@ -27,44 +28,51 @@ const port = Number(process.env.PORT || 3333);
 const serverLogger = getModuleLogger('server');
 
 async function start() {
-  const app = await buildApp();
-  try {
-    await app.listen({ port, host: "0.0.0.0" });
-    serverLogger.info({ port }, 'Server started');
+  const role = process.env.PROCESS_ROLE || 'all';
+  serverLogger.info({ role }, 'Starting with process role');
 
-    // Cron de lembretes: falha ao agendar não derruba o servidor
-    try {
-      scheduleAppointmentReminders(app.log);
-    } catch (err) {
-      serverLogger.error({ err }, "Falha ao iniciar cron de lembretes de agendamento");
-    }
+  if (!shouldRunApi()) {
+    serverLogger.info('Skipping API server (not api/all role)');
+    startWorkersOnly();
+    return;
+  }
 
-    // Cron de publicação de posts (agendados + auto-post de abertura)
+    const app = await buildApp();
     try {
-      schedulePostPublisher(app.log);
-    } catch (err) {
-      serverLogger.error({ err }, "Falha ao iniciar cron de publicação de posts");
-    }
+      await app.listen({ port, host: "0.0.0.0" });
+      serverLogger.info({ port }, 'Server started');
 
-    // Cron de cobrança pós-trial (cartão vaulted Asaas)
-    try {
-      scheduleTrialCardCharges(app.log);
-    } catch (err) {
-      serverLogger.error({ err }, "Falha ao iniciar cron de cobrança pós-trial");
-    }
+      // Crons — only run when PROCESS_ROLE is 'all' or 'scheduler'
+    if (shouldRunCrons()) {
+      try {
+        scheduleAppointmentReminders(app.log);
+      } catch (err) {
+        serverLogger.error({ err }, "Falha ao iniciar cron de lembretes de agendamento");
+      }
 
-    // Cron de limpeza de logs (LGPD — 6 meses retenção)
-    try {
-      scheduleCleanOldLogs(app.log);
-    } catch (err) {
-      serverLogger.error({ err }, "Falha ao iniciar cron de limpeza de logs");
-    }
+      try {
+        schedulePostPublisher(app.log);
+      } catch (err) {
+        serverLogger.error({ err }, "Falha ao iniciar cron de publicação de posts");
+      }
 
-    // Cron de weather logs diários (popula dados de clima + fila do dia anterior)
-    try {
-      scheduleDailyWeatherLog(app.log);
-    } catch (err) {
-      serverLogger.error({ err }, "Falha ao iniciar cron de daily weather log");
+      try {
+        scheduleTrialCardCharges(app.log);
+      } catch (err) {
+        serverLogger.error({ err }, "Falha ao iniciar cron de cobrança pós-trial");
+      }
+
+      try {
+        scheduleCleanOldLogs(app.log);
+      } catch (err) {
+        serverLogger.error({ err }, "Falha ao iniciar cron de limpeza de logs");
+      }
+
+      try {
+        scheduleDailyWeatherLog(app.log);
+      } catch (err) {
+        serverLogger.error({ err }, "Falha ao iniciar cron de daily weather log");
+      }
     }
 
     // Graceful shutdown
@@ -85,6 +93,28 @@ async function start() {
     serverLogger.error({ err }, 'Failed to start server');
     process.exit(1);
   }
+}
+
+/**
+ * Worker-only mode: no HTTP server, just queues.
+ * Used when PROCESS_ROLE=worker.
+ */
+async function startWorkersOnly() {
+  serverLogger.info('Starting in worker-only mode (no HTTP)');
+
+  // Workers are started by the queue barrel on import.
+  // We just keep the process alive and handle shutdown.
+  const shutdown = async () => {
+    serverLogger.info("Shutting down worker...");
+    await stopEmailWorker().catch((err) => serverLogger.error({ err }, 'Failed to stop email worker'));
+    await stopWhatsAppWorker();
+    if (tracing) {
+      await tracing.shutdown();
+    }
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 start();

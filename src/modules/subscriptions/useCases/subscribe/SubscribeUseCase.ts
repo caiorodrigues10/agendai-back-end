@@ -11,6 +11,7 @@ import { buildSubscriptionResponse } from "../../utils/subscriptionMapper";
 import { TRIAL_DAYS, billingPeriodDays } from "@/shared/constants/subscription";
 import { Prisma } from "@prisma/client";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { assertPaymentProviderEnabled } from "@/config/paymentProviders";
 
 const logger = getModuleLogger("subscriptions:subscribe");
 
@@ -40,6 +41,7 @@ export class SubscribeUseCase {
     data: ISubscribeDTO,
     requestingUser: { role: string; barbershopId?: string }
   ): Promise<ISubscriptionResponseDTO> {
+    assertPaymentProviderEnabled(data.paymentMethod);
     if (
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
@@ -136,8 +138,21 @@ export class SubscribeUseCase {
           },
         });
 
-        await tx.invoice.deleteMany({
+        if (data.idempotencyKey) {
+          const existingInvoice = await tx.invoice.findUnique({
+            where: {
+              subscriptionId_idempotencyKey: {
+                subscriptionId: subscription.id,
+                idempotencyKey: data.idempotencyKey,
+              },
+            },
+          });
+          if (existingInvoice) return { subscription, invoice: existingInvoice };
+        }
+
+        await tx.invoice.updateMany({
           where: { subscriptionId: subscription.id, status: "PENDING" },
+          data: { status: "CANCELLED" },
         });
 
         const invoice = await tx.invoice.create({
@@ -153,6 +168,7 @@ export class SubscribeUseCase {
                   ? "credit_card"
                   : "pix"
                 : data.paymentMethod,
+            idempotencyKey: data.idempotencyKey,
           },
         });
 
@@ -168,6 +184,18 @@ export class SubscribeUseCase {
     const { subscription, invoice } = result;
     const externalReference = `ag-sub-${subscription.id}-inv-${invoice.id}`;
     const description = `Assinatura AgendAI — ${plan.name}`;
+
+    const previousPayment = await this.paymentRepo.findByExternalReference(externalReference);
+    if (previousPayment) {
+      const full = await prisma.subscription.findUniqueOrThrow({
+        where: { id: subscription.id },
+        include: { plan: true, invoices: { orderBy: { createdAt: "desc" }, take: 1 } },
+      });
+      return {
+        ...buildSubscriptionResponse(full, barbershop.createdAt, TRIAL_DAYS),
+        payment: previousPayment,
+      };
+    }
 
     let paymentRecord: IPaymentResponseDTO | undefined;
 

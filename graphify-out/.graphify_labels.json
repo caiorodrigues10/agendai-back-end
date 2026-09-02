@@ -196,7 +196,20 @@
   "194": "referrals.routes.ts",
   "195": "MercadoPagoService",
   "196": "QueueStatus",
+  "197": "paymentStateMachine.ts",
   "198": "AppointmentRepository",
   "199": ".execute",
-  "203": "postPublisher.cron.spec.ts"
+  "200": "CancelPaymentUseCase",
+  "201": "Monitor de Rotas em Tempo Real",
+  "202": "prismaExtensions.ts",
+  "203": "postPublisher.cron.spec.ts",
+  "204": "planSchemas.ts",
+  "205": "subscribe.spec.ts",
+  "206": "app.ts",
+  "207": "Admin — Financeiro",
+  "208": "AdminBarbershopController",
+  "209": "OPENCODE_MIMO.md",
+  "210": "tsx",
+  "211": "@types/bcryptjs",
+  "212": "@types/busboy"
 }

@@ -117,7 +117,8 @@ export async function recordPackageSale(clientPackageId: string): Promise<void> 
 }
 
 /** Backfill explícito, idempotente e acionável por admin; nunca roda em listagem. */
-export async function backfillCrmLedger(barbershopId: string): Promise<{ linked: number; events: number }> {
+export async function backfillCrmLedger(barbershopId: string): Promise<{ linked: number; events: number; createdEvents: number }> {
+  const eventsBefore = await prisma.crmFinancialEvent.count({ where: { barbershopId } });
   const clients = await prisma.salonClient.findMany({
     where: { barbershopId, normalizedWhatsapp: { not: null } },
     select: { id: true, normalizedWhatsapp: true },
@@ -145,13 +146,33 @@ export async function backfillCrmLedger(barbershopId: string): Promise<{ linked:
     const clientId = byPhone.get(normalize(row.whatsapp) ?? "");
     if (clientId) { await prisma.fiado.update({ where: { id: row.id }, data: { clientId } }); linked += 1; }
   }));
-  const [completed, packageSales, payments] = await Promise.all([
+  const [completed, packageSales, fiadosWithClient, payments] = await Promise.all([
     prisma.queueItem.findMany({ where: { barbershopId, status: "COMPLETED", clientId: { not: null } }, select: { id: true } }),
     prisma.clientPackage.findMany({ where: { barbershopId }, select: { id: true } }),
+    prisma.fiado.findMany({ where: { barbershopId, clientId: { not: null } }, select: { id: true } }),
     prisma.fiadoPayment.findMany({ where: { fiado: { barbershopId } }, select: { id: true } }),
   ]);
   await Promise.all(completed.map((item: any) => recordQueueCompletion(item.id)));
   await Promise.all(packageSales.map((sale: any) => recordPackageSale(sale.id)));
+  await Promise.all(fiadosWithClient.map((fiado: any) => recordFiadoCreated(fiado.id)));
   await Promise.all(payments.map((payment: any) => recordFiadoPayment(payment.id)));
-  return { linked, events: completed.length + packageSales.length + payments.length };
+  const events = await prisma.crmFinancialEvent.count({ where: { barbershopId } });
+  return { linked, events, createdEvents: events - eventsBefore };
+}
+
+export async function runCrmBackfill(barbershopId: string, version = "crm-ledger-v1") {
+  const run = await prisma.crmBackfillRun.create({ data: { barbershopId, version, status: "RUNNING" } });
+  try {
+    const result = await backfillCrmLedger(barbershopId);
+    return await prisma.crmBackfillRun.update({
+      where: { id: run.id },
+      data: { status: "SUCCEEDED", linkedRecords: result.linked, createdEvents: result.createdEvents, totalEvents: result.events, completedAt: new Date() },
+    });
+  } catch (error) {
+    await prisma.crmBackfillRun.update({
+      where: { id: run.id },
+      data: { status: "FAILED", error: error instanceof Error ? error.message.slice(0, 2000) : "Erro desconhecido", completedAt: new Date() },
+    });
+    throw error;
+  }
 }

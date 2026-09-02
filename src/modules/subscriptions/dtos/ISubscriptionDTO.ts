@@ -8,6 +8,7 @@ export type SubscriptionStatus =
   | "UNPAID";
 
 export interface ISubscribeDTO {
+  idempotencyKey?: string;
   barbershopId: string;
   planId: string;
   paymentMethod: "pix" | "credit_card" | "payment_link" | "asaas";

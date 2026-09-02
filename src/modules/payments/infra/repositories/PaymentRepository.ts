@@ -9,6 +9,7 @@ import {
   PaymentProvider,
   PaymentStatus
 } from "../../dtos/IPaymentDTO";
+import { sanitizeSensitiveText } from "@/shared/utils/securitySanitization";
 
 // mpPaymentId é BigInt no banco. Serializamos como string para evitar
 // truncamento silencioso de IDs acima de Number.MAX_SAFE_INTEGER (2^53-1).
@@ -46,8 +47,9 @@ function mapToDTO(record: any): IPaymentResponseDTO {
 const MAX_RAW_RESPONSE_CHARS = 10_000;
 function truncateRaw(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  if (raw.length <= MAX_RAW_RESPONSE_CHARS) return raw;
-  return raw.slice(0, MAX_RAW_RESPONSE_CHARS) + "...[truncated]";
+  const sanitized = sanitizeSensitiveText(raw, MAX_RAW_RESPONSE_CHARS);
+  if (!sanitized) return null;
+  return raw.length > MAX_RAW_RESPONSE_CHARS ? `${sanitized}...[truncated]` : sanitized;
 }
 
 export class PaymentRepository implements IPaymentRepository {

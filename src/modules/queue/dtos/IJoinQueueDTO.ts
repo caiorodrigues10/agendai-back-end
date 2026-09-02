@@ -6,4 +6,5 @@ export interface IJoinQueueDTO {
   whatsapp: string;
   addedByStaff?: boolean;
   responsibleQueueItemId?: string;
+  activeIdentityKey?: string;
 }

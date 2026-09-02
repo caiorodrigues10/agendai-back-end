@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { subscribeSchema } from "../../schemas/subscriptionSchemas";
 import { SubscribeUseCase } from "./SubscribeUseCase";
 import { AppError } from "@/shared/errors/AppError";
+import { executeIdempotent } from "@/shared/services/idempotencyService";
 
 export class SubscribeController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -24,15 +25,18 @@ export class SubscribeController {
     }
 
     const useCase = container.resolve(SubscribeUseCase);
-    const result = await useCase.execute(
-      {
-        ...body,
-        barbershopId,
-        remoteIp: request.ip
-      },
-      user
+    const execution = await executeIdempotent(request, `subscription:${barbershopId}`, () =>
+      useCase.execute(
+        {
+          ...body,
+          barbershopId,
+          idempotencyKey: request.idempotencyKey!,
+          remoteIp: request.ip
+        },
+        user
+      )
     );
 
-    reply.status(201).send({ success: true, data: result });
+    reply.status(execution.replayed ? 200 : 201).send({ success: true, data: execution.data, replayed: execution.replayed });
   }
 }

@@ -6,6 +6,7 @@ import { DeleteAccountController, validateDeleteAccount } from "@/modules/users/
 import { ExportUserDataController } from "@/modules/users/useCases/exportData/ExportUserDataController";
 import { AvatarController } from "@/modules/users/useCases/uploadAvatar/AvatarController";
 import { ProfileController } from "@/modules/users/controllers/ProfileController";
+import { AccountDeletionRequestController } from "@/modules/users/controllers/AccountDeletionRequestController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
@@ -18,6 +19,7 @@ export async function usersRoutes(app: FastifyInstance) {
   const exportUserDataController = new ExportUserDataController();
   const avatarController = new AvatarController();
   const profileController = container.resolve(ProfileController);
+  const deletionRequestController = new AccountDeletionRequestController();
 
   // ─── Gestão de equipe (OWNER da barbearia; MASTER_ADMIN via ?barbershopId=) ─
   const ownerGuard = [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext];
@@ -76,6 +78,17 @@ export async function usersRoutes(app: FastifyInstance) {
   // ─── LGPD: Exclusão de conta (Art. 18) ─
   const authGuard = [authenticate, setRlsContext];
   app.patch("/users/me", { preHandler: authGuard }, profileController.update.bind(profileController));
+  app.post("/users/me/deletion-request", {
+    preHandler: authGuard,
+    schema: {
+      tags: ["Users"],
+      summary: "Solicitar exclusão da conta e dos dados pessoais (LGPD)",
+      body: {
+        type: "object",
+        properties: { reason: { type: "string", maxLength: 500 } },
+      },
+    },
+  }, deletionRequestController.create.bind(deletionRequestController));
   app.delete("/users/me", {
     preHandler: [...authGuard, validateDeleteAccount],
     schema: {

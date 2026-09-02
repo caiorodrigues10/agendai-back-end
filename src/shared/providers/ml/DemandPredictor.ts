@@ -3,6 +3,63 @@ import { SeasonalDecomposition } from './SeasonalDecomposition';
 import { RidgeRegression } from './RidgeRegression';
 import { mean, std } from './StatisticsUtils';
 
+export type MaturityLevel = 'insufficient' | 'preliminary' | 'trained';
+
+export function classifyMaturity(dataDays: number): MaturityLevel {
+  if (dataDays < 30) return 'insufficient';
+  if (dataDays < 90) return 'preliminary';
+  return 'trained';
+}
+
+export function walkForwardBacktest(
+  data: WeatherDataPoint[],
+  validationWindowSize: number = 14,
+): { mae: number; mape: number; residuals: number[] } {
+  if (data.length < validationWindowSize + 14) {
+    return { mae: Infinity, mape: Infinity, residuals: [] };
+  }
+
+  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+  const residuals: number[] = [];
+  const startIdx = sorted.length - validationWindowSize;
+
+  for (let i = startIdx; i < sorted.length; i++) {
+    const trainData = sorted.slice(0, i);
+    const actual = sorted[i].queueCount;
+
+    const recent = trainData.slice(-7);
+    const predicted = recent.reduce((s, d) => s + d.queueCount, 0) / recent.length;
+
+    const residual = actual - predicted;
+    residuals.push(residual);
+  }
+
+  const mae = residuals.reduce((s, r) => s + Math.abs(r), 0) / residuals.length;
+  const mape =
+    (residuals.reduce((s, r, i) => {
+      const actual = sorted[startIdx + i].queueCount;
+      return s + (actual > 0 ? Math.abs(r) / actual : 0);
+    }, 0) /
+      residuals.length) *
+    100;
+
+  return { mae, mape, residuals };
+}
+
+export function confidenceInterval(
+  predicted: number,
+  residuals: number[],
+  confidenceLevel: number = 0.8,
+): [number, number] {
+  if (residuals.length === 0) return [predicted * 0.7, predicted * 1.3];
+
+  const sorted = residuals.map(Math.abs).sort((a, b) => a - b);
+  const idx = Math.floor(sorted.length * confidenceLevel);
+  const margin = sorted[idx] || sorted[sorted.length - 1];
+
+  return [Math.max(0, predicted - margin), predicted + margin];
+}
+
 export interface WeatherDataPoint {
   date: string;
   queueCount: number;
@@ -62,6 +119,7 @@ export class DemandPredictor {
   private baselineAvg: number = 0;
   private residualStd: number = 1;
   private trained: boolean = false;
+  private backtestResiduals: number[] = [];
 
   constructor() {
     this.randomForest = new RandomForest(8, 3);
@@ -99,20 +157,30 @@ export class DemandPredictor {
     this.trained = true;
   }
 
+  runBacktest(data: WeatherDataPoint[]): { mae: number; mape: number; residuals: number[] } {
+    const result = walkForwardBacktest(data);
+    this.backtestResiduals = result.residuals;
+    return result;
+  }
+
   predict(forecast: WeatherForecastPoint[], totalHistoryDays: number): DemandPrediction[] {
     if (!this.trained || forecast.length === 0) {
-      return forecast.map(f => ({
-        date: f.date,
-        condition: f.condition,
-        predictedQueue: Math.round(this.baselineAvg),
-        confidenceLow: Math.max(0, Math.round(this.baselineAvg - 1.96 * this.residualStd)),
-        confidenceHigh: Math.round(this.baselineAvg + 1.96 * this.residualStd),
-        baselineAvg: Math.round(this.baselineAvg),
-        dropPct: 0,
-        topFactors: [],
-        recommendation: RECOMMENDATIONS.low,
-        riskLevel: 'low' as const,
-      }));
+      return forecast.map(f => {
+        const predicted = Math.round(this.baselineAvg);
+        const [confidenceLow, confidenceHigh] = confidenceInterval(predicted, this.backtestResiduals);
+        return {
+          date: f.date,
+          condition: f.condition,
+          predictedQueue: predicted,
+          confidenceLow: Math.round(confidenceLow),
+          confidenceHigh: Math.round(confidenceHigh),
+          baselineAvg: Math.round(this.baselineAvg),
+          dropPct: 0,
+          topFactors: [],
+          recommendation: RECOMMENDATIONS.low,
+          riskLevel: 'low' as const,
+        };
+      });
     }
 
     return forecast.map((f, i) => {
@@ -125,8 +193,9 @@ export class DemandPredictor {
       const { baseline, lower, upper } = this.seasonal.predict(f.date, totalHistoryDays + i, totalHistoryDays + forecast.length);
 
       const predicted = Math.max(0, Math.round(baseline + residualPred));
-      const ciLow = Math.max(0, Math.round(baseline + lower - 1.96 * this.residualStd));
-      const ciHigh = Math.round(baseline + upper + 1.96 * this.residualStd);
+      const [rawLow, rawHigh] = confidenceInterval(predicted, this.backtestResiduals);
+      const ciLow = Math.round(rawLow);
+      const ciHigh = Math.round(rawHigh);
 
       const dropPct = this.baselineAvg > 0
         ? Math.round(((predicted - this.baselineAvg) / this.baselineAvg) * 100)

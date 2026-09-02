@@ -13,6 +13,17 @@ export const crmClientsSchema = z.object({
   search: z.string().max(100).optional(),
   segment: z.enum(["all", "new", "recurring", "vip", "at_risk", "inactive_30", "inactive_60", "inactive_90", "debtors", "package_expiring", "low_demand"]).optional(),
   sort: z.enum(["ltv", "lastVisit", "outstanding"]).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  barbershopId: z.string().uuid().optional(),
+});
+
+export const crmCampaignsListSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: z.enum(["DRAFT", "QUEUED", "SENT", "PARTIAL", "FAILED", "CANCELED"]).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
   barbershopId: z.string().uuid().optional(),
 });
 

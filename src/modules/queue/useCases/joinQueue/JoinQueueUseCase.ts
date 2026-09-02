@@ -9,6 +9,7 @@ import { assertPublicShopOperationalAccess } from "@/shared/utils/assertPublicSh
 import { prisma } from "@/libs/prismaClient";
 import { notifyCustomerJoinedQueue } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
+import { computeIdentityKey } from "../../utils/identityKey";
 
 @injectable()
 export class JoinQueueUseCase {
@@ -38,21 +39,48 @@ export class JoinQueueUseCase {
 
     const whatsappDigits = data.whatsapp.replace(/\D/g, "");
     const customerId = data.customerId ?? randomUUID();
-    const duplicate = await this.queueRepository.findActiveDuplicate(
+    const activeIdentityKey = computeIdentityKey(data.whatsapp, data.customerName);
+
+    const existingByCustomer = await this.queueRepository.findActiveDuplicate(
       data.barbershopId,
       customerId,
       whatsappDigits,
       data.customerName
     );
-    if (duplicate) {
+    if (existingByCustomer) {
       throw new AppError("Você já está na fila", 409);
     }
 
-    const item = await this.queueRepository.create({
-      ...data,
-      customerId,
-      addedByStaff: data.addedByStaff ?? false,
+    const existingByKey = await prisma.queueItem.findFirst({
+      where: {
+        barbershopId: data.barbershopId,
+        activeIdentityKey,
+        status: { in: ["WAITING", "IN_CHAIR"] },
+      },
+      select: { id: true },
     });
+    if (existingByKey) {
+      throw new AppError("Pessoa já está na fila", 409);
+    }
+
+    let item: IQueueItemResponseDTO;
+    try {
+      item = await this.queueRepository.create({
+        ...data,
+        customerId,
+        activeIdentityKey,
+        addedByStaff: data.addedByStaff ?? false,
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof Object &&
+        "code" in error &&
+        (error as { code: string }).code === "P2002"
+      ) {
+        throw new AppError("Pessoa já está na fila", 409);
+      }
+      throw error;
+    }
 
     try {
       const client = await this.salonClients?.upsertFromVisit(

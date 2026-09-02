@@ -39,7 +39,7 @@ export const updateAppointmentSchema = z.object({
 	whatsapp: phoneBR.optional(),
 	date: dateField.optional(),
 	time: timeField.optional(),
-	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
+	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'CHECKED_IN', 'NO_SHOW']).optional(),
 })
 
 export const availabilityQuerySchema = z.object({
@@ -55,7 +55,7 @@ export const listAppointmentsQuerySchema = z.object({
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
 		.optional(),
-	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
+	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'CHECKED_IN', 'NO_SHOW']).optional(),
 	staffId: z.string().uuid().optional(),
 	search: z.string().max(100).optional(),
 })

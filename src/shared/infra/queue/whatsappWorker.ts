@@ -8,6 +8,7 @@ import { WhatsAppJobData } from "./whatsappQueue";
 import { sendWhatsAppMessage } from "@/shared/services/evolutionApiService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { prisma } from "@/libs/prismaClient";
+import { refreshCrmCampaignStatus } from "@/modules/crm/services/campaignStatusService";
 
 const logger = getModuleLogger('queue:whatsapp');
 
@@ -43,8 +44,8 @@ function createWorker(): Worker<WhatsAppJobData> {
         throw new Error(`Falha ao enviar WhatsApp`);
       }
       if (campaignRecipientId) {
-        await prisma.crmCampaignRecipient.update({ where: { id: campaignRecipientId }, data: { status: "SENT", sentAt: new Date() } });
-        await prisma.crmCampaign.updateMany({ where: { recipients: { some: { id: campaignRecipientId } } }, data: { sentCount: { increment: 1 } } });
+        const recipient = await prisma.crmCampaignRecipient.update({ where: { id: campaignRecipientId }, data: { status: "SENT", sentAt: new Date(), error: null }, select: { campaignId: true } });
+        await refreshCrmCampaignStatus(recipient.campaignId);
       }
 
       resetIdleTimer();
@@ -60,8 +61,8 @@ function createWorker(): Worker<WhatsAppJobData> {
   worker.on("failed", (job, err) => {
     logger.error({ err, jobId: job?.id }, 'WhatsApp job failed');
     if (job?.data.campaignRecipientId) {
-      prisma.crmCampaignRecipient.update({ where: { id: job.data.campaignRecipientId }, data: { status: "FAILED", error: err.message.slice(0, 2000) } })
-        .then(() => prisma.crmCampaign.updateMany({ where: { recipients: { some: { id: job.data.campaignRecipientId } } }, data: { failedCount: { increment: 1 }, status: "PARTIAL" } }))
+      prisma.crmCampaignRecipient.update({ where: { id: job.data.campaignRecipientId }, data: { status: "FAILED", error: err.message.slice(0, 2000) }, select: { campaignId: true } })
+        .then((recipient: { campaignId: string }) => refreshCrmCampaignStatus(recipient.campaignId))
         .catch((updateErr: unknown) => logger.error({ err: updateErr }, "Falha ao registrar resultado da campanha"));
     }
     resetIdleTimer();

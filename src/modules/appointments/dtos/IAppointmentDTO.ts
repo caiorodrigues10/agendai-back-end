@@ -1,4 +1,4 @@
-export type AppointmentStatus = "CONFIRMED" | "CANCELLED" | "COMPLETED";
+export type AppointmentStatus = "CONFIRMED" | "CANCELLED" | "COMPLETED" | "CHECKED_IN" | "NO_SHOW";
 
 export interface ICreateAppointmentDTO {
   barbershopId: string;

@@ -164,9 +164,10 @@ describe("AsaasService", () => {
       errors: [{ code: "invalid_cpf_cnpj", description: "CPF inválido" }],
     });
 
-    await expect(service.ensureCustomer({ email: "x@y.com" })).rejects.toThrow(
-      /invalid_cpf_cnpj: CPF inválido/
-    );
+    await expect(service.ensureCustomer({ email: "x@y.com" })).rejects.toMatchObject({
+      code: "PAYMENT_PROVIDER_REJECTED",
+      message: expect.stringContaining("invalid_cpf_cnpj"),
+    });
   });
 
   it("lança erro claro sem ASAAS_API_KEY", async () => {

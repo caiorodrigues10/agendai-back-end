@@ -4,7 +4,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { ICrmRepository } from "../repositories/ICrmRepository";
 import { CrmForecastDTO, CrmSegment } from "../dtos/ICrmDTO";
 import { IWeatherProvider } from "@/shared/container/providers/WeatherProvider/IWeatherProvider";
-import { backfillCrmLedger } from "../services/crmLedger";
+import { runCrmBackfill } from "../services/crmLedger";
 
 export type CrmUser = { id: string; role: string; barbershopId?: string };
 export type CrmPermission = "CRM_ANALYTICS_VIEW" | "CRM_CAMPAIGNS_MANAGE";
@@ -28,7 +28,7 @@ export class GetCrmOverviewUseCase {
 @injectable()
 export class ListCrmClientsUseCase {
   constructor(@inject("CrmRepository") private repo: ICrmRepository) {}
-  async execute(barbershopId: string, params: { page: number; limit: number; search?: string; segment?: CrmSegment; sort?: "ltv" | "lastVisit" | "outstanding" }, user: CrmUser) {
+  async execute(barbershopId: string, params: { page: number; limit: number; search?: string; segment?: CrmSegment; sort?: "ltv" | "lastVisit" | "outstanding"; from?: Date; to?: Date }, user: CrmUser) {
     await assertCrmAccess(user, barbershopId, "CRM_ANALYTICS_VIEW");
     return this.repo.listClients(barbershopId, params);
   }
@@ -37,9 +37,9 @@ export class ListCrmClientsUseCase {
 @injectable()
 export class GetCrmClientUseCase {
   constructor(@inject("CrmRepository") private repo: ICrmRepository) {}
-  async execute(barbershopId: string, clientId: string, user: CrmUser) {
+  async execute(barbershopId: string, clientId: string, user: CrmUser, period?: { from?: Date; to?: Date }) {
     await assertCrmAccess(user, barbershopId, "CRM_ANALYTICS_VIEW");
-    const result = await this.repo.getClientProfile(barbershopId, clientId);
+    const result = await this.repo.getClientProfile(barbershopId, clientId, period);
     if (!result) throw new AppError("Cliente não encontrado", 404);
     return result;
   }
@@ -59,7 +59,7 @@ export class BackfillCrmUseCase {
   async execute(barbershopId: string, user: CrmUser) {
     if (user.role !== "MASTER_ADMIN" && user.role !== "OWNER") throw new AppError("Apenas o proprietário pode executar o backfill", 403);
     if (user.role !== "MASTER_ADMIN" && user.barbershopId !== barbershopId) throw new AppError("Acesso negado", 403);
-    return backfillCrmLedger(barbershopId);
+    return runCrmBackfill(barbershopId);
   }
 }
 

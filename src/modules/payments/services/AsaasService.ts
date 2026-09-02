@@ -103,11 +103,12 @@ export class AsaasService {
 
       if (!response.ok) {
         const asaasError = json as { errors?: Array<{ code: string; description: string }> };
-        const detail = asaasError?.errors
-          ?.map((e) => `${e.code}: ${e.description}`)
-          .join("; ");
-        throw new Error(
-          `Asaas API error ${response.status}: ${detail || "erro desconhecido"}`
+        const codes = asaasError?.errors?.map((error) => error.code).filter(Boolean).slice(0, 5);
+        throw new AppError(
+          `A Asaas recusou a operação${codes?.length ? ` (${codes.join(", ")})` : ""}. Confira os dados e tente novamente.`,
+          response.status >= 500 ? 503 : 422,
+          undefined,
+          response.status >= 500 ? "PAYMENT_PROVIDER_UNAVAILABLE" : "PAYMENT_PROVIDER_REJECTED",
         );
       }
 

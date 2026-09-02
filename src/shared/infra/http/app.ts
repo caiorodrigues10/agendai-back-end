@@ -6,10 +6,13 @@ import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { registerRoutes } from "./routes";
 import { apiRoutes } from "./routes/api";
+import { healthRoutes } from "./health";
+import { correlationIdMiddleware } from "./middlewares/correlationId";
 import { setupSwagger } from "@/config/swagger";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { RedisRateLimitStore } from "./redisRateLimitStore";
+import { buildSafeAuditDetails, sanitizeSensitiveText } from "@/shared/utils/securitySanitization";
 
 export async function buildApp() {
   const app = fastify({
@@ -61,71 +64,17 @@ export async function buildApp() {
       "X-Signature",
       "X-Request-Id",
       "X-Webhook-Signature",
+      "X-Correlation-Id",
+      "Idempotency-Key",
     ],
+    exposedHeaders: ["X-Correlation-Id"],
   });
 
-  // Health check endpoints (no rate limit)
-  app.get("/health", async () => {
-    const dbHealthy = await checkDatabase();
-    const redisHealthy = await checkRedis();
+  // Global correlation ID middleware
+  app.addHook("onRequest", correlationIdMiddleware);
 
-    return {
-      status: dbHealthy && redisHealthy ? "ok" : "degraded",
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      checks: {
-        db: dbHealthy ? "healthy" : "unhealthy",
-        redis: redisHealthy ? "healthy" : "unhealthy",
-      },
-    };
-  });
-
-  app.get("/ready", async (request, reply) => {
-    const dbHealthy = await checkDatabase();
-    const redisHealthy = await checkRedis();
-
-    if (dbHealthy && redisHealthy) {
-      return { status: "ready" };
-    }
-    reply.status(503);
-    return { status: "not ready" };
-  });
-
-  async function checkDatabase(): Promise<boolean> {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async function checkRedis(): Promise<boolean> {
-    let client: import("ioredis").default | null = null;
-    try {
-      const redisUrl = process.env.REDIS_URL;
-      if (!redisUrl) return false;
-      const IORedis = (await import("ioredis")).default;
-      client = new IORedis(redisUrl, {
-        connectTimeout: 3000,
-        maxRetriesPerRequest: 0,
-        lazyConnect: true,
-        retryStrategy: () => null,
-      });
-      await new Promise<void>((resolve, reject) => {
-        client!.on("error", reject);
-        client!.connect().then(resolve, reject);
-      });
-      const pong = await client.ping();
-      return pong === "PONG";
-    } catch {
-      return false;
-    } finally {
-      if (client) {
-        try { client.disconnect(); } catch { /* ignore */ }
-      }
-    }
-  }
+  // Health check routes (registered before auth-protected routes)
+  await app.register(healthRoutes);
 
   // Headers de segurança via Helmet
   const isProd = process.env.NODE_ENV === "production";
@@ -211,7 +160,7 @@ export async function buildApp() {
           action: `${request.method} ${request.url.split("?")[0]}`,
           resource: request.url.split("/")[2] || "API",
           resourceId: (request.params as any)?.id || null,
-          details: JSON.stringify(request.body).substring(0, 500),
+          details: buildSafeAuditDetails(request.body),
           ipAddress: request.ip,
         },
       });
@@ -230,8 +179,8 @@ export async function buildApp() {
         userId: (request.user as any)?.id ?? null,
         statusCode,
         code: error.code ?? null,
-        message: (error.message ?? "Unknown error").substring(0, 2000),
-        stack: error.stack?.substring(0, 5000) ?? null,
+        message: sanitizeSensitiveText(error.message ?? "Unknown error", 2000) ?? "Unknown error",
+        stack: sanitizeSensitiveText(error.stack, 5000),
         path: request.url.split("?")[0],
         method: request.method,
         ipAddress: request.ip ?? null,
@@ -252,11 +201,13 @@ export async function buildApp() {
       reply.status(error.statusCode).send({
         success: false,
         ...(extras ?? {}),
+        ...(error.code ? { code: error.code } : {}),
         message:
           extras && typeof extras.message === "string"
             ? extras.message
             : error.message,
         errors: error.errors,
+        correlationId: request.correlationId,
       });
       return;
     }
@@ -265,6 +216,7 @@ export async function buildApp() {
       reply.status(429).send({
         success: false,
         message: "Muitas requisições. Tente novamente em alguns instantes.",
+        correlationId: request.correlationId,
       });
       return;
     }
@@ -272,6 +224,7 @@ export async function buildApp() {
     reply.status(500).send({
       success: false,
       message: "Erro interno do servidor",
+      correlationId: request.correlationId,
     });
   });
 

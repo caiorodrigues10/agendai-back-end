@@ -22,6 +22,7 @@
     "prisma:migrate:prod": "prisma migrate deploy",
     "prisma:generate": "prisma generate",
     "prisma:seed": "tsx prisma/seed.ts",
+    "security:audit-logs": "tsx scripts/remediateSensitiveAuditLogs.ts",
     "prisma:studio": "prisma studio",
     "db:push": "prisma db push",
     "db:push:prod": "prisma db push",
