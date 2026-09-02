@@ -62,6 +62,15 @@ export interface SendWhatsAppOptions {
   log?: WhatsAppLogger;
 }
 
+export interface WhatsAppSendResult {
+  ok: boolean;
+  providerId?: string;
+  providerStatus?: string;
+  httpStatus?: number;
+  errorCode?: string;
+  error?: string;
+}
+
 function resolveInstanceName(opts: SendWhatsAppOptions): string | undefined {
   const explicit = opts.instanceName?.trim() || undefined;
   if (opts.platform) {
@@ -70,11 +79,20 @@ function resolveInstanceName(opts: SendWhatsAppOptions): string | undefined {
   return explicit;
 }
 
-export async function sendWhatsAppMessage(
+function extractMessageId(payload: unknown): string | undefined {
+  const root = asRecord(payload);
+  const key = asRecord(root?.key);
+  const candidate = key?.id ?? root?.id ?? root?.messageId;
+  return typeof candidate === "string" && candidate.trim()
+    ? candidate.trim().slice(0, 160)
+    : undefined;
+}
+
+export async function sendWhatsAppMessageDetailed(
   phone: string,
   message: string,
   options: string | SendWhatsAppOptions | undefined = undefined
-): Promise<boolean> {
+): Promise<WhatsAppSendResult> {
   const opts: SendWhatsAppOptions =
     typeof options === "string" || options === null || options === undefined
       ? options === null || options === undefined
@@ -85,8 +103,8 @@ export async function sendWhatsAppMessage(
   const log = opts.log;
   const finalPhone = normalizeWhatsAppPhone(phone);
   if (!finalPhone || !message.trim()) {
-    log?.warn({ phone }, "WhatsApp: telefone ou mensagem inválidos");
-    return false;
+    log?.warn({}, "WhatsApp: telefone ou mensagem inválidos");
+    return { ok: false, errorCode: "INVALID_DESTINATION", error: "Telefone ou mensagem inválidos" };
   }
 
   const baseUrl = evolutionBaseUrl();
@@ -95,10 +113,10 @@ export async function sendWhatsAppMessage(
 
   if (!baseUrl || !apiKey || !instanceName) {
     log?.warn(
-      { phone: finalPhone, platform: Boolean(opts.platform) },
+      { platform: Boolean(opts.platform) },
       "WhatsApp não enviado: Evolution sem URL/chave ou sem instância do salão"
     );
-    return false;
+    return { ok: false, errorCode: "CHANNEL_NOT_CONFIGURED", error: "Evolution ou instância não configurada" };
   }
 
   const url = `${baseUrl}/message/sendText/${encodeURIComponent(instanceName)}`;
@@ -114,20 +132,38 @@ export async function sendWhatsAppMessage(
     });
 
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
       log?.warn(
-        { status: res.status, phone: finalPhone, body: body.slice(0, 300) },
+        { status: res.status },
         "Falha ao enviar WhatsApp via Evolution API"
       );
-      return false;
+      return {
+        ok: false,
+        httpStatus: res.status,
+        errorCode: `EVOLUTION_HTTP_${res.status}`,
+        error: "Evolution API rejeitou a mensagem",
+      };
     }
 
-    log?.info({ phone: finalPhone }, "WhatsApp enviado via Evolution API");
-    return true;
+    const body = await res.json().catch(() => null);
+    log?.info({}, "WhatsApp aceito pela Evolution API");
+    return {
+      ok: true,
+      providerId: extractMessageId(body),
+      providerStatus: "accepted",
+      httpStatus: res.status,
+    };
   } catch (err) {
-    log?.warn({ err, phone: finalPhone }, "Erro ao enviar WhatsApp via Evolution API");
-    return false;
+    log?.warn({ err }, "Erro ao enviar WhatsApp via Evolution API");
+    return { ok: false, errorCode: "EVOLUTION_UNAVAILABLE", error: "Evolution API indisponível" };
   }
+}
+
+export async function sendWhatsAppMessage(
+  phone: string,
+  message: string,
+  options: string | SendWhatsAppOptions | undefined = undefined,
+): Promise<boolean> {
+  return (await sendWhatsAppMessageDetailed(phone, message, options)).ok;
 }
 
 export async function sendWhatsAppMedia(
@@ -181,18 +217,17 @@ export async function sendWhatsAppMedia(
     });
 
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
       log?.warn(
-        { status: res.status, phone: finalPhone, body: body.slice(0, 300) },
+        { status: res.status },
         "Falha ao enviar mídia via Evolution API"
       );
       return false;
     }
 
-    log?.info({ phone: finalPhone }, "Mídia enviada via Evolution API");
+    log?.info({}, "Mídia enviada via Evolution API");
     return true;
   } catch (err) {
-    log?.warn({ err, phone: finalPhone }, "Erro ao enviar mídia via Evolution API");
+    log?.warn({ err }, "Erro ao enviar mídia via Evolution API");
     return false;
   }
 }

@@ -1,5 +1,6 @@
 import type { SendEmailInput } from '@/shared/container/providers/EmailProvider/IEmailProvider'
 import { emailLayout } from './emailLayout'
+import { getFrontendUrl } from '@/shared/constants/env'
 
 function escapeHtml(s: string): string {
 	return s
@@ -44,5 +45,25 @@ export function buildVerifyEmail(input: {
 		}),
 		text,
 		template: 'verify_email',
+	}
+}
+
+export function buildForgotPasswordEmail(input: {
+	email: string
+	token: string
+}): SendEmailInput {
+	const title = 'Redefinição de senha'
+	const resetUrl = `${getFrontendUrl()}/reset-password?token=${encodeURIComponent(input.token)}`
+	return {
+		to: input.email,
+		subject: 'Redefinir sua senha - AgendAI',
+		html: emailLayout({
+			title,
+			bodyHtml: '<p>Você solicitou a redefinição da sua senha. Este link expira em 1 hora.</p>',
+			ctaLabel: 'Criar nova senha',
+			ctaUrl: resetUrl,
+		}),
+		text: `Redefinição de senha\n\nAcesse: ${resetUrl}\n\nEste link expira em 1 hora. Se você não fez esta solicitação, ignore este e-mail.`,
+		template: 'forgot_password',
 	}
 }

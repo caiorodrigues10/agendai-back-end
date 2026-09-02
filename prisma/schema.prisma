@@ -30,18 +30,19 @@ model User {
   avatarUrl        String?   @db.VarChar(500)
   permissions      String[]  @default([])
 
-  barbershop          Barbershop?         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  refreshTokens       RefreshToken[]
-  appointments        Appointment[]       @relation("staff")
-  feedPosts           FeedPost[]
-  referralCodes       ReferralCode[]
-  referralsAsReferrer Referral[]          @relation("ReferralReferrer")
-  referralsAsReferee  Referral[]          @relation("ReferralReferee")
-  verificationTokens  VerificationToken[]
-  refunds             Refund[]            @relation("RefundRequestedBy")
-  soldClientPackages  ClientPackage[]     @relation("PackageSoldBy")
-  commissionEntries   CommissionEntry[]
-  deletionRequests    AccountDeletionRequest[]
+  barbershop             Barbershop?              @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  refreshTokens          RefreshToken[]
+  appointments           Appointment[]            @relation("staff")
+  feedPosts              FeedPost[]
+  referralCodes          ReferralCode[]
+  referralsAsReferrer    Referral[]               @relation("ReferralReferrer")
+  referralsAsReferee     Referral[]               @relation("ReferralReferee")
+  verificationTokens     VerificationToken[]
+  refunds                Refund[]                 @relation("RefundRequestedBy")
+  soldClientPackages     ClientPackage[]          @relation("PackageSoldBy")
+  commissionEntries      CommissionEntry[]
+  deletionRequests       AccountDeletionRequest[]
+  notificationDeliveries NotificationDelivery[]
 
   @@index([cpf])
   @@index([deletedAt])
@@ -150,6 +151,8 @@ model Payment {
   pixQrCodeBase64   String?           @db.Text
   pixExpirationDate DateTime?
   rawResponse       String?           @db.Text
+  /// Snapshot estritamente allowlisted do provedor. `rawResponse` e legado.
+  providerSnapshot  Json?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
@@ -190,32 +193,35 @@ model Barbershop {
   /// Última data em que o auto-post foi disparado (evita duplicidade no mesmo dia).
   autoPostLastDate      DateTime?
 
-  schedules           Schedule[]
-  services            Service[]
-  users               User[]
-  queue               QueueItem[]
-  appointments        Appointment[]
-  feedPosts           FeedPost[]
-  subscriptions       Subscription[]
-  payments            Payment[]
-  serviceCategories   ServiceCategory[]
-  expenseCategories   ExpenseCategory[]
-  expenses            Expense[]
-  fiados              Fiado[]
-  referralCodes       ReferralCode[]
-  referredByCode      ReferralCode?     @relation("ReferredByCode", fields: [referredByCodeId], references: [id], onDelete: SetNull)
-  referralsAsReferrer Referral[]        @relation("ReferralReferrerShop")
-  referralsAsReferee  Referral[]        @relation("ReferralRefereeShop")
-  refunds             Refund[]
-  salonClients        SalonClient[]
-  servicePackages     ServicePackage[]
-  clientPackages      ClientPackage[]
-  dailyWeatherLogs    DailyWeatherLog[]
-  CommissionEntry     CommissionEntry[]
-  crmFinancialEvents  CrmFinancialEvent[]
-  crmCampaigns        CrmCampaign[]
-  crmBackfillRuns     CrmBackfillRun[]
-  onboarding          BarbershopOnboarding?
+  schedules                Schedule[]
+  services                 Service[]
+  users                    User[]
+  queue                    QueueItem[]
+  appointments             Appointment[]
+  feedPosts                FeedPost[]
+  subscriptions            Subscription[]
+  payments                 Payment[]
+  serviceCategories        ServiceCategory[]
+  expenseCategories        ExpenseCategory[]
+  expenses                 Expense[]
+  fiados                   Fiado[]
+  referralCodes            ReferralCode[]
+  referredByCode           ReferralCode?             @relation("ReferredByCode", fields: [referredByCodeId], references: [id], onDelete: SetNull)
+  referralsAsReferrer      Referral[]                @relation("ReferralReferrerShop")
+  referralsAsReferee       Referral[]                @relation("ReferralRefereeShop")
+  refunds                  Refund[]
+  salonClients             SalonClient[]
+  servicePackages          ServicePackage[]
+  clientPackages           ClientPackage[]
+  dailyWeatherLogs         DailyWeatherLog[]
+  CommissionEntry          CommissionEntry[]
+  crmFinancialEvents       CrmFinancialEvent[]
+  crmCampaigns             CrmCampaign[]
+  crmBackfillRuns          CrmBackfillRun[]
+  onboarding               BarbershopOnboarding?
+  notificationDeliveries   NotificationDelivery[]
+  notificationPreferences  NotificationPreference[]
+  notificationSuppressions NotificationSuppression[]
 
   @@index([approvalStatus])
   @@index([active])
@@ -224,17 +230,17 @@ model Barbershop {
 }
 
 model BarbershopOnboarding {
-  id                    String    @id @default(uuid()) @db.Uuid
-  barbershopId          String    @unique @db.Uuid
-  profileConfirmedAt    DateTime?
-  scheduleConfirmedAt   DateTime?
-  servicesConfirmedAt   DateTime?
-  publicLinkValidatedAt DateTime?
-  whatsappConfiguredAt  DateTime?
+  id                      String    @id @default(uuid()) @db.Uuid
+  barbershopId            String    @unique @db.Uuid
+  profileConfirmedAt      DateTime?
+  scheduleConfirmedAt     DateTime?
+  servicesConfirmedAt     DateTime?
+  publicLinkValidatedAt   DateTime?
+  whatsappConfiguredAt    DateTime?
   firstServiceCompletedAt DateTime?
-  completedAt           DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  completedAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
@@ -408,27 +414,28 @@ enum ClientPackageStatus {
 
 /// Cliente do salão (CRM por tenant). Identidade: WhatsApp único no estabelecimento.
 model SalonClient {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  name         String   @db.VarChar(200)
+  id                   String    @id @default(uuid()) @db.Uuid
+  barbershopId         String    @db.Uuid
+  name                 String    @db.VarChar(200)
   /// Contato exibido. Pode ficar vazio para registros criados sem telefone.
-  whatsapp     String   @default("") @db.VarChar(20)
+  whatsapp             String    @default("") @db.VarChar(20)
   /// Chave normalizada (DDD + telefone); nula quando o cliente não informou WhatsApp.
-  normalizedWhatsapp String? @db.VarChar(11)
-  notes        String?  @db.Text
-  marketingOptIn Boolean @default(false)
-  marketingOptInAt DateTime?
-  marketingOptInSource String? @db.VarChar(80)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  normalizedWhatsapp   String?   @db.VarChar(11)
+  notes                String?   @db.Text
+  marketingOptIn       Boolean   @default(false)
+  marketingOptInAt     DateTime?
+  marketingOptInSource String?   @db.VarChar(80)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  barbershop   Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  packages     ClientPackage[]
-  appointments Appointment[]
-  queueItems   QueueItem[] @relation("ClientQueueItems")
-  fiados       Fiado[]
-  financialEvents CrmFinancialEvent[]
-  campaignRecipients CrmCampaignRecipient[]
+  barbershop             Barbershop             @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  packages               ClientPackage[]
+  appointments           Appointment[]
+  queueItems             QueueItem[]            @relation("ClientQueueItems")
+  fiados                 Fiado[]
+  financialEvents        CrmFinancialEvent[]
+  campaignRecipients     CrmCampaignRecipient[]
+  notificationDeliveries NotificationDelivery[]
 
   @@unique([barbershopId, normalizedWhatsapp])
   @@index([barbershopId])
@@ -635,11 +642,11 @@ model Invoice {
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   plan         Plan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
 
+  @@unique([subscriptionId, idempotencyKey])
   @@index([status])
   @@index([dueDate])
   @@index([subscriptionId, status, dueDate])
   @@index([planId])
-  @@unique([subscriptionId, idempotencyKey])
   @@map("invoices")
 }
 
@@ -680,29 +687,36 @@ enum RefundStatus {
   PENDING
   SUCCEEDED
   FAILED
+  RECONCILIATION_REQUIRED
 }
 
 model Refund {
-  id               String          @id @default(uuid()) @db.Uuid
-  paymentId        String          @db.Uuid
-  barbershopId     String          @db.Uuid
-  amount           Int
-  reason           String          @db.VarChar(500)
-  status           RefundStatus    @default(PENDING)
-  provider         PaymentProvider
-  providerRefundId String?         @db.VarChar(128)
-  requestedById    String?         @db.Uuid
-  errorMessage     String?         @db.Text
-  createdAt        DateTime        @default(now())
-  completedAt      DateTime?
+  id                      String          @id @default(uuid()) @db.Uuid
+  paymentId               String          @db.Uuid
+  barbershopId            String          @db.Uuid
+  amount                  Int
+  reason                  String          @db.VarChar(500)
+  status                  RefundStatus    @default(PENDING)
+  provider                PaymentProvider
+  providerRefundId        String?         @db.VarChar(128)
+  requestedById           String?         @db.Uuid
+  errorMessage            String?         @db.Text
+  idempotencyKey          String?         @db.VarChar(100)
+  reconciliationAttempts  Int             @default(0)
+  nextReconciliationAt    DateTime?
+  lastReconciliationError String?         @db.Text
+  createdAt               DateTime        @default(now())
+  completedAt             DateTime?
 
   payment     Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   barbershop  Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   requestedBy User?      @relation("RefundRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
 
+  @@unique([paymentId, idempotencyKey])
   @@index([paymentId])
   @@index([barbershopId])
   @@index([status])
+  @@index([status, nextReconciliationAt])
   @@map("refunds")
 }
 
@@ -917,20 +931,20 @@ model FiadoPayment {
 
 /// Livro imutável usado pelo CRM para separar faturamento, recebimento e saldo devedor.
 model CrmFinancialEvent {
-  id               String   @id @default(uuid()) @db.Uuid
-  barbershopId     String   @db.Uuid
-  clientId         String   @db.Uuid
+  id               String                @id @default(uuid()) @db.Uuid
+  barbershopId     String                @db.Uuid
+  clientId         String                @db.Uuid
   kind             CrmFinancialEventKind
-  sourceType       String   @db.VarChar(40)
-  sourceId         String   @db.Uuid
-  grossAmount      Float    @default(0) @db.Real
-  receivedAmount   Float    @default(0) @db.Real
-  outstandingDelta Float    @default(0) @db.Real
+  sourceType       String                @db.VarChar(40)
+  sourceId         String                @db.Uuid
+  grossAmount      Float                 @default(0) @db.Real
+  receivedAmount   Float                 @default(0) @db.Real
+  outstandingDelta Float                 @default(0) @db.Real
   occurredAt       DateTime
-  metadata         String?  @db.Text
-  createdAt        DateTime @default(now())
+  metadata         String?               @db.Text
+  createdAt        DateTime              @default(now())
 
-  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   client     SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([barbershopId, sourceType, sourceId, kind])
@@ -948,15 +962,15 @@ enum CrmFinancialEventKind {
 }
 
 model CrmBackfillRun {
-  id            String                @id @default(uuid()) @db.Uuid
-  barbershopId  String                @db.Uuid
-  version       String                @db.VarChar(40)
-  status        CrmBackfillRunStatus  @default(RUNNING)
-  linkedRecords Int                   @default(0)
-  createdEvents Int                   @default(0)
-  totalEvents   Int                   @default(0)
-  error         String?               @db.Text
-  startedAt     DateTime              @default(now())
+  id            String               @id @default(uuid()) @db.Uuid
+  barbershopId  String               @db.Uuid
+  version       String               @db.VarChar(40)
+  status        CrmBackfillRunStatus @default(RUNNING)
+  linkedRecords Int                  @default(0)
+  createdEvents Int                  @default(0)
+  totalEvents   Int                  @default(0)
+  error         String?              @db.Text
+  startedAt     DateTime             @default(now())
   completedAt   DateTime?
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
@@ -986,7 +1000,7 @@ model CrmCampaign {
   createdAt      DateTime          @default(now())
   confirmedAt    DateTime?
 
-  barbershop Barbershop              @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barbershop Barbershop             @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   recipients CrmCampaignRecipient[]
 
   @@index([barbershopId, createdAt])
@@ -1002,8 +1016,9 @@ model CrmCampaignRecipient {
   sentAt     DateTime?
   createdAt  DateTime                   @default(now())
 
-  campaign CrmCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  client   SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaign CrmCampaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  client   SalonClient           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  delivery NotificationDelivery?
 
   @@unique([campaignId, clientId])
   @@index([clientId])
@@ -1110,6 +1125,208 @@ enum EmailDeliveryStatus {
   SKIPPED
 }
 
+/// Canais suportados pelo ledger unificado. Novos tipos de mensagem usam
+/// `NotificationDelivery.type` (string) e nao exigem migration.
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  RETRYING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  BOUNCED
+  COMPLAINED
+  SUPPRESSED
+  SKIPPED
+  CANCELED
+}
+
+enum NotificationOutboxStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+enum NotificationAttemptStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum NotificationProviderEventStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+model NotificationDelivery {
+  id                  String                     @id @default(uuid()) @db.Uuid
+  barbershopId        String?                    @db.Uuid
+  clientId            String?                    @db.Uuid
+  userId              String?                    @db.Uuid
+  campaignRecipientId String?                    @unique @db.Uuid
+  channel             NotificationChannel
+  type                String                     @db.VarChar(80)
+  templateKey         String?                    @db.VarChar(100)
+  templateVersion     Int                        @default(1)
+  status              NotificationDeliveryStatus @default(PENDING)
+  idempotencyKey      String                     @db.VarChar(180)
+  destinationMasked   String                     @db.VarChar(200)
+  destinationHash     String                     @db.VarChar(64)
+  contentHash         String                     @db.VarChar(64)
+  provider            String?                    @db.VarChar(40)
+  providerId          String?                    @db.VarChar(160)
+  errorCode           String?                    @db.VarChar(100)
+  errorMessage        String?                    @db.VarChar(500)
+  attemptCount        Int                        @default(0)
+  sourceType          String?                    @db.VarChar(80)
+  sourceId            String?                    @db.VarChar(160)
+  retryOfId           String?                    @db.Uuid
+  queuedAt            DateTime?
+  processingAt        DateTime?
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  readAt              DateTime?
+  delayedAt           DateTime?
+  openedAt            DateTime?
+  clickedAt           DateTime?
+  failedAt            DateTime?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  barbershop        Barbershop?                 @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client            SalonClient?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  user              User?                       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  campaignRecipient CrmCampaignRecipient?       @relation(fields: [campaignRecipientId], references: [id], onDelete: SetNull)
+  retryOf           NotificationDelivery?       @relation("NotificationRetries", fields: [retryOfId], references: [id], onDelete: SetNull)
+  retries           NotificationDelivery[]      @relation("NotificationRetries")
+  outbox            NotificationOutbox?
+  attempts          NotificationAttempt[]
+  providerEvents    NotificationProviderEvent[]
+
+  @@unique([channel, idempotencyKey])
+  @@index([barbershopId, createdAt])
+  @@index([barbershopId, status, createdAt])
+  @@index([provider, providerId])
+  @@index([destinationHash, createdAt])
+  @@index([sourceType, sourceId])
+  @@map("notification_deliveries")
+}
+
+model NotificationOutbox {
+  id                String                   @id @default(uuid()) @db.Uuid
+  deliveryId        String                   @unique @db.Uuid
+  status            NotificationOutboxStatus @default(PENDING)
+  payloadCiphertext String                   @db.Text
+  payloadIv         String                   @db.VarChar(32)
+  payloadTag        String                   @db.VarChar(32)
+  keyVersion        String                   @db.VarChar(32)
+  publishAttempts   Int                      @default(0)
+  nextAttemptAt     DateTime                 @default(now())
+  lockedAt          DateTime?
+  lockedBy          String?                  @db.VarChar(100)
+  publishedAt       DateTime?
+  lastError         String?                  @db.VarChar(500)
+  purgeAfter        DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  delivery NotificationDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([lockedAt])
+  @@index([purgeAfter])
+  @@map("notification_outbox")
+}
+
+model NotificationAttempt {
+  id             String                    @id @default(uuid()) @db.Uuid
+  deliveryId     String                    @db.Uuid
+  attemptNumber  Int
+  status         NotificationAttemptStatus @default(PROCESSING)
+  providerId     String?                   @db.VarChar(160)
+  providerStatus String?                   @db.VarChar(100)
+  httpStatus     Int?
+  errorCode      String?                   @db.VarChar(100)
+  errorMessage   String?                   @db.VarChar(500)
+  startedAt      DateTime                  @default(now())
+  completedAt    DateTime?
+
+  delivery NotificationDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@unique([deliveryId, attemptNumber])
+  @@index([status, startedAt])
+  @@map("notification_attempts")
+}
+
+model NotificationProviderEvent {
+  id               String                          @id @default(uuid()) @db.Uuid
+  deliveryId       String?                         @db.Uuid
+  provider         String                          @db.VarChar(40)
+  eventId          String                          @db.VarChar(180)
+  eventType        String                          @db.VarChar(100)
+  providerObjectId String?                         @db.VarChar(180)
+  payloadHash      String                          @db.VarChar(64)
+  status           NotificationProviderEventStatus @default(RECEIVED)
+  occurredAt       DateTime?
+  processedAt      DateTime?
+  errorMessage     String?                         @db.VarChar(500)
+  createdAt        DateTime                        @default(now())
+
+  delivery NotificationDelivery? @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventId])
+  @@index([provider, providerObjectId])
+  @@index([status, createdAt])
+  @@map("notification_provider_events")
+}
+
+model NotificationPreference {
+  id           String              @id @default(uuid()) @db.Uuid
+  barbershopId String              @db.Uuid
+  channel      NotificationChannel
+  type         String              @db.VarChar(80)
+  enabled      Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId, channel, type])
+  @@index([barbershopId, enabled])
+  @@map("notification_preferences")
+}
+
+model NotificationSuppression {
+  id                String              @id @default(uuid()) @db.Uuid
+  barbershopId      String?             @db.Uuid
+  scopeKey          String              @db.VarChar(50)
+  channel           NotificationChannel
+  destinationHash   String              @db.VarChar(64)
+  destinationMasked String              @db.VarChar(200)
+  reason            String              @db.VarChar(100)
+  source            String              @db.VarChar(80)
+  active            Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  barbershop Barbershop? @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@unique([scopeKey, channel, destinationHash])
+  @@index([barbershopId, active])
+  @@index([channel, destinationHash, active])
+  @@map("notification_suppressions")
+}
+
 model Feedback {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
@@ -1176,14 +1393,14 @@ model CronRun {
 }
 
 model IdempotencyRecord {
-  id               String   @id @default(uuid()) @db.Uuid
-  idempotencyKey   String   @db.VarChar(100)
-  scope            String   @db.VarChar(160)
-  requestFingerprint String  @db.VarChar(64)
-  status           String   @default("IN_PROGRESS")
-  response         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String   @id @default(uuid()) @db.Uuid
+  idempotencyKey     String   @db.VarChar(100)
+  scope              String   @db.VarChar(160)
+  requestFingerprint String   @db.VarChar(64)
+  status             String   @default("IN_PROGRESS")
+  response           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@unique([scope, idempotencyKey])
   @@index([createdAt])

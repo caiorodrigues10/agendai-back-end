@@ -1,5 +1,0 @@
-{
-  "_placeholder": true,
-  "_message": "Substitua pelo arquivo JSON real da Service Account do GCP.",
-  "_howto": "Execute: bash scripts/create-service-account.sh"
-}

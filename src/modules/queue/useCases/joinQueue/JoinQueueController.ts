@@ -99,6 +99,10 @@ export class JoinQueueController {
             message: msg,
             instanceName: shop.evolutionInstanceName?.trim() || undefined,
             deduplicationKey: `join:${data.barbershopId}:${item.id}`,
+            notificationType: "QUEUE_JOINED_SHOP_ALERT",
+            barbershopId: data.barbershopId,
+            sourceType: "QUEUE_ITEM",
+            sourceId: item.id,
           });
         }
       } catch {

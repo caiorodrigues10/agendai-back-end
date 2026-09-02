@@ -23,6 +23,7 @@ import { packagesRoutes } from './packages.routes'
 import { commissionsRoutes } from './commissions.routes'
 import { crmRoutes } from './crm.routes'
 import { onboardingRoutes } from '@/modules/barbershops/routes/onboarding.routes'
+import { webhooksRoutes } from './webhooks.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	await authRoutes(app)
@@ -49,4 +50,5 @@ export async function apiRoutes(app: FastifyInstance) {
 	await commissionsRoutes(app)
 	await crmRoutes(app)
 	await onboardingRoutes(app)
+	await webhooksRoutes(app)
 }

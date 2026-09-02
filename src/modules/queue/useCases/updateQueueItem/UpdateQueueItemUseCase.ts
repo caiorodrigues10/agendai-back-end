@@ -114,7 +114,19 @@ export class UpdateQueueItemUseCase {
         const instanceName = shop?.evolutionInstanceName?.trim();
         if (instanceName) {
           const called = item.status === "waiting" && nextStatus === "in_chair";
-          await enqueueWhatsApp({ phone: item.whatsapp, message: called ? buildQueueCalledMessage(item.customerName, shop?.name?.trim() || "a barbearia") : buildQueueCancelledMessage(item.customerName, shop?.name?.trim() || "a barbearia"), instanceName, deduplicationKey: called ? `call:${item.id}` : `cancel:${item.id}` });
+          await enqueueWhatsApp({
+            phone: item.whatsapp,
+            message: called
+              ? buildQueueCalledMessage(item.customerName, shop?.name?.trim() || "a barbearia")
+              : buildQueueCancelledMessage(item.customerName, shop?.name?.trim() || "a barbearia"),
+            instanceName,
+            deduplicationKey: called ? `call:${item.id}` : `cancel:${item.id}`,
+            notificationType: called ? "QUEUE_CALLED" : "QUEUE_CANCELED",
+            barbershopId: item.barbershopId,
+            clientId: item.clientId ?? undefined,
+            sourceType: "QUEUE_ITEM",
+            sourceId: item.id,
+          });
         }
       } catch { /* notificacao nao bloqueia */ }
     }

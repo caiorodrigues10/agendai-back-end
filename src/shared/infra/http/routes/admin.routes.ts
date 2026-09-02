@@ -9,6 +9,7 @@ import { AdminReferralsController } from "@/modules/admin/controllers/AdminRefer
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
+import { getNotificationOperationsHealth } from "@/modules/notifications/services/notificationOperationsService";
 
 const dashboardController = new AdminDashboardController();
 const barbershopController = new AdminBarbershopController();
@@ -49,6 +50,9 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/notifications/unread-count", { preHandler }, notificationController.unreadCount.bind(notificationController));
   app.patch("/admin/notifications/read-all", { preHandler }, notificationController.markAllRead.bind(notificationController));
   app.patch("/admin/notifications/:id/read", { preHandler }, notificationController.markRead.bind(notificationController));
+  app.get("/admin/operations/notifications", { preHandler }, async (_request, reply) => {
+    return reply.send({ success: true, data: await getNotificationOperationsHealth() });
+  });
 
   // ─── Indicações ───────────────────────────────────────────────────────────
   app.get("/admin/referrals", { preHandler }, referralsController.getStats.bind(referralsController));

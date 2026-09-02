@@ -3,9 +3,7 @@ import { randomBytes } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
-import { container } from "tsyringe";
-import type { IEmailProvider } from "@/shared/container/providers/EmailProvider/IEmailProvider";
-import { getFrontendUrl } from "@/shared/constants/env";
+import { enqueueEmail } from "@/shared/infra/queue";
 
 const logger = getModuleLogger("forgot-password");
 const TOKEN_EXPIRY_HOURS = 1;
@@ -37,12 +35,12 @@ export class ForgotPasswordUseCase {
     const token = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
-    await prisma.passwordResetToken.create({
+    const resetRequest = await prisma.passwordResetToken.create({
       data: { email: user.email, token, expiresAt },
     });
 
-    this.sendResetEmail(user.email, token).catch((err) => {
-      logger.error({ err, email: user.email }, "Falha ao enviar e-mail de redefinição");
+    this.sendResetEmail(user.email, token, resetRequest.id).catch((err) => {
+      logger.error({ err }, "Falha ao enfileirar e-mail de redefinição");
     });
 
     return { message: "Se o e-mail existir, você receberá um link de redefinição." };
@@ -62,24 +60,12 @@ export class ForgotPasswordUseCase {
     }
   }
 
-  private async sendResetEmail(email: string, token: string) {
-    const emailProvider = container.resolve<IEmailProvider>("EmailProvider");
-
-    const resetUrl = `${getFrontendUrl()}/reset-password?token=${token}`;
-
-    await emailProvider.send({
-      to: email,
-      subject: "Redefinir sua senha - AgendAI",
-      template: "forgot_password",
-      html: `
-        <h2>Redefinição de Senha</h2>
-        <p>Você solicitou a redefinição da sua senha.</p>
-        <p>Clique no link abaixo para criar uma nova senha:</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-        <p>Este link expira em ${TOKEN_EXPIRY_HOURS} hora.</p>
-        <p>Se você não solicitou esta redefinição, ignore este e-mail.</p>
-      `,
-      text: `Redefinição de Senha\n\nVocê solicitou a redefinição da sua senha.\n\nAcesse: ${resetUrl}\n\nEste link expira em ${TOKEN_EXPIRY_HOURS} hora.\nSe você não solicitou esta redefinição, ignore este e-mail.`,
+  private async sendResetEmail(email: string, token: string, requestId: string) {
+    await enqueueEmail({
+      kind: "forgot_password",
+      email,
+      token,
+      deduplicationKey: `forgot-password:${requestId}`,
     });
   }
 }

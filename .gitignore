@@ -5,6 +5,8 @@ dist
 !.env.example
 !.env.test
 !.env.pentest.example
+# Credenciais GCS reais nunca devem entrar no Git. O arquivo atualmente
+# rastreado precisa ser removido do índice em uma frente coordenada.
 gcs-key.json
 evolution-qrcode.png
 docker-compose.evolution.yml

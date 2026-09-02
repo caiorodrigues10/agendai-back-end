@@ -5,3 +5,10 @@ export { whatsappWorker, startWhatsAppWorker, stopWhatsAppWorker, ensureWhatsApp
 export { emailQueue, emailQueueEvents, enqueueEmail } from './emailQueue';
 export type { EmailJobData } from './emailQueue';
 export { emailWorker, startEmailWorker, stopEmailWorker, ensureEmailWorker } from './emailWorker';
+export { closeNotificationQueue } from './notificationQueue';
+export {
+  dispatchNotificationOutboxNow,
+  startNotificationDispatcher,
+  stopNotificationDispatcher,
+} from './notificationDispatcher';
+export { startNotificationWorker, stopNotificationWorker } from './notificationWorker';

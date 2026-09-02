@@ -1,13 +1,39 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  backend:
+  secrets:
+    name: Secret scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan repository and history with Gitleaks
+        run: >-
+          docker run --rm
+          -v "$GITHUB_WORKSPACE:/repo"
+          zricethezav/gitleaks:v8.24.3
+          detect --source=/repo --redact --no-banner --verbose
+
+  backend:
+    name: Backend and migration integrity
+    needs: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -51,5 +77,13 @@ jobs:
       - run: npx prisma generate
       - run: npx prisma validate
       - run: npx prisma migrate deploy
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Detect schema drift after migrations
+        run: >-
+          npx prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
       - run: npm run typecheck
       - run: npx vitest run

@@ -6,7 +6,7 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 RUN npx prisma generate
@@ -36,4 +36,5 @@ EXPOSE 3333
 
 ENV NODE_ENV=production
 
-CMD ["./docker-entrypoint.sh"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["node", "dist/shared/infra/http/server.js"]

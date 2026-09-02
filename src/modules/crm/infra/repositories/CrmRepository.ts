@@ -149,10 +149,83 @@ export class CrmRepository implements ICrmRepository {
 
   async getClientProfile(barbershopId: string, clientId: string, period?: { from?: Date; to?: Date }): Promise<Record<string, unknown> | null> {
     const range = period?.from || period?.to ? { ...(period.from ? { gte: period.from } : {}), ...(period.to ? { lte: period.to } : {}) } : undefined;
-    const client = await prisma.salonClient.findFirst({ where: { id: clientId, barbershopId }, include: { financialEvents: { where: range ? { occurredAt: range } : undefined, orderBy: { occurredAt: "desc" } }, queueItems: { where: range ? { joinedAt: range } : undefined, orderBy: { joinedAt: "desc" }, take: 100, include: { service: { select: { name: true } } } }, appointments: { where: range ? { date: range } : undefined, orderBy: { date: "desc" }, take: 50, include: { service: { select: { name: true } } } }, fiados: { where: range ? { createdAt: range } : undefined, include: { payments: true }, orderBy: { createdAt: "desc" } }, packages: { where: range ? { purchasedAt: range } : undefined, include: { service: { select: { name: true } } }, orderBy: { purchasedAt: "desc" } } } });
+    const client = await prisma.salonClient.findFirst({
+      where: { id: clientId, barbershopId },
+      include: {
+        financialEvents: {
+          where: range ? { occurredAt: range } : undefined,
+          orderBy: { occurredAt: "desc" },
+          take: 50,
+        },
+        queueItems: {
+          where: { status: "COMPLETED" },
+          orderBy: { completedAt: "desc" },
+          take: 100,
+          include: { service: { select: { name: true } } },
+        },
+        appointments: {
+          orderBy: [{ date: "desc" }, { time: "desc" }],
+          take: 30,
+          include: { service: { select: { name: true } } },
+        },
+        fiados: {
+          include: { payments: true },
+          orderBy: { createdAt: "desc" },
+        },
+        packages: {
+          include: {
+            service: { select: { name: true } },
+            package: { select: { name: true } },
+          },
+          orderBy: { purchasedAt: "desc" },
+        },
+      },
+    });
     if (!client) return null;
-    const metric = buildClientMetrics({ ...client, queueItems: client.queueItems.filter((item: any) => item.status === "COMPLETED").map((item: any) => ({ completedAt: item.completedAt, service: item.service })) });
-    return { ...metric, client: { id: client.id, name: client.name, whatsapp: client.whatsapp, notes: client.notes, marketingOptIn: client.marketingOptIn, marketingOptInAt: client.marketingOptInAt }, timeline: client.financialEvents, appointments: client.appointments, fiados: client.fiados, packages: client.packages };
+    const metric = buildClientMetrics({
+      ...client,
+      queueItems: client.queueItems.map((item: any) => ({ completedAt: item.completedAt, service: item.service })),
+    });
+    return {
+      ...metric,
+      client: {
+        id: client.id,
+        name: client.name,
+        whatsapp: client.whatsapp,
+        notes: client.notes,
+        marketingOptIn: client.marketingOptIn,
+        marketingOptInAt: client.marketingOptInAt,
+      },
+      timeline: client.financialEvents,
+      appointments: client.appointments.map((a: any) => ({
+        id: a.id,
+        date: a.date,
+        time: a.time,
+        status: a.status,
+        serviceName: a.service?.name ?? null,
+      })),
+      fiados: client.fiados.map((f: { id: string; originalAmount: number; paidAmount: number; status: string; createdAt: Date }) => ({
+        id: f.id,
+        amount: f.originalAmount,
+        outstanding: Math.max(0, f.originalAmount - f.paidAmount),
+        status: f.status,
+        createdAt: f.createdAt,
+      })),
+      packages: client.packages.map((p: any) => ({
+        id: p.id,
+        packageId: p.packageId,
+        packageName: p.package?.name ?? null,
+        serviceId: p.serviceId,
+        serviceName: p.service?.name ?? null,
+        totalSessions: p.totalSessions,
+        remainingSessions: p.remainingSessions,
+        status: p.status,
+        purchasedAt: p.purchasedAt,
+        expiresAt: p.expiresAt,
+        pricePaid: p.pricePaid,
+        paymentMethod: p.paymentMethod,
+      })),
+    };
   }
 
   async mergeClients(barbershopId: string, targetId: string, sourceIds: string[]): Promise<void> {

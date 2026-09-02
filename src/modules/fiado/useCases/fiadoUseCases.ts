@@ -255,6 +255,11 @@ export class ChargeFiadoUseCase {
       ),
       instanceName: shop?.evolutionInstanceName?.trim() || undefined,
       deduplicationKey: `fiado-charge:${fiado.id}:${Date.now()}`,
+      notificationType: "FIADO_CHARGE",
+      barbershopId: fiado.barbershopId,
+      clientId: fiado.clientId ?? undefined,
+      sourceType: "FIADO",
+      sourceId: fiado.id,
     });
   }
 }

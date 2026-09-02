@@ -7,6 +7,8 @@ import type {
 	SendEmailInput,
 	SendEmailResult,
 } from '../IEmailProvider'
+import { maskEmail } from '@/modules/notifications/services/notificationSecurity'
+import { sanitizeJsonForStorage } from '@/shared/utils/securitySanitization'
 
 const logger = getModuleLogger('email:resend');
 
@@ -29,7 +31,7 @@ export class ResendEmailProvider implements IEmailProvider {
 	}
 
 	async send(input: SendEmailInput): Promise<SendEmailResult> {
-		const delivery = await prisma.emailDelivery
+		const delivery = input.trackLegacyDelivery === false ? null : await prisma.emailDelivery
 			.create({
 				data: {
 					to: input.to,
@@ -37,7 +39,7 @@ export class ResendEmailProvider implements IEmailProvider {
 					status: 'PENDING',
 					subject: input.subject.slice(0, 200),
 					metadata: input.metadata
-						? JSON.stringify(input.metadata)
+						? sanitizeJsonForStorage(input.metadata, 2000)
 						: null,
 				},
 			})
@@ -50,8 +52,8 @@ const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
 				.map((e) => e.trim().toLowerCase())
 				.filter(Boolean)
 			if (!allowed.includes(input.to.toLowerCase())) {
-				const msg = `E-mail fora da allowlist de desenvolvimento: ${input.to}`
-				logger.warn({ to: input.to }, msg)
+				const msg = 'E-mail fora da allowlist de desenvolvimento'
+				logger.warn({ to: maskEmail(input.to) }, msg)
 				if (delivery) {
 					await prisma.emailDelivery
 						.update({
@@ -66,7 +68,7 @@ const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
 
 const client = this.getClient()
 		if (!client) {
-		logger.warn({ to: input.to, template: input.template }, 'RESEND_API_KEY ausente — skip envio')
+		logger.warn({ to: maskEmail(input.to), template: input.template }, 'RESEND_API_KEY ausente — skip envio')
 		logger.debug({ subject: input.subject }, 'Email subject')
 			if (delivery) {
 				await prisma.emailDelivery

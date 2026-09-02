@@ -109,7 +109,18 @@ export class CrmController {
     if (!clients.length) throw new AppError("Nenhum cliente elegível para esta campanha", 409);
     const campaign = await prisma.crmCampaign.create({ data: { barbershopId: shop, createdById: request.user!.id, name: body.name, segment: body.segment, message: body.message, status: "QUEUED", recipientCount: clients.length, confirmedAt: new Date(), recipients: { create: clients.map((client: any) => ({ clientId: client.id })) } }, include: { recipients: true } });
     const phoneByClient = new Map<string, string>(clients.map((client: { id: string; whatsapp: string }) => [client.id, client.whatsapp]));
-    const queued = await Promise.allSettled(campaign.recipients.map((recipient: any) => enqueueWhatsApp({ phone: phoneByClient.get(recipient.clientId)!, message: body.message, instanceName: barbershop.evolutionInstanceName!, deduplicationKey: `crm-campaign:${campaign.id}:${recipient.id}`, campaignRecipientId: recipient.id })));
+    const queued = await Promise.allSettled(campaign.recipients.map((recipient: any) => enqueueWhatsApp({
+      phone: phoneByClient.get(recipient.clientId)!,
+      message: body.message,
+      instanceName: barbershop.evolutionInstanceName!,
+      deduplicationKey: `crm-campaign:${campaign.id}:${recipient.id}`,
+      campaignRecipientId: recipient.id,
+      notificationType: "CRM_CAMPAIGN",
+      barbershopId: shop,
+      clientId: recipient.clientId,
+      sourceType: "CRM_CAMPAIGN",
+      sourceId: campaign.id,
+    })));
     await Promise.all(queued.map((result, index) => result.status === "rejected"
       ? prisma.crmCampaignRecipient.update({ where: { id: campaign.recipients[index].id }, data: { status: "FAILED", error: "Não foi possível adicionar a mensagem à fila" } })
       : Promise.resolve()));

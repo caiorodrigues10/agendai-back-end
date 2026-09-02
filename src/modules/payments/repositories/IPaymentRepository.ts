@@ -25,12 +25,14 @@ export interface ICreatePaymentRecordDTO {
   pixQrCodeBase64?: string | null;
   pixExpirationDate?: Date | null;
   rawResponse?: string | null;
+  providerSnapshot?: Record<string, unknown> | null;
 }
 
 export interface IUpdatePaymentStatusDTO {
   status: PaymentStatus;
   statusDetail: string;
   rawResponse?: string | null;
+  providerSnapshot?: Record<string, unknown> | null;
 }
 
 export interface IPaymentRepository {

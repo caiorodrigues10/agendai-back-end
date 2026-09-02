@@ -9,11 +9,18 @@ import {
   PaymentProvider,
   PaymentStatus
 } from "../../dtos/IPaymentDTO";
-import { sanitizeJsonForStorage } from "@/shared/utils/securitySanitization";
+import { buildPaymentProviderSnapshot } from "../../services/paymentProviderSnapshot";
 
 // mpPaymentId é BigInt no banco. Serializamos como string para evitar
 // truncamento silencioso de IDs acima de Number.MAX_SAFE_INTEGER (2^53-1).
 function mapToDTO(record: any): IPaymentResponseDTO {
+  const terminal = ["approved", "rejected", "cancelled", "refunded", "charged_back"].includes(
+    record.status,
+  );
+  const expired = Boolean(
+    record.pixExpirationDate && new Date(record.pixExpirationDate).getTime() <= Date.now(),
+  );
+  const pixAvailable = Boolean(record.pixQrCode) && !terminal && !expired;
   return {
     id: record.id,
     mpPaymentId:
@@ -34,24 +41,15 @@ function mapToDTO(record: any): IPaymentResponseDTO {
     externalReference: record.externalReference ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
-    pixQrCode: record.pixQrCode
+    pixQrCode: pixAvailable
       ? {
           qrCode: record.pixQrCode,
           qrCodeBase64: record.pixQrCodeBase64 ?? "",
           expirationDate: record.pixExpirationDate?.toISOString() ?? ""
-        }
-      : null
+      }
+      : null,
+    pixState: pixAvailable ? "AVAILABLE" : expired ? "EXPIRED" : "UNAVAILABLE",
   };
-}
-
-const MAX_RAW_RESPONSE_CHARS = 10_000;
-function truncateRaw(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  let payload: unknown = raw;
-  try { payload = JSON.parse(raw); } catch { /* keep text */ }
-  const sanitized = sanitizeJsonForStorage(payload, MAX_RAW_RESPONSE_CHARS);
-  if (!sanitized) return null;
-  return sanitized.substring(0, MAX_RAW_RESPONSE_CHARS);
 }
 
 export class PaymentRepository implements IPaymentRepository {
@@ -79,7 +77,11 @@ export class PaymentRepository implements IPaymentRepository {
         pixQrCode: data.pixQrCode ?? null,
         pixQrCodeBase64: data.pixQrCodeBase64 ?? null,
         pixExpirationDate: data.pixExpirationDate ?? null,
-        rawResponse: truncateRaw(data.rawResponse)
+        rawResponse: null,
+        providerSnapshot: data.providerSnapshot ?? buildPaymentProviderSnapshot(
+          data.provider ?? "MERCADOPAGO",
+          data.rawResponse,
+        ),
       }
     });
     return mapToDTO(record);
@@ -140,14 +142,29 @@ export class PaymentRepository implements IPaymentRepository {
     id: string,
     data: IUpdatePaymentStatusDTO
   ): Promise<IPaymentResponseDTO> {
+    const current = await prisma.payment.findUniqueOrThrow({
+      where: { id },
+      select: { provider: true },
+    });
+    const terminal = ["approved", "rejected", "cancelled", "refunded", "charged_back"].includes(
+      data.status,
+    );
     const record = await prisma.payment.update({
       where: { id },
       data: {
         status: data.status,
         statusDetail: data.statusDetail,
-        ...(data.rawResponse !== undefined && {
-          rawResponse: truncateRaw(data.rawResponse)
-        })
+        ...(data.rawResponse !== undefined || data.providerSnapshot !== undefined
+          ? {
+              rawResponse: null,
+              providerSnapshot:
+                data.providerSnapshot ??
+                buildPaymentProviderSnapshot(current.provider as PaymentProvider, data.rawResponse),
+            }
+          : {}),
+        ...(terminal
+          ? { pixQrCode: null, pixQrCodeBase64: null, pixExpirationDate: null }
+          : {}),
       }
     });
     return mapToDTO(record);

@@ -55,6 +55,9 @@ export class SubmitContactMessageUseCase {
             `\n\n${input.message.slice(0, 500)}`,
           platform: true,
           deduplicationKey: `contact:${notification.id}`,
+          notificationType: "CONTACT_ALERT",
+          sourceType: "ADMIN_NOTIFICATION",
+          sourceId: notification.id,
         });
       } catch {
         /* alerta WhatsApp não bloqueia o contato */

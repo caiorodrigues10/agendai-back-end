@@ -8,17 +8,25 @@ import { schedulePostPublisher } from "@/shared/infra/cron/postPublisher.cron";
 import { scheduleTrialCardCharges } from "@/shared/infra/cron/trialCardCharges.cron";
 import { scheduleCleanOldLogs } from "@/shared/infra/cron/cleanOldLogs.cron";
 import { scheduleDailyWeatherLog } from "@/shared/infra/cron/dailyWeatherLog.cron";
+import { scheduleCleanupExpiredPix } from "@/shared/infra/cron/cleanupExpiredPix.cron";
+import { scheduleRefundReconciliation } from "@/shared/infra/cron/refundReconciliation.cron";
 import {
   startWhatsAppWorker,
   startEmailWorker,
   stopWhatsAppWorker,
   stopEmailWorker,
+  startNotificationDispatcher,
+  startNotificationWorker,
+  stopNotificationDispatcher,
+  stopNotificationWorker,
+  closeNotificationQueue,
 } from "@/shared/infra/queue";
 import { cleanupTimers as cleanupBruteForceTimers } from "@/shared/services/bruteForceProtection";
 import { initSentry } from "@/shared/utils/sentry";
 import { initTracing } from "@/shared/utils/tracing";
 import { logger, getModuleLogger } from "@/shared/utils/logger";
-import { shouldRunCrons, shouldRunWorkers, shouldRunApi } from "@/shared/config/processRole";
+import { getProcessRole, shouldRunCrons, shouldRunWorkers, shouldRunApi } from "@/shared/config/processRole";
+import { startProcessHeartbeats, stopProcessHeartbeats } from "@/shared/infra/queue/processHeartbeat";
 
 initSentry();
 const tracing = initTracing();
@@ -30,12 +38,15 @@ const port = Number(process.env.PORT || 3333);
 const serverLogger = getModuleLogger('server');
 
 async function start() {
-  const role = process.env.PROCESS_ROLE || 'all';
+  const role = getProcessRole();
   serverLogger.info({ role }, 'Starting with process role');
+  await startProcessHeartbeats(role);
 
   if (shouldRunWorkers()) {
     await startEmailWorker();
     await startWhatsAppWorker();
+    await startNotificationWorker();
+    await startNotificationDispatcher();
   }
 
   if (!shouldRunApi()) {
@@ -58,8 +69,12 @@ async function start() {
     const shutdown = async () => {
       serverLogger.info("Shutting down...");
       cleanupBruteForceTimers();
+      stopProcessHeartbeats();
       await stopEmailWorker().catch((err) => serverLogger.error({ err }, 'Failed to stop email worker'));
       await stopWhatsAppWorker();
+      await stopNotificationDispatcher();
+      await stopNotificationWorker();
+      await closeNotificationQueue();
       await app.close();
       if (tracing) {
         await tracing.shutdown();
@@ -84,8 +99,12 @@ function startBackgroundOnly() {
   // We just keep the process alive and handle shutdown.
   const shutdown = async () => {
     serverLogger.info("Shutting down worker...");
+    stopProcessHeartbeats();
     await stopEmailWorker().catch((err) => serverLogger.error({ err }, 'Failed to stop email worker'));
     await stopWhatsAppWorker();
+    await stopNotificationDispatcher();
+    await stopNotificationWorker();
+    await closeNotificationQueue();
     if (tracing) {
       await tracing.shutdown();
     }
@@ -107,6 +126,8 @@ function registerCrons(log: CronLog): void {
     ['cobrança pós-trial', () => scheduleTrialCardCharges(log)],
     ['limpeza de logs', () => scheduleCleanOldLogs(log)],
     ['daily weather log', () => scheduleDailyWeatherLog(log)],
+    ['limpeza de QR Codes PIX', () => scheduleCleanupExpiredPix(log)],
+    ['reconciliação de estornos', () => scheduleRefundReconciliation(log)],
   ] as const;
 
   for (const [name, startJob] of jobs) {

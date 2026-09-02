@@ -18,6 +18,7 @@ import {
 import { validateEmail } from "@/shared/services/emailValidationService";
 import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 
 const logger = getModuleLogger("register");
 
@@ -96,6 +97,7 @@ export class RegisterUseCase {
         data: {
           name: data.barbershopName,
           whatsapp: data.whatsapp.replace(/\D/g, ""),
+          approvalStatus: "APPROVED",
           ...(normalizedCnpj ? { cnpj: normalizedCnpj } : {}),
           ...(data.address ? { address: data.address.trim() } : {}),
           ...(data.city ? { city: data.city.trim() } : {}),
@@ -104,52 +106,8 @@ export class RegisterUseCase {
         },
       });
 
-      // Serviços iniciais — mix comum em salão / barbearia / unissex
-      await tx.service.createMany({
-        data: [
-          {
-            barbershopId: barbershop.id,
-            name: "Corte",
-            price: 45,
-            avgTimeMinutes: 30,
-            icon: "scissors",
-          },
-          {
-            barbershopId: barbershop.id,
-            name: "Escova",
-            price: 40,
-            avgTimeMinutes: 40,
-            icon: "sparkles",
-          },
-          {
-            barbershopId: barbershop.id,
-            name: "Barba",
-            price: 30,
-            avgTimeMinutes: 20,
-            icon: "razor",
-          },
-        ],
-      });
-
-      // Horário de funcionamento — fallback seguro se o campo não vier
-      const DEFAULT_SCHEDULE = [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
-        dayOfWeek,
-        isOpen: dayOfWeek !== 0,
-        openTime: "09:00",
-        closeTime: "19:00",
-      }));
-      const scheduleToCreate =
-        data.schedule?.length === 7 ? data.schedule : DEFAULT_SCHEDULE;
-
-      await tx.schedule.createMany({
-        data: scheduleToCreate.map((s) => ({
-          barbershopId: barbershop.id,
-          dayOfWeek: s.dayOfWeek,
-          isOpen: s.isOpen,
-          openTime: s.openTime,
-          closeTime: s.closeTime,
-        })),
-      });
+      // Serviços e horários iniciais
+      await seedBarbershopDefaults(tx, barbershop.id, data.schedule);
 
       const created = await tx.user.create({
         data: {

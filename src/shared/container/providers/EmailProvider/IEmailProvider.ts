@@ -15,6 +15,8 @@ export interface SendEmailInput {
 	template: EmailTemplateId
 	/** Metadados opcionais (JSON-serializáveis) */
 	metadata?: Record<string, unknown>
+	/** Compatibilidade: o ledger V2 ja registra a entrega. */
+	trackLegacyDelivery?: boolean
 }
 
 export interface SendEmailResult {

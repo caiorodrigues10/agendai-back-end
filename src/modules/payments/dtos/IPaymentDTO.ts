@@ -108,6 +108,7 @@ export interface IPaymentResponseDTO {
   createdAt: Date;
   updatedAt: Date;
   pixQrCode?: IPixQrCodeDTO | null;
+  pixState?: "AVAILABLE" | "EXPIRED" | "UNAVAILABLE";
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

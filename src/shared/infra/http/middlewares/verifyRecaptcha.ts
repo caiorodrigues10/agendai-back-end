@@ -53,6 +53,10 @@ export async function verifyRecaptcha(
 
   const { recaptchaToken } = request.body as { recaptchaToken?: string };
   if (!recaptchaToken) {
+    if (!isProduction) {
+      logger.warn({ ip: request.ip }, "recaptchaToken ausente em desenvolvimento — ignorando");
+      return;
+    }
     logger.warn({ ip: request.ip }, "recaptchaToken ausente");
     throw new AppError("Não foi possível validar a proteção antiabuso.", 400, undefined, "RECAPTCHA_REQUIRED");
   }

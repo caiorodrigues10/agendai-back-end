@@ -1,143 +1,143 @@
-# Runbook: Aplicar migrations do backend em Staging/Produção
+# Runbook de migrations — staging e produção
 
----
+## Estado conhecido
 
-## ⚠️ AÇÃO DESTRUTIVA PENDENTE DE APROVAÇÃO HUMANA
+O banco de produção já está baselined: as migrations versionadas atuais possuem
+registro concluído em `_prisma_migrations`. O bootstrap normal deve executar
+somente `prisma migrate deploy`.
 
-A migration `20260828000000_fix_schema_drift` contém duas operações **irreversíveis**:
+Não existe baseline automático. `prisma migrate resolve` não faz parte do
+startup, deploy ou recuperação automática.
 
-1. **DROP TABLE `password_reset_otps`** — remove permanentemente a tabela.
-2. **ALTER TABLE `users` DROP COLUMN `phone`** — remove permanentemente a coluna.
+## Invariantes
 
-**NÃO execute esta migration em staging ou produção sem que uma pessoa real
-tenha confirmado por escrito que concorda com a remoção dessas duas estruturas.**
+- Nunca usar `prisma db push` fora de desenvolvimento descartável.
+- Apenas o processo `PROCESS_ROLE=api` pode receber `RUN_MIGRATIONS=true`.
+- Worker e scheduler usam sempre `RUN_MIGRATIONS=false`.
+- Exatamente uma instância da API executa migrations durante o deploy.
+- Uma falha de migration interrompe o startup; não iniciar a aplicação com
+  schema potencialmente incompleto.
+- Não editar uma migration que já tenha sido aplicada. Criar outra migration.
+- Mudanças destrutivas exigem expand/contract e rollback de aplicação compatível.
 
-A migration foi escrita com guardas de segurança (`RAISE EXCEPTION`) que abortam
-se houver dados nelas, mas a confirmação de que a estrutura deve ser removida
-é uma decisão de negócio que não pode ser automatizada.
+## Fluxo de deploy
 
-Status: **PENDENTE DE APROVAÇÃO** — confirme antes de `prisma migrate deploy`.
+### 1. Preparação
 
----
+1. Confirmar CI verde, inclusive Gitleaks, `prisma validate`, deploy em banco
+   vazio, `migrate status` e `migrate diff`.
+2. Confirmar que a migration foi aplicada em staging e que o smoke passou.
+3. Criar backup `pg_dump --format=custom` e registrar seu identificador.
+4. Para migrations destrutivas, validar previamente as guardas e o plano de
+   restauração.
 
-## Contexto
-
-O commit `feeb155` adicionou uma migration baseline (`20260726000000_init`) que
-executa `CREATE TABLE` para ~30 tabelas. Essas tabelas JÁ EXISTEM em todo banco
-real do projeto (dev, staging, produção) — foram criadas originalmente via
-`prisma db push`.
-
-Se alguém rodar `prisma migrate deploy` sem preparação, a migration baseline vai
-tentar criar tabelas duplicadas e o deploy vai **falhar**.
-
-## ORDEM DOS PASSOS (a ordem importa!)
-
-### 1. Backup
-
-```bash
-# Produção (ajustar host/porta/credenciais conforme seu provedor)
-pg_dump -h <HOST> -p 5432 -U <USER> -d agendai -F c -f backup_pre_baseline_$(date +%Y%m%d).dump
-
-# Staging (se aplicável)
-pg_dump -h <HOST> -p 5432 -U <USER> -d agendai_staging -F c -f backup_pre_baseline_staging_$(date +%Y%m%d).dump
-```
-
-### 2. Marcar a baseline como aplicada (SEM executar)
-
-**Este passo DEVE ser feito ANTES de qualquer `migrate deploy`.**
+Exemplo de backup, sem colocar credenciais na linha de comando:
 
 ```bash
-# Conectado ao banco de staging/produção:
-cd backend
-npx prisma migrate resolve --applied 20260726000000_init
+export PGHOST='<host>' PGPORT='5432' PGUSER='<user>' PGDATABASE='<database>'
+pg_dump --format=custom --file="backup_pre_deploy_$(date +%Y%m%d_%H%M%S).dump"
 ```
 
-Isso registra no `_prisma_migrations` que a baseline já foi satisfeita,
-sem executar nenhum `CREATE TABLE`. As tabelas existentes permanecem intactas.
+Forneça a senha por mecanismo seguro do provedor ou `PGPASSFILE`; não registre
+URLs com senha em tickets, logs ou histórico do shell.
 
-### 3. Aplicar as migrations pendentes reais
+### 2. Pré-validação
+
+Em staging e produção:
+
+```bash
+npx prisma validate
+npx prisma migrate status
+```
+
+`migrate status` pode indicar migrations pendentes, mas não pode indicar
+migration falha, divergente ou ausente no repositório.
+
+Para inspecionar drift sem imprimir SQL ou dados do banco:
+
+```bash
+npx prisma migrate diff \
+  --from-url "$DATABASE_URL" \
+  --to-schema-datamodel prisma/schema.prisma \
+  --exit-code
+```
+
+O código `0` significa ausência de diferença; `2` significa que existe drift e
+o deploy deve ser interrompido para investigação.
+
+### 3. Aplicação
+
+O container da API aplica a migration pelo entrypoint quando configurado assim:
+
+```text
+PROCESS_ROLE=api
+RUN_MIGRATIONS=true
+```
+
+Não configure Start Command no Render: utilize o `ENTRYPOINT` e o `CMD` da
+imagem. Worker e scheduler devem permanecer com `RUN_MIGRATIONS=false`.
+
+O comando executado é estrito:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-As migrations pendentes reais são:
-- `20260827000000_add_user_avatar` — adiciona coluna `avatarUrl` na tabela `users`
-- `20260827190000_fix_rls_unset_guc` — corrige RLS policies para tratar NULL no GUC
-- `20260828000000_fix_schema_drift` — corrige drifts entre schema.prisma e banco:
-  * Corrige tipos em `password_reset_tokens` (TEXT → UUID/VARCHAR)
-  * Adiciona coluna `videoUrl` em `feed_posts` (se ausente)
-   * Remove tabela `password_reset_otps` (ABORTA se contiver dados)
-   * Remove coluna `phone` de `users` (ABORTA se contiver valores não-nulos)
+Se falhar, o processo encerra com status diferente de zero. Não reinicie com
+flags de bypass e não marque migrations como aplicadas para liberar o deploy.
 
-### 4. Validar
+### 4. Pós-validação
 
 ```bash
 npx prisma migrate status
+npx prisma migrate diff \
+  --from-url "$DATABASE_URL" \
+  --to-schema-datamodel prisma/schema.prisma \
+  --exit-code
 ```
 
-Deve mostrar: **"Database schema is up to date!"**
+Depois valide `/ready`, `/health` e os smokes de autenticação, trial, pagamento,
+fila, agenda pública e fechamento de atendimento.
 
-### 5. Verificar funcionamento da aplicação
+Registre commit, migration aplicada, horário, backup e resultado do smoke.
+
+## Uso excepcional de `migrate resolve`
+
+`prisma migrate resolve` é uma ferramenta manual de reparo, não de bootstrap.
+Só pode ser usado quando todos estes itens forem verdadeiros:
+
+1. há incidente formal e responsável humano identificado;
+2. existe backup restaurável;
+3. o conteúdo SQL e o checksum da migration foram revisados;
+4. evidência estrutural comprova que o banco já contém exatamente a mudança;
+5. o comando e seu efeito foram ensaiados em clone sanitizado;
+6. a aprovação foi registrada no ticket do incidente.
+
+Exemplo deliberadamente incompleto:
 
 ```bash
-# Confirmar que a API sobe e responde
-curl -s http://localhost:3333/health | jq .
-# Deve retornar: { "status": "ok", ... }
+# INCIDENTE APROVADO APENAS — não copiar para startup ou CI
+npx prisma migrate resolve --applied <migration_exatamente_verificada>
 ```
 
-## ⚠️ NOTAS IMPORTANTES
+Nunca executar um loop de `resolve`, nunca usar `|| true` e nunca inferir que
+todo erro `migrate deploy` seja P3005.
 
-- **NUNCA** rodar `prisma migrate deploy` sem antes marcar o baseline como
-  applied. O deploy vai falhar com erro "relation already exists".
-- **NUNCA** rodar `prisma db push` em produção. O `db push` desabilita o
-  tracking de migrations e pode causar drift silencioso.
-- O banco de **dev local** já foi protegido com `migrate resolve --applied`.
-  Não precisa repetir esse passo.
-- Se o `migrate deploy` falhar em algum passo, o banco fica em estado
-  inconsistente. Restaure do backup e tente novamente.
-- A migration `20260828000000_fix_schema_drift` usa SQL condicional (`DO`
-  blocks) para ser idempotente — funciona tanto em bancos com drift quanto
-  em bancos limpos (fresh). Operações destrutivas possuem guardas `RAISE
-  EXCEPTION` que abortam se houver dados reais.
+## Falhas e recuperação
 
-## Drift corrigido pela migration `20260828000000_fix_schema_drift`
+- Migration falhou antes de alteração: corrigir a causa e repetir o deploy.
+- Migration parcialmente aplicada: interromper rollout, preservar logs
+  sanitizados e seguir o procedimento oficial do Prisma para a migration exata.
+- Aplicação incompatível após migration aditiva: voltar a versão da aplicação;
+  não reverter schema automaticamente.
+- Migration destrutiva aplicada: bloquear novas escritas e executar o plano de
+  restauração aprovado para aquela migration.
+- Drift detectado: não usar `db push`; gerar diagnóstico, comparar com staging e
+  criar migration corretiva versionada.
 
-### password_reset_tokens
+## Escala horizontal
 
-A migration `20260826160000` cria a tabela com tipos `TEXT` para `id`, `email`,
-`token`. O `schema.prisma` atual define `id` como UUID, `email` como VARCHAR(100),
-`token` como VARCHAR(64). A migration `20260828000000` corrige isso com SQL
-condicional que só executa se os tipos ainda estiverem como TEXT.
-
-### Coluna `userId` (UUID, FK → users)
-
-Existia no banco de dev local mas NUNCA existiu em nenhuma migration nem no
-`schema.prisma`. Nenhum código usava essa coluna (nem Prisma Client, nem SQL raw).
-Foi um vestígio de implementação abandonada. **Removida via SQL direto em
-2026-08-28** (cirurgia manual) e agora formalizada na migration.
-
-### Outros drifts corrigidos pela migration
-
-- `feed_posts.videoUrl` — estava ausente do banco dev mas presente no schema.prisma.
-  A migration adiciona a coluna com `IF NOT EXISTS` (idempotente).
-- `users.phone` — existia no banco dev mas NÃO existe no schema.prisma e nenhum
-  código usa `User.phone` (os `.phone` no código são `card.phone`, `input.phone`,
-  etc.). A migration verifica se há valores não-nulos; se houver, **aborta com
-  RAISE EXCEPTION** em vez de apagar silenciosamente.
-- `password_reset_otps` — tabela existia no banco dev mas NUNCA existiu no
-  `schema.prisma` e nenhum código a referencía. A migration verifica se há
-  linhas na tabela; se houver, **aborta com RAISE EXCEPTION** em vez de apagar
-  silenciosamente.
-
-### Recomendação para staging/produção
-
-Antes de deploy, rodar o diff estrutural contra cada banco para mapear drifts:
-```bash
-npx prisma migrate diff --from-url "postgresql://..." --to-schema-datamodel prisma/schema.prisma --script
-```
-
-## Contato
-
-Em caso de dúvida, entre em contato com o time antes de executar qualquer passo
-em produção.
+Enquanto `RUN_MIGRATIONS=true` estiver no serviço API, mantenha uma única
+instância durante a etapa de migration. Antes de escalar a API, conclua o deploy
+e altere `RUN_MIGRATIONS=false`, ou use um job de pre-deploy único que execute o
+mesmo entrypoint com `PROCESS_ROLE=api`.

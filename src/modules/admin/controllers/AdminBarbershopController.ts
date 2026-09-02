@@ -1,8 +1,9 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { prisma } from "@/libs/prismaClient";
+import { prisma, Prisma } from "@/libs/prismaClient";
 import { container } from "tsyringe";
 import { CreateBarbershopUseCase } from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopUseCase";
 import { adminUpdateBarbershopStatusSchema, adminCreateBarbershopSchema, adminListBarbershopsQuerySchema } from "../schemas/adminSchemas";
+import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 
 export class AdminBarbershopController {
   async list(request: FastifyRequest, reply: FastifyReply) {
@@ -80,11 +81,15 @@ export class AdminBarbershopController {
     const useCase = container.resolve(CreateBarbershopUseCase);
     const barbershopData = await useCase.execute({ name, whatsapp, cnpj: cnpj ?? undefined });
 
-    // Aplica campos extras que só o admin pode definir (address, active, approvalStatus)
-    const barbershop = await prisma.barbershop.update({
-      where: { id: barbershopData.id },
-      data: { address: address ?? undefined, active, approvalStatus: 'APPROVED' },
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await seedBarbershopDefaults(tx, barbershopData.id);
+      await tx.barbershop.update({
+        where: { id: barbershopData.id },
+        data: { address: address ?? undefined, active, approvalStatus: "APPROVED" },
+      });
     });
+
+    const barbershop = await prisma.barbershop.findUniqueOrThrow({ where: { id: barbershopData.id } });
 
     if (request.user) {
       await prisma.auditLog.create({

@@ -35,9 +35,15 @@ export function scheduleCleanOldLogs(log?: { info: (msg: any) => void; error: (e
         const audit = await cleanTable("audit_logs");
         const access = await cleanTable("access_logs");
         const errors = await cleanTable("error_logs");
+        const notificationPayloads = await prisma.notificationOutbox.deleteMany({
+          where: { purgeAfter: { lte: new Date() } },
+        });
         const total = audit + access + errors;
         if (total > 0) {
           (log ?? console).info(`[CleanOldLogs] Removed ${total} old log records (audit=${audit}, access=${access}, error=${errors})`);
+        }
+        if (notificationPayloads.count > 0) {
+          (log ?? console).info(`[CleanOldLogs] Removed ${notificationPayloads.count} expired encrypted notification payloads`);
         }
       } catch (err) {
         (log ?? console).error(err, "[CleanOldLogs] Failed to clean old logs");

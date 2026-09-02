@@ -52,6 +52,7 @@ export async function notifyCustomerJoinedQueue(
     barbershopId: string;
     customerName: string;
     whatsapp: string;
+    clientId?: string | null;
   },
   queueRepository: IQueueRepository,
   barbershopRepository: IBarbershopRepository
@@ -82,6 +83,11 @@ export async function notifyCustomerJoinedQueue(
     ),
     instanceName,
     deduplicationKey: `join-customer:${item.id}`,
+    notificationType: "QUEUE_JOINED_CLIENT",
+    barbershopId: item.barbershopId,
+    clientId: item.clientId ?? undefined,
+    sourceType: "QUEUE_ITEM",
+    sourceId: item.id,
   });
   await queueRepository.markNotifiedPosition(item.id, position);
 }
@@ -160,6 +166,11 @@ export class NotifyQueuePositionUpdatesUseCase {
         message,
         instanceName,
         deduplicationKey: `position:${barbershopId}:${item.id}:${position}`,
+        notificationType: position === 1 ? "QUEUE_CALLED" : "QUEUE_POSITION",
+        barbershopId,
+        clientId: item.clientId ?? undefined,
+        sourceType: "QUEUE_ITEM",
+        sourceId: item.id,
       }).then(() => true).catch((err) => { logger.error({ err }, 'Failed to enqueue WhatsApp position update'); return false; });
       if (ok) {
         await this.queueRepository.markNotifiedPosition(item.id, position);

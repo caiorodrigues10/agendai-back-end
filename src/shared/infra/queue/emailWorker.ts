@@ -9,7 +9,7 @@ import {
   buildReferralConvertedEmail,
   buildReferralRevokedEmail,
 } from "@/modules/email/templates/referralEmails";
-import { buildVerifyEmail } from "@/modules/email/templates/authEmails";
+import { buildForgotPasswordEmail, buildVerifyEmail } from "@/modules/email/templates/authEmails";
 import { getModuleLogger } from "@/shared/utils/logger";
 
 const logger = getModuleLogger('queue:email');
@@ -17,7 +17,7 @@ const logger = getModuleLogger('queue:email');
 const QUEUE_NAME = "email";
 const IDLE_TIMEOUT_MS = 60_000;
 
-function buildEmailPayload(data: EmailJobData) {
+export function buildEmailPayload(data: EmailJobData) {
   switch (data.kind) {
     case "welcome":
       return buildWelcomeEmail(data);
@@ -27,6 +27,8 @@ function buildEmailPayload(data: EmailJobData) {
       return buildReferralConvertedEmail(data);
     case "verify_email":
       return buildVerifyEmail(data);
+    case "forgot_password":
+      return buildForgotPasswordEmail(data);
     case "referral_revoked":
       return buildReferralRevokedEmail(data);
     default: {

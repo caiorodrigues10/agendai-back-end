@@ -2,6 +2,7 @@ import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { sendWhatsAppMessage } from "@/shared/services/whatsappNotificationService";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
+import { getNotificationV2Mode } from "@/modules/notifications/services/notificationDeliveryService";
 import { prisma } from "@/libs/prismaClient";
 import { AdvisoryLock } from "@/shared/infra/redis/advisoryLock";
 import { IAppointmentRepository } from "../repositories/IAppointmentRepository";
@@ -505,8 +506,15 @@ export class SendAppointmentRemindersUseCase {
           message: mainMessage,
           instanceName,
           deduplicationKey: `reminder:${appt.id}`,
+          notificationType: "APPOINTMENT_REMINDER",
+          barbershopId: appt.barbershopId,
+          clientId: appt.clientId ?? undefined,
+          sourceType: "APPOINTMENT",
+          sourceId: appt.id,
         });
-        await this.repo.markReminderSent(appt.id);
+        if (getNotificationV2Mode() !== "active") {
+          await this.repo.markReminderSent(appt.id);
+        }
         sent++;
 
         if (estimate.peopleAhead > 0) {
@@ -517,6 +525,11 @@ export class SendAppointmentRemindersUseCase {
               message: queueMsg,
               instanceName,
               deduplicationKey: `reminder-queue:${appt.id}`,
+              notificationType: "APPOINTMENT_QUEUE_UPDATE",
+              barbershopId: appt.barbershopId,
+              clientId: appt.clientId ?? undefined,
+              sourceType: "APPOINTMENT",
+              sourceId: appt.id,
             });
           } catch {
             queueMessagesFailed++;

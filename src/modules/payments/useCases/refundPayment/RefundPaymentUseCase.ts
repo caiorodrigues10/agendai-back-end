@@ -8,6 +8,8 @@ import { cancelSubscriptionForBarbershop } from "@/modules/subscriptions/service
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import { revokeReferralOnCancellation } from "@/modules/referrals/services/referralService";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { buildPaymentProviderSnapshot } from "../../services/paymentProviderSnapshot";
+import { sanitizeNotificationError } from "@/modules/notifications/services/notificationSecurity";
 
 const logger = getModuleLogger('payments:refund');
 
@@ -27,7 +29,8 @@ export class RefundPaymentUseCase {
   async execute(
     paymentId: string,
     reason: string,
-    admin: { id: string; role: string }
+    admin: { id: string; role: string },
+    idempotencyKey = `internal:${paymentId}:${admin.id}`,
   ) {
     const payment = await prisma.payment.findUnique({
       where: { id: paymentId },
@@ -51,8 +54,13 @@ export class RefundPaymentUseCase {
       );
     }
 
+    const sameRequest = await prisma.refund.findUnique({
+      where: { paymentId_idempotencyKey: { paymentId, idempotencyKey } },
+    });
+    if (sameRequest) return sameRequest;
+
     const existingRefund = await prisma.refund.findFirst({
-      where: { paymentId, status: "SUCCEEDED" },
+      where: { paymentId, status: { in: ["SUCCEEDED", "RECONCILIATION_REQUIRED"] } },
     });
     if (existingRefund) {
       throw new AppError("Pagamento já reembolsado", 400);
@@ -79,12 +87,13 @@ export class RefundPaymentUseCase {
         status: "PENDING",
         provider: payment.provider,
         requestedById: admin.id,
+        idempotencyKey,
       },
     });
 
+    let providerResponse: { refundId: string; status: string; raw: unknown } | null = null;
+    let providerConfirmed = false;
     try {
-      let providerResponse: { refundId: string; status: string; raw: unknown };
-
       if (payment.provider === "ABACATEPAY") {
         const res = await this.abacateService.refundCheckout(
           providerIdentifier,
@@ -106,6 +115,7 @@ export class RefundPaymentUseCase {
           raw: res,
         };
       }
+      providerConfirmed = true;
 
       const subscription = await prisma.subscription.findUnique({
         where: { barbershopId: payment.barbershopId },
@@ -130,7 +140,8 @@ export class RefundPaymentUseCase {
           data: {
             status: "refunded",
             statusDetail: "refunded_by_admin",
-            rawResponse: JSON.stringify(providerResponse.raw),
+            rawResponse: null,
+            providerSnapshot: buildPaymentProviderSnapshot(payment.provider, providerResponse.raw),
           },
         }),
         prisma.invoice.updateMany({
@@ -144,7 +155,7 @@ export class RefundPaymentUseCase {
 
       if (invoiceMatch) {
         transaction.push(
-          prisma.invoice.update({
+          prisma.invoice.updateMany({
             where: { id: invoiceMatch[2] },
             data: { status: "CANCELLED" },
           })
@@ -204,20 +215,32 @@ export class RefundPaymentUseCase {
         .catch((err: unknown) => logger.error({ err }, 'Failed to create audit log'));
 
       return prisma.refund.findUniqueOrThrow({ where: { id: refund.id } });
-    } catch (error: any) {
-      const message =
-        error instanceof AppError
-          ? error.message
-          : error?.message ?? "Erro desconhecido";
+    } catch (error: unknown) {
+      const message = sanitizeNotificationError(error).message;
 
       await prisma.refund
         .update({
           where: { id: refund.id },
-          data: { status: "FAILED", errorMessage: message },
+          data: providerConfirmed && providerResponse
+            ? {
+                status: "RECONCILIATION_REQUIRED",
+                providerRefundId: providerResponse.refundId,
+                errorMessage: null,
+                lastReconciliationError: message,
+                nextReconciliationAt: new Date(Date.now() + 60_000),
+              }
+            : { status: "FAILED", errorMessage: message },
         })
         .catch((err: unknown) => logger.error({ err }, 'Failed to update refund status to FAILED'));
 
-      throw new AppError(message, 422);
+      throw new AppError(
+        providerConfirmed
+          ? "O provedor confirmou o estorno, mas a conciliação local está pendente. Não repita a operação."
+          : message,
+        providerConfirmed ? 503 : 422,
+        undefined,
+        providerConfirmed ? "REFUND_RECONCILIATION_REQUIRED" : undefined,
+      );
     }
   }
 }

@@ -1,18 +1,20 @@
-version: '3.8'
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  env_file:
+    - .env
+  init: true
+  stop_grace_period: 30s
 
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: agendai_api
-    restart: unless-stopped
-    env_file:
-      - .env
+    <<: *app
     environment:
-      # Sobrescritas para produção
       NODE_ENV: production
-      # DATABASE_URL e REDIS_URL vêm do .env
+      PROCESS_ROLE: api
+      RUN_MIGRATIONS: "true"
     ports:
       - "3333:3333"
     depends_on:
@@ -20,29 +22,42 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # /ready: retorna 503 quando DB ou Redis estão indisponíveis → container restarta.
-    # /health: sempre retorna 200 (informativo) — NÃO usar para HEALTHCHECK.
+    # /ready retorna 503 enquanto PostgreSQL ou Redis estiver indisponível.
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3333/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    command: >
-      sh -c "
-        npx prisma migrate deploy &&
-        node dist/shared/infra/http/server.js
-      "
+
+  worker:
+    <<: *app
+    environment:
+      NODE_ENV: production
+      PROCESS_ROLE: worker
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  scheduler:
+    <<: *app
+    environment:
+      NODE_ENV: production
+      PROCESS_ROLE: scheduler
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      api:
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine
-    container_name: agendai_db
     restart: unless-stopped
     env_file:
       - .env
     environment:
       POSTGRES_USER: agendai
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: agendai
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -54,11 +69,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: agendai_redis
     restart: unless-stopped
-    env_file:
-      - .env
-    # REDIS_URL já no .env, mas mantém compatibilidade
     volumes:
       - redisdata:/data
     healthcheck:
