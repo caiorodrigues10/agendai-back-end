@@ -39,7 +39,7 @@ export class JoinQueueUseCase {
 
     const whatsappDigits = data.whatsapp.replace(/\D/g, "");
     const customerId = data.customerId ?? randomUUID();
-    const activeIdentityKey = computeIdentityKey(data.whatsapp, data.customerName);
+    const activeIdentityKey = computeIdentityKey(data.whatsapp, data.customerName, customerId);
 
     const existingByCustomer = await this.queueRepository.findActiveDuplicate(
       data.barbershopId,

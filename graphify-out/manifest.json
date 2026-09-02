@@ -720,8 +720,8 @@
     "semantic_hash": ""
   },
   "src/modules/queue/useCases/joinQueue/JoinQueueUseCase.ts": {
-    "mtime": 1788311520.0302684,
-    "ast_hash": "da5582e05a755aabd9f0a0856c60c614",
+    "mtime": 1788314863.5556905,
+    "ast_hash": "67ca87b978d68ceb292605766e7a9485",
     "semantic_hash": ""
   },
   "src/modules/queue/useCases/listQueue/ListQueueController.ts": {
@@ -750,8 +750,8 @@
     "semantic_hash": ""
   },
   "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts": {
-    "mtime": 1788277006.5753195,
-    "ast_hash": "ceafea064ad1e4c435513c28ecd712ae",
+    "mtime": 1788314863.5576913,
+    "ast_hash": "b204b456c54d6a0d804ca25853c84fb9",
     "semantic_hash": ""
   },
   "src/modules/referrals/controllers/ReferralsController.ts": {
@@ -1230,8 +1230,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/queue.routes.ts": {
-    "mtime": 1788311828.901822,
-    "ast_hash": "3888346f41a7b783c246b174bd967a9e",
+    "mtime": 1788314775.5197673,
+    "ast_hash": "d9ad0e20d3fa43fdd80ea50ff4e3f54d",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/referrals.routes.ts": {
@@ -1250,8 +1250,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/server.ts": {
-    "mtime": 1788314650.8239381,
-    "ast_hash": "00e787a6f262569694f6b3925bcb6716",
+    "mtime": 1788314704.7836108,
+    "ast_hash": "c6852c064ff42b3def2494e8b6711373",
     "semantic_hash": ""
   },
   "src/shared/infra/queue/emailQueue.ts": {
@@ -2289,19 +2289,9 @@
     "ast_hash": "f16bde037e2cb5d2f16a45679fce4192",
     "semantic_hash": ""
   },
-  "src/modules/queue/useCases/completeService/CompleteServiceController.ts": {
-    "mtime": 1788311789.4580624,
-    "ast_hash": "4a20c47f23d081dae4aee73a76e93206",
-    "semantic_hash": ""
-  },
-  "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts": {
-    "mtime": 1788311769.5742218,
-    "ast_hash": "822d13a1cf030659e51cdf9e697bc5a4",
-    "semantic_hash": ""
-  },
   "src/modules/queue/utils/identityKey.ts": {
-    "mtime": 1788311499.6599085,
-    "ast_hash": "66be020308f55682e81ad391b7ba0ce4",
+    "mtime": 1788314863.553685,
+    "ast_hash": "281b53dff5ec54bf7e8744d6100ad4e6",
     "semantic_hash": ""
   },
   "src/modules/users/controllers/AccountDeletionRequestController.ts": {

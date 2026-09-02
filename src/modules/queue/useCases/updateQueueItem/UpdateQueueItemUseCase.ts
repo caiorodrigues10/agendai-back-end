@@ -37,19 +37,21 @@ export class UpdateQueueItemUseCase {
     assertQueueTenantAccess(item.barbershopId, requestingUser);
     const nextStatus = parseQueueStatus(statusRaw);
     assertQueueStatusTransition(item.status, nextStatus);
+    const service = nextStatus === "completed"
+      ? await this.serviceRepository?.findById(item.serviceId, item.barbershopId)
+      : null;
+    const completionPrice = details?.finalPrice ?? service?.price ?? item.finalPrice ?? 0;
     const isFiadoCompletion = nextStatus === "completed" && details?.paymentMethod === "fiado";
-    if (isFiadoCompletion && (!details?.finalPrice || details.finalPrice <= 0)) {
+    if (isFiadoCompletion && completionPrice <= 0) {
       throw new AppError("Informe um valor maior que zero para registrar o fiado", 400);
     }
 
     let commissionSplits = details?.commissionSplits;
     if (nextStatus === "completed" && commissionSplits === undefined) {
-      const service = await this.serviceRepository?.findById(item.serviceId, item.barbershopId);
       const expected = service?.commissionPercent ?? 0;
-      if (expected > 0) commissionSplits = [{ professionalId: details?.completedBy || requestingUser.id, percentage: expected }];
+      if (expected > 0) commissionSplits = [{ professionalId: requestingUser.id, percentage: expected }];
     }
     if (nextStatus === "completed" && commissionSplits) {
-      const service = await this.serviceRepository?.findById(item.serviceId, item.barbershopId);
       const expected = service?.commissionPercent ?? 0;
       const total = commissionSplits.reduce((sum, split) => sum + split.percentage, 0);
       if (Math.abs(total - expected) > 0.01) throw new AppError(`A divisao deve totalizar ${expected}% de comissao`, 400);
@@ -57,7 +59,7 @@ export class UpdateQueueItemUseCase {
       if (new Set(ids).size !== ids.length) throw new AppError("Cada profissional so pode aparecer uma vez na divisao", 400);
       const professionals = await this.userRepository?.listActiveByBarbershop(item.barbershopId, ids) ?? [];
       if (professionals.length !== ids.length) throw new AppError("Um dos profissionais nao pertence a este salao", 400);
-      if (details?.finalPrice == null || details.finalPrice < 0) throw new AppError("Informe o valor final recebido para calcular a comissao", 400);
+      if (completionPrice < 0) throw new AppError("Informe o valor final recebido para calcular a comissao", 400);
       if (await this.commissionRepository?.hasEntriesForQueueItem(item.id)) throw new AppError("Este atendimento ja possui comissao lancada", 409);
     }
 
@@ -71,7 +73,7 @@ export class UpdateQueueItemUseCase {
     if (nextStatus === "completed" && commissionSplits?.length) {
       try {
         updated = await this.queueRepository.completeWithCommissions(id, {
-          completedBy: details?.completedBy, finalPrice: details?.finalPrice ?? 0,
+          completedBy: requestingUser.id, finalPrice: completionPrice,
           paymentMethod: details?.paymentMethod, splits: commissionSplits,
         });
       } catch (error) {
@@ -79,7 +81,11 @@ export class UpdateQueueItemUseCase {
         throw error;
       }
     } else {
-      updated = await this.queueRepository.updateStatus(id, nextStatus, { ...details, joinedAt });
+      updated = await this.queueRepository.updateStatus(id, nextStatus, {
+        ...details,
+        ...(nextStatus === "completed" ? { finalPrice: completionPrice } : {}),
+        joinedAt,
+      });
     }
 
     if (isFiadoCompletion) {
@@ -90,7 +96,7 @@ export class UpdateQueueItemUseCase {
         if (clientId) await this.queueRepository.assignClient(updated.id, clientId);
       }
       const fiado = await this.fiadoRepository?.create({ barbershopId: item.barbershopId, customerName: item.customerName, whatsapp: item.whatsapp, clientId,
-        description: item.serviceName || "Atendimento na fila", amount: details!.finalPrice!,
+        description: item.serviceName || "Atendimento na fila", amount: completionPrice,
         notes: `Gerado automaticamente ao finalizar o atendimento da fila (${item.id}).`, createdById: details?.completedBy || requestingUser.id });
       if (fiado) await recordFiadoCreated(fiado.id);
     }

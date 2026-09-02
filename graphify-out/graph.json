@@ -13948,94 +13948,6 @@
       "_origin": "ast"
     },
     {
-      "id": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "label": "CompleteServiceController.ts",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L1",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeserviceschema",
-      "label": "completeServiceSchema",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L7",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeservicecontroller",
-      "label": "CompleteServiceController",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L14",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeservicecontroller_handle",
-      "label": ".handle()",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L15",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "label": "CompleteServiceUseCase.ts",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L1",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeserviceusecase_logger",
-      "label": "logger",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L6",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeservicerequest",
-      "label": "CompleteServiceRequest",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L8",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeserviceusecase_normalizewhatsapp",
-      "label": "normalizeWhatsapp()",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L19",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase",
-      "label": "CompleteServiceUseCase",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L29",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeserviceusecase_ts_injectable",
-      "label": "injectable",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast"
-    },
-    {
-      "id": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase_execute",
-      "label": ".execute()",
-      "file_type": "code",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L30",
-      "_origin": "ast"
-    },
-    {
       "id": "src_modules_queue_usecases_deletequeueitem_deletequeueitemcontroller",
       "label": "DeleteQueueItemController.ts",
       "file_type": "code",
@@ -14664,7 +14576,7 @@
       "label": "computeIdentityKey()",
       "file_type": "code",
       "source_file": "src/modules/queue/utils/identityKey.ts",
-      "source_location": "L5",
+      "source_location": "L8",
       "_origin": "ast"
     },
     {
@@ -19888,7 +19800,7 @@
       "label": "queueRoutes()",
       "file_type": "code",
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L16",
+      "source_location": "L15",
       "_origin": "ast"
     },
     {
@@ -19988,11 +19900,19 @@
       "_origin": "ast"
     },
     {
+      "id": "src_shared_infra_http_server_cronlog",
+      "label": "CronLog",
+      "file_type": "code",
+      "source_file": "src/shared/infra/http/server.ts",
+      "source_location": "L98",
+      "_origin": "ast"
+    },
+    {
       "id": "src_shared_infra_http_server_registercrons",
       "label": "registerCrons()",
       "file_type": "code",
       "source_file": "src/shared/infra/http/server.ts",
-      "source_location": "L98",
+      "source_location": "L103",
       "_origin": "ast"
     },
     {
@@ -58661,238 +58581,6 @@
       "weight": 1.0
     },
     {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "ref_fastify",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L1",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "ref_tsyringe",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L2",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "ref_zod",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L3",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L4",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase",
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L4",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "src_shared_errors_apperror",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L5",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "src_shared_errors_apperror_apperror",
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L5",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeserviceschema",
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L7",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "target": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeservicecontroller",
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L14",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeservicecontroller",
-      "target": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeservicecontroller_handle",
-      "relation": "method",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L15",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "ref_tsyringe",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L1",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_libs_prismaclient",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L2",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_libs_prismaclient_prisma",
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L2",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_shared_errors_apperror",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L3",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_shared_errors_apperror_apperror",
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L3",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_shared_utils_logger",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L4",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_shared_utils_logger_getmodulelogger",
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L4",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_logger",
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L6",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeservicerequest",
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L8",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_normalizewhatsapp",
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L19",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase",
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L29",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_ts_injectable",
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L28",
-      "weight": 1.0,
-      "context": "decorator"
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase_execute",
-      "relation": "method",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L30",
-      "weight": 1.0
-    },
-    {
-      "source": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase_execute",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_normalizewhatsapp",
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceUseCase.ts",
-      "source_location": "L88",
-      "weight": 1.0
-    },
-    {
       "source": "src_modules_queue_usecases_deletequeueitem_deletequeueitemcontroller",
       "target": "ref_fastify",
       "relation": "imports_from",
@@ -61225,11 +60913,21 @@
     },
     {
       "source": "src_modules_queue_utils_identitykey",
+      "target": "ref_node_crypto",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/modules/queue/utils/identityKey.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "src_modules_queue_utils_identitykey",
       "target": "src_modules_queue_utils_identitykey_computeidentitykey",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/queue/utils/identityKey.ts",
-      "source_location": "L5",
+      "source_location": "L8",
       "weight": 1.0
     },
     {
@@ -78126,31 +77824,11 @@
     },
     {
       "source": "src_shared_infra_http_routes_queue_routes",
-      "target": "src_modules_queue_usecases_completeservice_completeservicecontroller",
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L14",
-      "weight": 1.0
-    },
-    {
-      "source": "src_shared_infra_http_routes_queue_routes",
-      "target": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeservicecontroller",
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L14",
-      "weight": 1.0
-    },
-    {
-      "source": "src_shared_infra_http_routes_queue_routes",
       "target": "src_shared_infra_http_routes_queue_routes_queueroutes",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L16",
+      "source_location": "L15",
       "weight": 1.0
     },
     {
@@ -79147,11 +78825,20 @@
     },
     {
       "source": "src_shared_infra_http_server",
-      "target": "src_shared_infra_http_server_registercrons",
+      "target": "src_shared_infra_http_server_cronlog",
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/infra/http/server.ts",
       "source_location": "L98",
+      "weight": 1.0
+    },
+    {
+      "source": "src_shared_infra_http_server",
+      "target": "src_shared_infra_http_server_registercrons",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/shared/infra/http/server.ts",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -88234,7 +87921,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/infra/http/server.ts",
-      "source_location": "L100",
+      "source_location": "L105",
       "weight": 1.0
     },
     {
@@ -88244,7 +87931,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/infra/http/server.ts",
-      "source_location": "L101",
+      "source_location": "L106",
       "weight": 1.0
     },
     {
@@ -88254,7 +87941,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/infra/http/server.ts",
-      "source_location": "L102",
+      "source_location": "L107",
       "weight": 1.0
     },
     {
@@ -88264,7 +87951,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/infra/http/server.ts",
-      "source_location": "L103",
+      "source_location": "L108",
       "weight": 1.0
     },
     {
@@ -88274,7 +87961,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/shared/infra/http/server.ts",
-      "source_location": "L104",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -96842,17 +96529,6 @@
       "weight": 1.0
     },
     {
-      "source": "src_modules_queue_usecases_completeservice_completeservicecontroller_completeservicecontroller_handle",
-      "target": "src_modules_queue_usecases_completeservice_completeserviceusecase_completeserviceusecase",
-      "relation": "indirect_call",
-      "context": "argument",
-      "confidence": "INFERRED",
-      "confidence_score": 0.8,
-      "source_file": "src/modules/queue/useCases/completeService/CompleteServiceController.ts",
-      "source_location": "L22",
-      "weight": 1.0
-    },
-    {
       "source": "src_modules_queue_usecases_deletequeueitem_deletequeueitemcontroller_deletequeueitemcontroller_handle",
       "target": "src_modules_queue_usecases_deletequeueitem_deletequeueitemusecase_deletequeueitemusecase",
       "relation": "indirect_call",
@@ -97080,7 +96756,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L67",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -97091,7 +96767,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L95",
+      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -97102,7 +96778,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L103",
+      "source_location": "L106",
       "weight": 1.0
     },
     {
@@ -97113,7 +96789,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L104",
+      "source_location": "L107",
       "weight": 1.0
     },
     {
@@ -97124,7 +96800,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L111",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -97135,7 +96811,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L111",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -97146,7 +96822,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L111",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -99632,7 +99308,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L24",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -99643,7 +99319,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L24",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -99654,7 +99330,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L24",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -99665,7 +99341,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L24",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -99676,7 +99352,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L28",
+      "source_location": "L26",
       "weight": 1.0
     },
     {
@@ -99687,7 +99363,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/shared/infra/http/routes/queue.routes.ts",
-      "source_location": "L31",
+      "source_location": "L29",
       "weight": 1.0
     },
     {
@@ -101865,7 +101541,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L47",
+      "source_location": "L50",
       "weight": 1.0
     },
     {
@@ -101876,7 +101552,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L58",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -101887,7 +101563,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L61",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -101898,7 +101574,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L66",
+      "source_location": "L69",
       "weight": 1.0
     },
     {
@@ -101909,7 +101585,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L73",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -101920,7 +101596,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L82",
+      "source_location": "L85",
       "weight": 1.0
     },
     {
@@ -101931,7 +101607,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L88",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
@@ -101942,7 +101618,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L90",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -101953,7 +101629,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L92",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -101964,7 +101640,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L107",
+      "source_location": "L110",
       "weight": 1.0
     },
     {
@@ -101975,7 +101651,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/modules/queue/useCases/updateQueueItem/UpdateQueueItemUseCase.ts",
-      "source_location": "L115",
+      "source_location": "L118",
       "weight": 1.0
     },
     {
