@@ -12,6 +12,7 @@ import { GetScheduleController }       from "@/modules/barbershops/useCases/getS
 import { UpdateScheduleController }    from "@/modules/barbershops/useCases/updateSchedule/UpdateScheduleController";
 import { LogoController }              from "@/modules/barbershops/useCases/uploadLogo/LogoController";
 import { WhatsAppConnectionController } from "@/modules/barbershops/useCases/whatsappConnection/WhatsAppConnectionController";
+import { ChangeOperationModeController } from "@/modules/barbershops/useCases/changeOperationMode/ChangeOperationModeController";
 
 export async function barbershopsRoutes(app: FastifyInstance) {
   const create         = new CreateBarbershopController();
@@ -23,6 +24,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const updateSchedule = new UpdateScheduleController();
   const logo           = new LogoController();
   const whatsapp       = new WhatsAppConnectionController();
+  const changeMode     = new ChangeOperationModeController();
 
   // ─── Admin — sem checkSubscription (operação de plataforma) ────────────────
   app.post("/barbershops",     { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] }, create.handle.bind(create));
@@ -49,6 +51,13 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.get("/barbershops/:id/whatsapp", { preHandler: ownerWhatsAppGuard }, whatsapp.status.bind(whatsapp));
   app.post("/barbershops/:id/whatsapp/connect", { preHandler: ownerWhatsAppGuard }, whatsapp.connect.bind(whatsapp));
   app.post("/barbershops/:id/whatsapp/disconnect", { preHandler: ownerWhatsAppGuard }, whatsapp.disconnect.bind(whatsapp));
+
+  // ─── Modo de atendimento ─────────────────────────────────────────────────
+  app.patch(
+    "/barbershops/:id/operation-mode",
+    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
+    changeMode.handle.bind(changeMode)
+  );
 
   // ─── Logo — Fluxo 1: Signed URL (upload direto cliente → GCS) ─────────────
   //

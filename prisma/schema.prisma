@@ -34,6 +34,7 @@ model User {
   refreshTokens          RefreshToken[]
   appointments           Appointment[]            @relation("staff")
   feedPosts              FeedPost[]
+  postMedia              PostMedia[] @relation("PostMediaUploadedBy")
   referralCodes          ReferralCode[]
   referralsAsReferrer    Referral[]               @relation("ReferralReferrer")
   referralsAsReferee     Referral[]               @relation("ReferralReferee")
@@ -168,6 +169,12 @@ model Payment {
   @@map("payments")
 }
 
+enum OperationMode {
+  QUEUE_ONLY
+  APPOINTMENTS_ONLY
+  HYBRID
+}
+
 model Barbershop {
   id                    String         @id @default(uuid()) @db.Uuid
   name                  String         @db.VarChar(200)
@@ -178,6 +185,7 @@ model Barbershop {
   city                  String?        @db.VarChar(120)
   latitude              Float?
   longitude             Float?
+  operationMode         OperationMode  @default(HYBRID)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   active                Boolean        @default(true)
@@ -199,6 +207,7 @@ model Barbershop {
   queue                    QueueItem[]
   appointments             Appointment[]
   feedPosts                FeedPost[]
+  postMedia                PostMedia[]
   subscriptions            Subscription[]
   payments                 Payment[]
   serviceCategories        ServiceCategory[]
@@ -519,14 +528,45 @@ model FeedPost {
   postMode     PostMode       @default(BOTH)
   /// Texto do CTA exibido no post (ex.: "Agende seu horário").
   ctaText      String?        @db.VarChar(120)
+  templateKey  String         @default("agenda-aberta") @db.VarChar(64)
+  format       PostFormat     @default(SQUARE)
+  primaryMediaId   String?    @db.Uuid
+  secondaryMediaId String?    @db.Uuid
+  paletteKey   String         @default("brand") @db.VarChar(32)
+  designOptions Json?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   author     User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  primaryMedia   PostMedia? @relation("PrimaryPostMedia", fields: [primaryMediaId], references: [id], onDelete: SetNull)
+  secondaryMedia PostMedia? @relation("SecondaryPostMedia", fields: [secondaryMediaId], references: [id], onDelete: SetNull)
 
   @@index([barbershopId, status, scheduledFor])
   @@map("feed_posts")
+}
+
+enum PostFormat {
+  SQUARE
+  PORTRAIT
+  STORY
+}
+
+model PostMedia {
+  id           String   @id @default(uuid()) @db.Uuid
+  barbershopId String   @db.Uuid
+  uploadedById String?  @db.Uuid
+  url          String   @db.Text
+  objectName   String   @db.Text
+  mimeType     String   @db.VarChar(80)
+  size         Int
+  createdAt    DateTime @default(now())
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  uploadedBy   User? @relation("PostMediaUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  primaryPosts FeedPost[] @relation("PrimaryPostMedia")
+  secondaryPosts FeedPost[] @relation("SecondaryPostMedia")
+  @@index([barbershopId, createdAt])
+  @@map("post_media")
 }
 
 enum FeedPostStatus {

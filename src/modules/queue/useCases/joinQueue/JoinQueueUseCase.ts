@@ -6,6 +6,7 @@ import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO } from "../../dtos/IQueueItemResponseDTO";
 import { AppError } from "@/shared/errors/AppError";
 import { assertPublicShopOperationalAccess } from "@/shared/utils/assertPublicShopOperationalAccess";
+import { assertOperationEnabled } from "@/shared/utils/assertOperationEnabled";
 import { prisma } from "@/libs/prismaClient";
 import { notifyCustomerJoinedQueue } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
@@ -24,6 +25,7 @@ export class JoinQueueUseCase {
 
   async execute(data: IJoinQueueDTO): Promise<IQueueItemResponseDTO> {
     await assertPublicShopOperationalAccess(data.barbershopId);
+    await assertOperationEnabled(data.barbershopId, 'queue');
 
     const service = await prisma.service.findFirst({
       where: {

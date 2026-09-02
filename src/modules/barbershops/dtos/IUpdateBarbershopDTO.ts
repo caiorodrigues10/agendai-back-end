@@ -1,3 +1,5 @@
+import { OperationMode } from './IBarbershopResponseDTO';
+
 export interface IUpdateBarbershopDTO {
   name?: string;
   whatsapp?: string;
@@ -7,6 +9,7 @@ export interface IUpdateBarbershopDTO {
   longitude?: number | null;
   logoUrl?: string | null;
   active?: boolean;
+  operationMode?: OperationMode;
   /** Nome da instância Evolution — gravado pelo pairing, não pelo PATCH genérico. */
   evolutionInstanceName?: string | null;
 }

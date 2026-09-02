@@ -16,6 +16,7 @@ export async function postsRoutes(app: FastifyInstance) {
   ];
 
   app.get("/posts/preview", { preHandler: staffGuard }, posts.preview.bind(posts));
+  app.get("/posts/templates", { preHandler: staffGuard }, posts.templates.bind(posts));
   app.post("/posts/generate", { preHandler: staffGuard }, posts.generate.bind(posts));
   app.post("/posts", { preHandler: staffGuard }, posts.create.bind(posts));
   app.patch("/posts/:id", { preHandler: staffGuard }, posts.update.bind(posts));

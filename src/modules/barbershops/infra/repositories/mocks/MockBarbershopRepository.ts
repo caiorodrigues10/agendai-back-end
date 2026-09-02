@@ -20,6 +20,7 @@ export class MockBarbershopRepository implements IBarbershopRepository {
       logoUrl: payload.logoUrl ?? null,
       cnpj: null,
       address: null,
+      operationMode: 'HYBRID',
       createdAt: now,
       active: true,
       evolutionInstanceName: null

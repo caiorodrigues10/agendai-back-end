@@ -5,10 +5,12 @@ import { checkSubscription } from '../middlewares/checkSubscription'
 import { setRlsContext } from '../middlewares/setRlsContext'
 import { AppointmentController } from '@/modules/appointments/controllers/AppointmentController'
 import { CheckInAppointmentController } from '@/modules/appointments/useCases/checkIn/CheckInAppointmentController'
+import { CompleteAppointmentController } from '@/modules/appointments/useCases/complete/CompleteAppointmentController'
 
 export async function appointmentsRoutes(app: FastifyInstance) {
 	const appointments = new AppointmentController()
 	const checkIn = new CheckInAppointmentController()
+	const completeAppointment = new CompleteAppointmentController()
 
 	const staffGuard = [
 		authenticate,
@@ -65,6 +67,13 @@ export async function appointmentsRoutes(app: FastifyInstance) {
 		'/appointments/:id/check-in',
 		{ preHandler: staffGuard },
 		checkIn.handle.bind(checkIn),
+	)
+
+	// Conclusão — staff autenticado
+	app.post(
+		'/appointments/:id/complete',
+		{ preHandler: staffGuard },
+		completeAppointment.handle.bind(completeAppointment),
 	)
 
 	// Cancelamento — apenas owner ou admin

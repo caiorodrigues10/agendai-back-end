@@ -25,6 +25,7 @@ import {
 import { broadcastPostToClients } from "../services/postBroadcastService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
+import { listPostTemplates } from "../services/postTemplates";
 
 const logger = getModuleLogger("posts:controller");
 
@@ -48,6 +49,10 @@ const postSelect = {
   publishedAt: true,
   postMode: true,
   ctaText: true,
+  templateKey: true,
+  format: true,
+  paletteKey: true,
+  designOptions: true,
   author: { select: { name: true } },
 } as const;
 
@@ -65,6 +70,10 @@ type PostRow = {
   publishedAt: Date | null;
   postMode: "QUEUE" | "APPOINTMENTS" | "BOTH";
   ctaText: string | null;
+  templateKey: string;
+  format: "SQUARE" | "PORTRAIT" | "STORY";
+  paletteKey: string;
+  designOptions: unknown;
   author: { name: string } | null;
 };
 
@@ -85,6 +94,10 @@ function toPostResponse(post: PostRow) {
     publishedAt: post.publishedAt ? post.publishedAt.getTime() : undefined,
     postMode: post.postMode.toLowerCase(),
     ctaText: post.ctaText ?? undefined,
+    templateKey: post.templateKey,
+    format: post.format.toLowerCase(),
+    paletteKey: post.paletteKey,
+    designOptions: post.designOptions,
   };
 }
 
@@ -144,6 +157,10 @@ async function buildPostImage(
     title?: string | null;
     ctaText?: string | null;
     postMode: "queue" | "appointments" | "both";
+    templateKey?: string;
+    format?: "square" | "portrait" | "story";
+    paletteKey?: string;
+    designOptions?: { focalX?: number; focalY?: number; overlay?: number };
   }
 ) {
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
@@ -157,11 +174,18 @@ async function buildPostImage(
     postMode: opts.postMode,
     ctaText,
     title,
+    templateKey: opts.templateKey,
+    format: opts.format,
+    paletteKey: opts.paletteKey,
+    designOptions: opts.designOptions,
   });
   return pngToDataUrl(renderPostSvgToPng(svg));
 }
 
 export class PostsController {
+  async templates(_request: FastifyRequest, reply: FastifyReply) {
+    return reply.status(200).send({ success: true, data: listPostTemplates() });
+  }
   /** Pré-visualiza a imagem do post sem persistir nada. */
   async preview(request: FastifyRequest, reply: FastifyReply) {
     const query = previewPostQuerySchema.parse(request.query);
@@ -169,6 +193,9 @@ export class PostsController {
       postMode: query.postMode,
       title: query.title,
       ctaText: query.ctaText,
+      templateKey: query.templateKey,
+      format: query.format,
+      paletteKey: query.paletteKey,
     });
     return reply.status(200).send({ success: true, data: { imageUrl } });
   }
@@ -206,6 +233,10 @@ export class PostsController {
       title: body.title,
       ctaText: body.ctaText,
       postMode: body.postMode,
+      templateKey: body.templateKey ?? "agenda-aberta",
+      format: body.format ?? "square",
+      paletteKey: body.paletteKey ?? "brand",
+      designOptions: body.designOptions ?? undefined,
     });
 
     const parsedScheduledFor = body.scheduledFor
@@ -230,6 +261,10 @@ export class PostsController {
         status,
         postMode: POST_MODE_MAP[body.postMode],
         ctaText: body.ctaText ?? defaultCtaText(body.postMode),
+        templateKey: body.templateKey ?? "agenda-aberta",
+        format: (body.format ?? "square").toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
+        paletteKey: body.paletteKey ?? "brand",
+        designOptions: body.designOptions,
         scheduledFor: isScheduled ? parsedScheduledFor : null,
         publishedAt: isScheduled ? null : new Date(),
       },

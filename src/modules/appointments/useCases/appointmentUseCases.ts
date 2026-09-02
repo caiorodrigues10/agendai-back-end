@@ -18,6 +18,7 @@ import {
   IAvailabilitySlotDTO,
 } from "../dtos/IAppointmentDTO";
 import { assertAppointmentBookable } from "../utils/assertAppointmentBookable";
+import { assertOperationEnabled } from "@/shared/utils/assertOperationEnabled";
 import {
   GetQueueWaitEstimateUseCase,
   QueueWaitEstimate,
@@ -150,6 +151,8 @@ export class CreateAppointmentUseCase {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
 
+    await assertOperationEnabled(data.barbershopId, 'appointments');
+
     if (data.clientPackageId && process.env.VITEST && this.packages) {
       const pkg = await this.packages.findById(data.clientPackageId);
       if (!pkg) throw new AppError("Pacote do cliente não encontrado", 404);
@@ -176,6 +179,9 @@ export class CreatePublicAppointmentUseCase {
     if (!data.barbershopId) {
       throw new AppError("barbershopId é obrigatório", 400);
     }
+
+    await assertOperationEnabled(data.barbershopId, 'appointments');
+
     const { clientPackageId: _ignored, clientId: _ignoredClient, ...publicData } = data;
     return createAppointmentAtomic(
       { ...publicData, barbershopId: data.barbershopId },
