@@ -45,6 +45,8 @@ export function sanitizeSensitiveText(value: unknown, maxLength: number): string
     .replace(/(authorization"?\s*[:=]\s*)"?Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "$1[REDACTED]")
     .replace(/("?(?:password|secret|token|authorization|cookie|creditCard|cardNumber|number|ccv|cvv|cpf|cnpj)"?\s*[:=]\s*)"?[^",}\s]+/gi, "$1[REDACTED]")
     .replace(/\b(?:\d[ -]*?){13,19}\b/g, "[REDACTED_CARD]")
+    .replace(/\b\d{14}\b/g, "[REDACTED_CNPJ]")
+    .replace(/\b\d{11}\b/g, "[REDACTED_CPF]")
     .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [REDACTED]");
 
   return text.substring(0, maxLength);

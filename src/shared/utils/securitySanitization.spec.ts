@@ -27,4 +27,13 @@ describe("securitySanitization", () => {
     expect(sanitized).not.toContain("abc.def.ghi");
     expect(sanitized).toContain("[REDACTED]");
   });
+
+  it("redacts bare CPF and CNPJ values from provider errors", () => {
+    const sanitized = sanitizeSensitiveText(
+      "documentos recebidos: 12345678909 e 11222333000181",
+      500,
+    );
+    expect(sanitized).not.toContain("12345678909");
+    expect(sanitized).not.toContain("11222333000181");
+  });
 });

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { FastifyRequest } from "fastify";
 import { AppError } from "@/shared/errors/AppError";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { prisma } from "@/libs/prismaClient";
 
 const memoryResults = new Map<string, unknown>();
 const memoryLocks = new Set<string>();
@@ -29,6 +30,65 @@ function storageKey(scope: string, request: FastifyRequest): string {
   return `agendai:idempotency:${digest}`;
 }
 
+function requestFingerprint(request: FastifyRequest): string {
+  return createHash("sha256")
+    .update(JSON.stringify(request.body ?? null))
+    .digest("hex");
+}
+
+async function executeWithDatabase<T>(
+  request: FastifyRequest,
+  scope: string,
+  operation: () => Promise<T>,
+): Promise<{ data: T; replayed: boolean }> {
+  const key = request.idempotencyKey!;
+  const fingerprint = requestFingerprint(request);
+  const where = { scope_idempotencyKey: { scope, idempotencyKey: key } } as const;
+
+  let record = await prisma.idempotencyRecord.findUnique({ where });
+  if (record) {
+    if (record.requestFingerprint !== fingerprint) {
+      throw new AppError("A mesma Idempotency-Key foi usada com dados diferentes.", 409, undefined, "IDEMPOTENCY_PAYLOAD_MISMATCH");
+    }
+    if (record.status === "SUCCEEDED" && record.response !== null) {
+      return { data: record.response as T, replayed: true };
+    }
+    if (record.status === "IN_PROGRESS") {
+      throw new AppError("Cobrança em processamento. Aguarde alguns segundos.", 409, undefined, "IDEMPOTENCY_IN_PROGRESS");
+    }
+    await prisma.idempotencyRecord.update({
+      where,
+      data: { status: "IN_PROGRESS", response: null },
+    });
+  } else {
+    try {
+      record = await prisma.idempotencyRecord.create({
+        data: { scope, idempotencyKey: key, requestFingerprint, status: "IN_PROGRESS" },
+      });
+    } catch (error: unknown) {
+      if (!(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2002")) {
+        throw error;
+      }
+      record = await prisma.idempotencyRecord.findUniqueOrThrow({ where });
+      if (record.requestFingerprint !== fingerprint || record.status === "IN_PROGRESS") {
+        throw new AppError("Cobrança em processamento. Aguarde alguns segundos.", 409, undefined, "IDEMPOTENCY_IN_PROGRESS");
+      }
+    }
+  }
+
+  try {
+    const data = await operation();
+    await prisma.idempotencyRecord.update({
+      where,
+      data: { status: "SUCCEEDED", response: data as object },
+    });
+    return { data, replayed: false };
+  } catch (error) {
+    await prisma.idempotencyRecord.update({ where, data: { status: "FAILED", response: null } }).catch(() => undefined);
+    throw error;
+  }
+}
+
 export async function executeIdempotent<T>(
   request: FastifyRequest,
   scope: string,
@@ -50,10 +110,10 @@ export async function executeIdempotent<T>(
     }
   }
 
-  const redis = getRedisConnection();
-  const resultKey = `${key}:result`;
-  const lockKey = `${key}:lock`;
   try {
+    const redis = getRedisConnection();
+    const resultKey = `${key}:result`;
+    const lockKey = `${key}:lock`;
     const cached = await redis.get(resultKey);
     if (cached) return { data: JSON.parse(cached) as T, replayed: true };
 
@@ -70,8 +130,13 @@ export async function executeIdempotent<T>(
       await redis.del(lockKey).catch(() => undefined);
     }
   } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError("Proteção contra cobrança duplicada indisponível.", 503, undefined, "IDEMPOTENCY_UNAVAILABLE");
+    if (error instanceof AppError && error.code !== "IDEMPOTENCY_UNAVAILABLE") throw error;
+    try {
+      return await executeWithDatabase(request, scope, operation);
+    } catch (databaseError) {
+      if (databaseError instanceof AppError) throw databaseError;
+      throw new AppError("Proteção contra cobrança duplicada indisponível.", 503, undefined, "IDEMPOTENCY_UNAVAILABLE");
+    }
   }
 }
 
@@ -79,4 +144,3 @@ export function resetIdempotencyMemoryForTests(): void {
   memoryResults.clear();
   memoryLocks.clear();
 }
-
