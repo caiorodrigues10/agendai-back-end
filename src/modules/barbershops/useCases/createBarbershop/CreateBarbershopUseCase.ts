@@ -3,6 +3,7 @@ import { IBarbershopRepository } from "../../repositories/IBarbershopRepository"
 import { ICreateBarbershopDTO } from "../../dtos/ICreateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
 import { checkCnpjAccess } from "../../../subscriptions/utils/checkBarbershopAccess"
+import { geocodeCity } from "@/shared/services/geocodeCity";
 
 @injectable()
 export class CreateBarbershopUseCase {
@@ -16,6 +17,11 @@ export class CreateBarbershopUseCase {
       await checkCnpjAccess(data.cnpj);
     }
 
-    return this.barbershopRepository.create(data);
+    let resolved = { ...data };
+    if (data.city && data.latitude === undefined && data.longitude === undefined) {
+      const location = await geocodeCity(data.city);
+      resolved = { ...resolved, city: location.city, latitude: location.latitude, longitude: location.longitude };
+    }
+    return this.barbershopRepository.create(resolved);
   }
 }
