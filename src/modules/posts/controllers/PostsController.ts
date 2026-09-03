@@ -94,9 +94,9 @@ function toPostResponse(post: PostRow) {
     publishedAt: post.publishedAt ? post.publishedAt.getTime() : undefined,
     postMode: post.postMode.toLowerCase(),
     ctaText: post.ctaText ?? undefined,
-    templateKey: post.templateKey,
-    format: post.format.toLowerCase(),
-    paletteKey: post.paletteKey,
+    templateKey: post.templateKey ?? "agenda-aberta",
+    format: (post.format ?? "SQUARE").toLowerCase(),
+    paletteKey: post.paletteKey ?? "brand",
     designOptions: post.designOptions,
   };
 }
@@ -161,11 +161,21 @@ async function buildPostImage(
     format?: "square" | "portrait" | "story";
     paletteKey?: string;
     designOptions?: { focalX?: number; focalY?: number; overlay?: number };
+    primaryMediaId?: string | null;
+    secondaryMediaId?: string | null;
   }
 ) {
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
   const title = opts.title ?? "Vem pra cá hoje!";
   const ctaText = opts.ctaText ?? defaultCtaText(opts.postMode);
+  const media = opts.primaryMediaId
+    ? await prisma.postMedia.findFirst({ where: { id: opts.primaryMediaId, barbershopId }, select: { url: true } })
+    : null;
+  let primaryImageUrl: string | null = null;
+  if (media?.url) {
+    const response = await fetch(media.url);
+    if (response.ok) primaryImageUrl = `data:${response.headers.get("content-type") || "image/jpeg"};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
+  }
   const svg = buildPostSvg({
     shopName: barbershop.name,
     logoUrl: barbershop.logoUrl,
@@ -178,6 +188,7 @@ async function buildPostImage(
     format: opts.format,
     paletteKey: opts.paletteKey,
     designOptions: opts.designOptions,
+    primaryImageUrl,
   });
   return pngToDataUrl(renderPostSvgToPng(svg));
 }
@@ -189,6 +200,7 @@ export class PostsController {
   /** Pré-visualiza a imagem do post sem persistir nada. */
   async preview(request: FastifyRequest, reply: FastifyReply) {
     const query = previewPostQuerySchema.parse(request.query);
+    assertSameBarbershop(request.user!, query.barbershopId);
     const imageUrl = await buildPostImage(query.barbershopId, {
       postMode: query.postMode,
       title: query.title,
@@ -196,6 +208,7 @@ export class PostsController {
       templateKey: query.templateKey,
       format: query.format,
       paletteKey: query.paletteKey,
+      primaryMediaId: query.primaryMediaId,
     });
     return reply.status(200).send({ success: true, data: { imageUrl } });
   }
@@ -237,6 +250,7 @@ export class PostsController {
       format: body.format ?? "square",
       paletteKey: body.paletteKey ?? "brand",
       designOptions: body.designOptions ?? undefined,
+      primaryMediaId: body.primaryMediaId,
     });
 
     const parsedScheduledFor = body.scheduledFor
@@ -291,7 +305,7 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, status: true },
+      select: { id: true, barbershopId: true, status: true, templateKey: true, format: true, paletteKey: true, designOptions: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
 
@@ -329,6 +343,10 @@ export class PostsController {
         ...(body.title !== undefined && { title: body.title }),
         ...(body.ctaText !== undefined && { ctaText: body.ctaText }),
         ...(body.postMode && { postMode: POST_MODE_MAP[body.postMode] }),
+        ...(body.templateKey && { templateKey: body.templateKey }),
+        ...(body.format && { format: body.format.toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY" }),
+        ...(body.paletteKey && { paletteKey: body.paletteKey }),
+        ...(body.designOptions !== undefined && { designOptions: body.designOptions }),
         ...(statusData ?? {}),
       },
       select: postSelect,

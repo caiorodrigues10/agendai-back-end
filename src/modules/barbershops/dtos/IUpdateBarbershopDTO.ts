@@ -1,4 +1,4 @@
-import { OperationMode } from './IBarbershopResponseDTO';
+import { OperationMode, OpeningMode, BusinessSegment } from './IBarbershopResponseDTO';
 
 export interface IUpdateBarbershopDTO {
   name?: string;
@@ -10,6 +10,8 @@ export interface IUpdateBarbershopDTO {
   logoUrl?: string | null;
   active?: boolean;
   operationMode?: OperationMode;
+  openingMode?: OpeningMode;
+  businessSegment?: BusinessSegment;
   /** Nome da instância Evolution — gravado pelo pairing, não pelo PATCH genérico. */
   evolutionInstanceName?: string | null;
 }

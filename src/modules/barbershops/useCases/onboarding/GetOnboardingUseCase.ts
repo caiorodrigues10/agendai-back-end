@@ -12,11 +12,13 @@ interface OnboardingStep {
 
 const ONBOARDING_STEPS: Array<{ key: string; label: string; field: string; required: boolean }> = [
   { key: 'PROFILE', label: 'Revisar dados do salão', field: 'profileConfirmedAt', required: true },
+  { key: 'SEGMENT', label: 'Escolher o tipo do estabelecimento', field: 'segmentConfirmedAt', required: true },
   { key: 'SCHEDULE', label: 'Revisar horários', field: 'scheduleConfirmedAt', required: true },
   { key: 'SERVICES', label: 'Revisar serviços sugeridos', field: 'servicesConfirmedAt', required: true },
+  { key: 'OPERATION_MODE', label: 'Escolher modo de atendimento', field: 'operationModeConfirmedAt', required: true },
   { key: 'PUBLIC_LINK', label: 'Abrir e validar o link público', field: 'publicLinkValidatedAt', required: true },
   { key: 'WHATSAPP', label: 'Configurar WhatsApp', field: 'whatsappConfiguredAt', required: false },
-  { key: 'FIRST_SERVICE', label: 'Registrar primeiro atendimento', field: 'firstServiceCompletedAt', required: true },
+  { key: 'FIRST_SERVICE', label: 'Registrar primeiro atendimento', field: 'firstServiceCompletedAt', required: false },
 ];
 
 @injectable()
@@ -69,6 +71,9 @@ export class GetOnboardingUseCase {
       progress,
       nextStep: nextStep?.key ?? null,
       completed: onboarding.completedAt !== null,
+      welcomeSeen: onboarding.welcomeSeenAt !== null,
+      dismissed: onboarding.dismissedAt !== null,
+      operationModeConfirmed: onboarding.operationModeConfirmedAt !== null,
     };
   }
 }

@@ -13,6 +13,13 @@ vi.mock("@/modules/appointments/useCases/appointmentUseCases", () => ({
   },
 }));
 
+vi.mock("@/shared/infra/queue/redisConnection", () => ({
+  getRedisConnection: vi.fn(() => ({})),
+}));
+vi.mock("@/shared/infra/redis/cronLock", () => ({
+  withCronLock: vi.fn(async (_redis: unknown, _options: unknown, fn: () => Promise<void>) => fn()),
+}));
+
 import cron from "node-cron";
 import { container } from "tsyringe";
 import { scheduleAppointmentReminders } from "./appointmentReminders.cron";

@@ -78,11 +78,23 @@ export class GetCrmForecastUseCase {
     const maturity = historicalDays < 30 ? "insufficient" : historicalDays < 90 ? "preliminary" : "trained";
     const revenueByDay = new Map<string, number>();
     const visitByDay = new Map<string, number>();
-    for (const event of events) { const key = event.occurredAt.toISOString().slice(0, 10); revenueByDay.set(key, (revenueByDay.get(key) ?? 0) + event.grossAmount); if (event.kind === "SERVICE_COMPLETED") visitByDay.set(key, (visitByDay.get(key) ?? 0) + 1); }
+    const productByDay = new Map<string, number>();
+    for (const event of events) {
+      const key = event.occurredAt.toISOString().slice(0, 10);
+      if (event.kind === "PRODUCT_SOLD" || event.kind === "PRODUCT_REFUNDED") {
+        productByDay.set(key, (productByDay.get(key) ?? 0) + event.grossAmount);
+        continue;
+      }
+      revenueByDay.set(key, (revenueByDay.get(key) ?? 0) + event.grossAmount);
+      if (event.kind === "SERVICE_COMPLETED") visitByDay.set(key, (visitByDay.get(key) ?? 0) + 1);
+    }
     const weekdayRevenue = Array.from({ length: 7 }, () => [] as number[]);
     const weekdayVisits = Array.from({ length: 7 }, () => [] as number[]);
     revenueByDay.forEach((revenue, key) => weekdayRevenue[new Date(`${key}T12:00:00`).getDay()].push(revenue));
     visitByDay.forEach((visits, key) => weekdayVisits[new Date(`${key}T12:00:00`).getDay()].push(visits));
+    const weekdayProduct = Array.from({ length: 7 }, () => [] as number[]);
+    productByDay.forEach((revenue, key) => weekdayProduct[new Date(`${key}T12:00:00`).getDay()].push(revenue));
+    const hasProductHistory = [...productByDay.values()].some((value) => value > 0);
     const avg = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
     const allRevenue = [...revenueByDay.values()]; const mean = avg(allRevenue); const std = Math.sqrt(avg(allRevenue.map((value) => (value - mean) ** 2)));
     let forecast: Awaited<ReturnType<IWeatherProvider["getForecast"]>> = [];
@@ -98,10 +110,11 @@ export class GetCrmForecastUseCase {
       const baseRevenue = avg(weekdayRevenue[date.getDay()]) || mean;
       const baseVisits = avg(weekdayVisits[date.getDay()]);
       const booked = bookedByDay.get(key) ?? 0;
-      const predictedRevenue = Math.max(booked, baseRevenue * rainMultiplier);
+      const productBase = hasProductHistory ? avg(weekdayProduct[date.getDay()]) : 0;
+      const predictedRevenue = Math.max(booked, baseRevenue * rainMultiplier) + productBase;
       const predictedVisits = Math.max(Math.ceil(booked > 0 && baseRevenue > 0 ? (booked / baseRevenue) * Math.max(baseVisits, 1) : baseVisits * rainMultiplier), 0);
       const risk = rainMultiplier <= 0.8 ? "high" : rainMultiplier < 1 ? "medium" : "low";
-      return { date: key, predictedVisits: Math.round(predictedVisits), predictedRevenue: Math.round(predictedRevenue * 100) / 100, confidenceLow: Math.max(0, Math.round((predictedRevenue - 1.96 * std) * 100) / 100), confidenceHigh: Math.round((predictedRevenue + 1.96 * std) * 100) / 100, weather: weather?.condition ?? null, risk: risk as "low" | "medium" | "high", factors: [booked ? `R$ ${booked.toFixed(0)} já agendado` : "Sem receita agendada", weather?.precipProbability && weather.precipProbability >= 45 ? `Chuva: ${weather.precipProbability}%` : "Sazonalidade por dia da semana"] };
+      return { date: key, predictedVisits: Math.round(predictedVisits), predictedRevenue: Math.round(predictedRevenue * 100) / 100, confidenceLow: Math.max(0, Math.round((predictedRevenue - 1.96 * std) * 100) / 100), confidenceHigh: Math.round((predictedRevenue + 1.96 * std) * 100) / 100, weather: weather?.condition ?? null, risk: risk as "low" | "medium" | "high", productContribution: hasProductHistory ? "historical" : "unknown", factors: [booked ? `R$ ${booked.toFixed(0)} já agendado` : "Sem receita agendada", hasProductHistory ? "Produtos: média histórica do dia" : "Produtos sem histórico — contribuição nula", weather?.precipProbability && weather.precipProbability >= 45 ? `Chuva: ${weather.precipProbability}%` : "Sazonalidade por dia da semana"] };
     });
     const backtestValues = logs.slice(-30).map((log: any) => ({ actual: log.revenue ?? 0, predicted: avg(weekdayRevenue[log.date.getDay()]) || mean })).filter((item: any) => item.actual > 0);
     return { horizon, maturity, historicalDays, backtest: { mae: backtestValues.length ? Math.round(avg(backtestValues.map((item: any) => Math.abs(item.actual - item.predicted))) * 100) / 100 : null, mape: backtestValues.length ? Math.round(avg(backtestValues.map((item: any) => Math.abs(item.actual - item.predicted) / item.actual)) * 10000) / 100 : null }, predictions };

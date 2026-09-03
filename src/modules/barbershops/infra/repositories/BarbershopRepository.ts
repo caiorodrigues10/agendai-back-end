@@ -4,86 +4,49 @@ import { IUpdateBarbershopDTO } from "../../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
 
+const shopSelect = {
+  id: true,
+  name: true,
+  whatsapp: true,
+  logoUrl: true,
+  cnpj: true,
+  address: true,
+  city: true,
+  latitude: true,
+  longitude: true,
+  operationMode: true,
+  openingMode: true,
+  businessSegment: true,
+  manualStatus: true,
+  createdAt: true,
+  active: true,
+  evolutionInstanceName: true,
+} as const;
+
 export class BarbershopRepository implements IBarbershopRepository {
   async create(data: ICreateBarbershopDTO): Promise<IBarbershopResponseDTO> {
     return prisma.barbershop.create({
       data,
-      select: {
-        id: true,
-        name: true,
-        whatsapp: true,
-        logoUrl: true,
-        cnpj: true,
-        address: true,
-        city: true,
-        latitude: true,
-        longitude: true,
-        operationMode: true,
-        createdAt: true,
-        active: true,
-        evolutionInstanceName: true
-      }
+      select: shopSelect
     });
   }
   async findById(id: string): Promise<IBarbershopResponseDTO | null> {
     return prisma.barbershop.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        whatsapp: true,
-        logoUrl: true,
-        cnpj: true,
-        address: true,
-        city: true,
-        latitude: true,
-        longitude: true,
-        operationMode: true,
-        createdAt: true,
-        active: true,
-        evolutionInstanceName: true
-      }
+      select: shopSelect
     });
   }
   async list(): Promise<IBarbershopResponseDTO[]> {
     return prisma.barbershop.findMany({
       orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        whatsapp: true,
-        logoUrl: true,
-        cnpj: true,
-        address: true,
-        city: true,
-        latitude: true,
-        longitude: true,
-        operationMode: true,
-        createdAt: true,
-        active: true,
-        evolutionInstanceName: true
-      }
+      select: shopSelect
     });
   }
   async update(id: string, data: IUpdateBarbershopDTO): Promise<IBarbershopResponseDTO> {
     return prisma.barbershop.update({
       where: { id },
       data,
-      select: {
-        id: true,
-        name: true,
-        whatsapp: true,
-        logoUrl: true,
-        cnpj: true,
-        address: true,
-        city: true,
-        latitude: true,
-        longitude: true,
-        operationMode: true,
-        createdAt: true,
-        active: true,
-        evolutionInstanceName: true
-      }
+      select: shopSelect
     });
   }
   async deactivate(id: string): Promise<void> {

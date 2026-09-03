@@ -96,6 +96,9 @@ export class UpdateExpenseUseCase {
     ) {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
     }
+    if (expense.locked || expense.inventoryReceiptId) {
+      throw new AppError("Despesas geradas por compra de estoque só podem ser corrigidas pela tela da compra.", 409);
+    }
     return this.expenseRepository.update(id, data);
   }
 }
@@ -119,6 +122,9 @@ export class DeleteExpenseUseCase {
       expense.barbershopId !== requestingUser.barbershopId
     ) {
       throw new AppError("Acesso negado: você não pertence a este salão", 403);
+    }
+    if (expense.locked || expense.inventoryReceiptId) {
+      throw new AppError("Despesas geradas por compra de estoque só podem ser corrigidas pela tela da compra.", 409);
     }
     await this.expenseRepository.delete(id);
   }

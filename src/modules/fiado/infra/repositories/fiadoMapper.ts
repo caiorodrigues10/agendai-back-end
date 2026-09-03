@@ -20,7 +20,8 @@ export function mapPaymentToDTO(record: FiadoPaymentRecord): IFiadoPaymentRespon
 
 export function mapFiadoToDTO(record: FiadoWithPayments): IFiadoResponseDTO {
   const now = new Date();
-  const remaining = record.originalAmount - record.paidAmount;
+  const creditAdjusted = "creditAdjustedAmount" in record ? Number(record.creditAdjustedAmount ?? 0) : 0;
+  const remaining = record.originalAmount - record.paidAmount - creditAdjusted;
   const isOverdue =
     record.dueDate != null &&
     record.dueDate < now &&
@@ -36,6 +37,8 @@ export function mapFiadoToDTO(record: FiadoWithPayments): IFiadoResponseDTO {
     originalAmount: record.originalAmount,
     paidAmount: record.paidAmount,
     remainingAmount: Math.max(0, remaining),
+    creditAdjustedAmount: creditAdjusted,
+    origin: ("origin" in record ? record.origin : "MANUAL") as IFiadoResponseDTO["origin"],
     status: record.status as FiadoStatus,
     dueDate: record.dueDate ?? null,
     notes: record.notes ?? null,

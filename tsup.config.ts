@@ -1,7 +1,13 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/**/*.ts"],
+  entry: [
+    "src/**/*.ts",
+    "!src/**/*.spec.ts",
+    "!src/**/*.test.ts",
+    "!src/tests/**",
+    "!src/@types/**",
+  ],
   outDir: "dist",
   format: ["cjs"],
   target: "es2022",

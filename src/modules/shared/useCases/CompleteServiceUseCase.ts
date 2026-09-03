@@ -89,6 +89,7 @@ export class CompleteServiceUseCase {
         amount: completionPrice,
         notes: `Gerado automaticamente ao finalizar ${input.sourceType === "QUEUE_ITEM" ? "o atendimento da fila" : "o agendamento"} (${input.sourceId}).`,
         createdById: input.staffUserId,
+        origin: "SERVICE_COMPLETION",
       });
       if (fiado) await recordFiadoCreated(fiado.id);
     }

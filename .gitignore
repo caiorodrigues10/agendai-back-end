@@ -11,3 +11,7 @@ gcs-key.json
 evolution-qrcode.png
 docker-compose.evolution.yml
 graphify-out/cache/
+
+# Snapshots locais de produção — nunca versionar
+*.dump
+agendai-render-*

@@ -18,6 +18,8 @@ export interface ICreateFiadoDTO {
   dueDate?: Date | null;     // prazo combinado para pagamento (opcional)
   notes?: string | null;     // observações livres do barbeiro (opcional)
   createdById: string;       // ID do funcionário que registrou o fiado
+  origin?: "MANUAL" | "SERVICE_COMPLETION" | "RETAIL_SALE";
+  retailSaleId?: string | null;
 }
 
 // Dados para registrar um pagamento (parcial ou total) de um fiado existente
@@ -60,7 +62,9 @@ export interface IFiadoResponseDTO {
   description: string;       // o que foi fiado
   originalAmount: number;    // valor original cobrado pelo serviço
   paidAmount: number;        // soma de tudo que já foi pago até agora
-  remainingAmount: number;   // quanto ainda falta pagar (originalAmount - paidAmount)
+  remainingAmount: number;   // originalAmount - paidAmount - creditAdjustedAmount
+  creditAdjustedAmount?: number;
+  origin?: "MANUAL" | "SERVICE_COMPLETION" | "RETAIL_SALE";
   status: FiadoStatus;       // situação atual do fiado
   dueDate: Date | null;      // prazo combinado — null se não foi definido
   notes: string | null;      // observações do barbeiro

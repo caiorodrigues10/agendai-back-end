@@ -13,8 +13,12 @@ import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
 import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
 import { recordFiadoCreated, recordQueueCompletion } from "@/modules/crm/services/crmLedger";
+import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCases";
+import type { z } from "zod";
+import type { retailSalePayloadSchema } from "@/modules/products/schemas/productSchemas";
 
 type CommissionSplit = { professionalId: string; percentage: number };
+type RetailSalePayload = z.infer<typeof retailSalePayloadSchema>;
 
 @injectable()
 export class UpdateQueueItemUseCase {
@@ -27,15 +31,20 @@ export class UpdateQueueItemUseCase {
     @inject("ServiceRepository") private serviceRepository?: IServiceRepository,
     @inject("UserRepository") private userRepository?: IUserRepository,
     @inject("CommissionRepository") private commissionRepository?: ICommissionRepository,
+    @inject(ProductCatalogUseCase) private productCatalog?: ProductCatalogUseCase,
   ) {}
 
   async execute(id: string, statusRaw: string, requestingUser: QueueRequestingUser, details?: {
-    completedBy?: string; finalPrice?: number; paymentMethod?: string; insertAt?: number; commissionSplits?: CommissionSplit[];
+    completedBy?: string; finalPrice?: number; paymentMethod?: string; insertAt?: number; commissionSplits?: CommissionSplit[]; retailSale?: RetailSalePayload;
   }) {
     const item = await this.queueRepository.findById(id);
     if (!item) throw new AppError("Item de fila nao encontrado", 404);
     assertQueueTenantAccess(item.barbershopId, requestingUser);
     const nextStatus = parseQueueStatus(statusRaw);
+    if (item.status === "completed" && nextStatus === "completed" && details?.retailSale) {
+      await this.attachRetailSale(item, requestingUser, details.retailSale);
+      return item;
+    }
     assertQueueStatusTransition(item.status, nextStatus);
     const service = nextStatus === "completed"
       ? await this.serviceRepository?.findById(item.serviceId, item.barbershopId)
@@ -97,7 +106,7 @@ export class UpdateQueueItemUseCase {
       }
       const fiado = await this.fiadoRepository?.create({ barbershopId: item.barbershopId, customerName: item.customerName, whatsapp: item.whatsapp, clientId,
         description: item.serviceName || "Atendimento na fila", amount: completionPrice,
-        notes: `Gerado automaticamente ao finalizar o atendimento da fila (${item.id}).`, createdById: details?.completedBy || requestingUser.id });
+        notes: `Gerado automaticamente ao finalizar o atendimento da fila (${item.id}).`, createdById: details?.completedBy || requestingUser.id, origin: "SERVICE_COMPLETION" });
       if (fiado) await recordFiadoCreated(fiado.id);
     }
     if (nextStatus === "completed" || nextStatus === "waiting") {
@@ -107,6 +116,9 @@ export class UpdateQueueItemUseCase {
       } catch { /* CRM nao bloqueia */ }
     }
     if (nextStatus === "completed") await recordQueueCompletion(updated.id);
+    if (nextStatus === "completed" && details?.retailSale) {
+      await this.attachRetailSale(updated, requestingUser, details.retailSale);
+    }
     const shouldNotifyCustomer = !isPlaceholderWhatsApp(item.whatsapp) && ((item.status === "waiting" && nextStatus === "in_chair") || nextStatus === "cancelled");
     if (shouldNotifyCustomer) {
       try {
@@ -132,5 +144,31 @@ export class UpdateQueueItemUseCase {
     }
     try { await this.notifyQueuePositionUpdates.execute(item.barbershopId); } catch { /* notificacao nao bloqueia */ }
     return updated;
+  }
+
+  private async attachRetailSale(
+    item: { id: string; barbershopId: string; clientId?: string | null; customerName: string; whatsapp: string },
+    requestingUser: QueueRequestingUser,
+    retailSale: RetailSalePayload,
+  ) {
+    if (!this.productCatalog) return;
+    let clientId = retailSale.clientId ?? item.clientId ?? null;
+    if (!clientId && (retailSale.paymentMethod === "fiado" || item.customerName)) {
+      try {
+        const client = await this.salonClients?.upsertFromVisit(item.barbershopId, item.customerName, item.whatsapp);
+        clientId = client?.id ?? clientId;
+        if (clientId) await this.queueRepository.assignClient(item.id, clientId);
+      } catch { /* CRM nao bloqueia a venda */ }
+    }
+    await this.productCatalog.createSale(item.barbershopId, requestingUser, {
+      paymentMethod: retailSale.paymentMethod,
+      items: retailSale.items,
+      discount: retailSale.discount,
+      clientId,
+      queueItemId: item.id,
+      idempotencyKey: retailSale.idempotencyKey ?? `queue:${item.id}`,
+      customerName: item.customerName,
+      whatsapp: item.whatsapp,
+    });
   }
 }

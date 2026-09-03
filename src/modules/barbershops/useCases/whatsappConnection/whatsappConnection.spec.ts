@@ -49,11 +49,12 @@ describe("WhatsAppConnectionUseCase", () => {
       return jsonRes(200, {}) as any;
     }) as any;
 
-    const result = await useCase.connect(shop.id, { role: "OWNER", barbershopId: shop.id });
+    const result = await useCase.connect(shop.id, { role: "OWNER", barbershopId: shop.id }, { method: "qr" });
 
     expect(result.status).toBe("connecting");
     expect(result.connected).toBe(false);
     expect(result.qrcodeBase64).toContain("abcQR");
+    expect(result.method).toBe("qr");
     const stored = await repo.findById(shop.id);
     expect(stored?.evolutionInstanceName).toBe(expectedName);
     expect(expectedName).toBe(`shop-${shop.id}`);
@@ -67,7 +68,7 @@ describe("WhatsAppConnectionUseCase", () => {
 
     const result = await useCase.disconnect(shop.id, { role: "OWNER", barbershopId: shop.id });
 
-    expect(result).toEqual({ status: "disconnected", connected: false, qrcodeBase64: null });
+    expect(result).toEqual({ status: "disconnected", connected: false, qrcodeBase64: null, method: null, pairingCode: null });
     const stored = await repo.findById(shop.id);
     expect(stored?.evolutionInstanceName).toBeNull();
   });
@@ -75,7 +76,7 @@ describe("WhatsAppConnectionUseCase", () => {
   it("status disconnected quando não há instância gravada", async () => {
     const shop = await repo.create({ name: "Salon", whatsapp: "11999999999" });
     const result = await useCase.status(shop.id, { role: "OWNER", barbershopId: shop.id });
-    expect(result).toEqual({ status: "disconnected", connected: false, qrcodeBase64: null });
+    expect(result).toEqual({ status: "disconnected", connected: false, qrcodeBase64: null, method: null, pairingCode: null });
   });
 
   it("OWNER de outro salão recebe 403", async () => {
@@ -94,5 +95,32 @@ describe("WhatsAppConnectionUseCase", () => {
     await expect(
       useCase.connect(shop.id, { role: "MASTER_ADMIN" })
     ).rejects.toMatchObject({ statusCode: 503 });
+  });
+
+  it("connect por código normaliza o telefone e não devolve QR", async () => {
+    const shop = await repo.create({ name: "Salon", whatsapp: "11999999999" });
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/instance/create")) return jsonRes(201, {}) as any;
+      if (url.includes("/instance/connectionState")) return jsonRes(200, { instance: { state: "connecting" } }) as any;
+      if (url.includes("/instance/connect") && url.includes("number=5511999999999")) return jsonRes(200, { pairingCode: "ABCD1234" }) as any;
+      return jsonRes(200, {}) as any;
+    }) as any;
+
+    const result = await useCase.connect(shop.id, { role: "OWNER", barbershopId: shop.id }, { method: "pairing_code", phoneNumber: "(11) 99999-9999" });
+    expect(result).toMatchObject({ status: "connecting", connected: false, method: "pairing_code", pairingCode: "ABCD1234", qrcodeBase64: null });
+    expect(String((globalThis.fetch as any).mock.calls[2][0])).toContain("number=5511999999999");
+  });
+
+  it("status não gera QR nem chama endpoint de conexão", async () => {
+    const shop = await repo.create({ name: "Salon", whatsapp: "11999999999" });
+    await repo.update(shop.id, { evolutionInstanceName: shopEvolutionInstanceName(shop.id) });
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("connectionState")) return jsonRes(200, { instance: { state: "connecting" } }) as any;
+      return jsonRes(200, {}) as any;
+    }) as any;
+    await useCase.status(shop.id, { role: "OWNER", barbershopId: shop.id });
+    expect((globalThis.fetch as any).mock.calls.some((call: any[]) => String(call[0]).includes("/instance/connect/"))).toBe(false);
   });
 });

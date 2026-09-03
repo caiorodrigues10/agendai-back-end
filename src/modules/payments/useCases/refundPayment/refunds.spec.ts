@@ -6,6 +6,7 @@ const prismaMock = vi.hoisted(() => ({
   payment: { findUnique: vi.fn(), update: vi.fn() },
   refund: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     findUniqueOrThrow: vi.fn(),
@@ -68,6 +69,7 @@ describe("RefundPaymentUseCase", () => {
     prismaMock.subscription.update.mockResolvedValue({});
     prismaMock.refund.update.mockResolvedValue({});
     prismaMock.refund.findFirst.mockResolvedValue(null);
+    prismaMock.refund.findUnique.mockResolvedValue(null);
     prismaMock.invoice.updateMany.mockResolvedValue({ count: 0 });
     prismaMock.invoice.update.mockResolvedValue({});
     abacateMock = {
@@ -211,7 +213,8 @@ describe("RefundPaymentUseCase", () => {
     const paymentUpdate = prismaMock.payment.update.mock.calls[0][0];
     expect(paymentUpdate.data.status).toBe("refunded");
     expect(paymentUpdate.data.statusDetail).toBe("refunded_by_admin");
-    expect(paymentUpdate.data.rawResponse).toContain("tran_refund789");
+    expect(paymentUpdate.data.rawResponse).toBeNull();
+    expect(paymentUpdate.data.providerSnapshot.data).toMatchObject({ status: "REFUNDED" });
 
     const subUpdate = prismaMock.subscription.update.mock.calls[0][0];
     expect(subUpdate.data.status).toBe("CANCELED");
@@ -223,10 +226,10 @@ describe("RefundPaymentUseCase", () => {
     expect(invoiceUpdateMany.where.subscriptionId).toBe("sub-1");
     expect(invoiceUpdateMany.data.status).toBe("CANCELLED");
 
-    const invoiceUpdate = prismaMock.invoice.update.mock.calls.find(
+    const invoiceUpdate = prismaMock.invoice.updateMany.mock.calls.find(
       (c) => c[0].where?.id === "7ba0f7d2-0b91-4f4c-b3ac-1c5f3a0e6c11"
     );
-    expect(invoiceUpdate![0].data.status).toBe("CANCELLED");
+    expect(invoiceUpdate?.[0].data.status).toBe("CANCELLED");
     expect(prismaMock.adminNotification.create).toHaveBeenCalled();
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -266,7 +269,8 @@ describe("RefundPaymentUseCase", () => {
 
     const paymentUpdate = prismaMock.payment.update.mock.calls[0][0];
     expect(paymentUpdate.data.status).toBe("refunded");
-    expect(paymentUpdate.data.rawResponse).toContain('"id":123456789');
+    expect(paymentUpdate.data.rawResponse).toBeNull();
+    expect(paymentUpdate.data.providerSnapshot.data).toMatchObject({ status: "refunded" });
   });
 
   it("sucesso ASAAS: chama refundPayment com providerPaymentId (estorno integral)", async () => {

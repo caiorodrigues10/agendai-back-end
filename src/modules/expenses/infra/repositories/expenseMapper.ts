@@ -24,6 +24,8 @@ export function mapExpenseToDTO(record: ExpenseWithCategory): IExpenseResponseDT
     receiptUrl: record.receiptUrl ?? null,
     notes: record.notes ?? null,
     createdById: record.createdById,
+    locked: Boolean(record.locked),
+    inventoryReceiptId: record.inventoryReceiptId ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };

@@ -33,10 +33,15 @@ export async function appointmentsRoutes(app: FastifyInstance) {
     '/appointments/public',
     appointments.createPublic.bind(appointments),
   )
+  app.post('/appointments/public/session', appointments.publicSession.bind(appointments));
+  app.get('/appointments/public/manage', appointments.publicManage.bind(appointments));
+  app.post('/appointments/public/cancel', appointments.publicCancel.bind(appointments));
+  app.post('/appointments/public/reschedule', appointments.publicReschedule.bind(appointments));
 	app.get(
 		'/appointments/availability',
 		appointments.availability.bind(appointments),
 	)
+	app.get('/appointments/slots', appointments.slots.bind(appointments));
 
 	// Listagem e consulta — qualquer staff autenticado
 	app.get(

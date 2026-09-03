@@ -2,6 +2,7 @@ import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { IAppointmentRepository } from "../../repositories/IAppointmentRepository";
 import { CompleteServiceUseCase } from "@/modules/shared/useCases/CompleteServiceUseCase";
+import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCases";
 import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
 
 interface CompleteAppointmentRequest {
@@ -12,6 +13,13 @@ interface CompleteAppointmentRequest {
   finalPrice?: number;
   paymentMethod?: string;
   commissionSplits?: { professionalId: string; percentage: number }[];
+  retailSale?: {
+    paymentMethod: "cash" | "pix" | "credit_card" | "debit_card" | "fiado";
+    items: Array<{ productId: string; quantity: number; unitPrice?: number }>;
+    discount?: number;
+    clientId?: string;
+    idempotencyKey?: string;
+  };
 }
 
 @injectable()
@@ -19,6 +27,7 @@ export class CompleteAppointmentUseCase {
   constructor(
     @inject("AppointmentRepository") private appointmentRepository: IAppointmentRepository,
     @inject(CompleteServiceUseCase) private completeService: CompleteServiceUseCase,
+    @inject(ProductCatalogUseCase) private productCatalog: ProductCatalogUseCase,
   ) {}
 
   async execute(request: CompleteAppointmentRequest) {
@@ -47,6 +56,23 @@ export class CompleteAppointmentUseCase {
     const updated = await this.appointmentRepository.update(appointment.id, {
       status: "COMPLETED",
     });
+
+    if (request.retailSale) {
+      await this.productCatalog.createSale(request.barbershopId, {
+        id: request.userId,
+        role: request.userRole,
+        barbershopId: request.barbershopId,
+      }, {
+        paymentMethod: request.retailSale.paymentMethod,
+        items: request.retailSale.items,
+        discount: request.retailSale.discount,
+        clientId: request.retailSale.clientId ?? appointment.clientId,
+        appointmentId: appointment.id,
+        idempotencyKey: request.retailSale.idempotencyKey ?? `appointment:${appointment.id}`,
+        customerName: appointment.customerName,
+        whatsapp: appointment.whatsapp,
+      });
+    }
 
     if (!isPlaceholderWhatsApp(appointment.whatsapp)) {
       await this.completeService.notifyWhatsApp(

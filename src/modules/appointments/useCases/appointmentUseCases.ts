@@ -80,7 +80,43 @@ async function createAppointmentAtomic(
 
   try {
     return await prisma.$transaction(async (tx: any) => {
-      await assertAppointmentBookable(data, tx);
+      const { durationMinutes } = await assertAppointmentBookable(data, tx);
+      let resolvedStaffId = data.staffId ?? null;
+
+      // A escolha "qualquer profissional" precisa ser materializada antes do
+      // INSERT. Assim o atendimento não fica sem dono e a decisão permanece
+      // protegida pelo mesmo lock transacional da validação de conflito.
+      if (!resolvedStaffId) {
+        const eligibleStaff = await tx.user.findMany({
+          where: {
+            barbershopId: data.barbershopId,
+            active: true,
+            role: { in: ['OWNER', 'EMPLOYEE'] },
+          },
+          select: { id: true },
+          orderBy: { id: 'asc' },
+        });
+        const day = new Date(data.date);
+        const next = new Date(day);
+        next.setUTCDate(next.getUTCDate() + 1);
+        const confirmed = await tx.appointment.findMany({
+          where: { barbershopId: data.barbershopId, date: { gte: day, lt: next }, status: 'CONFIRMED' },
+          select: { staffId: true, time: true, service: { select: { avgTimeMinutes: true } } },
+        });
+        const toMinutes = (value: string) => { const [h, m] = value.split(':').map(Number); return h * 60 + m; };
+        const start = toMinutes(data.time);
+        const hasConflict = (staffId: string) => confirmed.some((item: any) => {
+          if (item.staffId !== staffId && item.staffId !== null) return false;
+          const otherStart = toMinutes(item.time);
+          const otherDuration = item.service?.avgTimeMinutes ?? 30;
+          return start < otherStart + otherDuration && otherStart < start + durationMinutes;
+        });
+        const available = eligibleStaff.filter((member: { id: string }) => !hasConflict(member.id));
+        if (!available.length) throw new AppError('Horário indisponível (todos os profissionais ocupados)', 409, undefined, 'SLOT_UNAVAILABLE');
+        const load = new Map<string, number>();
+        for (const member of available) load.set(member.id, confirmed.filter((item: any) => item.staffId === member.id).length);
+        resolvedStaffId = [...available].sort((a: { id: string }, b: { id: string }) => (load.get(a.id)! - load.get(b.id)!) || a.id.localeCompare(b.id))[0].id;
+      }
 
       let clientId = data.clientId ?? null;
       if (data.clientPackageId) {
@@ -107,7 +143,7 @@ async function createAppointmentAtomic(
         data: {
           barbershopId: data.barbershopId,
           serviceId: data.serviceId,
-          staffId: data.staffId ?? null,
+          staffId: resolvedStaffId,
           customerName: data.customerName,
           whatsapp: data.whatsapp,
           date: new Date(data.date),
@@ -307,7 +343,70 @@ export class GetAvailabilityUseCase {
       }
     }
 
+    const dateYmd = date.slice(0, 10);
+    const { getShopOpenState } = await import(
+      "@/modules/barbershops/utils/getShopOpenState"
+    );
+    const dayState = await getShopOpenState(barbershopId, {
+      dateYmd,
+      forDateOnly: true,
+    });
+    if (!dayState.open) {
+      return [{ time: "00:00", staffId: null, durationMinutes: 24 * 60 }];
+    }
+
     return this.repo.getOccupiedSlots(barbershopId, date, staffId);
+  }
+}
+
+/** Retorna horários livres já calculados no backend para o serviço escolhido. */
+@injectable()
+export class GetAvailableSlotsUseCase {
+  async execute(barbershopId: string, serviceId: string, date: string, staffId?: string) {
+    await assertOperationEnabled(barbershopId, 'appointments');
+    const day = new Date(`${date}T00:00:00Z`);
+    const next = new Date(day);
+    next.setUTCDate(next.getUTCDate() + 1);
+    const service = await prisma.service.findFirst({ where: { id: serviceId, barbershopId, active: true }, select: { avgTimeMinutes: true } });
+    if (!service) throw new AppError('Serviço inválido para este estabelecimento', 400);
+    const dateYmd = date.slice(0, 10);
+    const { getShopOpenState } = await import("@/modules/barbershops/utils/getShopOpenState");
+    const dayState = await getShopOpenState(barbershopId, { dateYmd, forDateOnly: true });
+    if (!dayState.open) return [];
+    const staff = await prisma.user.findMany({ where: { barbershopId, active: true, role: { in: ['OWNER', 'EMPLOYEE'] }, ...(staffId ? { id: staffId } : {}) }, select: { id: true }, orderBy: { id: 'asc' } });
+    if (!staff.length) throw new AppError('Nenhum profissional disponível neste estabelecimento', 409);
+    const [shop, exception, appointments, blocks, policy] = await Promise.all([
+      prisma.barbershop.findUnique({ where: { id: barbershopId }, select: { timezone: true } }),
+      prisma.scheduleException.findUnique({ where: { barbershopId_date: { barbershopId, date: day } } }),
+      prisma.appointment.findMany({ where: { barbershopId, date: { gte: day, lt: next }, status: 'CONFIRMED', ...(staffId ? { OR: [{ staffId }, { staffId: null }] } : {}) }, select: { time: true, staffId: true, service: { select: { avgTimeMinutes: true } } } }),
+      prisma.calendarBlock.findMany({ where: { barbershopId, startAt: { lt: next }, endAt: { gt: day }, ...(staffId ? { OR: [{ staffId }, { staffId: null }] } : {}) }, select: { staffId: true, startAt: true, endAt: true } }),
+      prisma.appointmentPolicy.upsert({ where: { barbershopId }, create: { barbershopId }, update: {} }),
+    ]);
+    void shop;
+    const schedule = exception ?? await prisma.schedule.findUnique({ where: { barbershopId_dayOfWeek: { barbershopId, dayOfWeek: day.getUTCDay() } } });
+    if (!schedule || !schedule.isOpen) return [];
+    const timeToMinutes = (value: string) => { const [h, m] = value.split(':').map(Number); return h * 60 + m; };
+    const overlap = (a: number, ad: number, b: number, bd: number) => a < b + bd && b < a + ad;
+    const blockedMinutes = (block: { startAt: Date; endAt: Date }) => {
+      const parts = (value: Date) => { const f = new Intl.DateTimeFormat('en-GB', { timeZone: shop?.timezone || 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(value); return timeToMinutes(f); };
+      return { start: parts(block.startAt), duration: Math.max(1, parts(block.endAt) - parts(block.startAt)) };
+    };
+    const start = timeToMinutes(schedule.openTime);
+    const end = timeToMinutes(schedule.closeTime) - service.avgTimeMinutes;
+    const now = Date.now() + policy.bookingNoticeMinutes * 60_000;
+    const result: Array<{ time: string; staffId: string | null; durationMinutes: number }> = [];
+    for (let minute = start; minute <= end; minute += 30) {
+      const hh = String(Math.floor(minute / 60)).padStart(2, '0');
+      const mm = String(minute % 60).padStart(2, '0');
+      if (new Date(`${date}T${hh}:${mm}:00-03:00`).getTime() < now) continue;
+      const available = staff.find((member: { id: string }) => {
+        const appointmentBusy = appointments.some((item: { staffId: string | null; time: string; service: { avgTimeMinutes: number } | null }) => item.staffId && item.staffId !== member.id ? false : overlap(minute, service.avgTimeMinutes, timeToMinutes(item.time), item.service?.avgTimeMinutes ?? 30));
+        const blockBusy = blocks.some((block: { staffId: string | null; startAt: Date; endAt: Date }) => (!block.staffId || block.staffId === member.id) && overlap(minute, service.avgTimeMinutes, blockedMinutes(block).start, blockedMinutes(block).duration));
+        return !appointmentBusy && !blockBusy;
+      });
+      if (available) result.push({ time: `${hh}:${mm}`, staffId: staffId ? available.id : null, durationMinutes: service.avgTimeMinutes });
+    }
+    return result;
   }
 }
 

@@ -53,6 +53,8 @@ export interface IExpenseResponseDTO {
   receiptUrl: string | null;    // URL do comprovante
   notes: string | null;         // Observações
   createdById: string;          // ID de quem lançou
+  locked?: boolean;
+  inventoryReceiptId?: string | null;
   createdAt: Date;              // Data de criação do registro
   updatedAt: Date;              // Data da última atualização
 }

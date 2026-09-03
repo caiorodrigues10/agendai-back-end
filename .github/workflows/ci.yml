@@ -58,6 +58,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://agendai:agendai123@localhost:5432/agendai
+      DIRECT_URL: postgresql://agendai:agendai123@localhost:5432/agendai
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
       JWT_SECRET: ci-test-secret-key-that-is-at-least-32-chars-long

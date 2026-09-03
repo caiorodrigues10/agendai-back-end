@@ -172,6 +172,11 @@ export class CrmRepository implements ICrmRepository {
           include: { payments: true },
           orderBy: { createdAt: "desc" },
         },
+        retailSales: {
+          include: { lines: true },
+          orderBy: { soldAt: "desc" },
+          take: 30,
+        },
         packages: {
           include: {
             service: { select: { name: true } },
@@ -204,13 +209,21 @@ export class CrmRepository implements ICrmRepository {
         status: a.status,
         serviceName: a.service?.name ?? null,
       })),
-      fiados: client.fiados.map((f: { id: string; originalAmount: number; paidAmount: number; status: string; createdAt: Date }) => ({
+      fiados: client.fiados.map((f: { id: string; originalAmount: number; paidAmount: number; creditAdjustedAmount?: number; status: string; createdAt: Date }) => ({
         id: f.id,
         amount: f.originalAmount,
-        outstanding: Math.max(0, f.originalAmount - f.paidAmount),
+        outstanding: Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0)),
         status: f.status,
         createdAt: f.createdAt,
       })),
+      retailSales: (client as { retailSales?: Array<{ id: string; total: number; paymentMethod: string; soldAt: Date; status: string; lines: Array<{ productName: string; quantity: number }> }> }).retailSales?.map((sale) => ({
+        id: sale.id,
+        total: sale.total,
+        paymentMethod: sale.paymentMethod,
+        soldAt: sale.soldAt,
+        status: sale.status,
+        items: sale.lines.map((line) => ({ name: line.productName, quantity: line.quantity })),
+      })) ?? [],
       packages: client.packages.map((p: any) => ({
         id: p.id,
         packageId: p.packageId,
@@ -252,7 +265,7 @@ export class CrmRepository implements ICrmRepository {
         }
       }
 
-      await Promise.all([tx.appointment.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.queueItem.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.fiado.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.clientPackage.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.crmFinancialEvent.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } })]);
+      await Promise.all([tx.appointment.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.queueItem.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.fiado.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.clientPackage.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.crmFinancialEvent.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.retailSale.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } })]);
       await tx.salonClient.deleteMany({ where: { id: { in: ids }, barbershopId } });
     });
   }

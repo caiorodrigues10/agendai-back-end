@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { retailSalePayloadSchema } from "@/modules/products/schemas/productSchemas";
 
 /**
  * Campos extras (ex.: `completedAt` enviado pelo front) são ignorados.
@@ -15,4 +16,5 @@ export const updateQueueItemSchema = z.object({
     professionalId: z.string().uuid(),
     percentage: z.number().min(0).max(100),
   })).max(20).optional(),
+  retailSale: retailSalePayloadSchema.optional(),
 });

@@ -14,6 +14,10 @@ import {
 import { AppError } from "@/shared/errors/AppError";
 import * as queueModule from "@/shared/infra/queue";
 
+vi.mock("@/shared/utils/assertOperationEnabled", () => ({
+  assertOperationEnabled: vi.fn().mockResolvedValue("HYBRID"),
+}));
+
 const ADMIN = { role: "MASTER_ADMIN" } as const;
 const owner = (barbershopId: string) => ({ role: "OWNER", barbershopId });
 const otherOwner = { role: "OWNER", barbershopId: "other-shop" } as const;

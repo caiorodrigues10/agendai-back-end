@@ -54,6 +54,9 @@ import { CommissionRepository } from '@/modules/commissions/infra/repositories/C
 import { ICrmRepository } from '@/modules/crm/repositories/ICrmRepository'
 import { CrmRepository } from '@/modules/crm/infra/repositories/CrmRepository'
 
+import { InventoryEngine } from '@/modules/products/infra/InventoryEngine'
+import { ProductCatalogUseCase } from '@/modules/products/useCases/productUseCases'
+
 import { GetWeatherInsightsUseCase } from '@/modules/barbershops/useCases/getWeatherInsights/GetWeatherInsightsUseCase'
 
 container.registerSingleton<IUserRepository>('UserRepository', UserRepository)
@@ -117,4 +120,6 @@ container.registerSingleton<IClientPackageRepository>(
 )
 container.registerSingleton<ICommissionRepository>('CommissionRepository', CommissionRepository)
 container.registerSingleton<ICrmRepository>('CrmRepository', CrmRepository)
+container.registerSingleton(InventoryEngine)
+container.registerSingleton(ProductCatalogUseCase)
 container.registerSingleton('GetWeatherInsightsUseCase', GetWeatherInsightsUseCase)

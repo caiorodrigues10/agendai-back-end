@@ -45,6 +45,19 @@ export async function assertAppointmentBookable(
 ): Promise<{ durationMinutes: number }> {
   await assertPublicShopOperationalAccess(data.barbershopId);
 
+  const dateYmd =
+    typeof data.date === "string"
+      ? String(data.date).slice(0, 10)
+      : new Date(data.date).toISOString().slice(0, 10);
+  const { getShopOpenState } = await import("@/modules/barbershops/utils/getShopOpenState");
+  const dayState = await getShopOpenState(data.barbershopId, {
+    dateYmd,
+    forDateOnly: true,
+  });
+  if (!dayState.open) {
+    throw new AppError("Estabelecimento fechado neste dia", 400);
+  }
+
   const service = await db.service.findFirst({
     where: {
       id: data.serviceId,
@@ -83,24 +96,35 @@ export async function assertAppointmentBookable(
     }
   }
 
-  const day = new Date(data.date);
+  const day = new Date(`${dateYmd}T00:00:00.000Z`);
   const dayOfWeek = day.getUTCDay();
-  const schedule = await db.schedule.findUnique({
-    where: {
-      barbershopId_dayOfWeek: {
-        barbershopId: data.barbershopId,
-        dayOfWeek,
+  const [schedule, exception] = await Promise.all([
+    db.schedule.findUnique({
+      where: {
+        barbershopId_dayOfWeek: {
+          barbershopId: data.barbershopId,
+          dayOfWeek,
+        },
       },
-    },
-  });
+    }),
+    db.scheduleException.findUnique({
+      where: {
+        barbershopId_date: {
+          barbershopId: data.barbershopId,
+          date: day,
+        },
+      },
+    }),
+  ]);
 
-  if (schedule) {
-    if (!schedule.isOpen) {
+  const hours = exception ?? schedule;
+  if (hours) {
+    if (!hours.isOpen) {
       throw new AppError("Estabelecimento fechado neste dia", 400);
     }
     const slot = timeToMinutes(data.time);
-    const open = timeToMinutes(schedule.openTime);
-    const close = timeToMinutes(schedule.closeTime);
+    const open = timeToMinutes(hours.openTime ?? "00:00");
+    const close = timeToMinutes(hours.closeTime ?? "23:59");
     const ends = slot + service.avgTimeMinutes;
     if (slot < open || ends > close) {
       throw new AppError("Horário fora da agenda do estabelecimento", 400);

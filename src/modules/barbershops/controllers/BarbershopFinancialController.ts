@@ -8,8 +8,8 @@ import {
 import { GetWeatherInsightsUseCase } from "../useCases/getWeatherInsights/GetWeatherInsightsUseCase";
 import { container } from "tsyringe";
 
-type ExpenseRow = { amount: number; paidAt: Date | null; type: string };
-type FiadoRow = { originalAmount: number; paidAmount: number; dueDate: Date | null };
+type ExpenseRow = { amount: number; paidAt: Date | null; type: string; inventoryReceiptId?: string | null };
+type FiadoRow = { originalAmount: number; paidAmount: number; creditAdjustedAmount?: number; dueDate: Date | null };
 
 type ExpenseWithCategory = Prisma.ExpenseGetPayload<{
   include: { category: { select: { name: true } } };
@@ -53,20 +53,20 @@ export class BarbershopFinancialController {
       }
       : undefined;
 
-    const [expenses, fiados, overdueCount, packageSales] = await Promise.all([
+    const [expenses, fiados, overdueCount, packageSales, productSales, productRefunds, inventoryProducts] = await Promise.all([
       prisma.expense.findMany({
         where: {
           barbershopId,
           ...(dateFilter && { referenceDate: dateFilter }),
         },
-        select: { amount: true, paidAt: true, type: true },
+        select: { amount: true, paidAt: true, type: true, inventoryReceiptId: true },
       }),
       prisma.fiado.findMany({
         where: {
           barbershopId,
           status: { in: ["PENDING", "PARTIAL"] },
         },
-        select: { originalAmount: true, paidAmount: true, dueDate: true },
+        select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true, dueDate: true },
       }),
       prisma.fiado.count({
         where: {
@@ -84,25 +84,55 @@ export class BarbershopFinancialController {
         _count: { id: true },
         _sum: { pricePaid: true },
       }),
+      prisma.retailSale.aggregate({
+        where: {
+          barbershopId,
+          status: { in: ["COMPLETED", "REFUNDED"] },
+          ...(dateFilter && { soldAt: dateFilter }),
+        },
+        _sum: { total: true, totalCost: true },
+        _count: { id: true },
+      }),
+      prisma.retailSaleRefund.aggregate({
+        where: {
+          barbershopId,
+          ...(dateFilter && { createdAt: dateFilter }),
+        },
+        _sum: { financialRefund: true },
+      }),
+      prisma.product.findMany({
+        where: { barbershopId, trackStock: true, active: true },
+        select: { stockQty: true, averageCost: true, minStock: true },
+      }),
     ]);
 
-    const totalExpenses = expenses.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
-    const totalPaidExp = expenses.filter((e: ExpenseRow) => e.paidAt).reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
+    const operationalExpenses = expenses.filter((e: ExpenseRow) => !e.inventoryReceiptId);
+    const stockPurchases = expenses.filter((e: ExpenseRow) => e.inventoryReceiptId);
+    const totalExpenses = operationalExpenses.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
+    const totalPaidExp = operationalExpenses.filter((e: ExpenseRow) => e.paidAt).reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
     const totalPendingExp = totalExpenses - totalPaidExp;
+    const stockPurchaseTotal = stockPurchases.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
 
     const expenseByType: Record<string, { total: number; count: number }> = {};
-    for (const e of expenses) {
+    for (const e of operationalExpenses) {
       const cur = expenseByType[e.type] ?? { total: 0, count: 0 };
       expenseByType[e.type] = { total: cur.total + e.amount, count: cur.count + 1 };
     }
 
     const now = new Date();
-    const totalFiadoDebt = fiados.reduce((s: number, f: FiadoRow) => s + (f.originalAmount - f.paidAmount), 0);
+    const remainingOf = (f: FiadoRow) => Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0));
+    const totalFiadoDebt = fiados.reduce((s: number, f: FiadoRow) => s + remainingOf(f), 0);
     const totalFiadoPaid = fiados.reduce((s: number, f: FiadoRow) => s + f.paidAmount, 0);
     const totalFiadoOrig = fiados.reduce((s: number, f: FiadoRow) => s + f.originalAmount, 0);
     const overdueAmount = fiados
       .filter((f: FiadoRow) => f.dueDate && f.dueDate < now)
-      .reduce((s: number, f: FiadoRow) => s + (f.originalAmount - f.paidAmount), 0);
+      .reduce((s: number, f: FiadoRow) => s + remainingOf(f), 0);
+
+    const productRevenue = productSales._sum.total ?? 0;
+    const productCogs = productSales._sum.totalCost ?? 0;
+    const productRefunded = productRefunds._sum.financialRefund ?? 0;
+    const inventoryValue = inventoryProducts.reduce((s: number, p: { stockQty: number; averageCost: number }) => s + p.stockQty * p.averageCost, 0);
+    const lowStockCount = inventoryProducts.filter((p: { stockQty: number; minStock: number }) => p.minStock > 0 && p.stockQty <= p.minStock).length;
 
     return reply.send({
       success: true,
@@ -111,7 +141,7 @@ export class BarbershopFinancialController {
           total: totalExpenses,
           totalPaid: totalPaidExp,
           totalPending: totalPendingExp,
-          count: expenses.length,
+          count: operationalExpenses.length,
           byType: Object.entries(expenseByType).map(([type, v]) => ({ type, ...v })),
         },
         fiados: {
@@ -125,6 +155,16 @@ export class BarbershopFinancialController {
         packages: {
           count: packageSales._count.id,
           totalPaid: packageSales._sum.pricePaid ?? 0,
+        },
+        products: {
+          revenue: productRevenue,
+          refunded: productRefunded,
+          cogs: productCogs,
+          margin: productRevenue - productCogs,
+          saleCount: productSales._count.id,
+          inventoryValue,
+          lowStockCount,
+          stockPurchases: stockPurchaseTotal,
         },
       },
     });
@@ -235,7 +275,7 @@ export class BarbershopFinancialController {
         description: f.description,
         originalAmount: f.originalAmount,
         paidAmount: f.paidAmount,
-        remainingAmount: Math.max(0, f.originalAmount - f.paidAmount),
+        remainingAmount: Math.max(0, f.originalAmount - f.paidAmount - ((f as { creditAdjustedAmount?: number }).creditAdjustedAmount ?? 0)),
         status: f.status,
         dueDate: f.dueDate,
         isOverdue:

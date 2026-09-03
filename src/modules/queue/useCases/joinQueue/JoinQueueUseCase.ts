@@ -27,6 +27,22 @@ export class JoinQueueUseCase {
     await assertPublicShopOperationalAccess(data.barbershopId);
     await assertOperationEnabled(data.barbershopId, 'queue');
 
+    if (!data.addedByStaff) {
+      const { getShopOpenState } = await import("@/modules/barbershops/utils/getShopOpenState");
+      const state = await getShopOpenState(data.barbershopId);
+      if (!state.open) {
+        throw new AppError(
+          state.reason === "MANUAL_MODE_NOT_OPENED"
+            ? "O salão ainda não abriu hoje"
+            : "Salão fechado no momento",
+          403
+        );
+      }
+      if (state.queueClosed) {
+        throw new AppError("Fila encerrada por hoje", 403);
+      }
+    }
+
     const service = await prisma.service.findFirst({
       where: {
         id: data.serviceId,

@@ -2,14 +2,16 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { z } from "zod";
 import { CompleteAppointmentUseCase } from "./CompleteAppointmentUseCase";
+import { retailSalePayloadSchema } from "@/modules/products/schemas/productSchemas";
 
 const completeAppointmentSchema = z.object({
   finalPrice: z.number().min(0).optional(),
-  paymentMethod: z.enum(["pix", "credit_card", "fiado", "cash"]).optional(),
+  paymentMethod: z.enum(["pix", "credit_card", "fiado", "cash", "debit_card"]).optional(),
   commissionSplits: z.array(z.object({
     professionalId: z.string().uuid(),
     percentage: z.number().min(0).max(100),
   })).optional(),
+  retailSale: retailSalePayloadSchema.optional(),
 });
 
 export class CompleteAppointmentController {
@@ -33,6 +35,7 @@ export class CompleteAppointmentController {
       finalPrice: body.finalPrice,
       paymentMethod: body.paymentMethod,
       commissionSplits: body.commissionSplits,
+      retailSale: body.retailSale,
     });
 
     reply.send({ success: true, data: appointment });

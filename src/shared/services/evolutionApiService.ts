@@ -144,7 +144,11 @@ export async function sendWhatsAppMessageDetailed(
       };
     }
 
-    const body = await res.json().catch(() => null);
+    const body = typeof res.json === "function"
+      ? await res.json().catch(() => null)
+      : typeof res.text === "function"
+        ? await res.text().catch(() => null)
+        : null;
     log?.info({}, "WhatsApp aceito pela Evolution API");
     return {
       ok: true,
@@ -281,6 +285,28 @@ export function extractQrBase64(payload: unknown): string | null {
     }
   }
   return null;
+}
+
+export function extractPairingCode(payload: unknown): string | null {
+  const root = asRecord(payload);
+  const candidates = [root?.pairingCode, root?.pairing_code, root?.code];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && /^[A-Za-z0-9-]{6,16}$/.test(candidate.trim())) {
+      return candidate.trim();
+    }
+  }
+  return null;
+}
+
+export async function fetchEvolutionPairingCode(
+  instanceName: string,
+  phoneNumber: string
+): Promise<string | null> {
+  const res = await evolutionRequest(
+    `/instance/connect/${encodeURIComponent(instanceName)}?number=${encodeURIComponent(phoneNumber)}`
+  );
+  if (!res.ok) return null;
+  return extractPairingCode(res.json);
 }
 
 export function extractConnectionState(payload: unknown): EvolutionConnectionState {

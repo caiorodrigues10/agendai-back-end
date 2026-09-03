@@ -28,6 +28,8 @@ export class FiadoRepository implements IFiadoRepository {
         dueDate: data.dueDate ?? null,
         notes: data.notes ?? null,
         createdById: data.createdById,
+        origin: data.origin ?? "MANUAL",
+        retailSaleId: data.retailSaleId ?? null,
       },
       include: { payments: true },
     });
@@ -106,16 +108,20 @@ export class FiadoRepository implements IFiadoRepository {
   async addPayment(data: ICreateFiadoPaymentDTO): Promise<IFiadoPaymentResponseDTO> {
     const fiado = await prisma.fiado.findUniqueOrThrow({
       where: { id: data.fiadoId },
-      select: { originalAmount: true, paidAmount: true, status: true },
+      select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true, status: true },
     });
 
     if (fiado.status === "PAID" || fiado.status === "FORGIVEN") {
       throw new AppError("Este fiado já está encerrado.", 400);
     }
 
+    const remaining = fiado.originalAmount - fiado.paidAmount - (fiado.creditAdjustedAmount ?? 0);
+    if (data.amount > remaining + 0.001) {
+      throw new AppError("Valor do pagamento maior que o saldo devedor", 400);
+    }
     const newPaidAmount = fiado.paidAmount + data.amount;
     const newStatus: FiadoStatus =
-      newPaidAmount >= fiado.originalAmount ? "PAID" : "PARTIAL";
+      newPaidAmount + (fiado.creditAdjustedAmount ?? 0) >= fiado.originalAmount ? "PAID" : "PARTIAL";
 
     const [payment] = await prisma.$transaction([
       prisma.fiadoPayment.create({
@@ -142,7 +148,7 @@ export class FiadoRepository implements IFiadoRepository {
     const now = new Date();
 
     const [fiados, overdueCount]: [
-      Array<{ originalAmount: number; paidAmount: number; dueDate: Date | null }>,
+      Array<{ originalAmount: number; paidAmount: number; creditAdjustedAmount: number; dueDate: Date | null }>,
       number
     ] = await Promise.all([
       prisma.fiado.findMany({
@@ -153,6 +159,7 @@ export class FiadoRepository implements IFiadoRepository {
         select: {
           originalAmount: true,
           paidAmount: true,
+          creditAdjustedAmount: true,
           dueDate: true,
         },
       }),
@@ -168,11 +175,11 @@ export class FiadoRepository implements IFiadoRepository {
     const totalDebtors = fiados.length;
     const totalOriginal = fiados.reduce((s: number, f) => s + f.originalAmount, 0);
     const totalPaid = fiados.reduce((s: number, f) => s + f.paidAmount, 0);
-    const totalPending = totalOriginal - totalPaid;
+    const totalPending = fiados.reduce((s: number, f) => s + Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0)), 0);
 
     const overdueAmount = fiados
       .filter((f) => f.dueDate && f.dueDate < now)
-      .reduce((s: number, f) => s + (f.originalAmount - f.paidAmount), 0);
+      .reduce((s: number, f) => s + Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0)), 0);
 
     return {
       totalDebtors,

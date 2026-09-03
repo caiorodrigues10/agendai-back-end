@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MockSalonClientRepository } from "@/modules/clients/infra/repositories/mocks/MockSalonClientRepository";
 import { MockServicePackageRepository } from "@/modules/packages/infra/repositories/mocks/MockServicePackageRepository";
 import { MockClientPackageRepository } from "@/modules/packages/infra/repositories/mocks/MockClientPackageRepository";
@@ -21,6 +21,10 @@ import {
 } from "@/modules/appointments/useCases/appointmentUseCases";
 import { batchSlotsOverlap } from "@/modules/packages/utils/batchSlotOverlap";
 import { AppError } from "@/shared/errors/AppError";
+
+vi.mock("@/shared/utils/assertOperationEnabled", () => ({
+  assertOperationEnabled: vi.fn().mockResolvedValue("HYBRID"),
+}));
 
 const ADMIN = { role: "MASTER_ADMIN", id: "admin-1" } as const;
 const owner = (barbershopId: string) => ({

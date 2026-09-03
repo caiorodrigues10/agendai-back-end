@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MockBarbershopRepository } from "@/modules/barbershops/infra/repositories/mocks/MockBarbershopRepository";
 import { CreateBarbershopUseCase } from "./createBarbershop/CreateBarbershopUseCase";
 import { ListBarbershopsUseCase } from "./listBarbershops/ListBarbershopsUseCase";
@@ -9,6 +9,11 @@ import { DeleteBarbershopUseCase } from "./deleteBarbershop/DeleteBarbershopUseC
 import { GetScheduleUseCase } from "./getSchedule/GetScheduleUseCase";
 import { UpdateScheduleUseCase } from "./updateSchedule/UpdateScheduleUseCase";
 import { AppError } from "@/shared/errors/AppError";
+
+vi.mock("@/modules/barbershops/utils/getShopOpenState", () => ({
+  getShopOpenState: vi.fn().mockResolvedValue({ open: true, reason: "SCHEDULE", queueClosed: false }),
+  listUpcomingExceptions: vi.fn().mockResolvedValue([]),
+}));
 
 let repo: MockBarbershopRepository;
 let create: CreateBarbershopUseCase;

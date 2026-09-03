@@ -9,10 +9,12 @@ import {
   createEvolutionInstance,
   deleteEvolutionInstance,
   extractQrBase64,
+  fetchEvolutionPairingCode,
   fetchEvolutionConnectionState,
   fetchEvolutionQr,
   isEvolutionServerConfigured,
   logoutEvolutionInstance,
+  normalizeWhatsAppPhone,
 } from "@/shared/services/evolutionApiService";
 
 export type ShopWhatsAppStatus = "disconnected" | "connecting" | "open";
@@ -21,7 +23,13 @@ export interface ShopWhatsAppDto {
   status: ShopWhatsAppStatus;
   connected: boolean;
   qrcodeBase64: string | null;
+  method: "qr" | "pairing_code" | null;
+  pairingCode: string | null;
 }
+
+export type WhatsAppConnectInput =
+  | { method: "qr" }
+  | { method: "pairing_code"; phoneNumber: string };
 
 function assertShopAccess(
   barbershopId: string,
@@ -51,25 +59,27 @@ export class WhatsAppConnectionUseCase {
 
     const stored = shop.evolutionInstanceName?.trim();
     if (!stored) {
-      return { status: "disconnected", connected: false, qrcodeBase64: null };
+      return { status: "disconnected", connected: false, qrcodeBase64: null, method: null, pairingCode: null };
     }
 
     const state = await fetchEvolutionConnectionState(stored);
     if (state === "open") {
-      return { status: "open", connected: true, qrcodeBase64: null };
+      return { status: "open", connected: true, qrcodeBase64: null, method: null, pairingCode: null };
     }
 
-    const qrcodeBase64 = await fetchEvolutionQr(stored);
     return {
       status: state === "connecting" ? "connecting" : "disconnected",
       connected: false,
-      qrcodeBase64,
+      qrcodeBase64: null,
+      method: null,
+      pairingCode: null,
     };
   }
 
   async connect(
     barbershopId: string,
-    user: { role: string; barbershopId?: string }
+    user: { role: string; barbershopId?: string },
+    input: WhatsAppConnectInput = { method: "qr" }
   ): Promise<ShopWhatsAppDto> {
     assertShopAccess(barbershopId, user);
     const shop = await this.barbershopRepository.findById(barbershopId);
@@ -78,10 +88,6 @@ export class WhatsAppConnectionUseCase {
 
     const instanceName = shopEvolutionInstanceName(barbershopId);
     const created = await createEvolutionInstance(instanceName);
-    let qrcodeBase64 = extractQrBase64(created);
-    if (!qrcodeBase64) {
-      qrcodeBase64 = await fetchEvolutionQr(instanceName);
-    }
 
     if (shop.evolutionInstanceName !== instanceName) {
       await this.barbershopRepository.update(barbershopId, {
@@ -91,13 +97,31 @@ export class WhatsAppConnectionUseCase {
 
     const state = await fetchEvolutionConnectionState(instanceName);
     if (state === "open") {
-      return { status: "open", connected: true, qrcodeBase64: null };
+      return { status: "open", connected: true, qrcodeBase64: null, method: null, pairingCode: null };
     }
+
+    if (input.method === "pairing_code") {
+      const phoneNumber = normalizeWhatsAppPhone(input.phoneNumber);
+      if (!/^(55)?\d{10,11}$/.test(phoneNumber)) {
+        throw new AppError("Informe um número de WhatsApp válido com DDD.", 400);
+      }
+      const pairingCode = await fetchEvolutionPairingCode(instanceName, phoneNumber);
+      if (!pairingCode) {
+        throw new AppError("A Evolution não disponibilizou o código de pareamento. Tente usar o QR Code.", 502);
+      }
+      return { status: "connecting", connected: false, qrcodeBase64: null, method: "pairing_code", pairingCode };
+    }
+
+    let qrcodeBase64 = extractQrBase64(created);
+    if (!qrcodeBase64) qrcodeBase64 = await fetchEvolutionQr(instanceName);
+    if (!qrcodeBase64) throw new AppError("Não foi possível gerar o QR Code do WhatsApp. Tente novamente.", 502);
 
     return {
       status: "connecting",
       connected: false,
       qrcodeBase64,
+      method: "qr",
+      pairingCode: null,
     };
   }
 
@@ -127,6 +151,6 @@ export class WhatsAppConnectionUseCase {
       evolutionInstanceName: null,
     });
 
-    return { status: "disconnected", connected: false, qrcodeBase64: null };
+    return { status: "disconnected", connected: false, qrcodeBase64: null, method: null, pairingCode: null };
   }
 }

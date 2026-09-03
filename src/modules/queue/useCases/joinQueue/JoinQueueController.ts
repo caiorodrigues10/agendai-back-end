@@ -10,6 +10,7 @@ import {
   isPlaceholderWhatsApp,
   resolveQueueWhatsApp,
 } from "../../utils/queueDuplicate";
+import { notifyQueueCapacity } from "../../services/queueCapacityAlert";
 
 export class JoinQueueController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -109,6 +110,8 @@ export class JoinQueueController {
         /* notificação não bloqueia entrada na fila */
       }
     }
+
+    try { await notifyQueueCapacity(data.barbershopId, item.id, data.customerName); } catch { /* alerta não bloqueia a entrada */ }
 
     return reply.status(201).send(item);
   }

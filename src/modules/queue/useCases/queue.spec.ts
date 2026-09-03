@@ -25,6 +25,10 @@ import { isActiveQueueDuplicate, resolveQueueWhatsApp, STAFF_QUEUE_PLACEHOLDER_W
 import { updateQueueItemSchema } from "../schemas/queueSchemas";
 import { MockFiadoRepository } from "@/modules/fiado/infra/repositories/mocks/MockFiadoRepository";
 
+vi.mock("@/shared/utils/assertOperationEnabled", () => ({
+  assertOperationEnabled: vi.fn().mockResolvedValue("HYBRID"),
+}));
+
 let queues: MockQueueRepository;
 let join: JoinQueueUseCase;
 let list: ListQueueUseCase;

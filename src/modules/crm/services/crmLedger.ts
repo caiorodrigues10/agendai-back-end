@@ -3,7 +3,7 @@ import { prisma } from "@/libs/prismaClient";
 type EventInput = {
   barbershopId: string;
   clientId: string;
-  kind: "SERVICE_COMPLETED" | "PACKAGE_SOLD" | "FIADO_CREATED" | "FIADO_PAYMENT" | "REFUND";
+  kind: "SERVICE_COMPLETED" | "PACKAGE_SOLD" | "FIADO_CREATED" | "FIADO_PAYMENT" | "REFUND" | "PRODUCT_SOLD" | "PRODUCT_REFUNDED";
   sourceType: string;
   sourceId: string;
   grossAmount?: number;
@@ -67,16 +67,17 @@ export async function recordFiadoCreated(fiadoId: string): Promise<void> {
   if (process.env.VITEST) return;
   const fiado = await prisma.fiado.findUnique({ where: { id: fiadoId } });
   if (!fiado?.clientId) return;
-  const originatedFromQueue = fiado.notes?.includes("finalizar o atendimento da fila") ?? false;
+  const originatedFromCompletion = fiado.origin === "SERVICE_COMPLETION" || fiado.origin === "RETAIL_SALE"
+    || (fiado.notes?.includes("finalizar o atendimento da fila") ?? false);
   await recordCrmFinancialEvent({
     barbershopId: fiado.barbershopId,
     clientId: fiado.clientId,
     kind: "FIADO_CREATED",
     sourceType: "fiado",
     sourceId: fiado.id,
-    // A venda já entrou no SERVICE_COMPLETED quando o fiado veio da fila.
-    grossAmount: originatedFromQueue ? 0 : fiado.originalAmount,
-    outstandingDelta: originatedFromQueue ? 0 : fiado.originalAmount,
+    // A venda já entrou no SERVICE_COMPLETED / PRODUCT_SOLD quando o fiado veio do fechamento.
+    grossAmount: originatedFromCompletion ? 0 : fiado.originalAmount,
+    outstandingDelta: originatedFromCompletion ? 0 : fiado.originalAmount,
     occurredAt: fiado.createdAt,
   });
 }

@@ -48,6 +48,10 @@ export const availabilityQuerySchema = z.object({
 	staffId: z.string().uuid('staffId inválido').optional(),
 })
 
+export const slotsQuerySchema = availabilityQuerySchema.extend({
+	serviceId: z.string().uuid('serviceId inválido'),
+})
+
 export const listAppointmentsQuerySchema = z.object({
 	page: z.coerce.number().int().min(1).default(1),
 	limit: z.coerce.number().int().min(1).max(100).default(20),

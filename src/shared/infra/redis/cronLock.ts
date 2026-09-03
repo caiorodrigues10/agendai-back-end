@@ -37,20 +37,49 @@ export async function withCronLock(
     return;
   }
 
-  // Record cron run
-  const runId = randomUUID();
+  let existing;
+  try {
+    existing = await prisma.cronRun.findUnique({
+      where: {
+        jobName_scheduledKey: {
+          jobName: options.jobName,
+          scheduledKey: options.scheduledKey,
+        },
+      },
+    });
+  } catch (error) {
+    await lock.release(lockKey, ownerId);
+    throw error;
+  }
+
+  // The same scheduled run is intentionally idempotent. A failed run may be
+  // retried, but a completed or currently running run must be skipped.
+  if (existing?.status === "COMPLETED" || existing?.status === "RUNNING") {
+    await lock.release(lockKey, ownerId);
+    return;
+  }
+
+  // Record cron run, reusing a failed row when this is a retry.
+  const runId = existing?.id ?? randomUUID();
   let renewTimer: ReturnType<typeof setInterval> | null = null;
 
   try {
-    await prisma.cronRun.create({
-      data: {
-        id: runId,
-        jobName: options.jobName,
-        scheduledKey: options.scheduledKey,
-        status: 'RUNNING',
-        startedAt: new Date(),
-      },
-    });
+    if (existing) {
+      await prisma.cronRun.update({
+        where: { id: runId },
+        data: { status: 'RUNNING', startedAt: new Date(), completedAt: null, error: null },
+      });
+    } else {
+      await prisma.cronRun.create({
+        data: {
+          id: runId,
+          jobName: options.jobName,
+          scheduledKey: options.scheduledKey,
+          status: 'RUNNING',
+          startedAt: new Date(),
+        },
+      });
+    }
 
     // Start lock renewal
     renewTimer = setInterval(async () => {

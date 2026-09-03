@@ -13,6 +13,11 @@ import { UpdateScheduleController }    from "@/modules/barbershops/useCases/upda
 import { LogoController }              from "@/modules/barbershops/useCases/uploadLogo/LogoController";
 import { WhatsAppConnectionController } from "@/modules/barbershops/useCases/whatsappConnection/WhatsAppConnectionController";
 import { ChangeOperationModeController } from "@/modules/barbershops/useCases/changeOperationMode/ChangeOperationModeController";
+import { ShopStatusController } from "@/modules/barbershops/useCases/shopStatus/ShopStatusController";
+import { prisma } from "@/libs/prismaClient";
+import { AppError } from "@/shared/errors/AppError";
+import { z } from "zod";
+import { enqueueWhatsApp } from "@/shared/infra/queue";
 
 export async function barbershopsRoutes(app: FastifyInstance) {
   const create         = new CreateBarbershopController();
@@ -25,6 +30,10 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const logo           = new LogoController();
   const whatsapp       = new WhatsAppConnectionController();
   const changeMode     = new ChangeOperationModeController();
+  const shopStatus     = new ShopStatusController();
+  const assertOwnShop = (request: { user?: { role?: string; barbershopId?: string } }, id: string) => {
+    if (request.user?.role !== "MASTER_ADMIN" && request.user?.barbershopId !== id) throw new AppError("Acesso negado", 403);
+  };
 
   // ─── Admin — sem checkSubscription (operação de plataforma) ────────────────
   app.post("/barbershops",     { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] }, create.handle.bind(create));
@@ -52,12 +61,51 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.post("/barbershops/:id/whatsapp/connect", { preHandler: ownerWhatsAppGuard }, whatsapp.connect.bind(whatsapp));
   app.post("/barbershops/:id/whatsapp/disconnect", { preHandler: ownerWhatsAppGuard }, whatsapp.disconnect.bind(whatsapp));
 
+  app.get("/barbershops/:id/queue-alert", { preHandler: ownerWhatsAppGuard }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    assertOwnShop(request, id);
+    const shop = await prisma.barbershop.findUnique({ where: { id }, select: { queueAlertEnabled: true, queueAlertThreshold: true, queueAlertPhone: true, whatsapp: true, evolutionInstanceName: true, operationMode: true } });
+    if (!shop) throw new AppError("Salão não encontrado", 404);
+    const currentWaiting = await prisma.queueItem.count({ where: { barbershopId: id, status: "WAITING" } });
+    return reply.send({ success: true, data: { enabled: shop.queueAlertEnabled, threshold: shop.queueAlertThreshold, phone: shop.queueAlertPhone || shop.whatsapp, currentWaiting, exceeded: currentWaiting > shop.queueAlertThreshold, whatsappConnected: Boolean(shop.evolutionInstanceName?.trim() || process.env.EVOLUTION_INSTANCE_NAME?.trim()), queueEnabled: shop.operationMode !== "APPOINTMENTS_ONLY" } });
+  });
+
+  app.patch("/barbershops/:id/queue-alert", { preHandler: ownerWhatsAppGuard }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    assertOwnShop(request, id);
+    const body = z.object({ enabled: z.boolean(), threshold: z.number().int().min(1).max(100), phone: z.string().max(20).optional().nullable() }).parse(request.body);
+    const phone = body.phone?.replace(/\D/g, "") || null;
+    if (body.enabled && (!phone || phone.length < 10 || phone.length > 13)) throw new AppError("Informe um WhatsApp válido para receber o alerta.", 400);
+    const shop = await prisma.barbershop.update({ where: { id }, data: { queueAlertEnabled: body.enabled, queueAlertThreshold: body.threshold, queueAlertPhone: phone, queueAlertUpdatedAt: new Date() }, select: { queueAlertEnabled: true, queueAlertThreshold: true, queueAlertPhone: true } });
+    return reply.send({ success: true, data: { enabled: shop.queueAlertEnabled, threshold: shop.queueAlertThreshold, phone: shop.queueAlertPhone } });
+  });
+
+  app.post("/barbershops/:id/queue-alert/test", { preHandler: ownerWhatsAppGuard }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    assertOwnShop(request, id);
+    const shop = await prisma.barbershop.findUnique({ where: { id }, select: { name: true, whatsapp: true, queueAlertPhone: true, evolutionInstanceName: true } });
+    const destination = shop?.queueAlertPhone || shop?.whatsapp;
+    const instanceName = shop?.evolutionInstanceName?.trim() || process.env.EVOLUTION_INSTANCE_NAME?.trim();
+    if (!shop || !destination || !instanceName) throw new AppError("Configure e conecte o WhatsApp antes de enviar o teste.", 400);
+    await enqueueWhatsApp({ phone: destination, instanceName, barbershopId: id, sourceType: "QUEUE_CAPACITY_TEST", deduplicationKey: `queue-capacity-test:${id}:${Date.now()}`, notificationType: "QUEUE_CAPACITY_ALERT", message: `✅ *Teste de alerta de fila*\n\nO alerta de fila cheia do *${shop.name}* está configurado corretamente.` });
+    return reply.send({ success: true, data: { sent: true } });
+  });
+
   // ─── Modo de atendimento ─────────────────────────────────────────────────
   app.patch(
     "/barbershops/:id/operation-mode",
     { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
     changeMode.handle.bind(changeMode)
   );
+
+  const ownerFloorGuard = [
+    authenticate,
+    authorize(["MASTER_ADMIN", "OWNER"]),
+    checkSubscription,
+    setRlsContext,
+  ];
+  app.patch("/barbershops/:id/manual-status", { preHandler: ownerFloorGuard }, shopStatus.setManualStatus.bind(shopStatus));
+  app.patch("/barbershops/:id/queue-status", { preHandler: ownerFloorGuard }, shopStatus.setQueueStatus.bind(shopStatus));
 
   // ─── Logo — Fluxo 1: Signed URL (upload direto cliente → GCS) ─────────────
   //
