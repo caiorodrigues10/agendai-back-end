@@ -11,6 +11,7 @@ import { computeInsertJoinedAt } from "../../utils/computeInsertJoinedAt";
 import { isPlaceholderWhatsApp } from "../../utils/queueDuplicate";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
+import { publishRealtime } from "@/shared/services/realtimeService";
 import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
 import { recordFiadoCreated, recordQueueCompletion } from "@/modules/crm/services/crmLedger";
 import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCases";
@@ -43,6 +44,7 @@ export class UpdateQueueItemUseCase {
     const nextStatus = parseQueueStatus(statusRaw);
     if (item.status === "completed" && nextStatus === "completed" && details?.retailSale) {
       await this.attachRetailSale(item, requestingUser, details.retailSale);
+      publishRealtime(item.barbershopId, "queue:changed");
       return item;
     }
     assertQueueStatusTransition(item.status, nextStatus);
@@ -143,6 +145,7 @@ export class UpdateQueueItemUseCase {
       } catch { /* notificacao nao bloqueia */ }
     }
     try { await this.notifyQueuePositionUpdates.execute(item.barbershopId); } catch { /* notificacao nao bloqueia */ }
+    publishRealtime(item.barbershopId, "queue:changed");
     return updated;
   }
 

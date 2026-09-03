@@ -254,6 +254,7 @@ async function evolutionRequest(
       apikey: apiKey,
       ...(init.headers as Record<string, string> | undefined),
     },
+    signal: init.signal ?? AbortSignal.timeout(10_000),
   });
   const text = await res.text().catch(() => "");
   let json: unknown = null;

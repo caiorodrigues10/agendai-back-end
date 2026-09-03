@@ -4,8 +4,10 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 import { registerRoutes } from "./routes";
 import { apiRoutes } from "./routes/api";
+import { realtimeHub } from "@/shared/services/realtimeService";
 import { healthRoutes } from "./health";
 import { correlationIdMiddleware } from "./middlewares/correlationId";
 import { setupSwagger } from "@/config/swagger";
@@ -113,6 +115,7 @@ export async function buildApp() {
     global: true,
     max: 400,
     timeWindow: rateLimitWindowMs,
+    allowList: (req: { url?: string }) => (req.url ?? "").split("?")[0] === "/api/ws",
     errorResponseBuilder: () => ({
       statusCode: 429,
       success: false,
@@ -136,9 +139,20 @@ export async function buildApp() {
   // Swagger (documentação automática da API)
   await setupSwagger(app);
 
+  await app.register(websocket, {
+    options: { maxPayload: 16 * 1024 },
+  });
+
   // Rotas
   await registerRoutes(app);
   await app.register(apiRoutes, { prefix: "/api" });
+
+  if (!process.env.VITEST) {
+    await realtimeHub.start();
+    app.addHook("onClose", async () => {
+      await realtimeHub.stop();
+    });
+  }
 
   // Hook de auditoria global para mutações autenticadas.
   // Usa "onResponse" (roda DEPOIS do handler) para garantir que

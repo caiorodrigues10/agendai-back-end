@@ -11,6 +11,7 @@ import { prisma } from "@/libs/prismaClient";
 import { notifyCustomerJoinedQueue } from "../notifyQueuePositionUpdates/NotifyQueuePositionUpdatesUseCase";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
 import { computeIdentityKey } from "../../utils/identityKey";
+import { publishRealtime } from "@/shared/services/realtimeService";
 
 @injectable()
 export class JoinQueueUseCase {
@@ -121,6 +122,7 @@ export class JoinQueueUseCase {
       // notificação não bloqueia entrada na fila
     }
 
+    publishRealtime(item.barbershopId, "queue:changed");
     return item;
   }
 }

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { publishRealtime } from "@/shared/services/realtimeService";
 
 const logger = getModuleLogger("appointments:check-in");
 
@@ -28,7 +29,7 @@ export class CheckInAppointmentUseCase {
   async execute(data: ICheckInDTO): Promise<ICheckInResult> {
     const { appointmentId, barbershopId, userId, userRole } = data;
 
-    return prisma.$transaction(async (tx: typeof prisma) => {
+    const result = await prisma.$transaction(async (tx: typeof prisma) => {
       const appointment = await tx.appointment.findUnique({
         where: { id: appointmentId },
         select: {
@@ -124,5 +125,8 @@ export class CheckInAppointmentUseCase {
 
       return { queueItemId: queueItem.id, appointmentId };
     });
+    publishRealtime(barbershopId, "appointments:changed");
+    publishRealtime(barbershopId, "queue:changed");
+    return result;
   }
 }

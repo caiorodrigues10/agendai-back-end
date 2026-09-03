@@ -71,7 +71,7 @@ O script:
 
 - Habilita APIs de Storage/IAM
 - Cria o bucket (se não existir) com Uniform Bucket-Level Access
-- Libera leitura pública (`allUsers` → `objectViewer`) — necessário para `<img src="…">` das logos
+- Libera leitura pública (`allUsers` → `objectViewer`) — necessário para `<img src="…">` das logos e avatares. GET/HEAD CORS usa `origin: "*"`; PUT de upload continua restrito às origins do front.
 - Aplica CORS a partir de [`cors.json`](../cors.json) (origins localhost do front; edite o arquivo para produção)
 - Cria prefixos `logos/`, `feeds/`, `documents/`
 - Concede `objectAdmin` da SA no bucket

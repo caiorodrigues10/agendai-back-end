@@ -11,6 +11,7 @@ import { assertAppointmentBookable } from "@/modules/appointments/utils/assertAp
 import { batchSlotsOverlap } from "../utils/batchSlotOverlap";
 import { debitClientPackageInTx } from "../utils/clientPackageCredits";
 import { recordPackageSale } from "@/modules/crm/services/crmLedger";
+import { publishRealtime } from "@/shared/services/realtimeService";
 import {
   ICreateServicePackageDTO,
   IUpdateServicePackageDTO,
@@ -249,10 +250,11 @@ export class BookClientPackageUseCase {
           })
         );
       }
+      publishRealtime(pkg.barbershopId, "appointments:changed");
       return created;
     }
 
-    return prisma.$transaction(async (tx: any) => {
+    const booked = await prisma.$transaction(async (tx: any) => {
       await debitClientPackageInTx(tx, {
         clientPackageId: pkg.id,
         barbershopId: pkg.barbershopId,
@@ -310,6 +312,8 @@ export class BookClientPackageUseCase {
       }
       return created;
     });
+    publishRealtime(pkg.barbershopId, "appointments:changed");
+    return booked;
   }
 }
 

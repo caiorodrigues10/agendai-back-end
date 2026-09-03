@@ -19,6 +19,7 @@ import {
 } from "../dtos/IAppointmentDTO";
 import { assertAppointmentBookable } from "../utils/assertAppointmentBookable";
 import { assertOperationEnabled } from "@/shared/utils/assertOperationEnabled";
+import { publishRealtime } from "@/shared/services/realtimeService";
 import {
   GetQueueWaitEstimateUseCase,
   QueueWaitEstimate,
@@ -71,7 +72,9 @@ async function createAppointmentAtomic(
 ): Promise<IAppointmentResponseDTO> {
   // Unit tests usam MockAppointmentRepository sem Postgres.
   if (process.env.VITEST) {
-    return fallbackRepo.create(data);
+    const created = await fallbackRepo.create(data);
+    publishRealtime(data.barbershopId, "appointments:changed");
+    return created;
   }
 
   const lock = new AdvisoryLock(prisma);
@@ -79,7 +82,7 @@ async function createAppointmentAtomic(
   const release = await lock.acquire(lockId);
 
   try {
-    return await prisma.$transaction(async (tx: any) => {
+    const created = await prisma.$transaction(async (tx: any) => {
       const { durationMinutes } = await assertAppointmentBookable(data, tx);
       let resolvedStaffId = data.staffId ?? null;
 
@@ -160,6 +163,8 @@ async function createAppointmentAtomic(
       });
       return mapCreatedAppointment(record);
     });
+    publishRealtime(data.barbershopId, "appointments:changed");
+    return created;
   } finally {
     await release();
   }
@@ -306,7 +311,10 @@ export class UpdateAppointmentUseCase {
       throw new AppError("Agendamento cancelado não pode ser editado", 400);
     }
 
-    return this.repo.update(id, data);
+    return this.repo.update(id, data).then((updated) => {
+      publishRealtime(appointment.barbershopId, "appointments:changed");
+      return updated;
+    });
   }
 }
 
@@ -448,6 +456,7 @@ export class CancelAppointmentUseCase {
       if (shouldRestore && appointment.clientPackageId && this.packages) {
         await this.packages.restoreSessions(appointment.clientPackageId, 1);
       }
+      publishRealtime(appointment.barbershopId, "appointments:changed");
       return;
     }
 
@@ -460,6 +469,7 @@ export class CancelAppointmentUseCase {
         await restoreClientPackageInTx(tx, appointment.clientPackageId, 1);
       }
     });
+    publishRealtime(appointment.barbershopId, "appointments:changed");
   }
 }
 

@@ -74,7 +74,7 @@ ok "CORS aplicado a partir de cors.json"
 
 # Pastas lógicas
 info "Criando estrutura de pastas..."
-for FOLDER in logos feeds documents; do
+for FOLDER in logos feeds documents avatars; do
   if ! gsutil -q stat "gs://$BUCKET_NAME/$FOLDER/.keep" 2>/dev/null; then
     echo "" | gsutil cp - "gs://$BUCKET_NAME/$FOLDER/.keep"
     ok "Pasta criada: $FOLDER/"

@@ -6,6 +6,7 @@ import {
   assertQueueTenantAccess,
   type QueueRequestingUser,
 } from "../../utils/queueAccess";
+import { publishRealtime } from "@/shared/services/realtimeService";
 
 @injectable()
 export class DeleteQueueItemUseCase {
@@ -23,6 +24,7 @@ export class DeleteQueueItemUseCase {
     assertQueueTenantAccess(item.barbershopId, requestingUser);
 
     await this.queueRepository.delete(id);
+    publishRealtime(item.barbershopId, "queue:changed");
     try {
       await this.notifyQueuePositionUpdates.execute(item.barbershopId);
     } catch {

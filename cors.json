@@ -1,5 +1,11 @@
 [
   {
+    "origin": ["*"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Length", "Content-Range"],
+    "maxAgeSeconds": 3600
+  },
+  {
     "origin": [
       "http://localhost:3002",
       "http://localhost:3003",

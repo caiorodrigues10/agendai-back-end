@@ -27,8 +27,10 @@ import { onboardingRoutes } from '@/modules/barbershops/routes/onboarding.routes
 import { calendarRoutes } from '@/modules/barbershops/routes/calendar.routes'
 import { reviewRoutes } from '@/modules/appointments/routes/review.routes'
 import { webhooksRoutes } from './webhooks.routes'
+import { realtimeWsRoutes } from './ws.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
+	await realtimeWsRoutes(app)
 	await authRoutes(app)
 	await usersRoutes(app)
 	await servicesRoutes(app)

@@ -4,6 +4,7 @@ import { IAppointmentRepository } from "../../repositories/IAppointmentRepositor
 import { CompleteServiceUseCase } from "@/modules/shared/useCases/CompleteServiceUseCase";
 import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCases";
 import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
+import { publishRealtime } from "@/shared/services/realtimeService";
 
 interface CompleteAppointmentRequest {
   appointmentId: string;
@@ -89,6 +90,7 @@ export class CompleteAppointmentUseCase {
       );
     }
 
+    publishRealtime(request.barbershopId, "appointments:changed");
     return updated;
   }
 }

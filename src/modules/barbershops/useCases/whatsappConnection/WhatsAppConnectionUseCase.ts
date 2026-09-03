@@ -41,6 +41,20 @@ function assertShopAccess(
   }
 }
 
+function detachEvolutionInstanceWithTimeout(instanceName: string): Promise<void> {
+  const timeoutMs = 5_000;
+  const run = (fn: () => Promise<void>) =>
+    Promise.race([
+      fn().catch(() => undefined),
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+
+  return Promise.all([
+    run(() => logoutEvolutionInstance(instanceName)),
+    run(() => deleteEvolutionInstance(instanceName)),
+  ]).then(() => undefined);
+}
+
 @injectable()
 export class WhatsAppConnectionUseCase {
   constructor(
@@ -136,15 +150,8 @@ export class WhatsAppConnectionUseCase {
     const stored =
       shop.evolutionInstanceName?.trim() || shopEvolutionInstanceName(barbershopId);
 
-    try {
-      await logoutEvolutionInstance(stored);
-    } catch {
-      /* instância pode já estar desligada */
-    }
-    try {
-      await deleteEvolutionInstance(stored);
-    } catch {
-      /* idem */
+    if (isEvolutionServerConfigured()) {
+      await detachEvolutionInstanceWithTimeout(stored);
     }
 
     await this.barbershopRepository.update(barbershopId, {

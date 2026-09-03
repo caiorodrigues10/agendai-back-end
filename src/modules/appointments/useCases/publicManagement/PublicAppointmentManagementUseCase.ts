@@ -3,6 +3,7 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { assertAppointmentBookable } from "../../utils/assertAppointmentBookable";
 import { createPublicAppointmentToken, readPublicAppointmentToken } from "../../services/publicAppointmentToken";
+import { publishRealtime } from "@/shared/services/realtimeService";
 
 function appointmentInstant(date: string, time: string): Date {
   return new Date(`${date}T${time}:00-03:00`);
@@ -49,11 +50,13 @@ export class PublicAppointmentManagementUseCase {
     if (!policy.allowPublicCancellation || appointmentInstant(appointment.date.toISOString().slice(0, 10), appointment.time).getTime() - Date.now() < policy.cancelNoticeMinutes * 60_000) {
       throw new AppError("O prazo para cancelar este agendamento foi encerrado", 409, undefined, "APPOINTMENT_CHANGE_DEADLINE");
     }
-    return prisma.appointment.update({
+    const cancelled = await prisma.appointment.update({
       where: { id: appointment.id },
       data: { status: "CANCELLED", canceledAt: new Date(), cancellationSource: "CUSTOMER", cancellationReason: reason?.slice(0, 300) },
       include: { service: { select: { name: true, price: true } }, staff: { select: { name: true } }, barbershop: { select: { name: true } } },
     });
+    publishRealtime(appointment.barbershopId, "appointments:changed");
+    return cancelled;
   }
 
   async reschedule(sessionToken: string, date: string, time: string) {
@@ -72,6 +75,7 @@ export class PublicAppointmentManagementUseCase {
         include: { service: { select: { name: true, price: true } }, staff: { select: { name: true } }, barbershop: { select: { name: true } } },
       });
     });
+    publishRealtime(updated.barbershopId, "appointments:changed");
     return { appointment: updated, manageToken: createPublicAppointmentToken(updated.id, updated.barbershopId, updated.publicAccessVersion) };
   }
 }
