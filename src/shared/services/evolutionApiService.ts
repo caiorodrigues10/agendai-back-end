@@ -289,25 +289,100 @@ export function extractQrBase64(payload: unknown): string | null {
 }
 
 export function extractPairingCode(payload: unknown): string | null {
-  const root = asRecord(payload);
-  const candidates = [root?.pairingCode, root?.pairing_code, root?.code];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && /^[A-Za-z0-9-]{6,16}$/.test(candidate.trim())) {
-      return candidate.trim();
+  const roots: Array<Record<string, unknown>> = [];
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const record = asRecord(item);
+      if (record) roots.push(record);
+    }
+  } else {
+    const root = asRecord(payload);
+    if (root) roots.push(root);
+  }
+
+  for (const root of roots) {
+    const nested = asRecord(root.qrcode);
+    const candidates = [
+      root.pairingCode,
+      root.pairing_code,
+      nested?.pairingCode,
+      nested?.pairing_code,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate !== "string") continue;
+      // Ex.: "ABCD-EFGH" ou "WZYEH1YY" — nunca o token Baileys "2@..."
+      const normalized = candidate.trim().replace(/\s+/g, "");
+      if (/^[A-Za-z0-9-]{6,16}$/.test(normalized) && !normalized.includes("@")) {
+        return normalized.toUpperCase();
+      }
     }
   }
   return null;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Pairing code exige instância em `close`. Logout sozinho deixa a Evolution
+ * em loop de ChannelStartup (como nos logs LOGOUT/REMOVED). Por isso:
+ * delete → create (sem QR) → connect?number= → poll do pairingCode.
+ */
+export async function startEvolutionPairingCode(
+  instanceName: string,
+  phoneNumber: string
+): Promise<string | null> {
+  await deleteEvolutionInstance(instanceName).catch(() => undefined);
+  await sleep(1_500);
+
+  await createEvolutionInstance(instanceName, {
+    qrcode: false,
+    number: phoneNumber,
+  });
+  await sleep(2_000);
+
+  // Espera estabilizar em close (create sem qrcode não deve ir para connecting)
+  for (let i = 0; i < 6; i++) {
+    const state = await fetchEvolutionConnectionState(instanceName);
+    if (state === "open") return null;
+    if (state === "close") break;
+    if (state === "connecting") {
+      // Sessão antiga ainda presa: wipe e recria uma vez
+      await deleteEvolutionInstance(instanceName).catch(() => undefined);
+      await sleep(1_500);
+      await createEvolutionInstance(instanceName, {
+        qrcode: false,
+        number: phoneNumber,
+      });
+      await sleep(2_000);
+      break;
+    }
+    await sleep(1_000);
+  }
+
+  const path = `/instance/connect/${encodeURIComponent(instanceName)}?number=${encodeURIComponent(phoneNumber)}`;
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await evolutionRequest(path, {
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (res.ok) {
+      const code = extractPairingCode(res.json);
+      if (code) return code;
+    }
+    await sleep(2_000);
+  }
+
+  return null;
+}
+
+/** @deprecated Prefer startEvolutionPairingCode — mantido para testes legados. */
 export async function fetchEvolutionPairingCode(
   instanceName: string,
   phoneNumber: string
 ): Promise<string | null> {
-  const res = await evolutionRequest(
-    `/instance/connect/${encodeURIComponent(instanceName)}?number=${encodeURIComponent(phoneNumber)}`
-  );
-  if (!res.ok) return null;
-  return extractPairingCode(res.json);
+  return startEvolutionPairingCode(instanceName, phoneNumber);
 }
 
 export function extractConnectionState(payload: unknown): EvolutionConnectionState {
@@ -319,14 +394,21 @@ export function extractConnectionState(payload: unknown): EvolutionConnectionSta
   return "close";
 }
 
-export async function createEvolutionInstance(instanceName: string): Promise<unknown> {
+export async function createEvolutionInstance(
+  instanceName: string,
+  options?: { qrcode?: boolean; number?: string }
+): Promise<unknown> {
+  const body: Record<string, unknown> = {
+    instanceName,
+    qrcode: options?.qrcode ?? true,
+    integration: "WHATSAPP-BAILEYS",
+  };
+  if (options?.number) body.number = options.number;
+
   const res = await evolutionRequest("/instance/create", {
     method: "POST",
-    body: JSON.stringify({
-      instanceName,
-      qrcode: true,
-      integration: "WHATSAPP-BAILEYS",
-    }),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(25_000),
   });
   if (res.ok || res.status === 403 || res.status === 409) return res.json;
   throw new AppError("Não foi possível criar a sessão de WhatsApp. Tente de novo.", 502);

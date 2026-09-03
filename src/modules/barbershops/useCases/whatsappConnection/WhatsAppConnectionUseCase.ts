@@ -9,7 +9,7 @@ import {
   createEvolutionInstance,
   deleteEvolutionInstance,
   extractQrBase64,
-  fetchEvolutionPairingCode,
+  startEvolutionPairingCode,
   fetchEvolutionConnectionState,
   fetchEvolutionQr,
   isEvolutionServerConfigured,
@@ -101,7 +101,6 @@ export class WhatsAppConnectionUseCase {
     if (!isEvolutionServerConfigured()) throw evolutionNotConfiguredError();
 
     const instanceName = shopEvolutionInstanceName(barbershopId);
-    const created = await createEvolutionInstance(instanceName);
 
     if (shop.evolutionInstanceName !== instanceName) {
       await this.barbershopRepository.update(barbershopId, {
@@ -109,26 +108,51 @@ export class WhatsAppConnectionUseCase {
       });
     }
 
-    const state = await fetchEvolutionConnectionState(instanceName);
-    if (state === "open") {
-      return { status: "open", connected: true, qrcodeBase64: null, method: null, pairingCode: null };
-    }
-
     if (input.method === "pairing_code") {
       const phoneNumber = normalizeWhatsAppPhone(input.phoneNumber);
       if (!/^(55)?\d{10,11}$/.test(phoneNumber)) {
         throw new AppError("Informe um número de WhatsApp válido com DDD.", 400);
       }
-      const pairingCode = await fetchEvolutionPairingCode(instanceName, phoneNumber);
+
+      const pairingCode = await startEvolutionPairingCode(instanceName, phoneNumber);
       if (!pairingCode) {
-        throw new AppError("A Evolution não disponibilizou o código de pareamento. Tente usar o QR Code.", 502);
+        const state = await fetchEvolutionConnectionState(instanceName);
+        if (state === "open") {
+          return {
+            status: "open",
+            connected: true,
+            qrcodeBase64: null,
+            method: null,
+            pairingCode: null,
+          };
+        }
+        throw new AppError(
+          "Não foi possível gerar o código de pareamento. Confira o número (com DDD) e tente de novo em alguns segundos.",
+          502
+        );
       }
-      return { status: "connecting", connected: false, qrcodeBase64: null, method: "pairing_code", pairingCode };
+
+      return {
+        status: "connecting",
+        connected: false,
+        qrcodeBase64: null,
+        method: "pairing_code",
+        pairingCode,
+      };
+    }
+
+    const created = await createEvolutionInstance(instanceName, { qrcode: true });
+
+    const state = await fetchEvolutionConnectionState(instanceName);
+    if (state === "open") {
+      return { status: "open", connected: true, qrcodeBase64: null, method: null, pairingCode: null };
     }
 
     let qrcodeBase64 = extractQrBase64(created);
     if (!qrcodeBase64) qrcodeBase64 = await fetchEvolutionQr(instanceName);
-    if (!qrcodeBase64) throw new AppError("Não foi possível gerar o QR Code do WhatsApp. Tente novamente.", 502);
+    if (!qrcodeBase64) {
+      throw new AppError("Não foi possível gerar o QR Code do WhatsApp. Tente novamente.", 502);
+    }
 
     return {
       status: "connecting",

@@ -99,17 +99,43 @@ describe("WhatsAppConnectionUseCase", () => {
 
   it("connect por código normaliza o telefone e não devolve QR", async () => {
     const shop = await repo.create({ name: "Salon", whatsapp: "11999999999" });
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/instance/create")) return jsonRes(201, {}) as any;
-      if (url.includes("/instance/connectionState")) return jsonRes(200, { instance: { state: "connecting" } }) as any;
-      if (url.includes("/instance/connect") && url.includes("number=5511999999999")) return jsonRes(200, { pairingCode: "ABCD1234" }) as any;
+      if (url.includes("/instance/delete")) return jsonRes(200, {}) as any;
+      if (url.includes("/instance/create")) {
+        const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+        expect(body.qrcode).toBe(false);
+        expect(body.number).toBe("5511999999999");
+        return jsonRes(201, {}) as any;
+      }
+      if (url.includes("/instance/connectionState")) return jsonRes(200, { instance: { state: "close" } }) as any;
+      if (url.includes("/instance/connect") && url.includes("number=5511999999999")) {
+        return jsonRes(200, { pairingCode: "ABCD1234" }) as any;
+      }
       return jsonRes(200, {}) as any;
     }) as any;
 
-    const result = await useCase.connect(shop.id, { role: "OWNER", barbershopId: shop.id }, { method: "pairing_code", phoneNumber: "(11) 99999-9999" });
-    expect(result).toMatchObject({ status: "connecting", connected: false, method: "pairing_code", pairingCode: "ABCD1234", qrcodeBase64: null });
-    expect(String((globalThis.fetch as any).mock.calls[2][0])).toContain("number=5511999999999");
+    const resultPromise = useCase.connect(
+      shop.id,
+      { role: "OWNER", barbershopId: shop.id },
+      { method: "pairing_code", phoneNumber: "(11) 99999-9999" }
+    );
+    await vi.runAllTimersAsync();
+    const result = await resultPromise;
+    expect(result).toMatchObject({
+      status: "connecting",
+      connected: false,
+      method: "pairing_code",
+      pairingCode: "ABCD1234",
+      qrcodeBase64: null,
+    });
+    expect(
+      (globalThis.fetch as any).mock.calls.some((call: any[]) =>
+        String(call[0]).includes("number=5511999999999")
+      )
+    ).toBe(true);
+    vi.useRealTimers();
   });
 
   it("status não gera QR nem chama endpoint de conexão", async () => {

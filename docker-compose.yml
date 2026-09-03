@@ -74,8 +74,8 @@ services:
       sh -c "
         npm install &&
         npx prisma generate &&
-        npx prisma db push &&
-        npm run prisma:seed &&
+        (npx prisma db push || echo '[warn] prisma db push failed — continuing with existing schema') &&
+        (npm run prisma:seed || echo '[warn] seed failed — continuing') &&
         npm run dev:docker
       "
 

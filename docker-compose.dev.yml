@@ -24,8 +24,8 @@ services:
     command: >
       sh -c "
         npx prisma generate &&
-        npx prisma db push &&
-        npm run prisma:seed &&
+        (npx prisma db push || echo '[warn] prisma db push failed — continuing') &&
+        (npm run prisma:seed || echo '[warn] seed failed — continuing') &&
         npm run dev:docker
       "
 
