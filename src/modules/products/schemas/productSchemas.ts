@@ -83,11 +83,26 @@ export const adjustmentSchema = z.object({
   type: z.enum(["MANUAL_ADJUSTMENT", "INTERNAL_CONSUMPTION"]).optional(),
 });
 
-export const createRetailSaleSchema = retailSalePayloadSchema.extend({
-  clientId: z.string().uuid().optional().nullable(),
-  queueItemId: z.string().uuid().optional().nullable(),
-  appointmentId: z.string().uuid().optional().nullable(),
+export const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
+
+export const createRetailSaleSchema = retailSalePayloadSchema
+  .extend({
+    clientId: z.string().uuid().optional().nullable(),
+    queueItemId: z.string().uuid().optional().nullable(),
+    appointmentId: z.string().uuid().optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.paymentMethod === "fiado" && !data.clientId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Venda fiada exige cliente identificado",
+        path: ["clientId"],
+      });
+    }
+  });
 
 export const refundRetailSaleSchema = z.object({
   reason: z.string().trim().min(3).max(300),

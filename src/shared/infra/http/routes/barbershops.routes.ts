@@ -14,6 +14,7 @@ import { LogoController }              from "@/modules/barbershops/useCases/uplo
 import { WhatsAppConnectionController } from "@/modules/barbershops/useCases/whatsappConnection/WhatsAppConnectionController";
 import { ChangeOperationModeController } from "@/modules/barbershops/useCases/changeOperationMode/ChangeOperationModeController";
 import { ShopStatusController } from "@/modules/barbershops/useCases/shopStatus/ShopStatusController";
+import { GetWeatherForecastController } from "@/modules/barbershops/useCases/getWeatherForecast/GetWeatherForecastController";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { z } from "zod";
@@ -31,6 +32,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const whatsapp       = new WhatsAppConnectionController();
   const changeMode     = new ChangeOperationModeController();
   const shopStatus     = new ShopStatusController();
+  const weatherForecast = new GetWeatherForecastController();
   const assertOwnShop = (request: { user?: { role?: string; barbershopId?: string } }, id: string) => {
     if (request.user?.role !== "MASTER_ADMIN" && request.user?.barbershopId !== id) throw new AppError("Acesso negado", 403);
   };
@@ -58,6 +60,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
     setRlsContext,
   ];
   app.get("/barbershops/:id/whatsapp", { preHandler: ownerWhatsAppGuard }, whatsapp.status.bind(whatsapp));
+  app.get("/barbershops/:id/weather", { preHandler: ownerWhatsAppGuard }, weatherForecast.handle.bind(weatherForecast));
   app.post("/barbershops/:id/whatsapp/connect", { preHandler: ownerWhatsAppGuard }, whatsapp.connect.bind(whatsapp));
   app.post("/barbershops/:id/whatsapp/disconnect", { preHandler: ownerWhatsAppGuard }, whatsapp.disconnect.bind(whatsapp));
 

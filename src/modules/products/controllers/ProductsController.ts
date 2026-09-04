@@ -9,6 +9,7 @@ import {
   createRetailSaleSchema,
   installTemplateSchema,
   listProductsQuerySchema,
+  paginationQuerySchema,
   productCategorySchema,
   refundRetailSaleSchema,
   reportsQuerySchema,
@@ -87,9 +88,15 @@ export class ProductsController {
   }
 
   async listMovements(request: FastifyRequest, reply: FastifyReply) {
-    const query = request.query as { page?: string; limit?: string };
-    const result = await this.useCase().listMovements(shopId(request), request.user!, Number(query.page || 1), Number(query.limit || 50));
-    reply.send({ success: true, data: result.data, meta: { total: result.total } });
+    const query = paginationQuerySchema.parse(request.query);
+    const result = await this.useCase().listMovements(shopId(request), request.user!, query.page, query.limit);
+    reply.send({ success: true, data: result.data, meta: { total: result.total, page: query.page, limit: query.limit } });
+  }
+
+  async listReceipts(request: FastifyRequest, reply: FastifyReply) {
+    const query = paginationQuerySchema.parse(request.query);
+    const result = await this.useCase().listReceipts(shopId(request), request.user!, query.page, query.limit);
+    reply.send({ success: true, data: result.data, meta: { total: result.total, page: query.page, limit: query.limit } });
   }
 
   async createReceipt(request: FastifyRequest, reply: FastifyReply) {
@@ -112,9 +119,9 @@ export class ProductsController {
   }
 
   async listSales(request: FastifyRequest, reply: FastifyReply) {
-    const query = request.query as { page?: string; limit?: string };
-    const result = await this.useCase().listSales(shopId(request), request.user!, Number(query.page || 1), Number(query.limit || 30));
-    reply.send({ success: true, data: result.data, meta: { total: result.total } });
+    const query = paginationQuerySchema.parse(request.query);
+    const result = await this.useCase().listSales(shopId(request), request.user!, query.page, query.limit);
+    reply.send({ success: true, data: result.data, meta: { total: result.total, page: query.page, limit: query.limit } });
   }
 
   async createSale(request: FastifyRequest, reply: FastifyReply) {

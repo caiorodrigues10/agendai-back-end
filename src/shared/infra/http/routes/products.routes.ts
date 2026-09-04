@@ -30,6 +30,7 @@ export async function productsRoutes(app: FastifyInstance) {
   app.patch("/suppliers/:id", { preHandler: guard }, controller.updateSupplier.bind(controller));
 
   app.get("/inventory/movements", { preHandler: guard }, controller.listMovements.bind(controller));
+  app.get("/inventory/receipts", { preHandler: guard }, controller.listReceipts.bind(controller));
   app.post("/inventory/receipts", { preHandler: guard }, controller.createReceipt.bind(controller));
   app.post("/inventory/receipts/:id/reverse", { preHandler: guard }, controller.reverseReceipt.bind(controller));
   app.post("/inventory/adjustments", { preHandler: guard }, controller.adjustStock.bind(controller));

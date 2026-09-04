@@ -12,6 +12,13 @@ import { CATALOG_TEMPLATE_VERSION, getCatalogTemplate } from "../catalogTemplate
 import type { BusinessSegment } from "@/modules/barbershops/dtos/IBarbershopResponseDTO";
 import { namesToSkip } from "../inventoryMath";
 import { assertProductsInventoryCapability } from "@/shared/constants/productsInventory";
+import {
+  assertUniqueProductCode,
+  isProductUniqueViolation,
+  normalizeCode,
+  throwProductUniqueViolation,
+} from "../utils/productCodeUtils";
+import { summarizeRetailLines } from "../utils/retailSummary";
 
 function stripCost<T extends { averageCost?: number }>(row: T, showCost: boolean) {
   if (showCost) return row;
@@ -34,7 +41,6 @@ export class ProductCatalogUseCase {
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.type) where.type = query.type as never;
     if (query.forSale === "true") where.type = { in: ["RETAIL", "BOTH"] };
-    if (query.lowStock === "true") where.AND = [{ trackStock: true }, { minStock: { gt: 0 } }];
     if (query.search) {
       where.OR = [
         { name: { contains: query.search, mode: "insensitive" } },
@@ -42,6 +48,43 @@ export class ProductCatalogUseCase {
         { barcode: { contains: query.search, mode: "insensitive" } },
       ];
     }
+
+    if (query.lowStock === "true") {
+      const skip = (query.page - 1) * query.limit;
+      const [idRows, countRows] = await Promise.all([
+        prisma.$queryRaw<{ id: string }[]>`
+          SELECT id::text AS id FROM products
+          WHERE "barbershopId" = ${barbershopId}::uuid
+            AND "trackStock" = true
+            AND "minStock" > 0
+            AND "stockQty" <= "minStock"
+          ORDER BY name ASC
+          LIMIT ${query.limit} OFFSET ${skip}
+        `,
+        prisma.$queryRaw<[{ count: bigint }]>`
+          SELECT COUNT(*)::bigint AS count FROM products
+          WHERE "barbershopId" = ${barbershopId}::uuid
+            AND "trackStock" = true
+            AND "minStock" > 0
+            AND "stockQty" <= "minStock"
+        `,
+      ]);
+      const ids = idRows.map((row) => row.id);
+      const rows = ids.length
+        ? await prisma.product.findMany({
+            where: { id: { in: ids } },
+            include: { category: true },
+          })
+        : [];
+      const order = new Map(ids.map((id, index) => [id, index]));
+      rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      const total = Number(countRows[0]?.count ?? 0);
+      return {
+        data: rows.map((row) => stripCost(row, showCost)),
+        total,
+      };
+    }
+
     const [rows, total] = await Promise.all([
       prisma.product.findMany({
         where,
@@ -52,9 +95,7 @@ export class ProductCatalogUseCase {
       }),
       prisma.product.count({ where }),
     ]);
-    const data = rows
-      .filter((row: { trackStock: boolean; stockQty: number; minStock: number }) => query.lowStock !== "true" || row.stockQty <= row.minStock)
-      .map((row: { averageCost?: number }) => stripCost(row, showCost));
+    const data = rows.map((row: { averageCost?: number }) => stripCost(row, showCost));
     return { data, total };
   }
 
@@ -64,7 +105,17 @@ export class ProductCatalogUseCase {
       const category = await prisma.productCategory.findFirst({ where: { id: data.categoryId, barbershopId } });
       if (!category) throw new AppError("Categoria não encontrada neste salão", 404);
     }
-    return prisma.product.create({ data: { ...data, barbershopId, stockQty: 0, averageCost: 0 } });
+    const sku = normalizeCode(data.sku as string | null | undefined);
+    const barcode = normalizeCode(data.barcode as string | null | undefined);
+    await assertUniqueProductCode({ barbershopId, sku, barcode });
+    try {
+      return await prisma.product.create({
+        data: { ...data, barbershopId, sku, barcode, stockQty: 0, averageCost: 0 },
+      });
+    } catch (error) {
+      if (isProductUniqueViolation(error)) throwProductUniqueViolation();
+      throw error;
+    }
   }
 
   async updateProduct(id: string, barbershopId: string, user: ProductActor, data: Prisma.ProductUncheckedUpdateInput) {
@@ -75,7 +126,27 @@ export class ProductCatalogUseCase {
       const category = await prisma.productCategory.findFirst({ where: { id: String(data.categoryId), barbershopId } });
       if (!category) throw new AppError("Categoria não encontrada neste salão", 404);
     }
-    return prisma.product.update({ where: { id }, data });
+    const sku = data.sku !== undefined ? normalizeCode(data.sku as string | null) : undefined;
+    const barcode = data.barcode !== undefined ? normalizeCode(data.barcode as string | null) : undefined;
+    await assertUniqueProductCode({
+      barbershopId,
+      sku: sku !== undefined ? sku : product.sku,
+      barcode: barcode !== undefined ? barcode : product.barcode,
+      excludeId: id,
+    });
+    try {
+      return await prisma.product.update({
+        where: { id },
+        data: {
+          ...data,
+          ...(sku !== undefined ? { sku } : {}),
+          ...(barcode !== undefined ? { barcode } : {}),
+        },
+      });
+    } catch (error) {
+      if (isProductUniqueViolation(error)) throwProductUniqueViolation();
+      throw error;
+    }
   }
 
   async listCategories(barbershopId: string, user: ProductActor) {
@@ -127,6 +198,25 @@ export class ProductCatalogUseCase {
         take: limit,
       }),
       prisma.stockMovement.count({ where }),
+    ]);
+    return { data, total };
+  }
+
+  async listReceipts(barbershopId: string, user: ProductActor, page = 1, limit = 30) {
+    await assertProductPermission(user, barbershopId, "INVENTORY_MANAGE");
+    const where = { barbershopId };
+    const [data, total] = await Promise.all([
+      prisma.inventoryReceipt.findMany({
+        where,
+        include: {
+          supplier: { select: { id: true, name: true } },
+          items: { include: { product: { select: { id: true, name: true } } } },
+        },
+        orderBy: { receivedAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.inventoryReceipt.count({ where }),
     ]);
     return { data, total };
   }
@@ -218,39 +308,34 @@ export class ProductCatalogUseCase {
   async reports(barbershopId: string, user: ProductActor, from?: Date, to?: Date) {
     await assertProductPermission(user, barbershopId, "PRODUCT_REPORTS_VIEW");
     const soldAt = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
-    const sales = await prisma.retailSale.findMany({
-      where: { barbershopId, status: { in: ["COMPLETED", "REFUNDED"] }, ...(from || to ? { soldAt } : {}) },
-      include: { lines: { include: { product: { select: { name: true, categoryId: true, category: { select: { name: true } } } } } } },
-    });
-    const byProduct = new Map<string, { productId: string; name: string; quantity: number; revenue: number; cost: number }>();
-    for (const sale of sales) {
-      for (const line of sale.lines) {
-        const refunded = line.refundedQty;
-        const qty = line.quantity - refunded;
-        if (qty <= 0) continue;
-        const current = byProduct.get(line.productId) ?? { productId: line.productId, name: line.productName, quantity: 0, revenue: 0, cost: 0 };
-        current.quantity += qty;
-        current.revenue += line.unitPrice * qty;
-        current.cost += line.unitCost * qty;
-        byProduct.set(line.productId, current);
-      }
-    }
+    const dateFilter = from || to ? soldAt : undefined;
+    const byProductMap = await summarizeRetailLines(barbershopId, dateFilter);
     const products = await prisma.product.findMany({ where: { barbershopId, trackStock: true, active: true } });
     const lowStock = products.filter((p: { minStock: number; stockQty: number }) => p.minStock > 0 && p.stockQty <= p.minStock);
-    const idle = products.filter((p: { id: string; stockQty: number }) => !byProduct.has(p.id) && p.stockQty > 0);
+    const idle = products.filter((p: { id: string; stockQty: number }) => !byProductMap.has(p.id) && p.stockQty > 0);
     const inventoryValue = products.reduce((sum: number, p: { stockQty: number; averageCost: number }) => sum + p.stockQty * p.averageCost, 0);
-    const byStaff = await prisma.retailSale.groupBy({
+    const byStaffRaw = await prisma.retailSale.groupBy({
       by: ["soldById"],
-      where: { barbershopId, status: { in: ["COMPLETED", "REFUNDED"] }, ...(from || to ? { soldAt } : {}) },
+      where: { barbershopId, status: { in: ["COMPLETED", "REFUNDED"] }, ...(dateFilter ? { soldAt: dateFilter } : {}) },
       _sum: { total: true },
       _count: { id: true },
     });
+    const staffIds = byStaffRaw.map((row) => row.soldById);
+    const staffRows = staffIds.length
+      ? await prisma.user.findMany({ where: { id: { in: staffIds } }, select: { id: true, name: true } })
+      : [];
+    const staffNames = new Map(staffRows.map((row) => [row.id, row.name]));
     return {
-      byProduct: [...byProduct.values()].map((row) => ({ ...row, margin: row.revenue - row.cost })),
+      byProduct: [...byProductMap.values()].map((row) => ({ ...row, margin: row.revenue - row.cost })),
       lowStock,
       idleProducts: idle.map((p: { id: string; name: string; stockQty: number }) => ({ id: p.id, name: p.name, stockQty: p.stockQty })),
       inventoryValue,
-      byStaff,
+      byStaff: byStaffRaw.map((row) => ({
+        soldById: row.soldById,
+        soldByName: staffNames.get(row.soldById) ?? "Equipe",
+        total: row._sum.total ?? 0,
+        count: row._count.id,
+      })),
     };
   }
 
@@ -304,70 +389,77 @@ export class ProductCatalogUseCase {
       services: opts?.include?.services !== false,
       products: opts?.include?.products !== false,
     };
-    const created = { serviceCategories: 0, productCategories: 0, expenseCategories: 0, services: 0, products: 0 };
-    const [serviceCats, productCats, expenseCats, services, products] = await Promise.all([
-      prisma.serviceCategory.findMany({ where: { OR: [{ barbershopId }, { barbershopId: null }] }, select: { name: true } }),
-      prisma.productCategory.findMany({ where: { barbershopId }, select: { name: true } }),
-      prisma.expenseCategory.findMany({ where: { OR: [{ barbershopId }, { barbershopId: null }] }, select: { name: true } }),
-      prisma.service.findMany({ where: { barbershopId }, select: { name: true } }),
-      prisma.product.findMany({ where: { barbershopId }, select: { name: true } }),
-    ]);
-    const skipSet = (existing: { name: string }[]) => new Set(existing.map((row) => row.name.trim().toLowerCase()));
-    if (include.serviceCategories) {
-      for (const row of template.serviceCategories) {
-        if (skipSet(serviceCats).has(row.name.toLowerCase())) continue;
-        await prisma.serviceCategory.create({ data: { barbershopId, name: row.name, icon: row.icon, color: row.color } });
-        created.serviceCategories += 1;
+
+    return prisma.$transaction(async (tx) => {
+      const created = { serviceCategories: 0, productCategories: 0, expenseCategories: 0, services: 0, products: 0 };
+      const [serviceCats, productCats, expenseCats, services, products] = await Promise.all([
+        tx.serviceCategory.findMany({ where: { OR: [{ barbershopId }, { barbershopId: null }] }, select: { name: true } }),
+        tx.productCategory.findMany({ where: { barbershopId }, select: { name: true } }),
+        tx.expenseCategory.findMany({ where: { OR: [{ barbershopId }, { barbershopId: null }] }, select: { name: true } }),
+        tx.service.findMany({ where: { barbershopId }, select: { name: true } }),
+        tx.product.findMany({ where: { barbershopId }, select: { name: true } }),
+      ]);
+      const skipSet = (existing: { name: string }[]) => new Set(existing.map((row) => row.name.trim().toLowerCase()));
+
+      if (include.serviceCategories) {
+        for (const row of template.serviceCategories) {
+          if (skipSet(serviceCats).has(row.name.toLowerCase())) continue;
+          await tx.serviceCategory.create({ data: { barbershopId, name: row.name, icon: row.icon, color: row.color } });
+          created.serviceCategories += 1;
+        }
       }
-    }
-    if (include.productCategories) {
-      for (const row of template.productCategories) {
-        if (skipSet(productCats).has(row.name.toLowerCase())) continue;
-        await prisma.productCategory.create({ data: { barbershopId, name: row.name, icon: row.icon, color: row.color } });
-        created.productCategories += 1;
+      if (include.productCategories) {
+        for (const row of template.productCategories) {
+          if (skipSet(productCats).has(row.name.toLowerCase())) continue;
+          await tx.productCategory.create({ data: { barbershopId, name: row.name, icon: row.icon, color: row.color } });
+          created.productCategories += 1;
+        }
       }
-    }
-    if (include.expenseCategories) {
-      for (const row of template.expenseCategories) {
-        if (skipSet(expenseCats).has(row.name.toLowerCase())) continue;
-        await prisma.expenseCategory.create({ data: { barbershopId, name: row.name } });
-        created.expenseCategories += 1;
+      if (include.expenseCategories) {
+        for (const row of template.expenseCategories) {
+          if (skipSet(expenseCats).has(row.name.toLowerCase())) continue;
+          await tx.expenseCategory.create({ data: { barbershopId, name: row.name } });
+          created.expenseCategories += 1;
+        }
       }
-    }
-    const latestServiceCats = await prisma.serviceCategory.findMany({ where: { OR: [{ barbershopId }, { barbershopId: null }] } });
-    const latestProductCats = await prisma.productCategory.findMany({ where: { barbershopId } });
-    if (include.services) {
-      for (const row of template.services) {
-        if (skipSet(services).has(row.name.toLowerCase())) continue;
-        const category = latestServiceCats.find((cat: { name: string; id: string }) => cat.name.toLowerCase() === (row.categoryName ?? "").toLowerCase());
-        await prisma.service.create({
-          data: { barbershopId, name: row.name, price: row.price, avgTimeMinutes: row.avgTimeMinutes, icon: row.icon, categoryId: category?.id },
-        });
-        created.services += 1;
+
+      const latestServiceCats = await tx.serviceCategory.findMany({ where: { OR: [{ barbershopId }, { barbershopId: null }] } });
+      const latestProductCats = await tx.productCategory.findMany({ where: { barbershopId } });
+
+      if (include.services) {
+        for (const row of template.services) {
+          if (skipSet(services).has(row.name.toLowerCase())) continue;
+          const category = latestServiceCats.find((cat: { name: string; id: string }) => cat.name.toLowerCase() === (row.categoryName ?? "").toLowerCase());
+          await tx.service.create({
+            data: { barbershopId, name: row.name, price: row.price, avgTimeMinutes: row.avgTimeMinutes, icon: row.icon, categoryId: category?.id },
+          });
+          created.services += 1;
+        }
       }
-    }
-    if (include.products) {
-      for (const row of template.products) {
-        if (skipSet(products).has(row.name.toLowerCase())) continue;
-        const category = latestProductCats.find((cat: { name: string; id: string }) => cat.name.toLowerCase() === row.categoryName.toLowerCase());
-        await prisma.product.create({
-          data: {
-            barbershopId,
-            name: row.name,
-            description: row.description,
-            categoryId: category?.id,
-            salePrice: row.salePrice,
-            unitLabel: row.unitLabel,
-            type: row.type,
-            stockQty: 0,
-            averageCost: 0,
-            trackStock: true,
-          },
-        });
-        created.products += 1;
+      if (include.products) {
+        for (const row of template.products) {
+          if (skipSet(products).has(row.name.toLowerCase())) continue;
+          const category = latestProductCats.find((cat: { name: string; id: string }) => cat.name.toLowerCase() === row.categoryName.toLowerCase());
+          await tx.product.create({
+            data: {
+              barbershopId,
+              name: row.name,
+              description: row.description,
+              categoryId: category?.id,
+              salePrice: row.salePrice,
+              unitLabel: row.unitLabel,
+              type: row.type,
+              stockQty: 0,
+              averageCost: 0,
+              trackStock: true,
+            },
+          });
+          created.products += 1;
+        }
       }
-    }
-    await prisma.catalogTemplateInstall.create({ data: { barbershopId, segment, version: template.version } });
-    return { alreadyInstalled: false, created };
+
+      await tx.catalogTemplateInstall.create({ data: { barbershopId, segment, version: template.version } });
+      return { alreadyInstalled: false, created };
+    });
   }
 }

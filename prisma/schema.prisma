@@ -1757,6 +1757,7 @@ model Product {
   saleLines  RetailSaleLine[]
   refundLines RetailSaleRefundLine[]
 
+  /// SKU e barcode: unicidade por salão via índices parciais SQL (migration 20260904000000).
   @@index([barbershopId, active])
   @@index([barbershopId, name])
   @@index([barbershopId, sku])

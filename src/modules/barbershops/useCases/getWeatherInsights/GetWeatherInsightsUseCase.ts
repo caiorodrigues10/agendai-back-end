@@ -106,7 +106,9 @@ export class GetWeatherInsightsUseCase {
 
     const predictions = predictor.predict(forecastInput, historicalLogs.length);
 
-    const avgDrop = predictions.reduce((s, p) => s + p.dropPct, 0) / predictions.length;
+    const avgDrop = predictions.length
+      ? predictions.reduce((s, p) => s + p.dropPct, 0) / predictions.length
+      : 0;
     const highRiskDays = predictions.filter(p => p.riskLevel === 'high' || p.riskLevel === 'critical');
     const tomorrow = predictions[0] ?? null;
 
@@ -150,6 +152,7 @@ export class GetWeatherInsightsUseCase {
         worstDay: predictions.reduce((worst, p) => p.dropPct < worst.dropPct ? p : worst, predictions[0]),
       },
       highlights,
+      forecast,
     };
   }
 }

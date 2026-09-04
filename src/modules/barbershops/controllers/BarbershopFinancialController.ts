@@ -6,6 +6,7 @@ import {
   type InsightsPeriod,
 } from "../useCases/getBarbershopInsights/GetBarbershopInsightsUseCase";
 import { GetWeatherInsightsUseCase } from "../useCases/getWeatherInsights/GetWeatherInsightsUseCase";
+import { summarizeRetailFinancials } from "@/modules/products/utils/retailSummary";
 import { container } from "tsyringe";
 
 type ExpenseRow = { amount: number; paidAt: Date | null; type: string; inventoryReceiptId?: string | null };
@@ -53,7 +54,7 @@ export class BarbershopFinancialController {
       }
       : undefined;
 
-    const [expenses, fiados, overdueCount, packageSales, productSales, productRefunds, inventoryProducts] = await Promise.all([
+    const [expenses, fiados, overdueCount, packageSales, retailSummary, inventoryProducts] = await Promise.all([
       prisma.expense.findMany({
         where: {
           barbershopId,
@@ -84,22 +85,7 @@ export class BarbershopFinancialController {
         _count: { id: true },
         _sum: { pricePaid: true },
       }),
-      prisma.retailSale.aggregate({
-        where: {
-          barbershopId,
-          status: { in: ["COMPLETED", "REFUNDED"] },
-          ...(dateFilter && { soldAt: dateFilter }),
-        },
-        _sum: { total: true, totalCost: true },
-        _count: { id: true },
-      }),
-      prisma.retailSaleRefund.aggregate({
-        where: {
-          barbershopId,
-          ...(dateFilter && { createdAt: dateFilter }),
-        },
-        _sum: { financialRefund: true },
-      }),
+      summarizeRetailFinancials(barbershopId, dateFilter),
       prisma.product.findMany({
         where: { barbershopId, trackStock: true, active: true },
         select: { stockQty: true, averageCost: true, minStock: true },
@@ -128,9 +114,12 @@ export class BarbershopFinancialController {
       .filter((f: FiadoRow) => f.dueDate && f.dueDate < now)
       .reduce((s: number, f: FiadoRow) => s + remainingOf(f), 0);
 
-    const productRevenue = productSales._sum.total ?? 0;
-    const productCogs = productSales._sum.totalCost ?? 0;
-    const productRefunded = productRefunds._sum.financialRefund ?? 0;
+    const productRevenue = retailSummary.revenue;
+    const productRefunded = retailSummary.refunded;
+    const productNetRevenue = retailSummary.netRevenue;
+    const productCogs = retailSummary.cogs;
+    const productMargin = retailSummary.margin;
+    const productSaleCount = retailSummary.saleCount;
     const inventoryValue = inventoryProducts.reduce((s: number, p: { stockQty: number; averageCost: number }) => s + p.stockQty * p.averageCost, 0);
     const lowStockCount = inventoryProducts.filter((p: { stockQty: number; minStock: number }) => p.minStock > 0 && p.stockQty <= p.minStock).length;
 
@@ -158,10 +147,11 @@ export class BarbershopFinancialController {
         },
         products: {
           revenue: productRevenue,
+          netRevenue: productNetRevenue,
           refunded: productRefunded,
           cogs: productCogs,
-          margin: productRevenue - productCogs,
-          saleCount: productSales._count.id,
+          margin: productMargin,
+          saleCount: productSaleCount,
           inventoryValue,
           lowStockCount,
           stockPurchases: stockPurchaseTotal,

@@ -15,6 +15,14 @@ vi.mock("@/modules/barbershops/utils/getShopOpenState", () => ({
   listUpcomingExceptions: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("@/shared/services/geocodeCity", () => ({
+  geocodeCity: vi.fn(async (city: string) => ({
+    city,
+    latitude: -20.949,
+    longitude: -48.479,
+  })),
+}));
+
 let repo: MockBarbershopRepository;
 let create: CreateBarbershopUseCase;
 let list: ListBarbershopsUseCase;
@@ -68,5 +76,13 @@ describe("Barbershops module", () => {
   it("equipe pública: 404 se o salão não existe", async () => {
     const listStaff = new ListPublicStaffUseCase(repo as any);
     await expect(listStaff.execute("not-found")).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("geocodifica a cidade quando faltam coordenadas", async () => {
+    const b = await create.execute({ name: "Geo", whatsapp: "55" });
+    const updated = await update.execute(b.id, { city: "Bebedouro" });
+    expect(updated.city).toBe("Bebedouro");
+    expect(updated.latitude).toBe(-20.949);
+    expect(updated.longitude).toBe(-48.479);
   });
 });

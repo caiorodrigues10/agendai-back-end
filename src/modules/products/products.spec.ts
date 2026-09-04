@@ -9,7 +9,7 @@ import {
   type CatalogProductSnapshot,
 } from "./inventoryMath";
 import { CATALOG_TEMPLATE_VERSION, getCatalogTemplate } from "./catalogTemplates";
-import { isProductsInventoryEnabled } from "@/shared/constants/productsInventory";
+import { AppError } from "@/shared/errors/AppError";
 
 const shop = "shop-1";
 const product = (over: Partial<CatalogProductSnapshot> = {}): CatalogProductSnapshot => ({
@@ -35,7 +35,14 @@ describe("inventoryMath", () => {
   });
 
   it("bloqueia saldo negativo em produto com controle de estoque", () => {
-    expect(() => nextStockQty(1, -2, true)).toThrow("INSUFFICIENT_STOCK");
+    try {
+      nextStockQty(1, -2, true);
+      expect.fail("deveria lançar");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppError);
+      expect((error as AppError).statusCode).toBe(409);
+      expect((error as AppError).code).toBe("INSUFFICIENT_STOCK");
+    }
   });
 
   it("permite venda sem controle de estoque", () => {
@@ -96,7 +103,7 @@ describe("inventoryMath", () => {
         [{ productId: "p1", quantity: 1 }],
         { barbershopId: shop, allowPriceOverride: false }
       )
-    ).toThrow("INSUFFICIENT_STOCK");
+    ).toThrow(/insuficiente/i);
   });
 
   it("compra atualiza estoque e custo médio", () => {
@@ -123,17 +130,5 @@ describe("catalog templates", () => {
   it("segunda instalação da mesma versão é identificável pelo par tenant+segmento+versão", () => {
     expect(CATALOG_TEMPLATE_VERSION).toBe("v1");
     expect(getCatalogTemplate("NAIL_STUDIO").products.some((p) => /esmalte/i.test(p.name))).toBe(true);
-  });
-});
-
-describe("feature flag", () => {
-  it("em produção fica desligada por padrão", () => {
-    const prevNode = process.env.NODE_ENV;
-    const prevFlag = process.env.PRODUCTS_INVENTORY_ENABLED;
-    process.env.NODE_ENV = "production";
-    delete process.env.PRODUCTS_INVENTORY_ENABLED;
-    expect(isProductsInventoryEnabled()).toBe(false);
-    process.env.NODE_ENV = prevNode;
-    if (prevFlag !== undefined) process.env.PRODUCTS_INVENTORY_ENABLED = prevFlag;
   });
 });

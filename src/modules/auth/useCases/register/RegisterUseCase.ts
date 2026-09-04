@@ -19,6 +19,7 @@ import { validateEmail } from "@/shared/services/emailValidationService";
 import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
+import { geocodeCity } from "@/shared/services/geocodeCity";
 
 const logger = getModuleLogger("register");
 
@@ -92,6 +93,20 @@ export class RegisterUseCase {
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const now = new Date();
 
+    let city = data.city?.trim() || undefined;
+    let latitude = data.latitude;
+    let longitude = data.longitude;
+    if (city && latitude === undefined && longitude === undefined) {
+      try {
+        const location = await geocodeCity(city);
+        city = location.city;
+        latitude = location.latitude;
+        longitude = location.longitude;
+      } catch {
+        // Cadastro não deve falhar se o geocoding estiver indisponível.
+      }
+    }
+
     const user = await prisma.$transaction(async (tx: any) => {
       const barbershop = await tx.barbershop.create({
         data: {
@@ -100,9 +115,9 @@ export class RegisterUseCase {
           approvalStatus: "APPROVED",
           ...(normalizedCnpj ? { cnpj: normalizedCnpj } : {}),
           ...(data.address ? { address: data.address.trim() } : {}),
-          ...(data.city ? { city: data.city.trim() } : {}),
-          ...(data.latitude !== undefined ? { latitude: data.latitude } : {}),
-          ...(data.longitude !== undefined ? { longitude: data.longitude } : {}),
+          ...(city ? { city } : {}),
+          ...(latitude !== undefined ? { latitude } : {}),
+          ...(longitude !== undefined ? { longitude } : {}),
         },
       });
 

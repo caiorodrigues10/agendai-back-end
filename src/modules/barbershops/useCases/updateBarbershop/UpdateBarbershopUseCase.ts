@@ -12,13 +12,26 @@ export class UpdateBarbershopUseCase {
   ) {}
   async execute(id: string, data: IUpdateBarbershopDTO): Promise<IBarbershopResponseDTO> {
     let resolved = { ...data };
+    const shop = await this.barbershopRepository.findById(id);
 
     if (data.city !== undefined) {
       if (!data.city?.trim()) {
         resolved = { ...resolved, city: null, latitude: null, longitude: null };
-      } else if (data.latitude === undefined && data.longitude === undefined) {
-        const location = await geocodeCity(data.city);
-        resolved = { ...resolved, city: location.city, latitude: location.latitude, longitude: location.longitude };
+      } else {
+        const nextCity = data.city.trim();
+        const cityChanged =
+          (shop?.city ?? "").trim().toLowerCase() !== nextCity.toLowerCase();
+        const lat = data.latitude !== undefined ? data.latitude : shop?.latitude;
+        const lng = data.longitude !== undefined ? data.longitude : shop?.longitude;
+        if (cityChanged || lat == null || lng == null) {
+          const location = await geocodeCity(nextCity);
+          resolved = {
+            ...resolved,
+            city: location.city,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          };
+        }
       }
     }
 
