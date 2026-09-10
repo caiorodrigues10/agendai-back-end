@@ -61,6 +61,13 @@ model User {
     sentCareInstructions     ClientCareInstruction[]   @relation("CareInstructionSentBy")
     organizations            Organization[]
     orgMemberships           OrganizationMember[]
+    staffSchedules           StaffSchedule[]
+    staffServices            StaffService[]
+    staffTimeOff             StaffTimeOff[]
+    timeOffApproved          StaffTimeOff[]         @relation("TimeOffApprovedBy")
+    qualityAudits            QualityAudit[]
+    purchaseOrdersCreated    PurchaseOrder[]
+    reviewResponses          ReviewResponse[]
 
   @@index([cpf])
   @@index([deletedAt])
@@ -327,6 +334,19 @@ model Barbershop {
     profitEntries            ProfitEntry[]
      profitSettings           ProfitSettings?
      organization             Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+     customForms              CustomForm[]
+     staffSchedules           StaffSchedule[]
+     staffServices            StaffService[]
+     staffTimeOff             StaffTimeOff[]
+     pricingRules             PricingRule[]
+     vouchers                 Voucher[]
+     qualityProtocols         QualityProtocol[]
+     purchaseOrders           PurchaseOrder[]
+     copilotSuggestions       CopilotSuggestion[]
+     salonReputation          SalonReputation?
+     formResponses            FormResponse[]
+     qualityAudits            QualityAudit[]
+     corporateSubscriptions   CorporateSubscription[]
 
      @@index([approvalStatus])
    @@index([active])
@@ -501,6 +521,7 @@ model Service {
   showcaseEntries   ShowcaseEntry[]
   careInstructionTemplates CareInstructionTemplate[]
   comboItems        ComboItem[]
+  staffServices     StaffService[]
 
   @@map("services")
 }
@@ -698,8 +719,10 @@ model SalonClient {
   loyaltyAccounts        LoyaltyAccount[]
   waitlistEntries        AppointmentWaitlistEntry[]
   clientMemberships      ClientMembership[]
-    visits                 Visit[]
-    clientLinks            ClientSalonLink[]
+   visits                 Visit[]
+   clientLinks            ClientSalonLink[]
+   voucherUsages          VoucherUsage[]
+   formResponses          FormResponse[]
     purchasedGiftCards     GiftCard[]            @relation("GiftCardBuyer")
     receivedGiftCards      GiftCard[]            @relation("GiftCardRecipient")
 
@@ -1691,6 +1714,7 @@ model ClientReview {
   appointment Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   client      SalonClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
   staff       User?        @relation("ClientReviewStaff", fields: [staffId], references: [id], onDelete: SetNull)
+  reviewResponse ReviewResponse?
 
   @@index([barbershopId, status, createdAt])
   @@index([staffId, status])
@@ -1823,6 +1847,7 @@ model Supplier {
 
   barbershop Barbershop         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   receipts   InventoryReceipt[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([barbershopId, active])
   @@map("suppliers")
@@ -2708,6 +2733,7 @@ model ClientIdentity {
   salonLinks        ClientSalonLink[]
   careInstructions  ClientCareInstruction[]
   salonClients      SalonClient[]
+  digitalWallet     DigitalWallet?
 
   @@index([normalizedPhone])
   @@map("client_identities")
@@ -3024,4 +3050,490 @@ enum OrgMemberRole {
   ADMIN
   MEMBER
   VIEWER
+}
+
+// ============================================================
+// E3 — Custom Forms
+// ============================================================
+
+model CustomForm {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  name          String   @db.VarChar(200)
+  description   String?  @db.Text
+  type          FormType @default(INTAKE)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barbershop Barbershop     @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  fields     FormField[]
+  responses  FormResponse[]
+
+  @@index([barbershopId, isActive])
+  @@map("custom_forms")
+}
+
+model FormField {
+  id            String      @id @default(uuid()) @db.Uuid
+  formId        String      @db.Uuid
+  label         String      @db.VarChar(200)
+  type          FormFieldType @default(TEXT)
+  required      Boolean     @default(false)
+  options       Json?
+  placeholder   String?     @db.VarChar(200)
+  order         Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  form CustomForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@map("form_fields")
+}
+
+model FormResponse {
+  id            String   @id @default(uuid()) @db.Uuid
+  formId        String   @db.Uuid
+  barbershopId  String   @db.Uuid
+  clientId      String?  @db.Uuid
+  appointmentId String?  @db.Uuid
+  answers       Json     @default("{}")
+  submittedAt   DateTime @default(now())
+
+  form       CustomForm   @relation(fields: [formId], references: [id], onDelete: Cascade)
+  barbershop Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client     SalonClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([formId])
+  @@index([barbershopId, submittedAt])
+  @@map("form_responses")
+}
+
+enum FormType {
+  INTAKE
+  AFTERCARE
+  FEEDBACK
+  CUSTOM
+}
+
+enum FormFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  SELECT
+  DATE
+  BOOLEAN
+}
+
+// ============================================================
+// E4 — Staff Management
+// ============================================================
+
+model StaffSchedule {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  staffId       String   @db.Uuid
+  dayOfWeek     Int
+  startTime     String   @db.VarChar(5)
+  endTime       String   @db.VarChar(5)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  staff      User       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId, staffId, dayOfWeek])
+  @@map("staff_schedules")
+}
+
+model StaffService {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  staffId       String   @db.Uuid
+  serviceId     String   @db.Uuid
+  customPrice   Float?   @db.Real
+  customTime    Int?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  staff      User       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  service    Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId, staffId, serviceId])
+  @@map("staff_services")
+}
+
+model StaffTimeOff {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  staffId       String   @db.Uuid
+  startAt       DateTime @db.Date
+  endAt         DateTime @db.Date
+  reason        String?  @db.Text
+  status        TimeOffStatus @default(PENDING)
+  approvedById  String?  @db.Uuid
+  createdAt     DateTime @default(now())
+
+  barbershop  Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  staff       User       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  approvedBy  User?      @relation("TimeOffApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([barbershopId, staffId, startAt])
+  @@map("staff_time_off")
+}
+
+enum TimeOffStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+// ============================================================
+// F3 — Smart Pricing
+// ============================================================
+
+model PricingRule {
+  id              String   @id @default(uuid()) @db.Uuid
+  barbershopId    String   @db.Uuid
+  name            String   @db.VarChar(200)
+  type            PricingRuleType
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0)
+  config          Json     @default("{}")
+  discountPercent Float    @default(0) @db.Real
+  surchargePercent Float   @default(0) @db.Real
+  startAt         DateTime?
+  endAt           DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId, isActive, priority])
+  @@map("pricing_rules")
+}
+
+enum PricingRuleType {
+  PEAK_HOURS
+  HAPPY_HOUR
+  LOYALTY_DISCOUNT
+  FIRST_VISIT
+  WEATHER_BASED
+  DAY_OF_WEEK
+  SEASONAL
+  CUSTOM
+}
+
+// ============================================================
+// G2 — Vouchers / Promo Codes
+// ============================================================
+
+model Voucher {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  code          String   @db.VarChar(30)
+  description   String?  @db.Text
+  type          VoucherType
+  value         Float    @db.Real
+  minPurchase   Float?   @db.Real
+  maxUses       Int?
+  usedCount     Int      @default(0)
+  perClientLimit Int     @default(1)
+  applicableServiceIds Json?
+  startAt       DateTime
+  endAt         DateTime
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barbershop Barbershop     @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  usages     VoucherUsage[]
+
+  @@unique([barbershopId, code])
+  @@index([barbershopId, isActive])
+  @@map("vouchers")
+}
+
+model VoucherUsage {
+  id             String   @id @default(uuid()) @db.Uuid
+  voucherId      String   @db.Uuid
+  clientId       String?  @db.Uuid
+  appointmentId  String?  @db.Uuid
+  discountAmount Decimal  @db.Decimal(12,2)
+  usedAt         DateTime @default(now())
+
+  voucher Voucher      @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  client  SalonClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([voucherId])
+  @@index([clientId])
+  @@map("voucher_usages")
+}
+
+enum VoucherType {
+  PERCENT
+  FIXED
+  FREE_SERVICE
+  BUY_X_GET_Y
+}
+
+// ============================================================
+// F4 — Reputation / Reviews
+// ============================================================
+
+model SalonReputation {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @unique @db.Uuid
+  avgRating     Float    @default(0) @db.Real
+  totalReviews  Int      @default(0)
+  npsScore      Float?   @db.Real
+  sentimentPositive Int  @default(0)
+  sentimentNeutral  Int  @default(0)
+  sentimentNegative Int  @default(0)
+  computedAt    DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  @@map("salon_reputation")
+}
+
+model ReviewResponse {
+  id            String   @id @default(uuid()) @db.Uuid
+  reviewId      String   @unique @db.Uuid
+  respondedById String?  @db.Uuid
+  content       String   @db.Text
+  respondedAt   DateTime @default(now())
+
+  review      ClientReview? @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  respondedBy User?         @relation(fields: [respondedById], references: [id], onDelete: SetNull)
+  @@map("review_responses")
+}
+
+// ============================================================
+// G3 — Digital Wallet
+// ============================================================
+
+model DigitalWallet {
+  id            String   @id @default(uuid()) @db.Uuid
+  identityId    String   @unique @db.Uuid
+  balance       Decimal  @db.Decimal(12,2) @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  identity  ClientIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  entries   WalletEntry[]
+  @@map("digital_wallets")
+}
+
+model WalletEntry {
+  id            String   @id @default(uuid()) @db.Uuid
+  walletId      String   @db.Uuid
+  type          WalletEntryType
+  amount        Decimal  @db.Decimal(12,2)
+  description   String?  @db.VarChar(300)
+  referenceId   String?  @db.Uuid
+  createdAt     DateTime @default(now())
+
+  wallet DigitalWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+  @@map("wallet_entries")
+}
+
+enum WalletEntryType {
+  CREDIT
+  DEBIT
+  REFUND
+  TRANSFER
+  GIFT_CARD
+  CASHBACK
+}
+
+// ============================================================
+// F5 — Quality / Protocols
+// ============================================================
+
+model QualityProtocol {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  name          String   @db.VarChar(200)
+  description   String?  @db.Text
+  category      String?  @db.VarChar(100)
+  checklistItems Json    @default("[]")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barbershop Barbershop         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  audits     QualityAudit[]
+
+  @@index([barbershopId, isActive])
+  @@map("quality_protocols")
+}
+
+model QualityAudit {
+  id            String   @id @default(uuid()) @db.Uuid
+  protocolId    String   @db.Uuid
+  barbershopId  String   @db.Uuid
+  auditedById   String?  @db.Uuid
+  staffId       String?  @db.Uuid
+  results       Json     @default("{}")
+  score         Float?   @db.Real
+  notes         String?  @db.Text
+  auditedAt     DateTime @default(now())
+
+  protocol QualityProtocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  barbershop Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  auditedBy  User?         @relation(fields: [auditedById], references: [id], onDelete: SetNull)
+
+  @@index([protocolId])
+  @@index([barbershopId, auditedAt])
+  @@map("quality_audits")
+}
+
+// ============================================================
+// F6 — Purchasing / Suppliers
+// ============================================================
+
+model PurchaseOrder {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  supplierId    String?  @db.Uuid
+  status        PurchaseOrderStatus @default(DRAFT)
+  totalAmount   Decimal  @db.Decimal(12,2) @default(0)
+  notes         String?  @db.Text
+  expectedAt    DateTime?
+  receivedAt    DateTime?
+  createdById   String?  @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barbershop Barbershop          @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  supplier   Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy  User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items      PurchaseOrderItem[]
+
+  @@index([barbershopId, status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  orderId       String   @db.Uuid
+  productId     String?  @db.Uuid
+  description   String   @db.VarChar(200)
+  quantity      Int      @default(1)
+  unitPrice     Decimal  @db.Decimal(12,2)
+  total         Decimal  @db.Decimal(12,2)
+
+  order PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("purchase_order_items")
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  CANCELED
+}
+
+// ============================================================
+// F8 — Copilot / AI Suggestions
+// ============================================================
+
+model CopilotSuggestion {
+  id            String   @id @default(uuid()) @db.Uuid
+  barbershopId  String   @db.Uuid
+  type          CopilotSuggestionType
+  title         String   @db.VarChar(200)
+  description   String   @db.Text
+  priority      Int      @default(0)
+  isRead        Boolean  @default(false)
+  isDismissed   Boolean  @default(false)
+  isAccepted    Boolean  @default(false)
+  metadata      Json     @default("{}")
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId, isRead, isDismissed])
+  @@map("copilot_suggestions")
+}
+
+enum CopilotSuggestionType {
+  PRICING_OPTIMIZATION
+  SCHEDULE_GAP
+  CLIENT_WIN_BACK
+  STAFF_PERFORMANCE
+  INVENTORY_ALERT
+  CAMPAIGN_IDEA
+  REVENUE_TIP
+  RETENTION_RISK
+}
+
+// ============================================================
+// G4 — Corporate Plans
+// ============================================================
+
+model CorporatePlan {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String   @db.VarChar(200)
+  companyName   String   @db.VarChar(200)
+  cnpj          String?  @db.VarChar(20)
+  contactEmail  String   @db.VarChar(200)
+  contactPhone  String?  @db.VarChar(20)
+  maxUnits      Int      @default(1)
+  pricePerUnit  Decimal  @db.Decimal(12,2)
+  billingCycle  BillingCycle @default(MONTHLY)
+  status        CorporatePlanStatus @default(PENDING)
+  startedAt     DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscriptions CorporateSubscription[]
+
+  @@map("corporate_plans")
+}
+
+model CorporateSubscription {
+  id            String   @id @default(uuid()) @db.Uuid
+  planId        String   @db.Uuid
+  barbershopId  String   @db.Uuid
+  status        CorporateSubStatus @default(ACTIVE)
+  startedAt     DateTime @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  plan       CorporatePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  barbershop Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, barbershopId])
+  @@map("corporate_subscriptions")
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum CorporatePlanStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CANCELED
+}
+
+enum CorporateSubStatus {
+  ACTIVE
+  EXPIRED
+  CANCELED
+  SUSPENDED
 }

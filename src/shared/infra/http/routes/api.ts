@@ -46,6 +46,16 @@ import { visitRoutes } from '@/modules/visits/visit.routes'
 import { resourceRoutes } from '@/modules/resources/resource.routes'
 import { profitRoutes } from '@/modules/profit/profit.routes'
 import { giftCardRoutes } from '@/modules/giftCards/giftCard.routes'
+import { formRoutes } from '@/modules/forms/form.routes'
+import { staffRoutes } from '@/modules/staff/staff.routes'
+import { qualityRoutes } from '@/modules/quality/quality.routes'
+import { purchasingRoutes } from '@/modules/purchasing/purchasing.routes'
+import { copilotRoutes } from '@/modules/copilot/copilot.routes'
+import { corporateRoutes } from '@/modules/corporate/corporate.routes'
+import { reputationRoutes } from '@/modules/reputation/reputation.routes'
+import { walletRoutes } from '@/modules/wallet/wallet.routes'
+import { pricingRoutes } from '@/modules/pricing/pricing.routes'
+import { voucherRoutes } from '@/modules/vouchers/voucher.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	await realtimeWsRoutes(app)
@@ -94,5 +104,15 @@ export async function apiRoutes(app: FastifyInstance) {
 	await visitRoutes(app)
 	await profitRoutes(app)
 	await giftCardRoutes(app)
+	await pricingRoutes(app)
+	await voucherRoutes(app)
 	await resourceRoutes(app)
+	await copilotRoutes(app)
+	await corporateRoutes(app)
+	await reputationRoutes(app)
+	await walletRoutes(app)
+	await qualityRoutes(app)
+	await purchasingRoutes(app)
+	await formRoutes(app)
+	await staffRoutes(app)
 }
