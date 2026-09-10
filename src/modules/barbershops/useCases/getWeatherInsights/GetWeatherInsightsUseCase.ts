@@ -39,11 +39,21 @@ export class GetWeatherInsightsUseCase {
       );
     }
 
-    const forecast = await this.weatherProvider.getForecast(
-      barbershop.latitude,
-      barbershop.longitude,
-      days
-    );
+    let forecast: Awaited<ReturnType<IWeatherProvider['getForecast']>>;
+    try {
+      forecast = await this.weatherProvider.getForecast(
+        barbershop.latitude,
+        barbershop.longitude,
+        days
+      );
+    } catch {
+      throw new AppError(
+        'Previsão meteorológica temporariamente indisponível. Tente novamente em alguns minutos.',
+        503,
+        undefined,
+        'WEATHER_PROVIDER_UNAVAILABLE'
+      );
+    }
 
     const historicalLogs = await prisma.dailyWeatherLog.findMany({
       where: {
