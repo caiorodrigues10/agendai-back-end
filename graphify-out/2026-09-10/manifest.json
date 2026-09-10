@@ -1155,8 +1155,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/api.ts": {
-    "mtime": 1789050312.0222988,
-    "ast_hash": "8c2e2efd8878852d14d79086108396f5",
+    "mtime": 1789049996.035683,
+    "ast_hash": "a992b519d590afb47204f0b579b06e43",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/appointments.routes.ts": {
@@ -3732,21 +3732,6 @@
   "src/modules/whatsappAi/whatsappAiUseCases.ts": {
     "mtime": 1789049970.7758956,
     "ast_hash": "7160df62a727e68cf402389466120ccd",
-    "semantic_hash": ""
-  },
-  "prisma/migrations/20260911000006_add_e5_f1_f7/migration.sql": {
-    "mtime": 1789050564.2874582,
-    "ast_hash": "08e5328df4cf67a05bb15127778a86a4",
-    "semantic_hash": ""
-  },
-  "src/modules/integrations/integration.routes.ts": {
-    "mtime": 1789050236.6797523,
-    "ast_hash": "f4fa33156231f4888ed301db61515ad4",
-    "semantic_hash": ""
-  },
-  "src/modules/integrations/integrationController.ts": {
-    "mtime": 1789050231.8294885,
-    "ast_hash": "5cdf6782e52ecf9189689a99fafdc093",
     "semantic_hash": ""
   }
 }

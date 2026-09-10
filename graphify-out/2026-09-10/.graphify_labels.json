@@ -278,7 +278,10 @@
   "276": "enhancedDemandPredictor.ts",
   "277": "subscriptionAccess.ts",
   "278": "wallet.routes.ts",
+  "279": "categories.routes.ts",
   "280": "bcryptjs",
   "281": "@fastify/swagger",
-  "282": "pino"
+  "282": "pino",
+  "283": ".execute",
+  "284": ".constructor"
 }

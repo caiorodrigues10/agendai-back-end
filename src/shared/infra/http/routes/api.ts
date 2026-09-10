@@ -56,6 +56,9 @@ import { reputationRoutes } from '@/modules/reputation/reputation.routes'
 import { walletRoutes } from '@/modules/wallet/wallet.routes'
 import { pricingRoutes } from '@/modules/pricing/pricing.routes'
 import { voucherRoutes } from '@/modules/vouchers/voucher.routes'
+import { fiscalRoutes } from '@/modules/fiscal/fiscal.routes'
+import { integrationRoutes } from '@/modules/integrations/integration.routes'
+import { whatsappAiRoutes } from '@/modules/whatsappAi/whatsappAi.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	await realtimeWsRoutes(app)
@@ -115,4 +118,7 @@ export async function apiRoutes(app: FastifyInstance) {
 	await purchasingRoutes(app)
 	await formRoutes(app)
 	await staffRoutes(app)
+	await fiscalRoutes(app)
+	await integrationRoutes(app)
+	await whatsappAiRoutes(app)
 }
