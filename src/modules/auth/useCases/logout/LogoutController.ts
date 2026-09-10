@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { LogoutUseCase } from "./LogoutUseCase";
 import { logAccess } from "@/shared/services/accessLogService";
 import { UserRepository } from "@/modules/users/infra/repositories/UserRepository";
+import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 
 export class LogoutController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -27,10 +28,7 @@ export class LogoutController {
     });
 
     reply.setCookie('refresh_token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/api/auth',
+      ...getAuthCookieSecurityOptions(),
       maxAge: 0,
     });
 
@@ -59,10 +57,7 @@ export class LogoutController {
     });
 
     reply.setCookie('refresh_token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/api/auth',
+      ...getAuthCookieSecurityOptions(),
       maxAge: 0,
     });
 

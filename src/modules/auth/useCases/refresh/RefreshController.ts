@@ -9,6 +9,7 @@ import { prisma } from "@/libs/prismaClient";
 import { container } from "tsyringe";
 import type { IUserRepository } from "@/modules/users/repositories/IUserRepository";
 import { mapRole, parseDuration } from "@/shared/utils/authUtils";
+import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 
 export const validateRefresh = validateSchema(refreshSchema);
 
@@ -55,10 +56,7 @@ export class RefreshController {
       });
 
       reply.setCookie('refresh_token', newRefreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.AUTH_COOKIE_SAME_SITE === 'none' ? 'none' : 'lax',
-        path: '/api/auth',
+        ...getAuthCookieSecurityOptions(),
         ...(rememberMe ? { maxAge: parseDuration(auth.refreshExpiresIn) / 1000 } : {}),
       });
 

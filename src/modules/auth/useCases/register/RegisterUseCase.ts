@@ -20,6 +20,7 @@ import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 import { geocodeCity } from "@/shared/services/geocodeCity";
+import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 
 const logger = getModuleLogger("register");
 
@@ -226,10 +227,7 @@ export class RegisterUseCase {
 
     if (reply) {
       reply.setCookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        path: '/api/auth',
+        ...getAuthCookieSecurityOptions(),
         maxAge: parseDuration(auth.refreshExpiresIn) / 1000,
       });
     }

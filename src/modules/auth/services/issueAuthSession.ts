@@ -4,6 +4,7 @@ import { FastifyReply } from "fastify";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
 import { parseDuration } from "@/shared/utils/authUtils";
+import { getAuthCookieSecurityOptions } from "../utils/authCookieOptions";
 
 interface UserLike {
   id: string;
@@ -46,10 +47,7 @@ export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rem
 
   if (reply) {
     reply.setCookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.AUTH_COOKIE_SAME_SITE === 'none' ? 'none' : 'lax',
-      path: '/api/auth',
+      ...getAuthCookieSecurityOptions(),
       ...(rememberMe ? { maxAge: parseDuration(auth.refreshExpiresIn) / 1000 } : {}),
     });
   }
