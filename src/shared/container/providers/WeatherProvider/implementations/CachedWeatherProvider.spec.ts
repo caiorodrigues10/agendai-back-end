@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DailyForecast, IWeatherProvider } from '../IWeatherProvider';
 import { CachedWeatherProvider } from './CachedWeatherProvider';
+import { ResilientWeatherProvider } from './ResilientWeatherProvider';
 
 const redis = {
   get: vi.fn(),
@@ -61,5 +62,21 @@ describe('CachedWeatherProvider', () => {
     const provider = new CachedWeatherProvider(upstream);
 
     await expect(provider.getForecast(-20.95, -48.48, 7)).resolves.toEqual(forecast);
+  });
+});
+
+describe('ResilientWeatherProvider', () => {
+  it('usa o provedor alternativo quando o principal retorna 429', async () => {
+    const primary = {
+      getForecast: vi.fn().mockRejectedValue(new Error('Open-Meteo API error: 429')),
+    } satisfies IWeatherProvider;
+    const fallback = {
+      getForecast: vi.fn().mockResolvedValue(forecast),
+    } satisfies IWeatherProvider;
+    const provider = new ResilientWeatherProvider([primary, fallback]);
+
+    await expect(provider.getForecast(-20.95, -48.48, 7)).resolves.toEqual(forecast);
+    expect(primary.getForecast).toHaveBeenCalledOnce();
+    expect(fallback.getForecast).toHaveBeenCalledOnce();
   });
 });

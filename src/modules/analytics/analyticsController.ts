@@ -78,6 +78,7 @@ export class AnalyticsController {
       data: {
         barbershopId: resolvedBarbershopId,
         historicalDays: historicalLogs.length,
+        forecast,
         predictions,
       },
     });

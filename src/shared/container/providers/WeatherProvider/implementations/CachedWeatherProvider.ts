@@ -1,5 +1,5 @@
 import { IWeatherProvider, DailyForecast } from '../IWeatherProvider';
-import { OpenMeteoWeatherProvider } from './OpenMeteoWeatherProvider';
+import { ResilientWeatherProvider } from './ResilientWeatherProvider';
 import { getRedisConnection } from '@/shared/infra/queue/redisConnection';
 
 export class CachedWeatherProvider implements IWeatherProvider {
@@ -12,7 +12,7 @@ export class CachedWeatherProvider implements IWeatherProvider {
   >();
   private readonly inFlight = new Map<string, Promise<DailyForecast[]>>();
 
-  constructor(provider: IWeatherProvider = new OpenMeteoWeatherProvider()) {
+  constructor(provider: IWeatherProvider = new ResilientWeatherProvider()) {
     this.provider = provider;
   }
 
