@@ -12,6 +12,7 @@ import {
 import { CATALOG_TEMPLATE_VERSION, getCatalogTemplate } from "../catalogTemplates";
 import type { BusinessSegment } from "@/modules/barbershops/dtos/IBarbershopResponseDTO";
 import { namesToSkip } from "../inventoryMath";
+import { productTypeWhere } from "../productListFilters";
 import { assertProductsInventoryCapability } from "@/shared/constants/productsInventory";
 import {
   assertUniqueProductCode,
@@ -20,6 +21,7 @@ import {
   throwProductUniqueViolation,
 } from "../utils/productCodeUtils";
 import { summarizeRetailLines } from "../utils/retailSummary";
+import { buildProductAttention } from "../utils/productAttention";
 
 function stripCost<T extends { averageCost?: number }>(row: T, showCost: boolean) {
   if (showCost) return row;
@@ -33,15 +35,15 @@ export class ProductCatalogUseCase {
   constructor(@inject(InventoryEngine) private engine: InventoryEngine) {}
 
   async listProducts(barbershopId: string, user: ProductActor, query: {
-    search?: string; categoryId?: string; active?: string; type?: string; lowStock?: string; forSale?: string; page: number; limit: number;
+    search?: string; categoryId?: string; active?: string; type?: string; purpose?: "sale" | "own"; lowStock?: string; forSale?: string; page: number; limit: number;
   }) {
     const perms = await assertProductPermission(user, barbershopId, ["PRODUCTS_VIEW", "PRODUCTS_MANAGE", "RETAIL_SELL", "INVENTORY_MANAGE"]);
     const showCost = canSeeProductCosts(user, perms);
     const where: Prisma.ProductWhereInput = { barbershopId };
     if (query.active) where.active = query.active === "true";
     if (query.categoryId) where.categoryId = query.categoryId;
-    if (query.type) where.type = query.type as never;
-    if (query.forSale === "true") where.type = { in: ["RETAIL", "BOTH"] };
+    const typeFilter = productTypeWhere(query);
+    if (typeFilter) Object.assign(where, typeFilter);
     if (query.search) {
       where.OR = [
         { name: { contains: query.search, mode: "insensitive" } },
@@ -312,9 +314,21 @@ export class ProductCatalogUseCase {
     const soldAt = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
     const dateFilter = from || to ? soldAt : undefined;
     const byProductMap = await summarizeRetailLines(barbershopId, dateFilter);
-    const products = await prisma.product.findMany({ where: { barbershopId, trackStock: true, active: true } });
+    const products = await prisma.product.findMany({
+      where: { barbershopId, trackStock: true, active: true },
+      select: {
+        id: true,
+        name: true,
+        stockQty: true,
+        minStock: true,
+        trackStock: true,
+        type: true,
+        averageCost: true,
+      },
+    });
+    const byProduct = [...byProductMap.values()].map((row) => ({ ...row, margin: row.revenue - row.cost }));
+    const attention = buildProductAttention({ products, byProduct, from, to });
     const lowStock = products.filter((p: { minStock: number; stockQty: number }) => p.minStock > 0 && p.stockQty <= p.minStock);
-    const idle = products.filter((p: { id: string; stockQty: number }) => !byProductMap.has(p.id) && p.stockQty > 0);
     const inventoryValue = products.reduce((sum: number, p: { stockQty: number; averageCost: number }) => sum + p.stockQty * p.averageCost, 0);
     const byStaffRaw = await prisma.retailSale.groupBy({
       by: ["soldById"],
@@ -328,9 +342,10 @@ export class ProductCatalogUseCase {
       : [];
     const staffNames = new Map(staffRows.map((row: { id: string; name: string }) => [row.id, row.name]));
     return {
-      byProduct: [...byProductMap.values()].map((row) => ({ ...row, margin: row.revenue - row.cost })),
+      byProduct,
       lowStock,
-      idleProducts: idle.map((p: { id: string; name: string; stockQty: number }) => ({ id: p.id, name: p.name, stockQty: p.stockQty })),
+      idleProducts: attention.idle.map((p) => ({ id: p.productId, name: p.name, stockQty: p.stockQty })),
+      attention,
       inventoryValue,
       byStaff: byStaffRaw.map((row: { soldById: string; _sum: { total: number | null }; _count: { id: number } }) => ({
         soldById: row.soldById,

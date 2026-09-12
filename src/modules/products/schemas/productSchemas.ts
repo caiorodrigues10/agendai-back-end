@@ -36,6 +36,8 @@ export const listProductsQuerySchema = z.object({
   categoryId: z.string().uuid().optional(),
   active: z.enum(["true", "false"]).optional(),
   type: z.enum(["RETAIL", "CONSUMABLE", "BOTH"]).optional(),
+  /** sale → RETAIL+BOTH (alias de forSale=true); own → CONSUMABLE+BOTH */
+  purpose: z.enum(["sale", "own"]).optional(),
   lowStock: z.enum(["true", "false"]).optional(),
   forSale: z.enum(["true", "false"]).optional(),
   page: z.coerce.number().int().min(1).default(1),

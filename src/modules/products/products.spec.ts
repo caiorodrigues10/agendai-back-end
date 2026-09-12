@@ -8,6 +8,8 @@ import {
   weightedAverageCost,
   type CatalogProductSnapshot,
 } from "./inventoryMath";
+import { productTypeWhere } from "./productListFilters";
+import { buildProductAttention } from "./utils/productAttention";
 import { CATALOG_TEMPLATE_VERSION, getCatalogTemplate } from "./catalogTemplates";
 import { AppError } from "@/shared/errors/AppError";
 
@@ -118,6 +120,68 @@ describe("inventoryMath", () => {
 
   it("saldo de fiado considera ajustes de crédito", () => {
     expect(remainingFiadoAmount(100, 20, 30)).toBe(50);
+  });
+  it("impede venda de produto CONSUMABLE (uso interno)", () => {
+    expect(() =>
+      planRetailSaleLines([product({ type: "CONSUMABLE", name: "Tinta" })], [{ productId: "p1", quantity: 1 }], {
+        barbershopId: shop,
+        allowPriceOverride: false,
+      })
+    ).toThrow(/uso interno/i);
+  });
+
+  it("permite venda de produto BOTH", () => {
+    const lines = planRetailSaleLines(
+      [product({ type: "BOTH", name: "Shampoo" })],
+      [{ productId: "p1", quantity: 1 }],
+      { barbershopId: shop, allowPriceOverride: false }
+    );
+    expect(lines[0].unitPrice).toBe(40);
+  });
+});
+
+describe("productTypeWhere (list purpose)", () => {
+  it("purpose=own devolve CONSUMABLE e BOTH", () => {
+    expect(productTypeWhere({ purpose: "own" })).toEqual({ type: { in: ["CONSUMABLE", "BOTH"] } });
+  });
+
+  it("purpose=sale e forSale=true devolvem RETAIL e BOTH", () => {
+    expect(productTypeWhere({ purpose: "sale" })).toEqual({ type: { in: ["RETAIL", "BOTH"] } });
+    expect(productTypeWhere({ forSale: "true" })).toEqual({ type: { in: ["RETAIL", "BOTH"] } });
+  });
+
+  it("purpose tem prioridade sobre type exato", () => {
+    expect(productTypeWhere({ purpose: "own", type: "RETAIL" })).toEqual({
+      type: { in: ["CONSUMABLE", "BOTH"] },
+    });
+  });
+
+  it("type exato quando não há purpose/forSale", () => {
+    expect(productTypeWhere({ type: "CONSUMABLE" })).toEqual({ type: "CONSUMABLE" });
+  });
+});
+
+describe("buildProductAttention", () => {
+  const from = new Date("2026-03-01T00:00:00.000Z");
+  const to = new Date("2026-03-31T00:00:00.000Z");
+
+  it("classifica faltando, bombando, repor e parado", () => {
+    const products = [
+      { id: "a", name: "Pomada", stockQty: 1, minStock: 5, trackStock: true, type: "RETAIL" as const },
+      { id: "b", name: "Shampoo", stockQty: 50, minStock: 5, trackStock: true, type: "BOTH" as const },
+      { id: "c", name: "Tinta", stockQty: 20, minStock: 2, trackStock: true, type: "CONSUMABLE" as const },
+      { id: "d", name: "Gel", stockQty: 2, minStock: 10, trackStock: true, type: "RETAIL" as const },
+    ];
+    const byProduct = [
+      { productId: "a", name: "Pomada", quantity: 40, revenue: 800, cost: 200, margin: 600 },
+      { productId: "d", name: "Gel", quantity: 30, revenue: 450, cost: 100, margin: 350 },
+      { productId: "b", name: "Shampoo", quantity: 2, revenue: 80, cost: 20, margin: 60 },
+    ];
+    const attention = buildProductAttention({ products, byProduct, from, to });
+    expect(attention.missing.map((p) => p.productId).sort()).toEqual(["a", "d"]);
+    expect(attention.hot[0]?.productId).toBe("a");
+    expect(attention.needsReorder.some((p) => p.productId === "a")).toBe(true);
+    expect(attention.idle.map((p) => p.productId)).toEqual(["c"]);
   });
 });
 
