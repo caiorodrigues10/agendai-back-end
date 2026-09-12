@@ -265,7 +265,7 @@ export class CrmRepository implements ICrmRepository {
         }
       }
 
-      await Promise.all([tx.appointment.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.queueItem.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.fiado.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.clientPackage.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.crmFinancialEvent.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.retailSale.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } })]);
+      await Promise.all([tx.appointment.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.queueItem.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.fiado.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.clientPackage.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.crmFinancialEvent.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.retailSale.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } }), tx.clientProcedureRecord.updateMany({ where: { clientId: { in: ids } }, data: { clientId: targetId } })]);
       await tx.salonClient.deleteMany({ where: { id: { in: ids }, barbershopId } });
     });
   }

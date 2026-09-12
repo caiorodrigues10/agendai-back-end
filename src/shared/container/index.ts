@@ -11,6 +11,9 @@ import { ServiceRepository } from '@/modules/services/infra/repositories/Service
 import { IBarbershopRepository } from '@/modules/barbershops/repositories/IBarbershopRepository'
 import { BarbershopRepository } from '@/modules/barbershops/infra/repositories/BarbershopRepository'
 
+import { IProcedureRecordRepository } from '@/modules/clients/repositories/ProcedureRecordRepository'
+import { ProcedureRecordRepository } from '@/modules/clients/repositories/ProcedureRecordRepository'
+
 import { IQueueRepository } from '@/modules/queue/repositories/IQueueRepository'
 import { QueueRepository } from '@/modules/queue/infra/repositories/QueueRepository'
 
@@ -117,6 +120,10 @@ container.registerSingleton<IServicePackageRepository>(
 container.registerSingleton<IClientPackageRepository>(
 	'ClientPackageRepository',
 	ClientPackageRepository,
+)
+container.registerSingleton<IProcedureRecordRepository>(
+	'ProcedureRecordRepository',
+	ProcedureRecordRepository,
 )
 container.registerSingleton<ICommissionRepository>('CommissionRepository', CommissionRepository)
 container.registerSingleton<ICrmRepository>('CrmRepository', CrmRepository)

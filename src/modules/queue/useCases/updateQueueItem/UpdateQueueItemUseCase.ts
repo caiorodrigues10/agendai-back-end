@@ -11,6 +11,7 @@ import { computeInsertJoinedAt } from "../../utils/computeInsertJoinedAt";
 import { isPlaceholderWhatsApp } from "../../utils/queueDuplicate";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
+import { IProcedureRecordRepository } from "@/modules/clients/repositories/ProcedureRecordRepository";
 import { publishRealtime } from "@/shared/services/realtimeService";
 import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
 import { recordFiadoCreated, recordQueueCompletion } from "@/modules/crm/services/crmLedger";
@@ -20,6 +21,7 @@ import type { retailSalePayloadSchema } from "@/modules/products/schemas/product
 
 type CommissionSplit = { professionalId: string; percentage: number };
 type RetailSalePayload = z.infer<typeof retailSalePayloadSchema>;
+type ProcedureInput = { title: string; formula?: string; details?: string; serviceName?: string; professionalName?: string };
 
 @injectable()
 export class UpdateQueueItemUseCase {
@@ -33,10 +35,11 @@ export class UpdateQueueItemUseCase {
     @inject("UserRepository") private userRepository?: IUserRepository,
     @inject("CommissionRepository") private commissionRepository?: ICommissionRepository,
     @inject(ProductCatalogUseCase) private productCatalog?: ProductCatalogUseCase,
+    @inject("ProcedureRecordRepository") private procedureRepository?: IProcedureRecordRepository,
   ) {}
 
   async execute(id: string, statusRaw: string, requestingUser: QueueRequestingUser, details?: {
-    completedBy?: string; finalPrice?: number; paymentMethod?: string; insertAt?: number; commissionSplits?: CommissionSplit[]; retailSale?: RetailSalePayload;
+    completedBy?: string; finalPrice?: number; paymentMethod?: string; insertAt?: number; commissionSplits?: CommissionSplit[]; retailSale?: RetailSalePayload; procedure?: ProcedureInput;
   }) {
     const item = await this.queueRepository.findById(id);
     if (!item) throw new AppError("Item de fila nao encontrado", 404);
@@ -118,6 +121,27 @@ export class UpdateQueueItemUseCase {
       } catch { /* CRM nao bloqueia */ }
     }
     if (nextStatus === "completed") await recordQueueCompletion(updated.id);
+    if (nextStatus === "completed" && details?.procedure) {
+      try {
+        let clientId = item.clientId ?? null;
+        if (!clientId) {
+          const client = await this.salonClients?.upsertFromVisit(item.barbershopId, item.customerName, item.whatsapp);
+          clientId = client?.id ?? null;
+        }
+        if (clientId && this.procedureRepository) {
+          await this.procedureRepository.create({
+            barbershopId: item.barbershopId,
+            clientId,
+            professionalName: details.procedure.professionalName || "Profissional",
+            title: details.procedure.title,
+            formula: details.procedure.formula,
+            details: details.procedure.details,
+            serviceName: details.procedure.serviceName ?? item.serviceName ?? null,
+            queueItemId: item.id,
+          });
+        }
+      } catch { /* procedure nao bloqueia */ }
+    }
     if (nextStatus === "completed" && details?.retailSale) {
       await this.attachRetailSale(updated, requestingUser, details.retailSale);
     }

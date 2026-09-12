@@ -347,9 +347,10 @@ model Barbershop {
      formResponses            FormResponse[]
      qualityAudits            QualityAudit[]
      corporateSubscriptions   CorporateSubscription[]
-     aiConversations          AiConversation[]
-     aiIntentLogs             AiIntentLog[]
-     fiscalConfig             FiscalConfig?
+      aiConversations          AiConversation[]
+      aiIntentLogs             AiIntentLog[]
+      procedureRecords         ClientProcedureRecord[]
+      fiscalConfig             FiscalConfig?
      nfeRecords               NfeRecord[]
      integrations             Integration[]
 
@@ -730,11 +731,44 @@ model SalonClient {
    formResponses          FormResponse[]
     purchasedGiftCards     GiftCard[]            @relation("GiftCardBuyer")
     receivedGiftCards      GiftCard[]            @relation("GiftCardRecipient")
+    procedureRecords       ClientProcedureRecord[]
 
   @@unique([barbershopId, normalizedWhatsapp])
   @@index([barbershopId])
   @@index([whatsapp])
   @@map("salon_clients")
+}
+
+/// Registro de procedimento realizado em uma visita do cliente.
+model ClientProcedureRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  barbershopId    String   @db.Uuid
+  clientId        String   @db.Uuid
+  /// Nome do profissional que realizou (snapshot).
+  professionalName String  @db.VarChar(200)
+  /// Título curto do procedimento (ex.: Coloração, Luzes, Progressiva).
+  title           String   @db.VarChar(200)
+  /// Fórmula / cor / produto utilizado (ex.: Wella 7.1 + 20 vol).
+  formula         String?  @db.VarChar(500)
+  /// Detalhes livres (tempo, técnica, observações).
+  details         String?  @db.Text
+  /// Serviço vinculado (snapshot do nome).
+  serviceName     String?  @db.VarChar(200)
+  /// Vínculo opcional com fila.
+  queueItemId     String?  @db.Uuid
+  /// Vínculo opcional com agendamento.
+  appointmentId   String?  @db.Uuid
+  /// Data/hora em que o procedimento foi realizado.
+  occurredAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  barbershop  Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client      SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId, clientId, occurredAt(sort: Desc)])
+  @@index([barbershopId, clientId])
+  @@map("client_procedure_records")
 }
 
 /// Catálogo de pacote pré-pago vendido pelo salão (ex.: 5 cortes).

@@ -4,8 +4,17 @@ import { AppError } from "@/shared/errors/AppError";
 import { IAppointmentRepository } from "../../repositories/IAppointmentRepository";
 import { CompleteServiceUseCase } from "@/modules/shared/useCases/CompleteServiceUseCase";
 import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCases";
+import { IProcedureRecordRepository } from "@/modules/clients/repositories/ProcedureRecordRepository";
 import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
 import { publishRealtime } from "@/shared/services/realtimeService";
+
+interface ProcedureInput {
+  title: string;
+  formula?: string;
+  details?: string;
+  serviceName?: string;
+  professionalName?: string;
+}
 
 interface CompleteAppointmentRequest {
   appointmentId: string;
@@ -22,6 +31,7 @@ interface CompleteAppointmentRequest {
     clientId?: string;
     idempotencyKey?: string;
   };
+  procedure?: ProcedureInput;
 }
 
 @injectable()
@@ -30,6 +40,7 @@ export class CompleteAppointmentUseCase {
     @inject("AppointmentRepository") private appointmentRepository: IAppointmentRepository,
     @inject(CompleteServiceUseCase) private completeService: CompleteServiceUseCase,
     @inject(ProductCatalogUseCase) private productCatalog: ProductCatalogUseCase,
+    @inject("ProcedureRecordRepository") private procedureRepository?: IProcedureRecordRepository,
   ) {}
 
   async execute(request: CompleteAppointmentRequest) {
@@ -87,6 +98,24 @@ export class CompleteAppointmentUseCase {
         customerName: appointment.customerName,
         whatsapp: appointment.whatsapp,
       });
+    }
+
+    if (request.procedure && this.procedureRepository) {
+      try {
+        const clientId = appointment.clientId;
+        if (clientId) {
+          await this.procedureRepository.create({
+            barbershopId: request.barbershopId,
+            clientId,
+            professionalName: request.procedure.professionalName || "Profissional",
+            title: request.procedure.title,
+            formula: request.procedure.formula,
+            details: request.procedure.details,
+            serviceName: request.procedure.serviceName ?? appointment.serviceName ?? null,
+            appointmentId: appointment.id,
+          });
+        }
+      } catch { /* procedure nao bloqueia */ }
     }
 
     if (!isPlaceholderWhatsApp(appointment.whatsapp)) {
