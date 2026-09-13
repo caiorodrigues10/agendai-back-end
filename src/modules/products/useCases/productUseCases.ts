@@ -54,22 +54,37 @@ export class ProductCatalogUseCase {
 
     if (query.lowStock === "true") {
       const skip = (query.page - 1) * query.limit;
+      const lowStockClauses: Prisma.Sql[] = [
+        Prisma.sql`"barbershopId" = ${barbershopId}::uuid`,
+        Prisma.sql`"trackStock" = true`,
+        Prisma.sql`"minStock" > 0`,
+        Prisma.sql`"stockQty" <= "minStock"`,
+      ];
+      if (query.active) lowStockClauses.push(Prisma.sql`active = ${query.active === "true"}`);
+      if (query.categoryId) lowStockClauses.push(Prisma.sql`"categoryId" = ${query.categoryId}::uuid`);
+      const typeFilter = productTypeWhere(query);
+      if (typeFilter) {
+        if (typeof typeFilter.type === "string") {
+          lowStockClauses.push(Prisma.sql`type = ${typeFilter.type}::"ProductType"`);
+        } else {
+          lowStockClauses.push(Prisma.sql`type IN (${Prisma.join(typeFilter.type.in.map((type) => Prisma.sql`${type}::"ProductType"`))})`);
+        }
+      }
+      if (query.search) {
+        const search = `%${query.search}%`;
+        lowStockClauses.push(Prisma.sql`(name ILIKE ${search} OR sku ILIKE ${search} OR barcode ILIKE ${search})`);
+      }
+      const lowStockWhere = Prisma.sql`${Prisma.join(lowStockClauses, " AND ")}`;
       const [idRows, countRows] = await Promise.all([
         prisma.$queryRaw<{ id: string }[]>`
           SELECT id::text AS id FROM products
-          WHERE "barbershopId" = ${barbershopId}::uuid
-            AND "trackStock" = true
-            AND "minStock" > 0
-            AND "stockQty" <= "minStock"
+          WHERE ${lowStockWhere}
           ORDER BY name ASC
           LIMIT ${query.limit} OFFSET ${skip}
         `,
         prisma.$queryRaw<[{ count: bigint }]>`
           SELECT COUNT(*)::bigint AS count FROM products
-          WHERE "barbershopId" = ${barbershopId}::uuid
-            AND "trackStock" = true
-            AND "minStock" > 0
-            AND "stockQty" <= "minStock"
+          WHERE ${lowStockWhere}
         `,
       ]);
       const ids = idRows.map((row: { id: string }) => row.id);
