@@ -30,10 +30,44 @@ export class LoyaltyController {
 
     const program = await this.useCases.configureProgram(resolvedBarbershopId, {
       type: body.type,
+      isActive: body.isActive,
       config: body.config,
     });
 
     reply.send({ success: true, data: program });
+  }
+
+  async getProgram(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const user = request.user!;
+    const { barbershopId } = request.params as { barbershopId: string };
+
+    const resolvedBarbershopId =
+      user.role === "MASTER_ADMIN"
+        ? barbershopId
+        : user.barbershopId ?? barbershopId;
+
+    if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
+    if (user.role !== "MASTER_ADMIN" && resolvedBarbershopId !== user.barbershopId) {
+      throw new AppError("Access denied", 403);
+    }
+
+    const program = await this.useCases.getProgram(resolvedBarbershopId);
+
+    reply.send({
+      success: true,
+      data: program ?? {
+        id: null,
+        barbershopId: resolvedBarbershopId,
+        type: "VISITS",
+        isActive: false,
+        config: {
+          visitsRequired: 5,
+          rewardDescription: "",
+          cashbackEnabled: false,
+          cashbackPercent: 0,
+        },
+      },
+    });
   }
 
   async getAccount(request: FastifyRequest, reply: FastifyReply): Promise<void> {

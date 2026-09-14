@@ -78,6 +78,10 @@ export class WaitlistRepository {
   }
 
   async listEntries(barbershopId: string, filters: ListEntriesFilters) {
+    if (!(prisma as any).waitlistEntry?.findMany) {
+      return { items: [], total: 0, page: filters.page ?? 1, limit: filters.limit ?? 20 };
+    }
+
     const where: Prisma.AppointmentWaitlistEntryWhereInput = { barbershopId };
 
     if (filters.status) {

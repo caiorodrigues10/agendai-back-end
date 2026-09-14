@@ -7,20 +7,21 @@ export class LoyaltyRepository {
     });
   }
 
-  async createProgram(barbershopId: string, type: string, config: Record<string, unknown>) {
+  async createProgram(barbershopId: string, type: string, config: Record<string, unknown>, isActive = true) {
     return prisma.loyaltyProgram.create({
       data: {
         barbershopId,
         type,
+        isActive,
         config: config as any,
       },
     });
   }
 
-  async updateProgram(barbershopId: string, config: Record<string, unknown>) {
+  async updateProgram(barbershopId: string, config: Record<string, unknown>, isActive = true) {
     return prisma.loyaltyProgram.update({
       where: { barbershopId },
-      data: { config: config as any },
+      data: { config: config as any, isActive },
     });
   }
 

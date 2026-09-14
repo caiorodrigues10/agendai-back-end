@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const configureLoyaltyProgramSchema = z.object({
   type: z.enum(["VISITS"]).default("VISITS"),
+  isActive: z.boolean().default(true),
   config: z.object({
     visitsRequired: z.coerce.number().int().min(1).default(10),
     rewardDescription: z.string().max(200).default("Cortesia"),

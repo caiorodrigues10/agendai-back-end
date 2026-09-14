@@ -19,6 +19,12 @@ export async function loyaltyRoutes(app: FastifyInstance) {
   );
 
   app.get(
+    "/barbershops/:barbershopId/loyalty/program",
+    { preHandler: ownerGuard },
+    controller.getProgram.bind(controller)
+  );
+
+  app.get(
     "/barbershops/:barbershopId/loyalty/accounts/:clientId",
     { preHandler: ownerGuard },
     controller.getAccount.bind(controller)

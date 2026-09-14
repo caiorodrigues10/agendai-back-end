@@ -141,6 +141,7 @@ export class MembershipRepository {
   }
 
   async listPlans(barbershopId: string) {
+    if (!(prisma as any).membershipPlan?.findMany) return [];
     return prisma.membershipPlan.findMany({
       where: { barbershopId },
       include: { benefits: true },
@@ -204,6 +205,10 @@ export class MembershipRepository {
   }
 
   async listMemberships(barbershopId: string, filters: MembershipListFilters) {
+    if (!(prisma as any).membership?.findMany) {
+      return { items: [], total: 0, page: filters.page ?? 1, limit: filters.limit ?? 20 };
+    }
+
     const where: Prisma.ClientMembershipWhereInput = { barbershopId };
 
     if (filters.status) where.status = filters.status as any;

@@ -5,12 +5,12 @@ import { LoyaltyRepository } from "./loyaltyRepository";
 export class LoyaltyUseCases {
   private repo = new LoyaltyRepository();
 
-  async configureProgram(barbershopId: string, data: { type: string; config: Record<string, unknown> }) {
+  async configureProgram(barbershopId: string, data: { type: string; config: Record<string, unknown>; isActive?: boolean }) {
     const existing = await this.repo.findProgram(barbershopId);
     if (existing) {
-      return this.repo.updateProgram(barbershopId, data.config);
+      return this.repo.updateProgram(barbershopId, data.config, data.isActive ?? true);
     }
-    return this.repo.createProgram(barbershopId, data.type, data.config);
+    return this.repo.createProgram(barbershopId, data.type, data.config, data.isActive ?? true);
   }
 
   async getProgram(barbershopId: string) {
