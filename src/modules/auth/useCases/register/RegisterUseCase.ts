@@ -162,7 +162,7 @@ export class RegisterUseCase {
 
     const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
     const accessToken = sign(
-      { role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: normalizedCpf },
+      { role: user.role, barbershopId: user.barbershopId ?? undefined },
       auth.secret as Secret,
       accessOpts
     );

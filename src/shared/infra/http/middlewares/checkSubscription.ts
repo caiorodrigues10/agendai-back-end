@@ -33,8 +33,12 @@ export async function checkSubscription(
 
   if (!user || user.role === "MASTER_ADMIN") return;
 
-  if (user.cpf) {
-    await assertCpfNotBlocked(user.cpf);
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { cpf: true },
+  });
+  if (dbUser?.cpf) {
+    await assertCpfNotBlocked(dbUser.cpf);
   }
 
   if (!user.barbershopId) {

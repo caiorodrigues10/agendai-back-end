@@ -7,7 +7,6 @@ interface JwtPayload {
   sub: string;
   role: string;
   barbershopId?: string;
-  cpf?: string;
 }
 
 /**
@@ -28,7 +27,6 @@ export async function authenticateOptional(
       id: decoded.sub,
       role: decoded.role,
       barbershopId: decoded.barbershopId,
-      cpf: decoded.cpf,
     };
   } catch {
     // Token inválido/expirado em rota pública: trata como anônimo

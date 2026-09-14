@@ -24,7 +24,7 @@ function mapRole(role: string): "admin" | "owner" | "employee" {
 export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rememberMe = true) {
   const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
   const accessToken = sign(
-    { role: user.role, barbershopId: user.barbershopId ?? undefined, cpf: user.cpf ?? undefined },
+    { role: user.role, barbershopId: user.barbershopId ?? undefined },
     auth.secret as Secret,
     accessOpts
   );

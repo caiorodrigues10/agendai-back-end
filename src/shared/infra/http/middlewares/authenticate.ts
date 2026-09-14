@@ -7,7 +7,6 @@ interface JwtPayload {
   sub: string;
   role: string;
   barbershopId?: string;
-  cpf?: string;
 }
 
 /** Aceita somente `Bearer <JWT>` (scheme case-insensitive). */
@@ -42,7 +41,6 @@ export async function authenticate(
       id: decoded.sub,
       role: decoded.role,
       barbershopId: decoded.barbershopId,
-      cpf: decoded.cpf
     };
   } catch {
     throw new AppError("Token inválido", 401);
