@@ -1,8 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { createCashMovementSchema, cashMovementQuerySchema } from "./cashMovementSchema";
+import { createCashMovementSchema, cashMovementQuerySchema, cashSummaryQuerySchema } from "./cashMovementSchema";
 import { CashMovementUseCases } from "./cashMovementUseCases";
 import { AppError } from "@/shared/errors/AppError";
-import { closeoutQuerySchema } from "@/modules/financial/dailyCloseoutSchema";
 
 export class CashMovementController {
   private useCases = new CashMovementUseCases();
@@ -70,7 +69,7 @@ export class CashMovementController {
   async getDailySummary(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId } = request.params as { barbershopId: string };
-    const { date } = closeoutQuerySchema.parse(request.query);
+    const { date } = cashSummaryQuerySchema.parse(request.query);
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"

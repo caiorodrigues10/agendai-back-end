@@ -26,5 +26,13 @@ export const cashMovementQuerySchema = z.object({
   type: z.string().optional(),
 });
 
+export const cashSummaryQuerySchema = z.object({
+  date: z.preprocess(
+    value => (value === undefined || value === null || value === "" ? new Date() : value),
+    z.coerce.date()
+  ),
+});
+
 export type CreateCashMovementInput = z.infer<typeof createCashMovementSchema>;
 export type CashMovementQueryInput = z.infer<typeof cashMovementQuerySchema>;
+export type CashSummaryQueryInput = z.infer<typeof cashSummaryQuerySchema>;
