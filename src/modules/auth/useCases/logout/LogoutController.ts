@@ -13,7 +13,7 @@ export class LogoutController {
     }
 
     const useCase = container.resolve(LogoutUseCase);
-    await useCase.execute(user.id);
+    await useCase.execute(user.id, request.cookies.refresh_token);
 
     const userRepo = new UserRepository();
     const fullUser = await userRepo.findById(user.id);

@@ -12,6 +12,7 @@ export class MockServiceRepository implements IServiceRepository {
     const now = new Date();
     const entity: IServiceResponseDTO = {
       id,
+      categoryId: payload.categoryId ?? null,
       barbershopId: payload.barbershopId,
       name: payload.name,
       price: payload.price,

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MockServiceRepository } from "@/modules/services/infra/repositories/mocks/MockServiceRepository";
 import { CreateServiceUseCase } from "./createService/CreateServiceUseCase";
 import { ListServicesUseCase } from "./listServices/ListServicesUseCase";
@@ -7,6 +7,7 @@ import { UpdateServiceUseCase } from "./updateService/UpdateServiceUseCase";
 import { DeleteServiceUseCase } from "./deleteService/DeleteServiceUseCase";
 import { AppError } from "@/shared/errors/AppError";
 
+const categoryRepo = { findById: vi.fn() };
 let repo: MockServiceRepository;
 let create: CreateServiceUseCase;
 let list: ListServicesUseCase;
@@ -16,10 +17,10 @@ let del: DeleteServiceUseCase;
 
 beforeEach(() => {
   repo = new MockServiceRepository();
-  create = new CreateServiceUseCase(repo as any);
+  create = new CreateServiceUseCase(repo as any, categoryRepo as any);
   list = new ListServicesUseCase(repo as any);
   get = new GetServiceUseCase(repo as any);
-  update = new UpdateServiceUseCase(repo as any);
+  update = new UpdateServiceUseCase(repo as any, categoryRepo as any);
   del = new DeleteServiceUseCase(repo as any);
 });
 
@@ -57,5 +58,23 @@ describe("Services module", () => {
 
   it("lança erro ao buscar id inexistente", async () => {
     await expect(get.execute("not-found")).rejects.toBeInstanceOf(AppError);
+  });
+});
+
+describe('Vínculos de categorias', () => {
+  it.each([null, { barbershopId: 'outro-salao', active: true }, { barbershopId: 'shop-1', active: false }])('rejeita categoria indisponível %j', async category => {
+    categoryRepo.findById.mockResolvedValue(category);
+    const body = { barbershopId: 'shop-1', name: 'Corte', price: 50, avgTimeMinutes: 30, icon: 'scissors' };
+    await expect(create.execute({ ...body, categoryId: 'cat-1' })).rejects.toMatchObject({ statusCode: 400 });
+    const service = await create.execute(body);
+    await expect(update.execute(service.id, { categoryId: 'cat-1' })).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it.each([null, 'shop-1'])('aceita categoria global ou do salão %s e permite desvincular', async barbershopId => {
+    categoryRepo.findById.mockResolvedValue({ barbershopId, active: true });
+    const body = { barbershopId: 'shop-1', name: 'Corte', price: 50, avgTimeMinutes: 30, icon: 'scissors' };
+    const service = await create.execute({ ...body, categoryId: 'cat-1' });
+    expect(service.categoryId).toBe('cat-1');
+    expect((await update.execute(service.id, { categoryId: null })).categoryId).toBeNull();
+    expect(await get.execute(service.id)).toMatchObject({ name: 'Corte', active: true });
   });
 });

@@ -34,6 +34,11 @@ const WMO_CODES: Record<number, { condition: string; icon: string }> = {
 
 const DEFAULT_CONDITION = { condition: 'Desconhecido', icon: '🌡️' };
 
+function finite(value: unknown, fallback: number): number {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 export class OpenMeteoWeatherProvider implements IWeatherProvider {
   private readonly baseUrl = 'https://api.open-meteo.com/v1/forecast';
 
@@ -55,7 +60,9 @@ export class OpenMeteoWeatherProvider implements IWeatherProvider {
       forecast_days: String(days),
     });
 
-    const response = await fetch(`${this.baseUrl}?${params}`);
+    const response = await fetch(`${this.baseUrl}?${params}`, {
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!response.ok) {
       throw new Error(`Open-Meteo API error: ${response.status}`);
     }
@@ -63,7 +70,7 @@ export class OpenMeteoWeatherProvider implements IWeatherProvider {
     const data = await response.json();
     const daily = data.daily;
 
-    if (!daily || !daily.time) {
+    if (!daily || !Array.isArray(daily.time)) {
       throw new Error('Invalid Open-Meteo response');
     }
 
@@ -73,14 +80,14 @@ export class OpenMeteoWeatherProvider implements IWeatherProvider {
 
       return {
         date,
-        weatherCode: code,
-        tempMax: daily.temperature_2m_max?.[i] ?? 0,
-        tempMin: daily.temperature_2m_min?.[i] ?? 0,
-        precipMm: daily.precipitation_sum?.[i] ?? 0,
-        precipProbability: daily.precipitation_probability_max?.[i] ?? 0,
-        precipHours: daily.precipitation_hours?.[i] ?? 0,
-        windSpeedMax: daily.wind_speed_10m_max?.[i] ?? 0,
-        humidity: daily.relative_humidity_2m_max?.[i] ?? 50,
+        weatherCode: finite(code, 0),
+        tempMax: finite(daily.temperature_2m_max?.[i], 0),
+        tempMin: finite(daily.temperature_2m_min?.[i], 0),
+        precipMm: finite(daily.precipitation_sum?.[i], 0),
+        precipProbability: finite(daily.precipitation_probability_max?.[i], 0),
+        precipHours: finite(daily.precipitation_hours?.[i], 0),
+        windSpeedMax: finite(daily.wind_speed_10m_max?.[i], 0),
+        humidity: finite(daily.relative_humidity_2m_max?.[i], 50),
         condition: wmo.condition,
         conditionIcon: wmo.icon,
       };

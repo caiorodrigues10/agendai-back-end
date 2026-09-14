@@ -2,7 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { validateSchema } from "@/shared/utils/zodValidation";
 import { refreshSchema } from "../../schemas/authSchemas";
 import { logAccess } from "@/shared/services/accessLogService";
-import { verify, sign, Secret, SignOptions } from "jsonwebtoken";
+import { verify, sign, Secret, SignOptions, JsonWebTokenError } from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
@@ -70,8 +70,11 @@ export class RefreshController {
         },
         accessToken,
       });
-    } catch {
-      return reply.status(401).send({ message: "Refresh token inválido" });
+    } catch (error) {
+      if (error instanceof JsonWebTokenError) {
+        return reply.status(401).send({ message: "Refresh token inválido" });
+      }
+      throw error;
     }
   }
 }

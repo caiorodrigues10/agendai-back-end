@@ -1,5 +1,9 @@
 # Inventário de scripts — Backend (`agendai-back-end`)
 
+## Contrato com o frontend
+
+No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:contract`; `API_CONTRACT_BACKEND` permite apontar para outra raiz backend. O check lê as rotas registradas sem iniciar API/banco ou carregar segredos. O modo `npm run contract:check:strict` também reprova a dívida legada de endpoints. Detalhes e smoke de login, dashboard, relatórios, configurações, clima e logout ficam em `agendai/docs/agents/DELIVERY_CHECKS.md`. Swagger já está configurado em `src/config/swagger.ts`; não há cliente gerado e a checagem de método/caminho não valida payloads.
+
 > Diretório de execução: raiz do repositório **`agendai-back-end/`**.
 > Atualize este arquivo no mesmo PR que alterar `package.json#scripts`.
 

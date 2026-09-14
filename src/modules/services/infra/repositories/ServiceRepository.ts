@@ -10,6 +10,7 @@ export class ServiceRepository implements IServiceRepository {
       data,
       select: {
         id: true,
+        categoryId: true,
         barbershopId: true,
         name: true,
         price: true,
@@ -26,6 +27,7 @@ export class ServiceRepository implements IServiceRepository {
       where: { id, ...(barbershopId ? { barbershopId } : {}) },
       select: {
         id: true,
+        categoryId: true,
         barbershopId: true,
         name: true,
         price: true,
@@ -44,6 +46,7 @@ export class ServiceRepository implements IServiceRepository {
       orderBy: { name: "asc" },
       select: {
         id: true,
+        categoryId: true,
         barbershopId: true,
         name: true,
         price: true,
@@ -61,6 +64,7 @@ export class ServiceRepository implements IServiceRepository {
       data,
       select: {
         id: true,
+        categoryId: true,
         barbershopId: true,
         name: true,
         price: true,

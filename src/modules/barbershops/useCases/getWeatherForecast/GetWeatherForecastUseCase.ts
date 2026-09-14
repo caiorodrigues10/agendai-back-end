@@ -2,6 +2,7 @@ import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
 import { IWeatherProvider } from "@/shared/container/providers/WeatherProvider/IWeatherProvider";
+import { resolveWeatherLocation } from '@/shared/services/resolveWeatherLocation';
 
 type RequestingUser = { role: string; barbershopId?: string };
 
@@ -21,20 +22,18 @@ export class GetWeatherForecastUseCase {
 
     const shop = await this.barbershopRepository.findById(barbershopId);
     if (!shop) throw new AppError("Salão não encontrado", 404);
-    if (shop.latitude == null || shop.longitude == null) {
-      throw new AppError("Informe a cidade do salão para ver a previsão do tempo.", 400);
-    }
+    const location = await resolveWeatherLocation(shop);
 
     const forecast = await this.weatherProvider.getForecast(
-      shop.latitude,
-      shop.longitude,
+      location.latitude,
+      location.longitude,
       Math.min(Math.max(days, 1), 16)
-    );
+    ).catch(() => { throw new AppError('Previsão do tempo temporariamente indisponível. Tente novamente em alguns minutos.', 503, undefined, 'WEATHER_PROVIDER_UNAVAILABLE'); });
 
     return {
       city: shop.city ?? null,
-      latitude: shop.latitude,
-      longitude: shop.longitude,
+      latitude: location.latitude,
+      longitude: location.longitude,
       forecast,
     };
   }

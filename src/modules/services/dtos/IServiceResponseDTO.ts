@@ -1,4 +1,5 @@
 export interface IServiceResponseDTO {
+  categoryId?: string | null;
   id: string;
   barbershopId: string;
   name: string;

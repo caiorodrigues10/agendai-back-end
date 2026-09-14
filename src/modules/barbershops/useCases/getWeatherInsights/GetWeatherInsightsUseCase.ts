@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { prisma } from '@/libs/prismaClient';
 import { AppError } from '@/shared/errors/AppError';
 import { IWeatherProvider } from '@/shared/container/providers/WeatherProvider/IWeatherProvider';
+import { resolveWeatherLocation } from '@/shared/services/resolveWeatherLocation';
 import {
   DemandPredictor,
   WeatherDataPoint,
@@ -25,25 +26,20 @@ export class GetWeatherInsightsUseCase {
 
     const barbershop = await prisma.barbershop.findUnique({
       where: { id: barbershopId },
-      select: { latitude: true, longitude: true, name: true },
+      select: { latitude: true, longitude: true, name: true, city: true },
     });
 
     if (!barbershop) {
       throw new AppError('Barbearia não encontrada', 404);
     }
 
-    if (!barbershop.latitude || !barbershop.longitude) {
-      throw new AppError(
-        'Localização não configurada. Defina o endereço da barbearia nas configurações.',
-        400
-      );
-    }
+    const location = await resolveWeatherLocation(barbershop);
 
     let forecast: Awaited<ReturnType<IWeatherProvider['getForecast']>>;
     try {
       forecast = await this.weatherProvider.getForecast(
-        barbershop.latitude,
-        barbershop.longitude,
+        location.latitude,
+        location.longitude,
         days
       );
     } catch {
@@ -117,7 +113,7 @@ export class GetWeatherInsightsUseCase {
     const predictions = predictor.predict(forecastInput, historicalLogs.length);
 
     const avgDrop = predictions.length
-      ? predictions.reduce((s, p) => s + p.dropPct, 0) / predictions.length
+      ? predictions.reduce((s, p) => s + (Number.isFinite(p.dropPct) ? p.dropPct : 0), 0) / predictions.length
       : 0;
     const highRiskDays = predictions.filter(p => p.riskLevel === 'high' || p.riskLevel === 'critical');
     const tomorrow = predictions[0] ?? null;
@@ -147,19 +143,19 @@ export class GetWeatherInsightsUseCase {
 
     return {
       barbershopName: barbershop.name,
-      location: { lat: barbershop.latitude, lng: barbershop.longitude },
+      location: { lat: location.latitude, lng: location.longitude },
       historicalDays: historicalLogs.length,
       maturityLevel,
       modelTrained: predictor.isTrained(),
       modelNote,
-      backtestMae: Math.round(backtestMae * 100) / 100,
-      backtestMape: Math.round(backtestMape * 100) / 100,
+      backtestMae: Number.isFinite(backtestMae) ? Math.round(backtestMae * 100) / 100 : null,
+      backtestMape: Number.isFinite(backtestMape) ? Math.round(backtestMape * 100) / 100 : null,
       predictions,
       summary: {
-        avgDropPct: Math.round(avgDrop),
+        avgDropPct: Number.isFinite(avgDrop) ? Math.round(avgDrop) : 0,
         highRiskCount: highRiskDays.length,
-        bestDay: predictions.reduce((best, p) => p.dropPct > best.dropPct ? p : best, predictions[0]),
-        worstDay: predictions.reduce((worst, p) => p.dropPct < worst.dropPct ? p : worst, predictions[0]),
+        bestDay: predictions.reduce((best, p) => p.dropPct > best.dropPct ? p : best, predictions[0] ?? null),
+        worstDay: predictions.reduce((worst, p) => p.dropPct < worst.dropPct ? p : worst, predictions[0] ?? null),
       },
       highlights,
       forecast,

@@ -46,18 +46,24 @@ export function walkForwardBacktest(
   return { mae, mape, residuals };
 }
 
+function finite(value: number, fallback = 0): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
 export function confidenceInterval(
   predicted: number,
   residuals: number[],
   confidenceLevel: number = 0.8,
 ): [number, number] {
-  if (residuals.length === 0) return [predicted * 0.7, predicted * 1.3];
+  const safePredicted = finite(predicted);
+  if (residuals.length === 0) return [safePredicted * 0.7, safePredicted * 1.3];
 
-  const sorted = residuals.map(Math.abs).sort((a, b) => a - b);
+  const sorted = residuals.map(Math.abs).filter(Number.isFinite).sort((a, b) => a - b);
+  if (sorted.length === 0) return [safePredicted * 0.7, safePredicted * 1.3];
   const idx = Math.floor(sorted.length * confidenceLevel);
   const margin = sorted[idx] || sorted[sorted.length - 1];
 
-  return [Math.max(0, predicted - margin), predicted + margin];
+  return [Math.max(0, safePredicted - margin), safePredicted + margin];
 }
 
 export interface WeatherDataPoint {
@@ -166,7 +172,7 @@ export class DemandPredictor {
   predict(forecast: WeatherForecastPoint[], totalHistoryDays: number): DemandPrediction[] {
     if (!this.trained || forecast.length === 0) {
       return forecast.map(f => {
-        const predicted = Math.round(this.baselineAvg);
+        const predicted = Math.max(0, Math.round(finite(this.baselineAvg)));
         const [confidenceLow, confidenceHigh] = confidenceInterval(predicted, this.backtestResiduals);
         return {
           date: f.date,
@@ -174,7 +180,7 @@ export class DemandPredictor {
           predictedQueue: predicted,
           confidenceLow: Math.round(confidenceLow),
           confidenceHigh: Math.round(confidenceHigh),
-          baselineAvg: Math.round(this.baselineAvg),
+          baselineAvg: Math.round(finite(this.baselineAvg)),
           dropPct: 0,
           topFactors: [],
           recommendation: RECOMMENDATIONS.low,
@@ -185,20 +191,21 @@ export class DemandPredictor {
 
     return forecast.map((f, i) => {
       const features = this.extractFeaturesFromForecast(f);
-      const rfResidual = this.randomForest.predict(features);
-      const ridgeResidual = this.ridge.predict(features);
+      const rfResidual = finite(this.randomForest.predict(features));
+      const ridgeResidual = finite(this.ridge.predict(features));
 
       // Ensemble: 70% RF + 30% Ridge
       const residualPred = rfResidual * 0.7 + ridgeResidual * 0.3;
-      const { baseline, lower, upper } = this.seasonal.predict(f.date, totalHistoryDays + i, totalHistoryDays + forecast.length);
+      const { baseline } = this.seasonal.predict(f.date, totalHistoryDays + i, totalHistoryDays + forecast.length);
 
-      const predicted = Math.max(0, Math.round(baseline + residualPred));
+      const predicted = Math.max(0, Math.round(finite(baseline) + residualPred));
       const [rawLow, rawHigh] = confidenceInterval(predicted, this.backtestResiduals);
       const ciLow = Math.round(rawLow);
       const ciHigh = Math.round(rawHigh);
 
-      const dropPct = this.baselineAvg > 0
-        ? Math.round(((predicted - this.baselineAvg) / this.baselineAvg) * 100)
+      const safeBaselineAvg = finite(this.baselineAvg);
+      const dropPct = safeBaselineAvg > 0
+        ? Math.round(((predicted - safeBaselineAvg) / safeBaselineAvg) * 100)
         : 0;
 
       // Feature importance
@@ -226,7 +233,7 @@ export class DemandPredictor {
         predictedQueue: predicted,
         confidenceLow: ciLow,
         confidenceHigh: ciHigh,
-        baselineAvg: Math.round(this.baselineAvg),
+        baselineAvg: Math.round(safeBaselineAvg),
         dropPct,
         topFactors,
         recommendation,

@@ -1,11 +1,87 @@
 import cron from "node-cron";
+import { container } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
+import type { DailyForecast, IWeatherProvider } from "@/shared/container/providers/WeatherProvider/IWeatherProvider";
 
 type CronLogger = {
   info: (obj: object | string, msg?: string) => void;
   error: (obj: object | string, msg?: string) => void;
   warn?: (obj: object | string, msg?: string) => void;
 };
+
+function finite(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+async function fetchOpenMeteoLogDay(
+  latitude: number,
+  longitude: number,
+  dateStr: string
+): Promise<DailyForecast | null> {
+  try {
+    const params = new URLSearchParams({
+      latitude: String(latitude),
+      longitude: String(longitude),
+      daily: [
+        "weather_code",
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "precipitation_sum",
+        "precipitation_probability_max",
+        "precipitation_hours",
+        "wind_speed_10m_max",
+        "relative_humidity_2m_max",
+      ].join(","),
+      timezone: "auto",
+      start_date: dateStr,
+      end_date: dateStr,
+      past_days: "1",
+    });
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as Record<string, any>;
+    const daily = data.daily;
+    if (!daily?.time?.[0]) return null;
+
+    return {
+      date: String(daily.time[0]),
+      weatherCode: finite(daily.weather_code?.[0]) ?? 0,
+      tempMax: finite(daily.temperature_2m_max?.[0]) ?? 0,
+      tempMin: finite(daily.temperature_2m_min?.[0]) ?? 0,
+      precipMm: finite(daily.precipitation_sum?.[0]) ?? 0,
+      precipProbability: finite(daily.precipitation_probability_max?.[0]) ?? 0,
+      precipHours: finite(daily.precipitation_hours?.[0]) ?? 0,
+      windSpeedMax: finite(daily.wind_speed_10m_max?.[0]) ?? 0,
+      humidity: finite(daily.relative_humidity_2m_max?.[0]) ?? 50,
+      condition: "",
+      conditionIcon: "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function getForecastForDate(
+  provider: IWeatherProvider,
+  latitude: number,
+  longitude: number,
+  targetDate: string,
+  days = 3
+): Promise<DailyForecast | null> {
+  try {
+    const forecast = await provider.getForecast(latitude, longitude, days);
+    return (
+      forecast.find(day => day.date.slice(0, 10) === targetDate) ??
+      await fetchOpenMeteoLogDay(latitude, longitude, targetDate)
+    );
+  } catch {
+    return fetchOpenMeteoLogDay(latitude, longitude, targetDate);
+  }
+}
 
 export async function populateDailyWeatherLog(): Promise<void> {
   const barbershops: Array<{ id: string; name: string; latitude: number | null; longitude: number | null }> =
@@ -26,6 +102,7 @@ export async function populateDailyWeatherLog(): Promise<void> {
 
   console.log(`[dailyWeatherLog] Populating weather logs for ${dateStr}, ${barbershops.length} barbershops`);
 
+  const weatherProvider = container.resolve<IWeatherProvider>("WeatherProvider");
   const batchSize = 5;
   for (let i = 0; i < barbershops.length; i += batchSize) {
     const batch = barbershops.slice(i, i + batchSize);
@@ -38,18 +115,13 @@ export async function populateDailyWeatherLog(): Promise<void> {
           });
           if (existing) return;
 
-          let weatherData: Record<string, any> | null = null;
-          try {
-            const response = await fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${shop.latitude}&longitude=${shop.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,precipitation_hours,wind_speed_10m_max,relative_humidity_2m_max&timezone=auto&start_date=${dateStr}&end_date=${dateStr}&past_days=1`
-            );
-            if (response.ok) {
-              const data = (await response.json()) as Record<string, any>;
-              weatherData = data.daily;
-            }
-          } catch {
-            console.warn(`[dailyWeatherLog] Weather fetch failed for ${shop.name}`);
-          }
+          const weatherData = await getForecastForDate(
+            weatherProvider,
+            shop.latitude!,
+            shop.longitude!,
+            dateStr
+          );
+          if (!weatherData) console.warn(`[dailyWeatherLog] Weather fetch failed for ${shop.name}`);
 
           const startOfDay = new Date(yesterday);
           startOfDay.setHours(0, 0, 0, 0);
@@ -87,13 +159,13 @@ export async function populateDailyWeatherLog(): Promise<void> {
             data: {
               barbershopId: shop.id,
               date: yesterday,
-              temperatureMax: weatherData?.temperature_2m_max?.[0] ?? null,
-              temperatureMin: weatherData?.temperature_2m_min?.[0] ?? null,
-              precipitationMm: weatherData?.precipitation_sum?.[0] ?? null,
-              precipitationPct: weatherData?.precipitation_probability_max?.[0] ?? null,
-              weatherCode: weatherData?.weather_code?.[0] ?? null,
-              windSpeedMax: weatherData?.wind_speed_10m_max?.[0] ?? null,
-              humidity: weatherData?.relative_humidity_2m_max?.[0] ?? null,
+              temperatureMax: weatherData?.tempMax ?? null,
+              temperatureMin: weatherData?.tempMin ?? null,
+              precipitationMm: weatherData?.precipMm ?? null,
+              precipitationPct: weatherData?.precipProbability ?? null,
+              weatherCode: weatherData?.weatherCode ?? null,
+              windSpeedMax: weatherData?.windSpeedMax ?? null,
+              humidity: weatherData?.humidity ?? null,
               queueCount,
               appointmentCount,
               revenue,
@@ -132,7 +204,7 @@ export async function backfillDailyWeatherLog(days: number = 90): Promise<void> 
       const endStr = endDate.toISOString().slice(0, 10);
 
       const response = await fetch(
-        `https://archive-api.open-meteo.com/v1/archive?latitude=${shop.latitude}&longitude=${shop.longitude}&start_date=${startStr}&end_date=${endStr}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,wind_speed_10m_max,relative_humidity_2m_max&timezone=auto`
+        `https://archive-api.open-meteo.com/v1/archive?latitude=${shop.latitude}&longitude=${shop.longitude}&start_date=${startStr}&end_date=${endStr}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,precipitation_hours,wind_speed_10m_max,relative_humidity_2m_max&timezone=auto`
       );
 
       if (!response.ok) continue;
@@ -185,6 +257,7 @@ export async function backfillDailyWeatherLog(days: number = 90): Promise<void> 
             temperatureMax: daily.temperature_2m_max?.[i] ?? null,
             temperatureMin: daily.temperature_2m_min?.[i] ?? null,
             precipitationMm: daily.precipitation_sum?.[i] ?? null,
+            precipitationPct: daily.precipitation_probability_max?.[i] ?? null,
             weatherCode: daily.weather_code?.[i] ?? null,
             windSpeedMax: daily.wind_speed_10m_max?.[i] ?? null,
             humidity: daily.relative_humidity_2m_max?.[i] ?? null,

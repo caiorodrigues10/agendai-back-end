@@ -5,6 +5,7 @@ import { AppError } from '@/shared/errors/AppError';
 import { prisma } from '@/libs/prismaClient';
 import { container } from 'tsyringe';
 import { IWeatherProvider } from '@/shared/container/providers/WeatherProvider/IWeatherProvider';
+import { resolveWeatherLocation } from '@/shared/services/resolveWeatherLocation';
 
 export class AnalyticsController {
   async enhancedForecast(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -132,16 +133,17 @@ export class AnalyticsController {
   private async getForecast(barbershopId: string) {
     const barbershop = await prisma.barbershop.findUnique({
       where: { id: barbershopId },
-      select: { latitude: true, longitude: true },
+      select: { latitude: true, longitude: true, city: true },
     });
 
-    if (!barbershop?.latitude || !barbershop?.longitude) {
+    if (!barbershop) {
       return [];
     }
 
     try {
+      const location = await resolveWeatherLocation(barbershop);
       const weatherProvider = container.resolve<IWeatherProvider>('WeatherProvider');
-      return await weatherProvider.getForecast(barbershop.latitude, barbershop.longitude, 7);
+      return await weatherProvider.getForecast(location.latitude, location.longitude, 7);
     } catch {
       return [];
     }
