@@ -10,8 +10,41 @@ import { container } from "tsyringe";
 import type { IUserRepository } from "@/modules/users/repositories/IUserRepository";
 import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const log = getModuleLogger("auth-refresh");
+
+/** Duas abas / PWA+browser disparam refresh juntos; o 2º chega com o cookie já rotacionado. */
+export const REFRESH_REUSE_GRACE_MS = 15_000;
 
 export const validateRefresh = validateSchema(refreshSchema);
+
+type RefreshJwt = { sub: string; persistent?: boolean };
+
+async function findUsableRefreshToken(refreshToken: string, userId: string) {
+  const now = new Date();
+  const exact = await prisma.refreshToken.findFirst({ where: { token: refreshToken } });
+  if (exact && exact.expiresAt >= now) {
+    return { record: exact, concurrentReuse: false as const };
+  }
+
+  if (exact && exact.expiresAt < now) {
+    return { record: null, concurrentReuse: false as const };
+  }
+
+  const recent = await prisma.refreshToken.findFirst({
+    where: {
+      userId,
+      createdAt: { gte: new Date(now.getTime() - REFRESH_REUSE_GRACE_MS) },
+      expiresAt: { gt: now },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent) {
+    return { record: recent, concurrentReuse: true as const };
+  }
+  return { record: null, concurrentReuse: false as const };
+}
 
 export class RefreshController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -20,10 +53,13 @@ export class RefreshController {
       return reply.status(401).send({ message: "Refresh token não fornecido" });
     }
     try {
-      const decoded = verify(refreshToken, auth.refreshSecret as Secret) as { sub: string; persistent?: boolean };
+      const decoded = verify(refreshToken, auth.refreshSecret as Secret) as RefreshJwt;
       const rememberMe = decoded.persistent === true;
-      const tokenRecord = await prisma.refreshToken.findFirst({ where: { token: refreshToken } });
-      if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
+      const { record: tokenRecord, concurrentReuse } = await findUsableRefreshToken(
+        refreshToken,
+        decoded.sub
+      );
+      if (!tokenRecord) {
         return reply.status(401).send({ message: "Refresh token inválido" });
       }
       const userRepo = container.resolve<IUserRepository>("UserRepository");
@@ -31,21 +67,28 @@ export class RefreshController {
       if (!user) return reply.status(401).send({ message: "Usuário inválido" });
       const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
       const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined }, auth.secret as Secret, accessOpts);
-      const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
-      const newRefreshToken = sign(
-        { sub: user.id, jti: randomUUID(), persistent: rememberMe },
-        auth.refreshSecret as Secret,
-        refreshOpts
-      );
-      // Rotaciona: apaga o token antigo e cria um novo (evita acúmulo no banco)
-      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
-      await prisma.refreshToken.create({
-        data: {
-          token: newRefreshToken,
-          userId: decoded.sub,
-          expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn))
-        }
-      });
+
+      let cookieToken = tokenRecord.token;
+      if (!concurrentReuse) {
+        const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
+        const newRefreshToken = sign(
+          { sub: user.id, jti: randomUUID(), persistent: rememberMe },
+          auth.refreshSecret as Secret,
+          refreshOpts
+        );
+        await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+        await prisma.refreshToken.create({
+          data: {
+            token: newRefreshToken,
+            userId: decoded.sub,
+            expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn))
+          }
+        });
+        cookieToken = newRefreshToken;
+      } else {
+        log.info({ userId: decoded.sub }, "refresh reuse within grace window");
+      }
+
       logAccess({
         userId: user.id,
         email: user.email,
@@ -55,7 +98,7 @@ export class RefreshController {
         success: true,
       });
 
-      reply.setCookie('refresh_token', newRefreshToken, {
+      reply.setCookie('refresh_token', cookieToken, {
         ...getAuthCookieSecurityOptions(),
         ...(rememberMe ? { maxAge: parseDuration(auth.refreshExpiresIn) / 1000 } : {}),
       });
