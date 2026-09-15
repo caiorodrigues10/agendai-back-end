@@ -6,6 +6,7 @@ import { UserRepository } from "@/modules/users/infra/repositories/UserRepositor
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 
 export class LogoutController {
+  /** Sair da sessão atual — revoga SOMENTE o token de sessão. */
   async handle(request: FastifyRequest, reply: FastifyReply) {
     const user = request.user;
     if (!user) {
@@ -35,6 +36,7 @@ export class LogoutController {
     return reply.status(200).send({ message: "Logout realizado com sucesso" });
   }
 
+  /** Revogar TODAS as sessões + dispositivos lembrados. */
   async revokeAllSessions(request: FastifyRequest, reply: FastifyReply) {
     const user = request.user;
     if (!user) {
@@ -61,9 +63,29 @@ export class LogoutController {
       maxAge: 0,
     });
 
+    reply.setCookie(`saved_refresh_${user.id}`, '', {
+      ...getAuthCookieSecurityOptions(),
+      maxAge: 0,
+    });
+
     return reply.status(200).send({
       message: "Todas as sessões revogadas com sucesso",
       revokedTokens: count,
     });
+  }
+
+  /** Remover uma conta salva — revoga SOMENTE o token de dispositivo lembrado. */
+  async forgetAccount(request: FastifyRequest, reply: FastifyReply) {
+    const { userId } = request.body as { userId: string };
+
+    const useCase = container.resolve(LogoutUseCase);
+    await useCase.revokeRememberedDevice(userId);
+
+    reply.setCookie(`saved_refresh_${userId}`, '', {
+      ...getAuthCookieSecurityOptions(),
+      maxAge: 0,
+    });
+
+    return reply.status(200).send({ message: "Conta removida das salvas" });
   }
 }

@@ -11,40 +11,13 @@ import type { IUserRepository } from "@/modules/users/repositories/IUserReposito
 import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { findUsableRefreshToken } from "../../services/refreshTokenUtils";
 
 const log = getModuleLogger("auth-refresh");
 
-/** Duas abas / PWA+browser disparam refresh juntos; o 2º chega com o cookie já rotacionado. */
-export const REFRESH_REUSE_GRACE_MS = 15_000;
-
 export const validateRefresh = validateSchema(refreshSchema);
 
-type RefreshJwt = { sub: string; persistent?: boolean };
-
-async function findUsableRefreshToken(refreshToken: string, userId: string) {
-  const now = new Date();
-  const exact = await prisma.refreshToken.findFirst({ where: { token: refreshToken } });
-  if (exact && exact.expiresAt >= now) {
-    return { record: exact, concurrentReuse: false as const };
-  }
-
-  if (exact && exact.expiresAt < now) {
-    return { record: null, concurrentReuse: false as const };
-  }
-
-  const recent = await prisma.refreshToken.findFirst({
-    where: {
-      userId,
-      createdAt: { gte: new Date(now.getTime() - REFRESH_REUSE_GRACE_MS) },
-      expiresAt: { gt: now },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  if (recent) {
-    return { record: recent, concurrentReuse: true as const };
-  }
-  return { record: null, concurrentReuse: false as const };
-}
+type RefreshJwt = { sub: string; persistent?: boolean; purpose?: string };
 
 export class RefreshController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -55,9 +28,12 @@ export class RefreshController {
     try {
       const decoded = verify(refreshToken, auth.refreshSecret as Secret) as RefreshJwt;
       const rememberMe = decoded.persistent === true;
+
+      // Busca somente tokens de sessão (nunca remembered_device)
       const { record: tokenRecord, concurrentReuse } = await findUsableRefreshToken(
         refreshToken,
-        decoded.sub
+        decoded.sub,
+        "session",
       );
       if (!tokenRecord) {
         return reply.status(401).send({ message: "Refresh token inválido" });
@@ -72,15 +48,16 @@ export class RefreshController {
       if (!concurrentReuse) {
         const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
         const newRefreshToken = sign(
-          { sub: user.id, jti: randomUUID(), persistent: rememberMe },
+          { sub: user.id, jti: randomUUID(), persistent: rememberMe, purpose: "session" },
           auth.refreshSecret as Secret,
           refreshOpts
         );
-        await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+        await prisma.refreshToken.deleteMany({ where: { token: refreshToken, purpose: "session" } });
         await prisma.refreshToken.create({
           data: {
             token: newRefreshToken,
             userId: decoded.sub,
+            purpose: "session",
             expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn))
           }
         });

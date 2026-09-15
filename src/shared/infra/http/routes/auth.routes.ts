@@ -6,6 +6,7 @@ import { RegisterController, validateRegister } from "@/modules/auth/useCases/re
 import { VerifyEmailController } from "@/modules/auth/controllers/VerifyEmailController";
 import { GoogleLoginController, validateGoogleLogin } from "@/modules/auth/useCases/googleLogin/GoogleLoginController";
 import { LogoutController } from "@/modules/auth/useCases/logout/LogoutController";
+import { SwitchAccountController, validateSwitchAccount } from "@/modules/auth/useCases/switchAccount/SwitchAccountController";
 import { ForgotPasswordController, validateForgotPassword } from "@/modules/auth/useCases/forgotPassword/ForgotPasswordController";
 import { ResetPasswordController, validateResetPassword } from "@/modules/auth/useCases/resetPassword/ResetPasswordController";
 import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
@@ -29,6 +30,7 @@ export async function authRoutes(app: FastifyInstance) {
   const verifyEmail = new VerifyEmailController();
   const googleLogin = new GoogleLoginController();
   const logout = new LogoutController();
+  const switchAccount = new SwitchAccountController();
   const forgotPassword = new ForgotPasswordController();
   const resetPassword = new ResetPasswordController();
 
@@ -53,4 +55,8 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/auth/logout", { preHandler: [authenticate, setRlsContext] }, logout.handle.bind(logout));
   app.post("/auth/revoke-all-sessions", { preHandler: [authenticate, setRlsContext] }, logout.revokeAllSessions.bind(logout));
+
+  // Contas salvas — NÃO requer autenticação (acesso via cookie saved_refresh)
+  app.post("/auth/switch-account", { ...authRateLimit, preHandler: [validateSwitchAccount] }, switchAccount.handle.bind(switchAccount));
+  app.post("/auth/forget-account", { ...authRateLimit, preHandler: [validateSwitchAccount] }, logout.forgetAccount.bind(logout));
 }

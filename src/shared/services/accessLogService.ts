@@ -1,6 +1,6 @@
 import { prisma } from "@/libs/prismaClient";
 
-export type AccessAction = "LOGIN" | "LOGIN_FAILED" | "LOGOUT" | "REFRESH" | "REGISTER" | "GOOGLE_LOGIN" | "REVOKE_ALL_SESSIONS";
+export type AccessAction = "LOGIN" | "LOGIN_FAILED" | "LOGOUT" | "REFRESH" | "REGISTER" | "GOOGLE_LOGIN" | "REVOKE_ALL_SESSIONS" | "SWITCH_ACCOUNT";
 
 interface LogAccessParams {
   userId?: string;

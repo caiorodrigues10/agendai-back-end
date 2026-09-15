@@ -11,6 +11,9 @@ services:
       - .env
     environment:
       NODE_ENV: development
+      DATABASE_URL: "postgresql://agendai:agendai123@db:5432/agendai"
+      DIRECT_URL: "postgresql://agendai:agendai123@db:5432/agendai"
+      REDIS_URL: "redis://redis:6379"
     ports:
       - "3333:3333"
     volumes:

@@ -73,3 +73,7 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(32, "Token inválido"),
   newPassword: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
 }).strict();
+
+export const switchAccountSchema = z.object({
+  userId: z.string().uuid("ID de usuário inválido"),
+}).strict();

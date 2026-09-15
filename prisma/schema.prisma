@@ -107,12 +107,19 @@ model RefreshToken {
   id        String   @id @default(uuid()) @db.Uuid
   token     String   @db.VarChar(500)
   userId    String   @db.Uuid
+  purpose   RefreshTokenPurpose @default(session)
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, purpose])
   @@map("refresh_tokens")
+}
+
+enum RefreshTokenPurpose {
+  session
+  remembered_device
 }
 
 model VerificationToken {
@@ -2717,18 +2724,18 @@ model TabItem {
   id                String              @id @default(uuid()) @db.Uuid
   tabId             String              @db.Uuid
   type              TabItemType         @default(SERVICE)
-  serviceId         String?
-  variationId       String?
-  addonId           String?
-  productId         String?
-  comboId           String?
-  appointmentId     String?             @unique
+  serviceId         String?             @db.Uuid
+  variationId       String?             @db.Uuid
+  addonId           String?             @db.Uuid
+  productId         String?             @db.Uuid
+  comboId           String?             @db.Uuid
+  appointmentId     String?             @unique @db.Uuid
   quantity          Int                 @default(1)
   unitPrice         Decimal             @db.Decimal(12,2)
   discountPercent   Float               @default(0) @db.Real
   discountAmount    Decimal             @db.Decimal(12,2) @default(0)
   total             Decimal             @db.Decimal(12,2)
-  staffId           String?
+  staffId           String?             @db.Uuid
   status            TabItemStatus       @default(PENDING)
   createdAt         DateTime            @default(now())
 
