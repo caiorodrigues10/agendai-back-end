@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+const optionalDateQuery = z.preprocess(
+  value => {
+    if (value === undefined || value === null || value === "") return undefined;
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? undefined : value;
+  },
+  z.coerce.date().optional()
+);
+
+const dailyDateQuery = z.preprocess(
+  value => {
+    if (value === undefined || value === null || value === "") return new Date();
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? new Date() : value;
+  },
+  z.coerce.date()
+);
+
 export const createCashMovementSchema = z.object({
   type: z.enum([
     "SERVICE_SALE",
@@ -21,16 +39,13 @@ export const createCashMovementSchema = z.object({
 });
 
 export const cashMovementQuerySchema = z.object({
-  date: z.coerce.date().optional(),
+  date: optionalDateQuery,
   paymentMethod: z.string().optional(),
   type: z.string().optional(),
 });
 
 export const cashSummaryQuerySchema = z.object({
-  date: z.preprocess(
-    value => (value === undefined || value === null || value === "" ? new Date() : value),
-    z.coerce.date()
-  ),
+  date: dailyDateQuery,
 });
 
 export type CreateCashMovementInput = z.infer<typeof createCashMovementSchema>;
