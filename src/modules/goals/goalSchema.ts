@@ -19,6 +19,24 @@ export const goalQuerySchema = z.object({
   period: z.string().optional(),
 });
 
+const dateQueryParam = z
+  .string()
+  .trim()
+  .optional()
+  .transform(value => (value ? new Date(value) : undefined))
+  .refine(value => value === undefined || !Number.isNaN(value.getTime()), {
+    message: "Invalid date",
+  });
+
+export const goalRankingQuerySchema = z.object({
+  metric: z.enum(["REVENUE", "APPOINTMENTS", "PRODUCTS_SOLD"]).optional(),
+  startDate: dateQueryParam,
+  endDate: dateQueryParam,
+  from: dateQueryParam,
+  to: dateQueryParam,
+});
+
 export type CreateGoalInput = z.infer<typeof createGoalSchema>;
 export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
 export type GoalQueryInput = z.infer<typeof goalQuerySchema>;
+export type GoalRankingQueryInput = z.infer<typeof goalRankingQuerySchema>;

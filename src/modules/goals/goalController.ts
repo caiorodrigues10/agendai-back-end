@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { createGoalSchema, updateGoalSchema, goalQuerySchema } from "./goalSchema";
+import { createGoalSchema, updateGoalSchema, goalQuerySchema, goalRankingQuerySchema } from "./goalSchema";
 import { GoalUseCases } from "./goalUseCases";
 import { AppError } from "@/shared/errors/AppError";
 
@@ -82,11 +82,7 @@ export class GoalController {
   async getRanking(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId } = request.params as { barbershopId: string };
-    const { metric, startDate, endDate } = request.query as {
-      metric: string;
-      startDate: string;
-      endDate: string;
-    };
+    const query = goalRankingQuerySchema.parse(request.query);
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"
@@ -95,11 +91,17 @@ export class GoalController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
+    const now = new Date();
+    const fallbackStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const fallbackEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const startDate = query.startDate ?? query.from ?? fallbackStartDate;
+    const endDate = query.endDate ?? query.to ?? fallbackEndDate;
+
     const ranking = await this.useCases.getRanking(
       resolvedBarbershopId,
-      metric,
-      new Date(startDate),
-      new Date(endDate)
+      query.metric,
+      startDate,
+      endDate
     );
 
     reply.send({ success: true, data: ranking });

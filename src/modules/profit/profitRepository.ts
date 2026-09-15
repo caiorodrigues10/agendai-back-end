@@ -25,8 +25,6 @@ const entrySelect = {
   netProfit: true,
   marginPercent: true,
   computedAt: true,
-  service: { select: { id: true, name: true } },
-  staff: { select: { id: true, name: true } },
 } as const;
 
 export class ProfitRepository {

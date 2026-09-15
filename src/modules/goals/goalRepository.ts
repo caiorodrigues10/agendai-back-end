@@ -95,13 +95,13 @@ export class GoalRepository {
     return { goal, current, target, percentage };
   }
 
-  async getRanking(barbershopId: string, metric: string, startDate: Date, endDate: Date) {
+  async getRanking(barbershopId: string, metric: string | undefined, startDate: Date, endDate: Date) {
     const goals = await prisma.professionalGoal.findMany({
       where: {
         barbershopId,
-        metric,
-        startDate: { gte: startDate },
-        endDate: { lte: endDate },
+        ...(metric ? { metric } : {}),
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
       },
     });
 

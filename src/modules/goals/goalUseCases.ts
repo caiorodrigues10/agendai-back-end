@@ -33,7 +33,7 @@ export class GoalUseCases {
     return this.repo.list(barbershopId, filters);
   }
 
-  async getRanking(barbershopId: string, metric: string, startDate: Date, endDate: Date) {
+  async getRanking(barbershopId: string, metric: string | undefined, startDate: Date, endDate: Date) {
     return this.repo.getRanking(barbershopId, metric, startDate, endDate);
   }
 }
