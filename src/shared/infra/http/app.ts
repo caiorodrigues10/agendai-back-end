@@ -227,9 +227,14 @@ export async function buildApp() {
     }
     // Rate limit errors do @fastify/rate-limit
     if ((error as any).statusCode === 429) {
+      const retryAfter = (error as any).headers?.["retry-after"];
+      const retrySeconds = retryAfter ? Math.ceil(Number(retryAfter)) : null;
       reply.status(429).send({
         success: false,
-        message: "Muitas requisições. Tente novamente em alguns instantes.",
+        message: retrySeconds
+          ? `Muitas requisições. Tente novamente em ${retrySeconds} segundos.`
+          : "Muitas requisições. Tente novamente em alguns instantes.",
+        retryAfter: retrySeconds,
         correlationId: request.correlationId,
       });
       return;

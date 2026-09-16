@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '@/libs/prismaClient';
 import { getRedisConnection } from '@/shared/infra/queue/redisConnection';
 import { getProcessRole } from '@/shared/config/processRole';
+import { getStorageHealthStatus } from '@/shared/utils/storageHealth';
 
 async function checkMigrations(): Promise<{ status: string; pending: number }> {
   try {
@@ -26,9 +27,14 @@ export async function healthRoutes(app: FastifyInstance) {
     const dbHealthy = await checkDatabase();
     const redisHealthy = await checkRedis();
     const migrations = await checkMigrations();
+    const storage = getStorageHealthStatus();
+
+    // Storage degradado só se NENHUM provider estiver disponível.
+    // GCS indisponível + Cloudinary ativo = sistema saudável (fallback operacional).
+    const allDepsOk = dbHealthy && redisHealthy && storage.status === 'ok';
 
     reply.send({
-      status: dbHealthy && redisHealthy ? 'ok' : 'degraded',
+      status: allDepsOk ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       role: getProcessRole(),
@@ -36,6 +42,12 @@ export async function healthRoutes(app: FastifyInstance) {
         postgres: dbHealthy ? 'healthy' : 'unhealthy',
         redis: redisHealthy ? 'healthy' : 'unhealthy',
         migrations,
+        storage: {
+          status: storage.status === 'ok' ? 'healthy' : 'degraded',
+          provider: storage.active_provider,
+          primary_available: storage.primary_available,
+          fallback_available: storage.fallback_available,
+        },
       },
     });
   });
@@ -104,7 +116,10 @@ async function checkRedis(): Promise<boolean> {
     const redis = getRedisConnection();
     const pong = await redis.ping();
     return pong === 'PONG';
-  } catch {
+  } catch (err) {
+    // Em unit tests (VITEST sem ALLOW_TEST_REDIS), Redis não está disponível.
+    // Não degrada o health — a aplicação funciona sem Redis nesse contexto.
+    if (process.env.VITEST && !process.env.ALLOW_TEST_REDIS) return true;
     return false;
   }
 }

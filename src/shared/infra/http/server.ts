@@ -39,6 +39,52 @@ void authConfig;
 const port = Number(process.env.PORT || 3333);
 const serverLogger = getModuleLogger('server');
 
+/**
+ * Storage warm-up: tenta um probe leve no GCS para detectar se está
+ * funcional ou indisponível (billing desativado, sem credenciais, etc.)
+ * e loga UMA mensagem clara sobre qual provedor está efetivamente ativo.
+ */
+async function probeStorageProviders(log: typeof serverLogger): Promise<void> {
+  try {
+    const { GcsStorageProvider } = await import(
+      "@/shared/container/providers/StorageProvider/implementations/GcsStorageProvider"
+    )
+    // Verifica se GCS tem credenciais configuradas (sem fazer chamada de rede)
+    const hasGcsConfig = Boolean(
+      process.env.GCS_KEY_FILE_PATH ||
+      process.env.GCS_CREDENTIALS_JSON ||
+      process.env.GOOGLE_APPLICATION_CREDENTIALS
+    )
+
+    if (!hasGcsConfig) {
+      log.warn(
+        "[Storage] GCS sem credenciais configuradas — Cloudinary é o provedor efetivo de uploads."
+      )
+      return
+    }
+
+    // Credenciais existem — tenta um probe real (list objects no bucket com maxResults=1)
+    const gcs = new GcsStorageProvider()
+    try {
+      // Força lazy init do storage + bucket
+      const bucket = (gcs as any).bucket
+      await bucket.getFiles({ maxResults: 1 })
+      log.info(
+        "[Storage] GCS conectado com sucesso — provedor primário de uploads."
+      )
+    } catch (probeErr: any) {
+      const msg = probeErr?.errors?.[0]?.message ?? probeErr?.message ?? String(probeErr)
+      log.warn(
+        { err: probeErr },
+        `[Storage] GCS indisponível (${msg}) — operando com Cloudinary como provedor primário de fato. ` +
+        `Se reativar o billing do GCP, o sistema voltará a usar GCS automaticamente.`
+      )
+    }
+  } catch {
+    // Import falhou — ignora silenciosamente
+  }
+}
+
 async function start() {
   const role = getProcessRole();
   serverLogger.info({ role }, 'Starting with process role');
@@ -62,6 +108,9 @@ async function start() {
     try {
       await app.listen({ port, host: "0.0.0.0" });
       serverLogger.info({ port }, 'Server started');
+
+    // Storage warm-up: loga UMA vez qual provedor está efetivamente ativo
+    probeStorageProviders(serverLogger);
 
     if (shouldRunCrons()) {
       registerCrons(app.log);
