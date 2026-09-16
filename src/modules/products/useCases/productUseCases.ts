@@ -1,6 +1,9 @@
 import { inject, injectable } from "tsyringe";
+import { randomUUID } from "node:crypto";
 import { prisma, Prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
+import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
+import { getModuleLogger } from "@/shared/utils/logger";
 import { InventoryEngine } from "../infra/InventoryEngine";
 import {
   assertProductPermission,
@@ -32,7 +35,10 @@ function stripCost<T extends { averageCost?: number }>(row: T, showCost: boolean
 
 @injectable()
 export class ProductCatalogUseCase {
-  constructor(@inject(InventoryEngine) private engine: InventoryEngine) {}
+  constructor(
+    @inject(InventoryEngine) private engine: InventoryEngine,
+    @inject("StorageProvider") private storage: IStorageProvider,
+  ) {}
 
   async listProducts(barbershopId: string, user: ProductActor, query: {
     search?: string; categoryId?: string; active?: string; type?: string; purpose?: "sale" | "own"; lowStock?: string; forSale?: string; page: number; limit: number;
@@ -167,14 +173,59 @@ export class ProductCatalogUseCase {
     }
   }
 
+  async uploadImage(
+    id: string,
+    barbershopId: string,
+    user: ProductActor,
+    data: { buffer: Buffer; mimeType: string; originalName?: string },
+  ) {
+    const log = getModuleLogger("products:upload");
+    await assertProductPermission(user, barbershopId, "PRODUCTS_MANAGE");
+    const product = await prisma.product.findFirst({ where: { id, barbershopId } });
+    if (!product) throw new AppError("Produto não encontrado", 404);
+
+    const ext = data.mimeType === "image/jpg" ? "jpg" : data.mimeType.split("/")[1] ?? "jpg";
+    const fileName = `product-${id}-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+    log.info({ productId: id, barbershopId, fileName, mimeType: data.mimeType, size: data.buffer.byteLength }, "Iniciando upload de imagem do produto");
+
+    try {
+      const result = await this.storage.uploadBuffer("products", fileName, data.buffer, data.mimeType);
+      log.info({ productId: id, publicUrl: result.publicUrl, objectName: result.objectName }, "Upload de imagem do produto concluído");
+      await prisma.product.update({ where: { id }, data: { imageUrl: result.publicUrl } });
+      return { imageUrl: result.publicUrl };
+    } catch (err) {
+      log.error({ err, productId: id, barbershopId, fileName }, "Falha no upload de imagem do produto");
+      throw err;
+    }
+  }
+
   async listCategories(barbershopId: string, user: ProductActor) {
     await assertProductPermission(user, barbershopId, ["PRODUCTS_VIEW", "PRODUCTS_MANAGE", "RETAIL_SELL", "INVENTORY_MANAGE"]);
-    return prisma.productCategory.findMany({ where: { barbershopId }, orderBy: { name: "asc" } });
+    const cats = await prisma.productCategory.findMany({ where: { barbershopId }, orderBy: { name: "asc" } });
+    if (cats.length === 0) {
+      const defaults = [
+        { name: "Cabelo", color: "#8B5CF6", icon: "scissors" },
+        { name: "Barba", color: "#F59E0B", icon: "scissors" },
+        { name: "Skincare", color: "#10B981", icon: "sparkles" },
+        { name: "Unha", color: "#EC4899", icon: "sparkles" },
+        { name: "Revenda", color: "#3B82F6", icon: "package" },
+        { name: "Outros", color: "#6B7280", icon: "package" },
+      ];
+      await prisma.productCategory.createMany({
+        data: defaults.map(d => ({ barbershopId, ...d })),
+      });
+      return prisma.productCategory.findMany({ where: { barbershopId }, orderBy: { name: "asc" } });
+    }
+    return cats;
   }
 
   async createCategory(barbershopId: string, user: ProductActor, data: { name: string; color?: string; icon?: string }) {
     await assertProductPermission(user, barbershopId, "PRODUCTS_MANAGE");
-    return prisma.productCategory.create({ data: { barbershopId, name: data.name, color: data.color, icon: data.icon } });
+    const titleCaseExceptions = new Set(["de", "do", "da", "dos", "das", "e", "para", "com", "sem", "ou"]);
+    const formattedName = data.name.trim().replace(/\s+/g, " ").split(" ").map((w, i) =>
+      i === 0 || !titleCaseExceptions.has(w.toLowerCase()) ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase()
+    ).join(" ");
+    return prisma.productCategory.create({ data: { barbershopId, name: formattedName, color: data.color, icon: data.icon } });
   }
 
   async updateCategory(id: string, barbershopId: string, user: ProductActor, data: Prisma.ProductCategoryUncheckedUpdateInput) {
@@ -182,6 +233,18 @@ export class ProductCatalogUseCase {
     const row = await prisma.productCategory.findFirst({ where: { id, barbershopId } });
     if (!row) throw new AppError("Categoria não encontrada", 404);
     return prisma.productCategory.update({ where: { id }, data });
+  }
+
+  async deleteCategory(id: string, barbershopId: string, user: ProductActor) {
+    await assertProductPermission(user, barbershopId, "PRODUCTS_MANAGE");
+    const row = await prisma.productCategory.findFirst({ where: { id, barbershopId } });
+    if (!row) throw new AppError("Categoria não encontrada", 404);
+    const productCount = await prisma.product.count({ where: { categoryId: id, barbershopId } });
+    if (productCount > 0) {
+      await prisma.product.updateMany({ where: { categoryId: id, barbershopId }, data: { categoryId: null } });
+    }
+    await prisma.productCategory.delete({ where: { id } });
+    return { deleted: true, movedProducts: productCount };
   }
 
   async listSuppliers(barbershopId: string, user: ProductActor) {

@@ -1,7 +1,12 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
+import { z } from "zod";
 import { AppError } from "@/shared/errors/AppError";
 import { ProductCatalogUseCase } from "../useCases/productUseCases";
+import {
+  ALLOWED_LOGO_MIME_TYPES,
+  MAX_UPLOAD_SIZE_BYTES,
+} from "@/shared/config/upload";
 import {
   adjustmentSchema,
   createProductSchema,
@@ -66,6 +71,12 @@ export class ProductsController {
     const { id } = request.params as { id: string };
     const body = productCategorySchema.partial().parse(request.body);
     const data = await this.useCase().updateCategory(id, shopId(request), request.user!, body);
+    reply.send({ success: true, data });
+  }
+
+  async deleteCategory(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const data = await this.useCase().deleteCategory(id, shopId(request), request.user!);
     reply.send({ success: true, data });
   }
 
@@ -161,5 +172,59 @@ export class ProductsController {
     const body = installTemplateSchema.parse(request.body ?? {});
     const data = await this.useCase().installTemplate(id, request.user!, body);
     reply.send({ success: true, data });
+  }
+
+  async getProductImageUploadUrl(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const schema = z.object({ mimeType: z.enum(["image/jpeg", "image/jpg", "image/png", "image/webp"]) });
+    const { mimeType } = schema.parse(request.query);
+    const barbershopId = shopId(request);
+    const ext = mimeType === "image/jpg" ? "jpg" : mimeType.split("/")[1];
+    const objectName = `products/${barbershopId}/${id || "new"}_${Date.now()}.${ext}`;
+    const storage = container.resolve("StorageProvider") as { generateSignedUploadUrl: Function };
+    const result = await storage.generateSignedUploadUrl("products", objectName, mimeType, 600);
+    reply.send({ success: true, data: { uploadUrl: result.uploadUrl, publicUrl: result.publicUrl, objectName: result.objectName } });
+  }
+
+  async uploadProductImage(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const allowedMimes = new Set(Object.keys(ALLOWED_LOGO_MIME_TYPES));
+
+    const data = await (request as any).file({
+      limits: { fileSize: MAX_UPLOAD_SIZE_BYTES, files: 1, fields: 0 },
+    });
+    if (!data) throw new AppError("Nenhum arquivo enviado. Use o campo 'file' no form-data.", 400);
+
+    const mimeType: string = data.mimetype ?? "";
+    if (!allowedMimes.has(mimeType)) {
+      await data.toBuffer().catch(() => {});
+      throw new AppError(`Tipo de arquivo não permitido: "${mimeType}". Aceitos: JPEG, PNG, WebP`, 400);
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = await data.toBuffer();
+    } catch (err: any) {
+      if (err?.code === "FST_REQ_FILE_TOO_LARGE" || err?.statusCode === 413) {
+        throw new AppError("Arquivo muito grande. Máximo permitido: 5 MB", 413);
+      }
+      throw new AppError(`Erro ao processar arquivo: ${err?.message ?? "desconhecido"}`, 500);
+    }
+
+    const barbershopId = shopId(request, (request.query as { barbershopId?: string }).barbershopId);
+    const result = await this.useCase().uploadImage(id, barbershopId, request.user!, {
+      buffer, mimeType, originalName: data.filename,
+    });
+
+    reply.send({ success: true, data: { imageUrl: result.imageUrl } });
+  }
+
+  async confirmProductImage(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const schema = z.object({ imageUrl: z.string().url() });
+    const { imageUrl } = schema.parse(request.body);
+    const barbershopId = shopId(request);
+    await this.useCase().updateProduct(id, barbershopId, request.user!, { imageUrl });
+    reply.send({ success: true, data: { imageUrl } });
   }
 }
