@@ -12,6 +12,7 @@ import { ResetPasswordController, validateResetPassword } from "@/modules/auth/u
 import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 import { verifyRecaptcha } from "@/shared/infra/http/middlewares/verifyRecaptcha";
+import { resetByEmail, resetByIp } from "@/shared/services/bruteForceProtection";
 
 const authRateLimit = {
   config: {
@@ -59,4 +60,28 @@ export async function authRoutes(app: FastifyInstance) {
   // Contas salvas — NÃO requer autenticação (acesso via cookie saved_refresh)
   app.post("/auth/switch-account", { ...authRateLimit, preHandler: [validateSwitchAccount] }, switchAccount.handle.bind(switchAccount));
   app.post("/auth/forget-account", { ...authRateLimit, preHandler: [validateSwitchAccount] }, logout.forgetAccount.bind(logout));
+
+  // ─── DEV ONLY: reset de rate limit ─────────────────────────────────────────
+  // Só funciona quando NODE_ENV !== "production". Protegido por checagem dupla:
+  // (1) rota só é registrada em dev, (2) handler verifica NODE_ENV internamente.
+  if (process.env.NODE_ENV !== "production") {
+    app.post("/dev/reset-rate-limit", async (request, reply) => {
+      const { email, ip } = request.body as { email?: string; ip?: string };
+
+      if (!email && !ip) {
+        return reply.status(400).send({
+          success: false,
+          message: "Informe pelo menos um dos campos: email, ip",
+        });
+      }
+
+      if (email) await resetByEmail(email);
+      if (ip) await resetByIp(ip);
+
+      return reply.status(200).send({
+        success: true,
+        message: `Rate limit resetado${email ? ` para email ${email}` : ""}${ip ? ` e IP ${ip}` : ""}`,
+      });
+    });
+  }
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+// Forçar NODE_ENV=production para testar thresholds de produção
+vi.stubEnv("NODE_ENV", "production");
+
 const redisStore = new Map<string, { value: string; ttl: number }>();
 
 function createMockRedis() {

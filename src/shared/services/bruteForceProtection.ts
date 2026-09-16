@@ -3,12 +3,26 @@ import { getModuleLogger } from "@/shared/utils/logger";
 
 const logger = getModuleLogger("brute-force");
 
-const THRESHOLDS: [number, number][] = [
-  [20, 1800],
-  [15, 900],
-  [10, 300],
-  [5, 60],
-];
+const isDev = process.env.NODE_ENV !== "production";
+
+// Em dev: limites bem mais permissivos para não atrapalhar o ciclo de testes.
+// Em production: thresholds rígidos conforme LGPD/OWASP.
+const THRESHOLDS: [number, number][] = isDev
+  ? [
+      [100, 30],   // >= 100 falhas -> 30s lockout
+      [50, 15],    // >= 50 falhas  -> 15s lockout
+      [20, 10],    // >= 20 falhas  -> 10s lockout
+      [10, 5],     // >= 10 falhas  -> 5s lockout
+    ]
+  : [
+      [20, 1800],  // >= 20 falhas -> 1800s lockout (30 min)
+      [15, 900],   // >= 15 falhas -> 900s lockout (15 min)
+      [10, 300],   // >= 10 falhas -> 300s lockout (5 min)
+      [5, 60],     // >= 5 falhas  -> 60s lockout (1 min)
+    ];
+
+// TTL do counter de tentativas abaixo do threshold (5 min em prod, 30s em dev)
+const SUB_THRESHOLD_TTL = isDev ? 30 : 300;
 
 const lockTimers = new Map<string, NodeJS.Timeout>();
 
@@ -69,7 +83,7 @@ export async function recordFailure(
       return { locked: true, retryAfterSeconds: duration };
     }
 
-    await redis.expire(attemptKey, 300);
+    await redis.expire(attemptKey, SUB_THRESHOLD_TTL);
     return { locked: false, retryAfterSeconds: 0 };
   } catch (err) {
     logger.error({ err, email, ip }, "Redis error in recordFailure, allowing login");
@@ -95,6 +109,69 @@ export async function resetAttempts(
     }
   } catch (err) {
     logger.error({ err, email, ip }, "Redis error in resetAttempts");
+  }
+}
+
+/**
+ * Remove o lock e todos os counters de tentativas para um email
+ * (independente do IP). Usado pelo endpoint de reset em dev.
+ */
+export async function resetByEmail(email: string): Promise<void> {
+  try {
+    const redis = getRedisConnection();
+    await redis.del(`login:locked:${email}`);
+
+    // Limpar todos os keys de tentativas que combinem com o email
+    const pattern = `login:attempts:${email}:*`;
+    const keys = await redis.keys(pattern);
+    if (keys.length > 0) {
+      const pipeline = redis.pipeline();
+      for (const key of keys) {
+        pipeline.del(key);
+      }
+      await pipeline.exec();
+    }
+
+    const timer = lockTimers.get(email);
+    if (timer) {
+      clearTimeout(timer);
+      lockTimers.delete(email);
+    }
+  } catch (err) {
+    logger.error({ err, email }, "Redis error in resetByEmail");
+  }
+}
+
+/**
+ * Remove o lock e todos os counters de tentativas para um IP
+ * (independente do email). Usado pelo endpoint de reset em dev.
+ */
+export async function resetByIp(ip: string): Promise<void> {
+  try {
+    const redis = getRedisConnection();
+
+    // Limpar todos os keys de tentativas que combinem com o IP
+    const pattern = `login:attempts:*:${ip}`;
+    const keys = await redis.keys(pattern);
+    if (keys.length > 0) {
+      const pipeline = redis.pipeline();
+      for (const key of keys) {
+        pipeline.del(key);
+        // Extrair email do key para limpar o lock também
+        const email = key.split(":")[2];
+        if (email) {
+          pipeline.del(`login:locked:${email}`);
+          const timer = lockTimers.get(email);
+          if (timer) {
+            clearTimeout(timer);
+            lockTimers.delete(email);
+          }
+        }
+      }
+      await pipeline.exec();
+    }
+  } catch (err) {
+    logger.error({ err, ip }, "Redis error in resetByIp");
   }
 }
 
