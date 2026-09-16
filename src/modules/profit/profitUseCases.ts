@@ -165,11 +165,15 @@ export class ProfitUseCases {
 
   async getTrend(barbershopId: string, months: number) {
     const entries = await this.repo.getTrend(barbershopId, months);
+    const finiteNumber = (value: unknown) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
     return entries.map((e: { period: Date; revenue: unknown; netProfit: unknown; marginPercent: number }) => ({
       period: e.period.toISOString().slice(0, 7),
-      revenue: Number(e.revenue),
-      netProfit: Number(e.netProfit),
-      marginPercent: e.marginPercent,
+      revenue: finiteNumber(e.revenue),
+      netProfit: finiteNumber(e.netProfit),
+      marginPercent: finiteNumber(e.marginPercent),
     }));
   }
 
@@ -184,7 +188,15 @@ export class ProfitUseCases {
   }
 
   private parsePeriod(periodStr: string): Date {
-    const [year, month] = periodStr.split("-").map(Number);
+    const match = periodStr.match(/^(\d{4})-(\d{2})$/);
+    if (!match) {
+      throw new AppError("Formato de período inválido. Use YYYY-MM.", 400);
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (month < 1 || month > 12) {
+      throw new AppError("Mês inválido no período. Use valores entre 01 e 12.", 400);
+    }
     return new Date(year, month - 1, 1);
   }
 }

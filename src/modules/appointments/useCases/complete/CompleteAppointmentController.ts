@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { z } from "zod";
+import { AppError } from "@/shared/errors/AppError";
 import { CompleteAppointmentUseCase } from "./CompleteAppointmentUseCase";
 import { retailSalePayloadSchema } from "@/modules/products/schemas/productSchemas";
 
@@ -24,7 +25,7 @@ export class CompleteAppointmentController {
       ? (body as any).barbershopId ?? user.barbershopId
       : user.barbershopId;
 
-    if (!barbershopId) throw new Error("barbershopId é obrigatório");
+    if (!barbershopId) throw new AppError("barbershopId é obrigatório", 400);
 
     const useCase = container.resolve(CompleteAppointmentUseCase);
     const appointment = await useCase.execute({

@@ -1,21 +1,26 @@
 import { z } from "zod";
 
+const dateValue = z.union([
+  z.date(),
+  z.string().refine(value => !Number.isNaN(new Date(value).getTime()), {
+    message: "Data inválida. Use o formato YYYY-MM-DD.",
+  }),
+]).transform(value => value instanceof Date ? value : new Date(value));
+
 const optionalDateQuery = z.preprocess(
   value => {
     if (value === undefined || value === null || value === "") return undefined;
-    const date = new Date(String(value));
-    return Number.isNaN(date.getTime()) ? undefined : value;
+    return value;
   },
-  z.coerce.date().optional()
+  dateValue.optional()
 );
 
 const dailyDateQuery = z.preprocess(
   value => {
     if (value === undefined || value === null || value === "") return new Date();
-    const date = new Date(String(value));
-    return Number.isNaN(date.getTime()) ? new Date() : value;
+    return value;
   },
-  z.coerce.date()
+  dateValue
 );
 
 export const createCashMovementSchema = z.object({
