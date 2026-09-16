@@ -12,7 +12,6 @@ import { AppError } from "@/shared/errors/AppError";
 
 vi.mock("@/modules/barbershops/utils/getShopOpenState", () => ({
   getShopOpenState: vi.fn().mockResolvedValue({ open: true, reason: "SCHEDULE", queueClosed: false }),
-  listUpcomingExceptions: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/shared/services/geocodeCity", () => ({

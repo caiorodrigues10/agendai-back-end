@@ -16,7 +16,7 @@ export class MeController {
     const permissions =
       mappedRole === "owner" || mappedRole === "admin"
         ? undefined
-        : (user as any).permissions ?? [];
+        : user.permissions ?? [];
 
     return reply.status(200).send({
       user: {
@@ -25,7 +25,8 @@ export class MeController {
         email: user.email,
         role: mappedRole,
         barbershopId: user.barbershopId ?? undefined,
-        avatarUrl: (user as any).avatarUrl ?? undefined,
+        avatarUrl: user.avatarUrl ?? undefined,
+        emailVerified: user.emailVerified ?? false,
         permissions,
       }
     });

@@ -6,8 +6,6 @@ import { authenticate } from '@/shared/infra/http/middlewares/authenticate';
 import { authorize } from '@/shared/infra/http/middlewares/authorize';
 import { checkSubscription } from '@/shared/infra/http/middlewares/checkSubscription';
 import { setRlsContext } from '@/shared/infra/http/middlewares/setRlsContext';
-import { utcDateFromYmd } from '../utils/getShopOpenState';
-import { addDaysYmd, ymdInTimeZone } from '../utils/shopOpenState';
 
 const id = z.string().uuid();
 const policySchema = z.object({
@@ -26,13 +24,6 @@ const blockSchema = z.object({
   reason: z.string().trim().min(2).max(200),
   recurrence: z.enum(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY']).default('NONE'),
   recurrenceUntil: z.string().datetime().nullable().optional(),
-});
-
-const exceptionSchema = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  reason: z.string().trim().max(200).optional(),
-  isOpen: z.boolean().optional().default(false),
 });
 
 function shopId(request: any, rawId: string) {
@@ -83,64 +74,5 @@ export async function calendarRoutes(app: FastifyInstance) {
     if (!block) throw new AppError('Bloqueio não encontrado', 404);
     await prisma.calendarBlock.delete({ where: { id: block.id } });
     reply.status(204).send();
-  });
-
-  app.get('/barbershops/:id/schedule-exceptions', { preHandler: ownerGuard }, async (request, reply) => {
-    const barbershopId = shopId(request, (request.params as any).id);
-    const today = ymdInTimeZone(new Date(), 'America/Sao_Paulo');
-    const rows = await prisma.scheduleException.findMany({
-      where: { barbershopId, date: { gte: utcDateFromYmd(today) } },
-      orderBy: { date: 'asc' },
-      select: { id: true, date: true, isOpen: true, reason: true },
-    });
-    reply.send({
-      success: true,
-      data: rows.map((row: { id: string; date: Date; isOpen: boolean; reason: string | null }) => ({
-        id: row.id,
-        date: row.date.toISOString().slice(0, 10),
-        isOpen: row.isOpen,
-        reason: row.reason,
-      })),
-    });
-  });
-
-  app.post('/barbershops/:id/schedule-exceptions', { preHandler: ownerGuard }, async (request, reply) => {
-    const barbershopId = shopId(request, (request.params as any).id);
-    const data = exceptionSchema.parse(request.body);
-    const to = data.to && data.to >= data.from ? data.to : data.from;
-    if (addDaysYmd(data.from, 90) < to) {
-      throw new AppError('O período de fechamento não pode passar de 90 dias', 400);
-    }
-    const created: Array<{ id: string; date: string; isOpen: boolean; reason: string | null }> = [];
-    for (let ymd = data.from; ymd <= to; ymd = addDaysYmd(ymd, 1)) {
-      const row = await prisma.scheduleException.upsert({
-        where: { barbershopId_date: { barbershopId, date: utcDateFromYmd(ymd) } },
-        create: {
-          barbershopId,
-          date: utcDateFromYmd(ymd),
-          isOpen: data.isOpen,
-          reason: data.reason || 'Fechado',
-        },
-        update: { isOpen: data.isOpen, reason: data.reason || 'Fechado' },
-      });
-      created.push({
-        id: row.id,
-        date: row.date.toISOString().slice(0, 10),
-        isOpen: row.isOpen,
-        reason: row.reason,
-      });
-    }
-    reply.status(201).send({ success: true, data: created });
-  });
-
-  app.delete('/barbershops/:id/schedule-exceptions/:exceptionId', { preHandler: ownerGuard }, async (request, reply) => {
-    const barbershopId = shopId(request, (request.params as any).id);
-    const exception = await prisma.scheduleException.findFirst({
-      where: { id: (request.params as any).exceptionId, barbershopId },
-      select: { id: true },
-    });
-    if (!exception) throw new AppError('Data de fechamento não encontrada', 404);
-    await prisma.scheduleException.delete({ where: { id: exception.id } });
-    reply.send({ success: true });
   });
 }

@@ -2,8 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
-import { getShopOpenState, listUpcomingExceptions } from "../../utils/getShopOpenState";
-import { ymdInTimeZone } from "../../utils/shopOpenState";
+import { getShopOpenState } from "../../utils/getShopOpenState";
 
 const idSchema = z.string().uuid();
 const manualStatusSchema = z.object({
@@ -28,19 +27,15 @@ async function shopPayload(barbershopId: string) {
       openingMode: true,
       manualStatus: true,
       queueClosedAt: true,
-      timezone: true,
     },
   });
   if (!shop) throw new AppError("Salão não encontrado", 404);
   const openState = await getShopOpenState(barbershopId);
-  const today = ymdInTimeZone(new Date(), shop.timezone || "America/Sao_Paulo");
-  const scheduleExceptions = await listUpcomingExceptions(barbershopId, today);
   return {
     id: shop.id,
     openingMode: shop.openingMode,
     manualStatus: shop.manualStatus,
     openState,
-    scheduleExceptions,
   };
 }
 

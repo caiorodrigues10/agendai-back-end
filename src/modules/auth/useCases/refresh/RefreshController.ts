@@ -86,7 +86,8 @@ export class RefreshController {
           name: user.name,
           email: user.email,
           role: mapRole(user.role),
-          barbershopId: user.barbershopId ?? undefined
+          barbershopId: user.barbershopId ?? undefined,
+          emailVerified: user.emailVerified ?? false,
         },
         accessToken,
       });

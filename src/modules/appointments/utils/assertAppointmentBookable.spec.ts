@@ -14,7 +14,7 @@ describe("assertAppointmentBookable — calendário", () => {
   it("bloqueia booking em data fechada por exceção", async () => {
     vi.mocked(getShopOpenState).mockResolvedValue({
       open: false,
-      reason: "EXCEPTION",
+      reason: "SCHEDULE",
       queueClosed: false,
     });
     await expect(

@@ -13,6 +13,7 @@ interface UserLike {
   role: string;
   barbershopId: string | null;
   cpf: string | null;
+  emailVerified?: boolean;
 }
 
 function mapRole(role: string): "admin" | "owner" | "employee" {
@@ -97,7 +98,8 @@ export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rem
       name: user.name,
       email: user.email,
       role: mapRole(user.role),
-      barbershopId: user.barbershopId ?? undefined
+      barbershopId: user.barbershopId ?? undefined,
+      emailVerified: user.emailVerified ?? false,
     },
     accessToken,
   };

@@ -5,7 +5,6 @@ export type ShopOpenReason =
   | "MANUAL_OPEN"
   | "MANUAL_CLOSED"
   | "MANUAL_MODE_NOT_OPENED"
-  | "EXCEPTION"
   | "SCHEDULE"
   | "OUTSIDE_HOURS";
 
@@ -21,12 +20,6 @@ export interface WeeklyHours {
   closeTime: string;
 }
 
-export interface DayException {
-  isOpen: boolean;
-  openTime?: string | null;
-  closeTime?: string | null;
-}
-
 export interface ComputeShopOpenStateInput {
   now: Date;
   timeZone: string;
@@ -39,7 +32,6 @@ export interface ComputeShopOpenStateInput {
   openingMode: OpeningMode;
   queueClosedAt: Date | null;
   weekly?: WeeklyHours | null;
-  exception?: DayException | null;
 }
 
 function pad2(n: number): string {
@@ -96,22 +88,20 @@ function effectiveManualStatus(input: ComputeShopOpenStateInput, todayYmd: strin
   return ymdInTimeZone(input.manualStatusSetAt, input.timeZone) === todayYmd ? "OPEN" : "AUTO";
 }
 
-function hoursFrom(source: WeeklyHours | DayException | null | undefined): WeeklyHours | null {
+function hoursFrom(source: WeeklyHours | null | undefined): WeeklyHours | null {
   if (!source) return null;
   if (!source.isOpen) return { isOpen: false, openTime: "00:00", closeTime: "00:00" };
-  const openTime = "openTime" in source ? source.openTime : undefined;
-  const closeTime = "closeTime" in source ? source.closeTime : undefined;
   return {
     isOpen: true,
-    openTime: openTime || "00:00",
-    closeTime: closeTime || "23:59",
+    openTime: source.openTime || "00:00",
+    closeTime: source.closeTime || "23:59",
   };
 }
 
 /**
  * Decides if the shop is operating on a given calendar date (or right now).
  * Manual OPEN/CLOSED only apply to *today* in the shop timezone.
- * Future dates follow weekly hours + schedule exceptions.
+ * Future dates follow weekly hours.
  */
 export function computeShopOpenState(input: ComputeShopOpenStateInput): ShopOpenState {
   const todayYmd = ymdInTimeZone(input.now, input.timeZone);
@@ -129,15 +119,11 @@ export function computeShopOpenState(input: ComputeShopOpenStateInput): ShopOpen
     return { open: true, reason: "MANUAL_OPEN", queueClosed };
   }
 
-  if (input.exception && !input.exception.isOpen) {
-    return { open: false, reason: "EXCEPTION", queueClosed };
-  }
-
   if (isToday && input.openingMode === "MANUAL") {
     return { open: false, reason: "MANUAL_MODE_NOT_OPENED", queueClosed };
   }
 
-  const hours = hoursFrom(input.exception?.isOpen ? input.exception : input.weekly);
+  const hours = hoursFrom(input.weekly);
   if (!hours || !hours.isOpen) {
     return { open: false, reason: "SCHEDULE", queueClosed };
   }

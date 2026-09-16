@@ -99,26 +99,16 @@ export async function assertAppointmentBookable(
 
   const day = new Date(`${dateYmd}T00:00:00.000Z`);
   const dayOfWeek = day.getUTCDay();
-  const [schedule, exception] = await Promise.all([
-    db.schedule.findUnique({
-      where: {
-        barbershopId_dayOfWeek: {
-          barbershopId: data.barbershopId,
-          dayOfWeek,
-        },
+  const schedule = await db.schedule.findUnique({
+    where: {
+      barbershopId_dayOfWeek: {
+        barbershopId: data.barbershopId,
+        dayOfWeek,
       },
-    }),
-    db.scheduleException.findUnique({
-      where: {
-        barbershopId_date: {
-          barbershopId: data.barbershopId,
-          date: day,
-        },
-      },
-    }),
-  ]);
+    },
+  });
 
-  const hours = exception ?? schedule;
+  const hours = schedule;
   if (hours) {
     if (!hours.isOpen) {
       throw new AppError("Estabelecimento fechado neste dia", 400);

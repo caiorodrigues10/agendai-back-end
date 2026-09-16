@@ -49,14 +49,14 @@ export class ChangeOperationModeUseCase {
       prisma.queueItem.count({
         where: {
           barbershopId,
-          status: { in: ['waiting', 'in_chair'] },
+          status: { in: ['WAITING', 'IN_CHAIR'] },
         },
       }),
       prisma.appointment.count({
         where: {
           barbershopId,
-          status: { in: ['CONFIRMED', 'PENDING'] },
-          startTime: { gte: new Date() },
+          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+          date: { gte: new Date() },
         },
       }),
     ]);

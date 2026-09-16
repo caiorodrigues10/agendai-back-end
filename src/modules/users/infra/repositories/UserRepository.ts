@@ -19,6 +19,7 @@ const publicSelect = {
   marketingOptInAt: true,
   lgpdConsentAt: true,
   avatarUrl: true,
+  emailVerified: true,
 } as const;
 
 export class UserRepository implements IUserRepository {

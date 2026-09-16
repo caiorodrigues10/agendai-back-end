@@ -9,6 +9,7 @@ import { LogoutController } from "@/modules/auth/useCases/logout/LogoutControlle
 import { SwitchAccountController, validateSwitchAccount } from "@/modules/auth/useCases/switchAccount/SwitchAccountController";
 import { ForgotPasswordController, validateForgotPassword } from "@/modules/auth/useCases/forgotPassword/ForgotPasswordController";
 import { ResetPasswordController, validateResetPassword } from "@/modules/auth/useCases/resetPassword/ResetPasswordController";
+import { ResendVerificationEmailController } from "@/modules/auth/useCases/resendVerification/ResendVerificationEmailController";
 import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 import { verifyRecaptcha } from "@/shared/infra/http/middlewares/verifyRecaptcha";
@@ -34,6 +35,7 @@ export async function authRoutes(app: FastifyInstance) {
   const switchAccount = new SwitchAccountController();
   const forgotPassword = new ForgotPasswordController();
   const resetPassword = new ResetPasswordController();
+  const resendVerification = new ResendVerificationEmailController();
 
   app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin, verifyRecaptcha] }, login.handle.bind(login));
   app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister, verifyRecaptcha] }, register.handle.bind(register));
@@ -56,6 +58,11 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/auth/logout", { preHandler: [authenticate, setRlsContext] }, logout.handle.bind(logout));
   app.post("/auth/revoke-all-sessions", { preHandler: [authenticate, setRlsContext] }, logout.revokeAllSessions.bind(logout));
+
+  app.post("/auth/resend-verification", {
+    config: { rateLimit: { max: 3, timeWindow: "10 minutes" } },
+    preHandler: [authenticate, setRlsContext],
+  }, resendVerification.handle.bind(resendVerification));
 
   // Contas salvas — NÃO requer autenticação (acesso via cookie saved_refresh)
   app.post("/auth/switch-account", { ...authRateLimit, preHandler: [validateSwitchAccount] }, switchAccount.handle.bind(switchAccount));

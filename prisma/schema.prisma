@@ -304,7 +304,6 @@ model Barbershop {
   notificationDeliveries   NotificationDelivery[]
   notificationPreferences  NotificationPreference[]
   notificationSuppressions NotificationSuppression[]
-  scheduleExceptions       ScheduleException[]
   calendarBlocks           CalendarBlock[]
   appointmentPolicies      AppointmentPolicy?
   appointmentSeries        AppointmentSeries[]
@@ -440,24 +439,6 @@ model AppointmentPolicy {
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
   @@map("appointment_policies")
-}
-
-model ScheduleException {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  date         DateTime @db.Date
-  isOpen       Boolean  @default(false)
-  openTime     String?  @db.VarChar(5)
-  closeTime    String?  @db.VarChar(5)
-  reason       String?  @db.VarChar(200)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-
-  @@unique([barbershopId, date])
-  @@index([barbershopId, date])
-  @@map("schedule_exceptions")
 }
 
 enum CalendarBlockRecurrence {

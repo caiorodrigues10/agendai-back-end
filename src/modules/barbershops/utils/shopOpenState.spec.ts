@@ -13,7 +13,6 @@ function base(overrides: Partial<ComputeShopOpenStateInput> = {}): ComputeShopOp
     openingMode: "SCHEDULE",
     queueClosedAt: null,
     weekly,
-    exception: null,
     ...overrides,
   };
 }
@@ -78,17 +77,6 @@ describe("computeShopOpenState", () => {
       })
     );
     expect(state).toMatchObject({ open: true, reason: "MANUAL_OPEN" });
-  });
-
-  it("exceção de calendário fecha o dia", () => {
-    const state = computeShopOpenState(
-      base({
-        dateYmd: "2026-09-07",
-        forDateOnly: true,
-        exception: { isOpen: false },
-      })
-    );
-    expect(state).toMatchObject({ open: false, reason: "EXCEPTION" });
   });
 
   it("override de hoje não fecha data futura", () => {

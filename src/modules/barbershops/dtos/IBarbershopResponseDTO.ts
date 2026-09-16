@@ -17,13 +17,6 @@ export interface ShopOpenStateDTO {
   queueClosed: boolean;
 }
 
-export interface ScheduleExceptionDTO {
-  id: string;
-  date: string;
-  isOpen: boolean;
-  reason: string | null;
-}
-
 export interface IBarbershopResponseDTO {
   id: string;
   name: string;
@@ -43,5 +36,4 @@ export interface IBarbershopResponseDTO {
   /** Nome da instância Evolution — só o fluxo de connect/disconnect altera. */
   evolutionInstanceName?: string | null;
   openState?: ShopOpenStateDTO;
-  scheduleExceptions?: ScheduleExceptionDTO[];
 }

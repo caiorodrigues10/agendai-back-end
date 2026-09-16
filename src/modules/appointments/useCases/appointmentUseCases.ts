@@ -437,14 +437,13 @@ export class GetAvailableSlotsUseCase {
     if (!dayState.open) return [];
     const staff = await prisma.user.findMany({ where: { barbershopId, active: true, role: { in: ['OWNER', 'EMPLOYEE'] }, ...(staffId ? { id: staffId } : {}) }, select: { id: true }, orderBy: { id: 'asc' } });
     if (!staff.length) throw new AppError('Nenhum profissional disponível neste estabelecimento', 409);
-    const [shop, exception, appointments, blocks, policy] = await Promise.all([
+    const [shop, appointments, blocks, policy] = await Promise.all([
       prisma.barbershop.findUnique({ where: { id: barbershopId }, select: { timezone: true } }),
-      prisma.scheduleException.findUnique({ where: { barbershopId_date: { barbershopId, date: day } } }),
       prisma.appointment.findMany({ where: { barbershopId, date: { gte: day, lt: next }, status: 'CONFIRMED', ...(staffId ? { OR: [{ staffId }, { staffId: null }] } : {}) }, select: { time: true, staffId: true, service: { select: { avgTimeMinutes: true } } } }),
       prisma.calendarBlock.findMany({ where: { barbershopId, startAt: { lt: next }, endAt: { gt: day }, ...(staffId ? { OR: [{ staffId }, { staffId: null }] } : {}) }, select: { staffId: true, startAt: true, endAt: true } }),
       prisma.appointmentPolicy.upsert({ where: { barbershopId }, create: { barbershopId }, update: {} }),
     ]);
-    const schedule = exception ?? await prisma.schedule.findUnique({ where: { barbershopId_dayOfWeek: { barbershopId, dayOfWeek: day.getUTCDay() } } });
+    const schedule = await prisma.schedule.findUnique({ where: { barbershopId_dayOfWeek: { barbershopId, dayOfWeek: day.getUTCDay() } } });
     if (!schedule || !schedule.isOpen) return [];
     const timeToMinutes = (value: string) => { const [h, m] = value.split(':').map(Number); return h * 60 + m; };
     const overlap = (a: number, ad: number, b: number, bd: number) => a < b + bd && b < a + ad;
