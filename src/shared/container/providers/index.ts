@@ -5,6 +5,8 @@ import { IDateProvider }    from "./DateProvider/IDateProvider";
 import { DayjsDateProvider } from "./DateProvider/implementations/DayjsDateProvider";
 import { IStorageProvider } from "./StorageProvider/IStorageProvider";
 import { GcsStorageProvider } from "./StorageProvider/implementations/GcsStorageProvider";
+import { CloudinaryStorageProvider } from "./StorageProvider/implementations/CloudinaryStorageProvider";
+import { FallbackStorageProvider } from "./StorageProvider/implementations/FallbackStorageProvider";
 import { IEmailProvider } from "./EmailProvider/IEmailProvider";
 import { ResendEmailProvider } from "./EmailProvider/implementations/ResendEmailProvider";
 import { IWeatherProvider } from "./WeatherProvider/IWeatherProvider";
@@ -12,6 +14,8 @@ import { CachedWeatherProvider } from "./WeatherProvider/implementations/CachedW
 
 container.registerSingleton<IHashProvider>   ("HashProvider",    BcryptHashProvider);
 container.registerSingleton<IDateProvider>   ("DateProvider",    DayjsDateProvider);
-container.registerSingleton<IStorageProvider>("StorageProvider", GcsStorageProvider);
+container.registerSingleton("GcsStorageProvider", GcsStorageProvider);
+container.registerSingleton("CloudinaryStorageProvider", CloudinaryStorageProvider);
+container.registerSingleton<IStorageProvider>("StorageProvider", FallbackStorageProvider);
 container.registerSingleton<IEmailProvider>  ("EmailProvider",   ResendEmailProvider);
 container.registerSingleton<IWeatherProvider>("WeatherProvider",  CachedWeatherProvider);

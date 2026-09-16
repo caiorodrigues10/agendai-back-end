@@ -35,6 +35,8 @@ export class GcsStorageProvider implements IStorageProvider {
 	private _storage: Storage | null = null
 	private _bucket: ReturnType<Storage['bucket']> | null = null
 	private _credentialsChecked = false
+	private _lastError: string | null = null
+	private _errorLoggedCount = 0
 
 	// ── Lazy getters ────────────────────────────────────────────────────────────
 
@@ -164,10 +166,15 @@ export class GcsStorageProvider implements IStorageProvider {
 	private static isCredentialError(err: unknown): boolean {
 		const msg = (err instanceof Error ? err.message : '') || ''
 		const code = (err as { code?: string | number } | undefined)?.code
+		const gcsErrors = (err as { errors?: Array<{ message?: string }> })?.errors ?? []
+		const allMessages = [msg, ...gcsErrors.map(e => e.message ?? '')].join(' ')
 		return (
-			/credentials|could not load|permission|unauthorized|invalid_grant|ADC|cloud\.google\.com\/docs/i.test(msg) ||
+			/credentials|could not load|permission|unauthorized|invalid_grant|ADC|cloud\.google\.com\/docs|_default_credentials|ENOENT|ENOTFOUND|does not have|access not granted|ProjectMissing|BucketMissing/i.test(allMessages) ||
 			code === 'UNAUTHENTICATED' ||
-			code === 'ENOENT'
+			code === 'ENOTFOUND' ||
+			code === 'ENOENT' ||
+			code === 401 ||
+			code === 403
 		)
 	}
 
@@ -175,15 +182,40 @@ export class GcsStorageProvider implements IStorageProvider {
 		if (err instanceof AppError) {
 			throw err
 		}
+		const detail = {
+			context,
+			message: err instanceof Error ? err.message : String(err),
+			code: (err as { code?: string | number } | undefined)?.code,
+			gcsErrors: (err as { errors?: Array<{ message?: string }> })?.errors?.map(e => e.message),
+		}
+
+		// Deduplicação: se o erro é o mesmo da última vez, loga como warn
+		// (evita poluição de logs quando billing está desativado permanentemente)
+		const errorKey = `${detail.code}:${detail.message}`
+		if (errorKey === this._lastError) {
+			this._errorLoggedCount++
+			// Loga warn a cada 10 ocorrências para não perder完全 rastreabilidade
+			if (this._errorLoggedCount % 10 === 1) {
+				console.warn(`[GcsStorageProvider] ${context}: erro repetido (${this._errorLoggedCount}x) — ver FallbackStorageProvider`)
+			}
+		} else {
+			// Erro novo — loga como error e reseta contador
+			console.error('[GcsStorageProvider] Storage error:', JSON.stringify(detail))
+			this._lastError = errorKey
+			this._errorLoggedCount = 1
+		}
+
 		if (GcsStorageProvider.isCredentialError(err)) {
+			const hasConfig = Boolean(process.env.GCS_KEY_FILE_PATH || process.env.GCS_CREDENTIALS_JSON)
 			throw new AppError(
-				`Não foi possível conectar ao storage de imagens. ${GCS_SETUP_HINT}`,
+				hasConfig
+					? 'Credenciais GCS inválidas ou expiradas. Verifique gcs-key.json. Veja docs/GCS_SETUP.md.'
+					: 'Credenciais GCS não configuradas. Configure GCS_KEY_FILE_PATH ou GCS_CREDENTIALS_JSON no .env. Veja docs/GCS_SETUP.md.',
 				503,
 			)
 		}
-		console.error(`[GcsStorageProvider] ${context}:`, err)
 		throw new AppError(
-			`Erro ao acessar o storage de imagens. Tente novamente.`,
+			`Erro ao acessar o storage de imagens (${detail.code ?? 'desconhecido'}). Tente novamente.`,
 			502,
 		)
 	}
@@ -243,7 +275,7 @@ export class GcsStorageProvider implements IStorageProvider {
 				objectName,
 				size: buffer.byteLength,
 			}
-		} catch (err) {
+		} catch (err: any) {
 			this.wrapStorageError(err, 'uploadBuffer')
 		}
 	}
