@@ -27,12 +27,17 @@ describe("Monitoring routes smoke (inject)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       status: string;
-      checks: { migrations: { status: string; pending: number } };
+      checks: {
+        migrations: { status: string; pending: number };
+        storage: { status: string; provider: string };
+      };
     };
     expect(body.status).toBe("ok");
     expect(body.checks.migrations).toBeDefined();
     expect(["ok", "pending", "error"]).toContain(body.checks.migrations.status);
     expect(typeof body.checks.migrations.pending).toBe("number");
+    expect(body.checks.storage).toBeDefined();
+    expect(["healthy", "degraded"]).toContain(body.checks.storage.status);
   });
 
   it("GET /ready → 200 or 503 with checks.migrations", async () => {

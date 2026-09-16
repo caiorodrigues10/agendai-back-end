@@ -27,7 +27,7 @@ describe("LogoutUseCase", () => {
 
     expect(count).toBe(1);
     expect(mockDeleteMany).toHaveBeenCalledWith({
-      where: { userId: "user-1", token: "refresh-token-device-a" },
+      where: { userId: "user-1", token: "refresh-token-device-a", purpose: "session" },
     });
   });
 

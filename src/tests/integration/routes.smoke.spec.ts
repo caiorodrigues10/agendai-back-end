@@ -34,8 +34,19 @@ describe("HTTP routes smoke (inject)", () => {
   it("GET /health → 200", async () => {
     const res = await app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { status: string };
+    const body = res.json() as {
+      status: string;
+      checks: {
+        postgres: string;
+        redis: string;
+        storage: { status: string; provider: string; primary_available: boolean; fallback_available: boolean };
+      };
+    };
     expect(body.status).toBe("ok");
+    expect(body.checks.postgres).toBe("healthy");
+    expect(body.checks.storage).toBeDefined();
+    expect(["healthy", "degraded"]).toContain(body.checks.storage.status);
+    expect(["gcs", "cloudinary", "none"]).toContain(body.checks.storage.provider);
   });
 
   it("GET /api/plans → 200 + data[]", async () => {
