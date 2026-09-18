@@ -19,11 +19,13 @@ export class ShowcaseController {
   }
 
   async getDetail(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const { entryId } = request.params as { entryId: string };
-    const entry = await this.useCases.getById(entryId);
-
-    await this.useCases.recordEvent(entry.id, entry.barbershopId, "VIEW");
-
+    const { id, entryId } = request.params as { id: string; entryId: string };
+    const uuidRe =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(entryId)) {
+      throw new AppError("entryId inválido", 400);
+    }
+    const entry = await this.useCases.getPublishedById(id, entryId);
     reply.send({ success: true, data: entry });
   }
 

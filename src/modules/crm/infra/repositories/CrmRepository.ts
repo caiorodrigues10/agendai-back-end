@@ -58,6 +58,7 @@ export class CrmRepository implements ICrmRepository {
       : undefined;
     const clients = await prisma.salonClient.findMany({
       where: { barbershopId },
+      take: 5_000,
       include: {
         financialEvents: { where: occurredAt ? { occurredAt } : undefined, orderBy: { occurredAt: "asc" } },
         queueItems: { where: { status: "COMPLETED", ...(occurredAt ? { completedAt: occurredAt } : {}) }, select: { completedAt: true, service: { select: { name: true } } } },
@@ -69,13 +70,26 @@ export class CrmRepository implements ICrmRepository {
 
   async overview(barbershopId: string, from: Date, to: Date, compare: boolean): Promise<CrmOverviewDTO> {
     const [events, packages, appointments, metrics, completedServices] = await Promise.all([
-      prisma.crmFinancialEvent.findMany({ where: { barbershopId, occurredAt: { gte: from, lte: to } }, orderBy: { occurredAt: "asc" } }),
-      prisma.clientPackage.findMany({ where: { barbershopId, purchasedAt: { gte: from, lte: to }, status: { not: "CANCELLED" } }, select: { pricePaid: true } }),
-      prisma.appointment.findMany({ where: { barbershopId, date: { gte: from, lte: to } }, select: { status: true } }),
+      prisma.crmFinancialEvent.findMany({
+        where: { barbershopId, occurredAt: { gte: from, lte: to } },
+        orderBy: { occurredAt: "asc" },
+        take: 10_000,
+      }),
+      prisma.clientPackage.findMany({
+        where: { barbershopId, purchasedAt: { gte: from, lte: to }, status: { not: "CANCELLED" } },
+        select: { pricePaid: true },
+        take: 10_000,
+      }),
+      prisma.appointment.findMany({
+        where: { barbershopId, date: { gte: from, lte: to } },
+        select: { status: true },
+        take: 10_000,
+      }),
       this.metrics(barbershopId, { from, to }),
       prisma.queueItem.findMany({
         where: { barbershopId, status: "COMPLETED", completedAt: { gte: from, lte: to }, OR: [{ appointmentId: null }, { appointment: { is: { clientPackageId: null } } }] },
         select: { finalPrice: true, completedBy: true, service: { select: { id: true, name: true, category: { select: { id: true, name: true } } } } },
+        take: 10_000,
       }),
     ]);
     const dayMap = new Map<string, { grossRevenue: number; receivedRevenue: number; visits: number }>();

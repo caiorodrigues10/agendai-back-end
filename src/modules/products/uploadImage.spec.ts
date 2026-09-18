@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCases";
 import { AppError } from "@/shared/errors/AppError";
 

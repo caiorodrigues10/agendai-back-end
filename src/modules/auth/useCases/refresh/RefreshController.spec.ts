@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { sign } from "jsonwebtoken";
 import auth from "@/config/auth";
 

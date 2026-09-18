@@ -52,53 +52,82 @@ export class LoyaltyUseCases {
   }
 
   async recordVisit(barbershopId: string, clientId: string, idempotencyKey?: string | null) {
-    const program = await this.repo.findProgram(barbershopId);
-    if (!program || !program.isActive) {
-      throw new AppError("Loyalty program not configured or inactive", 400);
-    }
+    return prisma.$transaction(async (tx: any) => {
+      const program = await tx.loyaltyProgram.findUnique({ where: { barbershopId } });
+      if (!program || !program.isActive) {
+        throw new AppError("Loyalty program not configured or inactive", 400);
+      }
 
-    const account = await this.repo.incrementVisits(barbershopId, clientId);
+      const account = await tx.loyaltyAccount.upsert({
+        where: { barbershopId_clientId: { barbershopId, clientId } },
+        create: { barbershopId, clientId, totalVisits: 1 },
+        update: { totalVisits: { increment: 1 } },
+      });
 
-    const entry = await this.repo.createLedgerEntry({
-      barbershopId,
-      accountId: account.id,
-      type: "VISIT_EARNED",
-      description: "Visita registrada",
-      idempotencyKey,
+      let entry;
+      if (idempotencyKey) {
+        entry = await tx.loyaltyLedgerEntry.findUnique({ where: { idempotencyKey } });
+      }
+      if (!entry) {
+        entry = await tx.loyaltyLedgerEntry.create({
+          data: {
+            barbershopId,
+            accountId: account.id,
+            type: "VISIT_EARNED",
+            description: "Visita registrada",
+            idempotencyKey: idempotencyKey ?? null,
+          },
+        });
+      }
+
+      const config = program.config as { visitsRequired?: number };
+      const visitsRequired = config?.visitsRequired ?? 10;
+      const rewardCount = Math.floor(account.totalVisits / visitsRequired);
+      return { account, entry, rewardCount };
     });
-
-    const config = program.config as any;
-    const visitsRequired = config?.visitsRequired ?? 10;
-    const rewardCount = Math.floor(account.totalVisits / visitsRequired);
-
-    return { account, entry, rewardCount };
   }
 
   async redeemReward(barbershopId: string, clientId: string, description?: string, idempotencyKey?: string | null) {
-    const program = await this.repo.findProgram(barbershopId);
-    if (!program || !program.isActive) {
-      throw new AppError("Loyalty program not configured or inactive", 400);
-    }
+    return prisma.$transaction(async (tx: any) => {
+      const program = await tx.loyaltyProgram.findUnique({ where: { barbershopId } });
+      if (!program || !program.isActive) {
+        throw new AppError("Loyalty program not configured or inactive", 400);
+      }
 
-    const account = await this.repo.findOrCreateAccount(barbershopId, clientId);
-    const config = program.config as any;
-    const visitsRequired = config?.visitsRequired ?? 10;
+      const account = await tx.loyaltyAccount.upsert({
+        where: { barbershopId_clientId: { barbershopId, clientId } },
+        create: { barbershopId, clientId },
+        update: {},
+      });
+      const config = program.config as { visitsRequired?: number; rewardDescription?: string };
+      const visitsRequired = config?.visitsRequired ?? 10;
+      if (account.totalVisits < visitsRequired) {
+        throw new AppError("Not enough visits to redeem reward", 400);
+      }
 
-    if (account.totalVisits < visitsRequired) {
-      throw new AppError("Not enough visits to redeem reward", 400);
-    }
+      const updatedAccount = await tx.loyaltyAccount.update({
+        where: { barbershopId_clientId: { barbershopId, clientId } },
+        data: { rewardCount: { increment: 1 } },
+      });
 
-    const updatedAccount = await this.repo.incrementRewards(barbershopId, clientId);
+      let entry;
+      if (idempotencyKey) {
+        entry = await tx.loyaltyLedgerEntry.findUnique({ where: { idempotencyKey } });
+      }
+      if (!entry) {
+        entry = await tx.loyaltyLedgerEntry.create({
+          data: {
+            barbershopId,
+            accountId: account.id,
+            type: "REWARD_REDEEMED",
+            description: description ?? config?.rewardDescription ?? "Recompensa resgatada",
+            idempotencyKey: idempotencyKey ?? null,
+          },
+        });
+      }
 
-    const entry = await this.repo.createLedgerEntry({
-      barbershopId,
-      accountId: account.id,
-      type: "REWARD_REDEEMED",
-      description: description ?? config?.rewardDescription ?? "Recompensa resgatada",
-      idempotencyKey,
+      return { account: updatedAccount, entry };
     });
-
-    return { account: updatedAccount, entry };
   }
 
   async adjustManual(barbershopId: string, clientId: string, delta: number, description: string, idempotencyKey?: string | null) {

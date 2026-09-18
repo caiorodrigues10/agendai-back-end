@@ -17,7 +17,7 @@ function assertShopAccess(user: RequestingUser, barbershopId: string): void {
 }
 
 function assertStaffRole(user: RequestingUser): void {
-  const allowed = ["MASTER_ADMIN", "OWNER", "EMPLOYEE", "ADMIN"];
+  const allowed = ["MASTER_ADMIN", "OWNER", "EMPLOYEE"];
   if (!allowed.includes(user.role)) {
     throw new AppError("Apenas profissionais do salão podem registrar procedimentos", 403);
   }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { geocodeCity } from "./geocodeCity";
 
 describe("geocodeCity", () => {

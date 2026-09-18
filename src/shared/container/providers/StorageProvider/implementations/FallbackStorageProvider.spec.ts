@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 import { FallbackStorageProvider } from "./FallbackStorageProvider";
 import type { IStorageProvider, ISignedUploadUrlResult, IUploadBufferResult } from "../IStorageProvider";
 

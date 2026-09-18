@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { assertAppointmentBookable } from "./assertAppointmentBookable";
 import { getShopOpenState } from "@/modules/barbershops/utils/getShopOpenState";
 

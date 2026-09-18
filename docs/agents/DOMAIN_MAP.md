@@ -33,13 +33,13 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 
 | Método | Provider | Papel |
 |---|---|---|
-| `asaas` | Asaas | **Padrão em produção** (`PAYMENT_PROVIDERS_ENABLED` omisso → só `ASAAS`) |
+| `asaas` | Asaas | **Padrão em produção**. PIX embutido (QR). Cartão via **checkout hospedado** (`invoiceUrl`) — PAN/CVV não transitam pelo Fastify. |
 | `payment_link` | AbacatePay | Implementado; em prod só se habilitado via env |
 | `pix` / cartão | Mercado Pago | Implementado; em prod só se habilitado via env |
 
 Em não-produção, o fallback habilita os três. Override: `PAYMENT_PROVIDERS_ENABLED` (lista separada por vírgula).
 
-Cartão vaulted pós-trial é fluxo Asaas (`SetupTrialCard` / charge trial ended). Não expor MP/Abacate na UI se a doc de MVP público assim exigir — confirmar no código da UI.
+Cartão Asaas: o cliente informa PAN só no checkout hospedado da Asaas. Tokens vaulted antigos ainda podem ser cobrados pelo cron pós-trial. Não reintroduzir `asaasCreditCard` no body do Fastify.
 
 ## Testes
 

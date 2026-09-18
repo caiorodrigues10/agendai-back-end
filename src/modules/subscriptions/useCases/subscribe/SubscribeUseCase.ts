@@ -454,10 +454,9 @@ export class SubscribeUseCase {
   }
 
   /**
-   * Asaas (checkout embutido): billingType PIX retorna o QR Code direto;
-   * CREDIT_CARD envia `creditCard` (número) ou `creditCardToken` legado
-   * ao Asaas via backend — o endpoint público de tokenização no browser
-   * não funciona (CORS/auth). Sem redirect — webhook ativa a assinatura.
+   * Asaas: PIX embutido (QR no app). Cartão usa cobrança CREDIT_CARD **sem** PAN/CVV
+   * no Fastify — o cliente paga em `invoiceUrl` (checkout hospedado Asaas).
+   * Webhook ativa a assinatura.
    */
   private async createAsaasPayment(params: {
     plan: {
@@ -474,6 +473,13 @@ export class SubscribeUseCase {
     description: string;
   }): Promise<IPaymentResponseDTO> {
     const { plan, data, barbershopId, externalReference, description } = params;
+
+    if (data.asaasCreditCard) {
+      throw new AppError(
+        "Número de cartão não é aceito no servidor. Use o checkout hospedado Asaas.",
+        400
+      );
+    }
 
     const name = [data.payerFirstName, data.payerLastName]
       .filter(Boolean)
@@ -492,28 +498,13 @@ export class SubscribeUseCase {
     const dueDateStr = dueDate.toISOString().slice(0, 10);
 
     const isCard = data.asaasBillingType === "CREDIT_CARD";
-    const card = data.asaasCreditCard;
 
-    if (isCard) {
-      if (!card && !data.cardToken) {
-        throw new AppError(
-          "Dados do cartão são obrigatórios para pagamento Asaas no cartão",
-          400
-        );
-      }
-      if (!data.payerIdentification) {
-        throw new AppError(
-          "Identificação (CPF/CNPJ) é obrigatória para pagamento no cartão",
-          400
-        );
-      }
+    if (isCard && !data.payerIdentification) {
+      throw new AppError(
+        "Identificação (CPF/CNPJ) é obrigatória para pagamento no cartão",
+        400
+      );
     }
-
-    const expiryYear = card
-      ? card.expiryYear.length === 2
-        ? `20${card.expiryYear}`
-        : card.expiryYear
-      : undefined;
 
     const payment = await this.asaasService.createPayment({
       customer: customerId,
@@ -522,32 +513,6 @@ export class SubscribeUseCase {
       dueDate: dueDateStr,
       description,
       externalReference,
-      creditCard: isCard
-        ? card
-          ? {
-              holderName: card.holderName,
-              number: card.number,
-              expiryMonth: card.expiryMonth.padStart(2, "0"),
-              expiryYear: expiryYear!,
-              ccv: card.ccv,
-            }
-          : { creditCardToken: data.cardToken }
-        : undefined,
-      creditCardHolderInfo: isCard
-        ? {
-            name: name || card?.holderName || undefined,
-            email: data.payerEmail,
-            cpfCnpj: data.payerIdentification!.number,
-            ...(card
-              ? {
-                  postalCode: card.postalCode,
-                  addressNumber: card.addressNumber,
-                  phone: card.phone,
-                }
-              : {}),
-          }
-        : undefined,
-      remoteIp: isCard ? data.remoteIp : undefined,
     });
 
     let pixQrCode:
@@ -568,7 +533,7 @@ export class SubscribeUseCase {
       mpPaymentId: null,
       provider: "ASAAS",
       providerPaymentId: payment.id,
-      checkoutUrl: null,
+      checkoutUrl: isCard ? payment.invoiceUrl ?? null : null,
       status: "pending",
       statusDetail: payment.status ?? "PENDING",
       paymentMethod: isCard ? "credit_card" : "pix",

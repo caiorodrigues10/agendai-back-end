@@ -6,6 +6,7 @@ import { AppError } from '@/shared/errors/AppError';
 
 export class ActivationController {
   async record(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const user = request.user!;
     const { barbershopId, event, metadata } = request.body as {
       barbershopId: string;
       event: string;
@@ -14,6 +15,9 @@ export class ActivationController {
 
     if (!barbershopId || !event) {
       throw new AppError('barbershopId e event são obrigatórios', 400);
+    }
+    if (user.role !== 'MASTER_ADMIN' && user.barbershopId !== barbershopId) {
+      throw new AppError('Acesso negado', 403);
     }
 
     const useCase = container.resolve(RecordActivationEventUseCase);

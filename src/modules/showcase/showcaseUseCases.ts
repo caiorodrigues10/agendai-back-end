@@ -22,6 +22,12 @@ export class ShowcaseUseCases {
     return entry;
   }
 
+  async getPublishedById(barbershopId: string, entryId: string) {
+    const entry = await this.repo.findPublishedById(barbershopId, entryId);
+    if (!entry) throw new AppError("Showcase entry não encontrado", 404);
+    return entry;
+  }
+
   async listStaff(barbershopId: string, query: ListQuery) {
     return this.repo.listByBarbershop(barbershopId, query.status);
   }
@@ -71,9 +77,9 @@ export class ShowcaseUseCases {
   }
 
   async recordEvent(entryId: string, barbershopId: string, eventType: string, metadata?: Record<string, unknown>) {
-    const entry = await this.repo.findById(entryId);
+    const entry = await this.repo.findPublishedById(barbershopId, entryId);
     if (!entry) throw new AppError("Showcase entry não encontrado", 404);
-    return this.repo.recordEvent(entryId, barbershopId, eventType, metadata);
+    return this.repo.recordEvent(entry.id, entry.barbershopId, eventType, metadata);
   }
 
   async getAnalytics(barbershopId: string, query: EventQuery) {

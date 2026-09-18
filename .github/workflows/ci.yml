@@ -88,4 +88,5 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
       - run: npm run typecheck
+      - run: npm run test:security
       - run: npx vitest run

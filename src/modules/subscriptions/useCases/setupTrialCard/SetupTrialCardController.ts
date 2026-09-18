@@ -26,7 +26,7 @@ export class SetupTrialCardController {
 		return reply.send({
 			success: true,
 			message:
-				'Cartão cadastrado. Você tem 30 dias grátis — cobramos só depois do trial.',
+				'Trial iniciado. Informe o cartão no checkout hospedado Asaas — PAN não transita pelo AgendAI.',
 			data: execution.data,
 			replayed: execution.replayed,
 		})

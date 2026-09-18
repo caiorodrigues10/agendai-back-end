@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { RefundPaymentUseCase } from "./RefundPaymentUseCase";
 import { AppError } from "@/shared/errors/AppError";
 

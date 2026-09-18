@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import {
@@ -45,7 +46,7 @@ export class GiftCardRepository {
     for (let attempt = 0; attempt < 20; attempt++) {
       let code = "";
       for (let i = 0; i < 8; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+        code += chars.charAt(randomInt(0, chars.length));
       }
       const existing = await prisma.giftCard.findUnique({ where: { code } });
       if (!existing) return code;

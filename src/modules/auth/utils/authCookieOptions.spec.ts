@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 import { getAuthCookieSecurityOptions } from "./authCookieOptions";
 
 const originalNodeEnv = process.env.NODE_ENV;

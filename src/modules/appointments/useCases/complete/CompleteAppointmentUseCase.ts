@@ -44,7 +44,7 @@ export class CompleteAppointmentUseCase {
   ) {}
 
   async execute(request: CompleteAppointmentRequest) {
-    if (request.userRole !== "MASTER_ADMIN" && request.userRole !== "OWNER" && request.userRole !== "EMPLOYEE" && request.userRole !== "ADMIN") {
+    if (request.userRole !== "MASTER_ADMIN" && request.userRole !== "OWNER" && request.userRole !== "EMPLOYEE") {
       throw new AppError("Você não possui permissão para finalizar atendimentos", 403);
     }
     const appointment = await this.appointmentRepository.findById(request.appointmentId);

@@ -37,11 +37,27 @@ export class DepositUseCases {
       throw new AppError("Deposit has expired", 400);
     }
 
-    const confirmed = await this.repo.confirmDeposit(deposit.id, userId, data);
-
-    await prisma.appointment.update({
-      where: { id: appointmentId },
-      data: { status: "CONFIRMED" },
+    const confirmed = await prisma.$transaction(async (tx: any) => {
+      await tx.$queryRaw`SELECT id FROM appointment_deposits WHERE id = ${deposit.id}::uuid FOR UPDATE`;
+      const locked = await tx.appointmentDeposit.findUnique({ where: { id: deposit.id } });
+      if (!locked || locked.status !== "PENDING") {
+        throw new AppError(`Cannot confirm deposit in status ${locked?.status ?? "missing"}`, 400);
+      }
+      const updated = await tx.appointmentDeposit.update({
+        where: { id: deposit.id },
+        data: {
+          status: "CONFIRMED",
+          confirmedAt: new Date(),
+          confirmedById: userId,
+          confirmationNote: data.notes ?? undefined,
+          paymentMethod: data.pixKey ? "PIX" : undefined,
+        },
+      });
+      await tx.appointment.update({
+        where: { id: appointmentId },
+        data: { status: "CONFIRMED" },
+      });
+      return updated;
     });
 
     return confirmed;

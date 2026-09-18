@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { executeIdempotent, resetIdempotencyMemoryForTests } from "./idempotencyService";
 
 function request(key?: string, body?: unknown) {

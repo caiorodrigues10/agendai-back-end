@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { CreateUserUseCase } from "./CreateUserUseCase";
 import { MockUserRepository } from "@/modules/users/infra/repositories/mocks/MockUserRepository";
 import { MockHashProvider } from "@/shared/container/providers/HashProvider/mocks/MockHashProvider";

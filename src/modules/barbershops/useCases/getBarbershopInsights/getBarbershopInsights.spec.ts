@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 import { GetBarbershopInsightsUseCase, type InsightsPeriod } from "./GetBarbershopInsightsUseCase";
 
 vi.mock("@/libs/prismaClient", () => ({

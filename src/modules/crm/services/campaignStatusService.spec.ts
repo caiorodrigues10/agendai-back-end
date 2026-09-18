@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 
 const prismaMock = vi.hoisted(() => ({
   crmCampaign: { findUnique: vi.fn(), update: vi.fn() },

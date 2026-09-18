@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 
 const savedVitest = process.env.VITEST;
 delete (process.env as any).VITEST;

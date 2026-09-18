@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 import { MockBarbershopRepository } from "@/modules/barbershops/infra/repositories/mocks/MockBarbershopRepository";
 import { MockStorageProvider } from "@/shared/container/providers/StorageProvider/mocks/MockStorageProvider";
 import { GetLogoUploadUrlUseCase } from "./GetLogoUploadUrlUseCase";

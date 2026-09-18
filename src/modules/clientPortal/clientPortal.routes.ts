@@ -22,11 +22,29 @@ export async function clientPortalRoutes(app: FastifyInstance) {
   // ─── Public: OTP Auth ────────────────────────────────────────
   app.post(
     "/client/portal/request-otp",
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: "10 minutes",
+          keyGenerator: (request: { ip?: string }) => request.ip || "unknown",
+        },
+      },
+    },
     controller.requestOtp.bind(controller)
   );
 
   app.post(
     "/client/portal/verify-otp",
+    {
+      config: {
+        rateLimit: {
+          max: 8,
+          timeWindow: "10 minutes",
+          keyGenerator: (request: { ip?: string }) => request.ip || "unknown",
+        },
+      },
+    },
     controller.verifyOtp.bind(controller)
   );
 

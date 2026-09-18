@@ -12,6 +12,7 @@
 
 import { AppError } from "@/shared/errors/AppError";
 import { evolutionNotConfiguredError } from "@/modules/barbershops/utils/shopEvolutionInstance";
+import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 
 export function normalizeWhatsAppPhone(phone: string): string {
   const clean = phone.replace(/\D/g, "");
@@ -117,6 +118,23 @@ export async function sendWhatsAppMessageDetailed(
       "WhatsApp não enviado: Evolution sem URL/chave ou sem instância do salão"
     );
     return { ok: false, errorCode: "CHANNEL_NOT_CONFIGURED", error: "Evolution ou instância não configurada" };
+  }
+
+  const dailyLimit = Number(process.env.WHATSAPP_DAILY_LIMIT_PER_INSTANCE || 200);
+  if (!process.env.VITEST) {
+    try {
+      const redis = getRedisConnection();
+      const day = new Date().toISOString().slice(0, 10);
+      const quotaKey = `wa:quota:${instanceName}:${day}`;
+      const used = await redis.incr(quotaKey);
+      if (used === 1) await redis.expire(quotaKey, 86_400);
+      if (used > dailyLimit) {
+        log?.warn({ instanceName, used, dailyLimit }, "WhatsApp: cota diária da instância esgotada");
+        return { ok: false, errorCode: "QUOTA_EXCEEDED", error: "Cota diária de WhatsApp desta loja esgotada" };
+      }
+    } catch (err) {
+      log?.warn({ err }, "WhatsApp: falha ao checar cota; envio segue");
+    }
   }
 
   const url = `${baseUrl}/message/sendText/${encodeURIComponent(instanceName)}`;

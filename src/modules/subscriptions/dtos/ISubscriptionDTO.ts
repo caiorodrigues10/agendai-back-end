@@ -17,21 +17,8 @@ export interface ISubscribeDTO {
   cardToken?: string;
   cardInstallments?: number;
   cardPaymentMethodId?: string;
-  /**
-   * Cartão Asaas (número + titular + CEP/telefone). Preferido sobre
-   * `cardToken` — a tokenização pública no browser não é usável (CORS/auth).
-   */
-  asaasCreditCard?: {
-    holderName: string;
-    number: string;
-    expiryMonth: string;
-    expiryYear: string;
-    ccv: string;
-    postalCode: string;
-    addressNumber: string;
-    phone: string;
-  };
-  /** IP do cliente (obrigatório pelo Asaas em CREDIT_CARD). */
+  /** Recusado: PAN não pode transitar pelo Fastify. */
+  asaasCreditCard?: unknown;
   remoteIp?: string;
   payerEmail: string;
   payerFirstName?: string;

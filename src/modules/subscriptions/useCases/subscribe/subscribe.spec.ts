@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { SubscribeUseCase } from "./SubscribeUseCase";
 import { MockPaymentRepository } from "@/modules/payments/infra/repositories/mocks/MockPaymentRepository";
 
@@ -294,7 +294,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     expect(invoiceCreate.paymentMethod).toBe("pix");
   });
 
-  it("[ASAAS] cartão embutido: envia creditCard ao Asaas e mantém trial até webhook", async () => {
+  it("[ASAAS] cartão: cria cobrança hospedada sem PAN e devolve invoiceUrl", async () => {
     const asaasService = {
       ensureCustomer: vi.fn().mockResolvedValue("cus_1"),
       createPayment: vi.fn().mockResolvedValue({
@@ -302,6 +302,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
         status: "PENDING",
         value: 1199,
         billingType: "CREDIT_CARD",
+        invoiceUrl: "https://www.asaas.com/i/pay_asaas_card",
         externalReference: "ag-sub-sub-1-inv-inv-1",
       }),
       getPixQrCode: vi.fn(),
@@ -320,16 +321,6 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
         planId: "plan-yearly",
         paymentMethod: "asaas",
         asaasBillingType: "CREDIT_CARD",
-        asaasCreditCard: {
-          holderName: "Dono Teste",
-          number: "4000000000000002",
-          expiryMonth: "12",
-          expiryYear: "2030",
-          ccv: "123",
-          postalCode: "01310100",
-          addressNumber: "100",
-          phone: "11999999999",
-        },
         remoteIp: "127.0.0.1",
         payerEmail: "owner@example.com",
         payerFirstName: "Dono",
@@ -343,27 +334,13 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
       expect.objectContaining({
         customer: "cus_1",
         billingType: "CREDIT_CARD",
-        creditCard: {
-          holderName: "Dono Teste",
-          number: "4000000000000002",
-          expiryMonth: "12",
-          expiryYear: "2030",
-          ccv: "123",
-        },
-        creditCardHolderInfo: expect.objectContaining({
-          name: "Dono Teste",
-          email: "owner@example.com",
-          cpfCnpj: "12345678901",
-          postalCode: "01310100",
-          addressNumber: "100",
-          phone: "11999999999",
-        }),
-        remoteIp: "127.0.0.1",
       })
     );
+    expect(asaasService.createPayment.mock.calls[0][0].creditCard).toBeUndefined();
     expect(result.payment?.provider).toBe("ASAAS");
     expect(result.payment?.providerPaymentId).toBe("pay_asaas_card");
     expect(result.payment?.paymentMethod).toBe("credit_card");
+    expect(result.payment?.checkoutUrl).toBe("https://www.asaas.com/i/pay_asaas_card");
     expect(result.payment?.pixQrCode).toBeNull();
     expect(result.payment?.status).toBe("pending");
 

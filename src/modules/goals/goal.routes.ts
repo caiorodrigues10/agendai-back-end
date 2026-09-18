@@ -25,12 +25,6 @@ export async function goalRoutes(app: FastifyInstance) {
   );
 
   app.get(
-    "/barbershops/:barbershopId/goals/:goalId/progress",
-    { preHandler: ownerGuard },
-    controller.getProgress.bind(controller)
-  );
-
-  app.get(
     "/barbershops/:barbershopId/goals",
     { preHandler: ownerGuard },
     controller.list.bind(controller)
@@ -40,5 +34,11 @@ export async function goalRoutes(app: FastifyInstance) {
     "/barbershops/:barbershopId/goals/ranking",
     { preHandler: ownerGuard },
     controller.getRanking.bind(controller)
+  );
+
+  app.get(
+    "/barbershops/:barbershopId/goals/:goalId/progress",
+    { preHandler: ownerGuard },
+    controller.getProgress.bind(controller)
   );
 }

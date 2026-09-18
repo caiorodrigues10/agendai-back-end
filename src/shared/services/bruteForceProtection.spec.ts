@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+/// <reference types="vitest/globals" />
 
 // Forçar NODE_ENV=production para testar thresholds de produção
 vi.stubEnv("NODE_ENV", "production");

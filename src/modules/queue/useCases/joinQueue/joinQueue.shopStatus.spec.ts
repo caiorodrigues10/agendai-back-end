@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { JoinQueueUseCase } from "./JoinQueueUseCase";
 import { MockQueueRepository } from "@/modules/queue/infra/repositories/mocks/MockQueueRepository";
 import { getShopOpenState } from "@/modules/barbershops/utils/getShopOpenState";

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 import type { FastifyRequest, FastifyReply } from "fastify";
 
 // --- Mock prisma ---

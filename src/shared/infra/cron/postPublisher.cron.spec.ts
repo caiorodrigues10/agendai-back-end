@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 
 // --- Mock prisma ---
 const mockFeedPostFindMany = vi.fn();

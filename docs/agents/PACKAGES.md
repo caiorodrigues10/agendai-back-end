@@ -37,6 +37,7 @@
 | `bcryptjs` | `^2.4.3` | Auth | Hash de senha | BcryptHashProvider |
 | `bullmq` | `^6.0.9` | Filas | Jobs Redis | email / whatsapp queues |
 | `busboy` | `^1.6.0` | HTTP | Parse multipart | uploads |
+| `cloudinary` | `^2.11.0` | Storage | Upload/fallback de imagens (SDK v2) | CloudinaryStorageProvider.ts |
 | `dayjs` | `^1.11.13` | Datas | Datas/horários | DayjsDateProvider |
 | `disposable-email-domains` | `^1.0.62` | Auth | Bloqueio e-mails descartáveis | emailValidationService |
 | `fastify` | `^4.26.2` | HTTP | Framework HTTP | server/app |

@@ -62,7 +62,9 @@ export class FiscalUseCases {
     const record = await this.repo.findNfeRecord(barbershopId, id);
     if (!record) throw new AppError("NFS-e record not found", 404);
     if (record.status === "CANCELED") throw new AppError("NFS-e is already canceled", 400);
-    if (record.status !== "AUTHORIZED") throw new AppError("Only authorized NFS-e can be canceled", 400);
+    if (record.status !== "AUTHORIZED" && record.status !== "PENDING") {
+      throw new AppError("Only pending or authorized NFS-e can be canceled", 400);
+    }
     return this.repo.cancelNfeRecord(barbershopId, id);
   }
 

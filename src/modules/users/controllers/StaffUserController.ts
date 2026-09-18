@@ -107,7 +107,10 @@ export class StaffUserController {
       throw new AppError("Você não pode remover outro proprietário", 403);
     }
 
-    await prisma.user.delete({ where: { id } });
+    await prisma.user.update({
+      where: { id },
+      data: { active: false, deletedAt: new Date() },
+    });
 
     return reply.status(200).send({ success: true, message: "Usuário removido com sucesso" });
   }

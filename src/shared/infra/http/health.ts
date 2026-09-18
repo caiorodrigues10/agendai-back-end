@@ -1,4 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import fs from 'node:fs';
+import path from 'node:path';
 import { prisma } from '@/libs/prismaClient';
 import { getRedisConnection } from '@/shared/infra/queue/redisConnection';
 import { getProcessRole } from '@/shared/config/processRole';
@@ -6,12 +8,29 @@ import { getStorageHealthStatus } from '@/shared/utils/storageHealth';
 
 async function checkMigrations(): Promise<{ status: string; pending: number }> {
   try {
-    const pending = await prisma.$queryRaw`
-      SELECT COUNT(*)::int as count FROM _prisma_migrations
-      WHERE finished_at IS NULL
+    const migrationsDir = path.join(process.cwd(), 'prisma', 'migrations');
+    const folders = fs.existsSync(migrationsDir)
+      ? fs.readdirSync(migrationsDir).filter((name) => {
+          const full = path.join(migrationsDir, name);
+          return name !== 'migration_lock.toml' && fs.statSync(full).isDirectory();
+        })
+      : [];
+
+    const rows = await prisma.$queryRaw<
+      Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>
+    >`
+      SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations
     `;
-    const count = (pending as any[])[0]?.count ?? 0;
-    return { status: count === 0 ? 'ok' : 'pending', pending: count };
+
+    const unfinished = rows.filter((row: { finished_at: Date | null; rolled_back_at: Date | null }) => row.finished_at == null && row.rolled_back_at == null).length;
+    const applied = new Set(
+      rows
+        .filter((row: { migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }) => row.finished_at && !row.rolled_back_at)
+        .map((row: { migration_name: string }) => row.migration_name)
+    );
+    const missing = folders.filter((folder) => !applied.has(folder)).length;
+    const pending = unfinished + missing;
+    return { status: pending === 0 ? 'ok' : 'pending', pending };
   } catch {
     return { status: 'error', pending: -1 };
   }
@@ -31,7 +50,7 @@ export async function healthRoutes(app: FastifyInstance) {
 
     // Storage degradado só se NENHUM provider estiver disponível.
     // GCS indisponível + Cloudinary ativo = sistema saudável (fallback operacional).
-    const allDepsOk = dbHealthy && redisHealthy && storage.status === 'ok';
+    const allDepsOk = dbHealthy && redisHealthy && storage.status === 'ok' && migrations.status === 'ok';
 
     reply.send({
       status: allDepsOk ? 'ok' : 'degraded',

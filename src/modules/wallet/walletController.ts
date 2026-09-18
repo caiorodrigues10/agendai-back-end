@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { creditWalletSchema, debitWalletSchema, transferWalletSchema, walletEntriesQuerySchema } from "./walletSchema";
+import { debitWalletSchema, transferWalletSchema, walletEntriesQuerySchema } from "./walletSchema";
 import { WalletUseCases } from "./walletUseCases";
 import { AppError } from "@/shared/errors/AppError";
 
@@ -15,14 +15,11 @@ export class WalletController {
     reply.send({ success: true, data: wallet });
   }
 
-  async credit(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const user = request.user as any;
-    const identityId = user.identityId;
-    if (!identityId) throw new AppError("identityId required", 400);
-
-    const body = creditWalletSchema.parse(request.body);
-    const result = await this.useCases.credit(identityId, body);
-    reply.send({ success: true, data: result });
+  async credit(_request: FastifyRequest, _reply: FastifyReply): Promise<void> {
+    throw new AppError(
+      "Crédito de carteira exige pagamento confirmado. Autocrédito foi desativado.",
+      403,
+    );
   }
 
   async debit(request: FastifyRequest, reply: FastifyReply): Promise<void> {

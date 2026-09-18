@@ -119,6 +119,9 @@ export class StaffController {
     const user = request.user!;
     const { barbershopId } = request.params as { barbershopId: string };
     const query = timeOffQuerySchema.parse(request.query);
+    if (user.role === "EMPLOYEE") {
+      query.staffId = user.id;
+    }
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"
@@ -135,6 +138,9 @@ export class StaffController {
     const user = request.user!;
     const { barbershopId } = request.params as { barbershopId: string };
     const body = requestTimeOffSchema.parse(request.body);
+    if (user.role === "EMPLOYEE" && body.staffId !== user.id) {
+      throw new AppError("Funcionário só pode solicitar folga para si", 403);
+    }
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"

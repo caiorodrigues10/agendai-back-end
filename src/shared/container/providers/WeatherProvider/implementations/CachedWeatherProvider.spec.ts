@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+/// <reference types="vitest/globals" />
 import type { DailyForecast, IWeatherProvider } from '../IWeatherProvider';
 import { CachedWeatherProvider } from './CachedWeatherProvider';
 import { ResilientWeatherProvider } from './ResilientWeatherProvider';

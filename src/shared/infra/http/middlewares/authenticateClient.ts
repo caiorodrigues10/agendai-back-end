@@ -2,8 +2,8 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { compare } from "bcryptjs";
 import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/libs/prismaClient";
+import { tokenDigest } from "@/shared/utils/tokenDigest";
 
-/** Extract Bearer token from Authorization header. */
 function extractBearerToken(authorization: string | undefined): string | null {
   if (!authorization) return null;
   const [scheme, token, ...rest] = authorization.trim().split(/\s+/);
@@ -13,11 +13,6 @@ function extractBearerToken(authorization: string | undefined): string | null {
   return token;
 }
 
-/**
- * Client Portal authentication middleware.
- * Validates plain-text access token against client_sessions.accessTokenHash.
- * Sets request.user with type: "client" to distinguish from staff users.
- */
 export async function authenticateClient(
   request: FastifyRequest,
   _reply: FastifyReply
@@ -33,17 +28,25 @@ export async function authenticateClient(
     throw new AppError("Token mal formatado", 401);
   }
 
-  // Find active sessions and compare token against accessTokenHash
-  const sessions = await prisma.clientSession.findMany({
-    where: { revokedAt: null },
+  const digest = tokenDigest(token);
+  let matchedSession = await prisma.clientSession.findFirst({
+    where: { accessTokenHash: digest, revokedAt: null },
   });
 
-  let matchedSession = null;
-  for (const session of sessions) {
-    const valid = await compare(token, session.accessTokenHash);
-    if (valid) {
-      matchedSession = session;
-      break;
+  if (!matchedSession) {
+    const legacy = await prisma.clientSession.findMany({
+      where: { revokedAt: null, accessTokenHash: { startsWith: "$2" } },
+    });
+    for (const session of legacy) {
+      const valid = await compare(token, session.accessTokenHash);
+      if (valid) {
+        await prisma.clientSession.update({
+          where: { id: session.id },
+          data: { accessTokenHash: digest },
+        });
+        matchedSession = { ...session, accessTokenHash: digest };
+        break;
+      }
     }
   }
 
@@ -59,5 +62,6 @@ export async function authenticateClient(
     id: matchedSession.identityId,
     role: "CLIENT",
     identityId: matchedSession.identityId,
-  } as any;
+    sessionId: matchedSession.id,
+  } as FastifyRequest["user"];
 }

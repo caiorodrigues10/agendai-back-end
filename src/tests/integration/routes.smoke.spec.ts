@@ -1,9 +1,9 @@
+/// <reference types="vitest/globals" />
 /**
  * Smoke de rotas via Fastify inject (sem HTTP real).
  * Requer Postgres do docker-compose (porta 5442) via `.env` + `.env.test`,
  * ou USE_TESTCONTAINERS=1.
  */
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { startPostgresHarness, type PostgresHarness } from "../helpers/postgres";
 

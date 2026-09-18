@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import type { FastifyInstance } from "fastify";
 
 // The app normally registers database-backed routes.  The security checks below

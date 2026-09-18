@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 import { ZodError } from "zod";
 import { createCloseoutSchema, closeoutQuerySchema, closeoutRangeQuerySchema } from "./dailyCloseoutSchema";
 

@@ -66,6 +66,20 @@ while ((m = linkRe.exec(agents)) !== null) {
   if (!exists(target)) errors.push(`Link quebrado em AGENTS.md: ${m[1]}`);
 }
 
+const modulesDir = path.join(root, "src", "modules");
+if (fs.existsSync(modulesDir)) {
+  const structure = exists("docs/agents/STRUCTURE.md") ? read("docs/agents/STRUCTURE.md") : "";
+  const onDisk = fs
+    .readdirSync(modulesDir)
+    .filter((name) => fs.statSync(path.join(modulesDir, name)).isDirectory())
+    .sort();
+  for (const name of onDisk) {
+    if (!structure.includes(`\`${name}\``)) {
+      errors.push(`Módulo em disco não listado em STRUCTURE.md: ${name}`);
+    }
+  }
+}
+
 if (errors.length) {
   console.error("docs:check FAILED\n");
   for (const e of errors) console.error(` - ${e}`);

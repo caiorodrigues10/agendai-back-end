@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { ZodError } from "zod";
 import { AppError } from "@/shared/errors/AppError";
+import { appErrorFromZod } from "@/shared/utils/zodValidation";
 import {
   createAppointmentSchema,
   updateAppointmentSchema,
@@ -88,13 +89,9 @@ export class AppointmentController {
       query = availabilityQuerySchema.parse(request.query);
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new AppError(
+        throw appErrorFromZod(
+          error,
           "Parâmetros inválidos: informe barbershopId e date (YYYY-MM-DD)",
-          400,
-          error.errors.map((err) => ({
-            field: err.path.join("."),
-            message: err.message,
-          })),
         );
       }
       throw error;
@@ -109,7 +106,18 @@ export class AppointmentController {
   }
 
   async slots(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const query = slotsQuerySchema.parse(request.query);
+    let query: { barbershopId: string; date: string; serviceId: string; staffId?: string };
+    try {
+      query = slotsQuerySchema.parse(request.query);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw appErrorFromZod(
+          error,
+          "Parâmetros inválidos: informe barbershopId, serviceId e date (YYYY-MM-DD)",
+        );
+      }
+      throw error;
+    }
     const slots = await new GetAvailableSlotsUseCase().execute(query.barbershopId, query.serviceId, query.date, query.staffId);
     reply.send({ success: true, data: slots });
   }

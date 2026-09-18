@@ -36,6 +36,7 @@ export class GiftCardUseCases {
 
   async redeem(id: string, barbershopId: string, data: RedeemInput) {
     return prisma.$transaction(async (tx: typeof prisma) => {
+      await tx.$queryRaw`SELECT id FROM gift_cards WHERE id = ${id}::uuid FOR UPDATE`;
       const card = await tx.giftCard.findUnique({
         where: { id },
         select: {
@@ -81,16 +82,19 @@ export class GiftCardUseCases {
         },
       });
 
-      const updated = await tx.giftCard.update({
-        where: { id },
+      const updated = await tx.giftCard.updateMany({
+        where: { id, currentBalance: { gte: data.amount } },
         data: {
           currentBalance: newBalance,
           status: newStatus,
           ...(newStatus === "EXHAUSTED" ? { redeemedAt: new Date() } : {}),
         },
       });
+      if (updated.count !== 1) {
+        throw new AppError("Valor excede o saldo disponível", 400);
+      }
 
-      return updated;
+      return tx.giftCard.findUniqueOrThrow({ where: { id } });
     });
   }
 

@@ -12,7 +12,7 @@ import type { z } from "zod";
 type CreateInput = z.infer<typeof createShowcaseEntrySchema>;
 type UpdateInput = z.infer<typeof updateShowcaseEntrySchema>;
 
-const entrySelect = {
+const publicEntrySelect = {
   id: true,
   barbershopId: true,
   postId: true,
@@ -24,18 +24,22 @@ const entrySelect = {
   staffId: true,
   position: true,
   status: true,
-  imageAuthorization: true,
-  authorizedById: true,
-  authorizedAt: true,
-  authorizationNote: true,
   publishedAt: true,
-  hiddenAt: true,
   createdAt: true,
   updatedAt: true,
   barbershop: { select: { id: true, name: true } },
   post: { select: { id: true, imageUrl: true, videoUrl: true, content: true } },
   service: { select: { id: true, name: true, price: true } },
   staff: { select: { id: true, name: true, avatarUrl: true } },
+} as const;
+
+const entrySelect = {
+  ...publicEntrySelect,
+  imageAuthorization: true,
+  authorizedById: true,
+  authorizedAt: true,
+  authorizationNote: true,
+  hiddenAt: true,
   authorizedBy: { select: { id: true, name: true } },
 } as const;
 
@@ -54,8 +58,15 @@ export class ShowcaseRepository {
   async listPublished(barbershopId: string) {
     return prisma.showcaseEntry.findMany({
       where: { barbershopId, status: "PUBLISHED" },
-      select: entrySelect,
+      select: publicEntrySelect,
       orderBy: { position: "asc" },
+    });
+  }
+
+  async findPublishedById(barbershopId: string, entryId: string) {
+    return prisma.showcaseEntry.findFirst({
+      where: { id: entryId, barbershopId, status: "PUBLISHED" },
+      select: publicEntrySelect,
     });
   }
 

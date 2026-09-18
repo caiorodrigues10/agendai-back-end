@@ -57,9 +57,12 @@ export class IntegrationUseCases {
     if (!integration) throw new AppError("Integração não encontrada", 404);
     const raw = (integration.credentials as Record<string, unknown>) ?? {};
     if (raw.__encrypted) {
-      return { ...integration, credentials: decryptObject<Record<string, unknown>>(String(raw.__encrypted)) };
+      return {
+        ...integration,
+        credentials: maskCredentials(decryptObject<Record<string, unknown>>(String(raw.__encrypted))),
+      };
     }
-    return integration;
+    return { ...integration, credentials: maskCredentials(raw) };
   }
 
   async getDecryptedCredentials(id: string, barbershopId: string): Promise<Record<string, unknown>> {

@@ -58,15 +58,16 @@ export class GoalRepository {
     let current = 0;
 
     if (goal.metric === "REVENUE") {
-      const result = await prisma.commissionEntry.aggregate({
+      const result = await prisma.queueItem.aggregate({
         where: {
           barbershopId,
-          professionalId: goal.professionalId,
-          createdAt: { gte: goal.startDate, lte: goal.endDate },
+          completedBy: goal.professionalId,
+          status: "COMPLETED",
+          completedAt: { gte: goal.startDate, lte: goal.endDate },
         },
-        _sum: { amount: true },
+        _sum: { finalPrice: true },
       });
-      current = Number(result._sum.amount ?? 0);
+      current = Number(result._sum.finalPrice ?? 0);
     } else if (goal.metric === "APPOINTMENTS") {
       current = await prisma.appointment.count({
         where: {

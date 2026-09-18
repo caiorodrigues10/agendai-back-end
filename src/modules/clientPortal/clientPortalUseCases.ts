@@ -3,6 +3,7 @@ import { hash, compare } from "bcryptjs";
 import { prisma } from "@/libs/prismaClient";
 import { ClientPortalRepository } from "./clientPortalRepository";
 import { AppError } from "@/shared/errors/AppError";
+import { randomToken, tokenDigest } from "@/shared/utils/tokenDigest";
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 5;
@@ -104,10 +105,10 @@ export class ClientPortalRepositoryInstance {
 
   // ─── Sessions ────────────────────────────────────────────────
   async createSession(identityId: string, ip?: string) {
-    const accessToken = this.generateToken();
-    const refreshToken = this.generateToken();
-    const accessTokenHash = await hash(accessToken, BCRYPT_ROUNDS);
-    const refreshTokenHash = await hash(refreshToken, BCRYPT_ROUNDS);
+    const accessToken = randomToken();
+    const refreshToken = randomToken();
+    const accessTokenHash = tokenDigest(accessToken);
+    const refreshTokenHash = tokenDigest(refreshToken);
 
     const expiresAt = new Date(
       Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60_000
@@ -130,35 +131,35 @@ export class ClientPortalRepositoryInstance {
   }
 
   async refreshSession(refreshToken: string) {
-    const sessions = await prisma.clientSession.findMany({
-      where: { revokedAt: null },
+    const digest = tokenDigest(refreshToken);
+    let session = await prisma.clientSession.findFirst({
+      where: { refreshTokenHash: digest, revokedAt: null },
     });
 
-    for (const session of sessions) {
-      const valid = await compare(refreshToken, session.refreshTokenHash);
-      if (valid) {
-        if (new Date() > session.expiresAt) {
-          await this.repo.revokeSession(session.id);
-          continue;
+    if (!session) {
+      const legacy = await prisma.clientSession.findMany({
+        where: { revokedAt: null, refreshTokenHash: { startsWith: "$2" } },
+      });
+      for (const row of legacy) {
+        const valid = await compare(refreshToken, row.refreshTokenHash);
+        if (valid) {
+          session = row;
+          break;
         }
-
-        await this.repo.revokeSession(session.id);
-        const newSession = await this.createSession(session.identityId);
-        return newSession;
       }
     }
 
-    throw new AppError("Refresh token inválido", 401);
-  }
-
-  private generateToken(): string {
-    const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let token = "";
-    for (let i = 0; i < 64; i++) {
-      token += chars[randomInt(0, chars.length)];
+    if (!session) {
+      throw new AppError("Refresh token inválido", 401);
     }
-    return token;
+
+    if (new Date() > session.expiresAt) {
+      await this.repo.revokeSession(session.id);
+      throw new AppError("Sessão expirada", 401);
+    }
+
+    await this.repo.revokeSession(session.id);
+    return this.createSession(session.identityId);
   }
 
   // ─── Salon Links ─────────────────────────────────────────────

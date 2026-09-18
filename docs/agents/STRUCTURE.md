@@ -30,7 +30,11 @@ agendai-back-end/
 
 ## Módulos (`src/modules/`)
 
-`admin`, `appointments`, `auth`, `barbershops`, `clients`, `commissions`, `contact`, `crm`, `email`, `expenses`, `feed`, `fiado`, `notifications`, `packages`, `payments`, `plans`, `posts`, `products`, `queue`, `referrals`, `serviceCategories`, `services`, `shared`, `subscriptions`, `users`.
+Há **55** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
+
+`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `deposits`, `email`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `giftCards`, `goals`, `integrations`, `loyalty`, `memberships`, `monitoring`, `notifications`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `products`, `profit`, `purchasing`, `quality`, `queue`, `referrals`, `reputation`, `resources`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`.
+
+Módulos que escaparam a varredura A1–A11 e agora entram na matriz de STATUS: **pricing**, **catalog** (avançado), **purchasing** (receive → estoque), **corporate** (admin com `setRlsContext`).
 
 ## Rotas HTTP (`shared/infra/http/routes/`)
 

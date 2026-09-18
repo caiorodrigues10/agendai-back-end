@@ -29,7 +29,8 @@
     "db:push": "prisma db push",
     "db:push:prod": "node -e \"console.error('Blocked: production schema changes must use prisma migrate deploy'); process.exit(1)\"",
     "db:studio": "prisma studio",
-    "docs:check": "node scripts/check-docs.mjs"
+    "docs:check": "node scripts/check-docs.mjs",
+    "verify:delivery": "node scripts/verify-delivery.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",

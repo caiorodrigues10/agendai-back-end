@@ -34,7 +34,8 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `prisma:studio` / `db:studio` | `prisma studio` | leitura | Postgres | UI Prisma |
 | `db:push` | `prisma db push` | **altera banco** | Postgres | Push sem migration (dev) |
 | `db:push:prod` | `node -e "… process.exit(1)"` | bloqueio | — | **Bloqueado** de propósito |
-| `docs:check` | `node scripts/check-docs.mjs` | leitura | Node | Valida inventários documentais |
+| `docs:check` | `node scripts/check-docs.mjs` | leitura | Node | Valida inventários documentais + lista de módulos vs disco |
+| `verify:delivery` | `node scripts/verify-delivery.mjs` | leitura | `npm install` | Encadeia docs, typecheck, unit e security (sem produção) |
 
 ## Observações críticas
 

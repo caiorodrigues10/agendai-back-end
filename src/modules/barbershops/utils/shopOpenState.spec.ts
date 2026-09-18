@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 import { computeShopOpenState, type ComputeShopOpenStateInput } from "./shopOpenState";
 
 const weekly = { isOpen: true, openTime: "09:00", closeTime: "18:00" };

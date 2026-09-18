@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { CancelSubscriptionController } from "./CancelSubscriptionController";
 
 const prismaMock = vi.hoisted(() => ({

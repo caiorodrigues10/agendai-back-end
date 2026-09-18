@@ -1,7 +1,7 @@
+/// <reference types="vitest/globals" />
 /**
  * Smoke tests for monitoring endpoints via Fastify inject.
  */
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { startPostgresHarness, type PostgresHarness } from "../helpers/postgres";
 

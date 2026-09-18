@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 import { AppError } from "@/shared/errors/AppError";
 
 const mockRepo = {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 
 const { upsert } = vi.hoisted(() => ({ upsert: vi.fn() }));
 vi.mock("@/libs/prismaClient", () => ({

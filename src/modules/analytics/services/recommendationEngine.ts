@@ -29,6 +29,13 @@ export class RecommendationEngine {
       this.checkProfessionalUnderperforming(),
     ]);
 
+    const dismissed = await prisma.dismissedRecommendation.findMany({
+      where: { barbershopId: this.barbershopId },
+      select: { recommendationId: true },
+    });
+    const dismissedIds = new Set(dismissed.map((row: { recommendationId: string }) => row.recommendationId));
+    this.recommendations = this.recommendations.filter((item) => !dismissedIds.has(item.id));
+
     return this.recommendations.sort((a, b) => {
       const priorityOrder = { high: 0, medium: 1, low: 2 };
       return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -331,11 +338,18 @@ export class RecommendationEngine {
   }
 
   async dismiss(recommendationId: string): Promise<boolean> {
-    const index = this.recommendations.findIndex(r => r.id === recommendationId);
-    if (index !== -1) {
-      this.recommendations.splice(index, 1);
-      return true;
-    }
-    return false;
+    if (!recommendationId?.trim()) return false;
+    await prisma.dismissedRecommendation.upsert({
+      where: {
+        barbershopId_recommendationId: {
+          barbershopId: this.barbershopId,
+          recommendationId,
+        },
+      },
+      create: { barbershopId: this.barbershopId, recommendationId },
+      update: {},
+    });
+    this.recommendations = this.recommendations.filter((item) => item.id !== recommendationId);
+    return true;
   }
 }

@@ -1,6 +1,8 @@
 import cron from "node-cron";
 import { container } from "tsyringe";
 import { ChargeTrialEndedSubscriptionsUseCase } from "@/modules/subscriptions/useCases/chargeTrialEnded/ChargeTrialEndedSubscriptionsUseCase";
+import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { withCronLock } from "@/shared/infra/redis/cronLock";
 
 type CronLogger = {
   info: (obj: object | string, msg?: string) => void;
@@ -10,6 +12,7 @@ type CronLogger = {
 
 /**
  * Cobra cartões vaulted após o fim do trial (diário 09:00 America/Sao_Paulo).
+ * Lock Redis evita cobrança duplicada com réplicas.
  */
 export function scheduleTrialCardCharges(log: CronLogger): void {
   try {
@@ -17,9 +20,18 @@ export function scheduleTrialCardCharges(log: CronLogger): void {
       "0 9 * * *",
       async () => {
         try {
-          const useCase = container.resolve(ChargeTrialEndedSubscriptionsUseCase);
-          const result = await useCase.execute();
-          log.info(result, "Cobrança pós-trial (cartão vaulted) concluída");
+          const scheduledKey = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Sao_Paulo",
+          }).format(new Date());
+          await withCronLock(
+            getRedisConnection(),
+            { jobName: "trial-card-charges", scheduledKey },
+            async () => {
+              const useCase = container.resolve(ChargeTrialEndedSubscriptionsUseCase);
+              const result = await useCase.execute();
+              log.info(result, "Cobrança pós-trial (cartão vaulted) concluída");
+            }
+          );
         } catch (err) {
           log.error({ err }, "Falha ao rodar cron de cobrança pós-trial");
         }

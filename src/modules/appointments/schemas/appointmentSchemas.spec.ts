@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 import { listAppointmentsQuerySchema, updateAppointmentSchema } from "./appointmentSchemas";
 
 describe("AppointmentStatus NO_SHOW", () => {

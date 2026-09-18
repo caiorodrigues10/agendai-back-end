@@ -29,8 +29,9 @@ export class FiscalRepository {
     return prisma.nfeRecord.create({
       data: {
         ...data,
-        status: "AUTHORIZED",
-        issuedAt: new Date(),
+        status: "PENDING",
+        errorMessage: "SIMULATED: emissão real de NFS-e ainda não está ligada.",
+        issuedAt: null,
       },
     });
   }

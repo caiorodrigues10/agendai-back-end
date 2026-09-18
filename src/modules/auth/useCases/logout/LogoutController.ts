@@ -1,9 +1,12 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
+import { verify, Secret } from "jsonwebtoken";
 import { LogoutUseCase } from "./LogoutUseCase";
 import { logAccess } from "@/shared/services/accessLogService";
 import { UserRepository } from "@/modules/users/infra/repositories/UserRepository";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
+import { findUsableRefreshToken } from "../../services/refreshTokenUtils";
+import auth from "@/config/auth";
 
 export class LogoutController {
   /** Sair da sessão atual — revoga SOMENTE o token de sessão. */
@@ -85,9 +88,21 @@ export class LogoutController {
       return reply.status(403).send({ message: "Acesso negado" });
     }
 
-    // Valida que o cookie é um JWT bem formado (mínimo) antes de prosseguir
-    const parts = savedCookie.split(".");
-    if (parts.length !== 3) {
+    try {
+      const decoded = verify(savedCookie, auth.refreshSecret as Secret) as { sub?: string };
+      if (decoded.sub !== userId) {
+        return reply.status(403).send({ message: "Acesso negado" });
+      }
+    } catch {
+      return reply.status(403).send({ message: "Acesso negado" });
+    }
+
+    const { record } = await findUsableRefreshToken(
+      savedCookie,
+      userId,
+      "remembered_device",
+    );
+    if (!record) {
       return reply.status(403).send({ message: "Acesso negado" });
     }
 

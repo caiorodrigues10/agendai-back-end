@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 import { RealtimeHub, type RealtimeEvent } from "./realtimeService";
 
 function mockSocket() {

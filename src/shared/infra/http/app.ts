@@ -1,4 +1,4 @@
-import fastify from "fastify";
+import fastify, { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -15,12 +15,17 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { RedisRateLimitStore } from "./redisRateLimitStore";
 import { buildSafeAuditDetails, sanitizeSensitiveText } from "@/shared/utils/securitySanitization";
+import { formatZodIssues, isZodError } from "@/shared/utils/zodValidation";
+import { isPrismaInvalidUuidError } from "@/shared/utils/prismaErrors";
 
 export async function buildApp() {
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test)
     logger: process.env.NODE_ENV !== "test",
   });
+
+  // Fastify snapshots context.errorHandler when routes are registered.
+  app.setErrorHandler(handleAppError);
 
   await app.register(cookie);
 
@@ -183,69 +188,105 @@ export async function buildApp() {
     }
   });
 
-  // Handler global de erros
-  app.setErrorHandler(async (error, request, reply) => {
-    const statusCode = error.statusCode ?? 500;
+  return app;
+}
 
-    // Log to error_logs table (async, non-blocking)
-    prisma.errorLog.create({
-      data: {
-        userId: (request.user as any)?.id ?? null,
-        statusCode,
-        code: error.code ?? null,
-        message: sanitizeSensitiveText(error.message ?? "Unknown error", 2000) ?? "Unknown error",
-        stack: sanitizeSensitiveText(error.stack, 5000),
-        path: request.url.split("?")[0],
-        method: request.method,
-        ipAddress: request.ip ?? null,
-      },
-    }).catch(() => {}); // Never block the response
+async function handleAppError(error: FastifyError, request: FastifyRequest, reply: FastifyReply) {
+    try {
+      const isZod = isZodError(error);
+      const isInvalidUuid = isPrismaInvalidUuidError(error) || isPrismaInvalidUuidError((error as { cause?: unknown }).cause);
+      const statusCode = isZod || isInvalidUuid
+        ? 400
+        : (error.statusCode ?? (error instanceof AppError ? error.statusCode : 500));
 
-    if (error instanceof AppError) {
-      let extras: Record<string, unknown> | null = null;
+      // Log to error_logs table (async, non-blocking). Never let logging fail the client response.
       try {
-        const parsed = JSON.parse(error.message);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          extras = parsed as Record<string, unknown>;
-        }
+        void prisma.errorLog?.create?.({
+          data: {
+            userId: (request.user as any)?.id ?? null,
+            statusCode,
+            code: (error as { code?: string }).code ?? null,
+            message: sanitizeSensitiveText(error.message ?? "Unknown error", 2000) ?? "Unknown error",
+            stack: sanitizeSensitiveText(error.stack, 5000),
+            path: request.url.split("?")[0],
+            method: request.method,
+            ipAddress: request.ip ?? null,
+          },
+        })?.catch?.(() => {});
       } catch {
-        // message é uma string comum — segue o fluxo padrão
+        // ignore persistence failures
       }
 
-      reply.status(error.statusCode).send({
-        success: false,
-        ...(extras ?? {}),
-        ...(error.code ? { code: error.code } : {}),
-        message:
-          extras && typeof extras.message === "string"
-            ? extras.message
-            : error.message,
-        errors: error.errors,
-        correlationId: request.correlationId,
-      });
-      return;
-    }
-    // Rate limit errors do @fastify/rate-limit
-    if ((error as any).statusCode === 429) {
-      const retryAfter = (error as any).headers?.["retry-after"];
-      const retrySeconds = retryAfter ? Math.ceil(Number(retryAfter)) : null;
-      reply.status(429).send({
-        success: false,
-        message: retrySeconds
-          ? `Muitas requisições. Tente novamente em ${retrySeconds} segundos.`
-          : "Muitas requisições. Tente novamente em alguns instantes.",
-        retryAfter: retrySeconds,
-        correlationId: request.correlationId,
-      });
-      return;
-    }
-    request.log.error(error);
-    reply.status(500).send({
-      success: false,
-      message: "Erro interno do servidor",
-      correlationId: request.correlationId,
-    });
-  });
+      if (isZod) {
+        reply.status(400).send({
+          success: false,
+          message: "Dados inválidos",
+          errors: formatZodIssues(error),
+          correlationId: request.correlationId,
+        });
+        return;
+      }
 
-  return app;
+      if (isInvalidUuid) {
+        reply.status(400).send({
+          success: false,
+          message: "Identificador inválido",
+          correlationId: request.correlationId,
+        });
+        return;
+      }
+
+      if (error instanceof AppError) {
+        let extras: Record<string, unknown> | null = null;
+        try {
+          const parsed = JSON.parse(error.message);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            extras = parsed as Record<string, unknown>;
+          }
+        } catch {
+          // message é uma string comum — segue o fluxo padrão
+        }
+
+        reply.status(error.statusCode).send({
+          success: false,
+          ...(extras ?? {}),
+          ...(error.code ? { code: error.code } : {}),
+          message:
+            extras && typeof extras.message === "string"
+              ? extras.message
+              : error.message,
+          errors: error.errors,
+          correlationId: request.correlationId,
+        });
+        return;
+      }
+      // Rate limit errors do @fastify/rate-limit
+      if ((error as any).statusCode === 429) {
+        const retryAfter = (error as any).headers?.["retry-after"];
+        const retrySeconds = retryAfter ? Math.ceil(Number(retryAfter)) : null;
+        reply.status(429).send({
+          success: false,
+          message: retrySeconds
+            ? `Muitas requisições. Tente novamente em ${retrySeconds} segundos.`
+            : "Muitas requisições. Tente novamente em alguns instantes.",
+          retryAfter: retrySeconds,
+          correlationId: request.correlationId,
+        });
+        return;
+      }
+      request.log?.error?.(error);
+      reply.status(500).send({
+        success: false,
+        message: "Erro interno do servidor",
+        correlationId: request.correlationId,
+      });
+    } catch {
+      if (!reply.sent) {
+        reply.status(500).send({
+          success: false,
+          message: "Erro interno do servidor",
+          correlationId: request.correlationId,
+        });
+      }
+    }
 }

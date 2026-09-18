@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { MockBarbershopRepository } from "@/modules/barbershops/infra/repositories/mocks/MockBarbershopRepository";
 import { CreateBarbershopUseCase } from "./createBarbershop/CreateBarbershopUseCase";
 import { ListBarbershopsUseCase } from "./listBarbershops/ListBarbershopsUseCase";

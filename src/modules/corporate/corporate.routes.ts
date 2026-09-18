@@ -10,7 +10,7 @@ export async function corporateRoutes(app: FastifyInstance) {
   const controller = new CorporateController();
 
   const adminRoles = ["MASTER_ADMIN"];
-  const adminGuard = [authenticate, authorize(adminRoles)];
+  const adminGuard = [authenticate, authorize(adminRoles), setRlsContext];
 
   const ownerRoles = ["MASTER_ADMIN", "OWNER"];
   const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess, setRlsContext];

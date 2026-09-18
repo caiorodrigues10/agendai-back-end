@@ -1,11 +1,15 @@
 import { z } from "zod";
 
+/** Prisma Role enum values allowed on staff portal routes (authorize() string-compares). */
+export const CLIENT_PORTAL_STAFF_ROLES = ["MASTER_ADMIN", "OWNER", "EMPLOYEE"] as const;
+export const CLIENT_PORTAL_OWNER_ROLES = ["MASTER_ADMIN", "OWNER"] as const;
+
 export const requestOtpSchema = z.object({
   phone: z
     .string()
     .min(10, "Telefone obrigatório")
     .max(20, "Telefone muito longo"),
-  name: z.string().min(1, "Nome obrigatório").max(200),
+  name: z.string().min(1, "Nome obrigatório").max(200).optional(),
 });
 
 export const verifyOtpSchema = z.object({
@@ -51,5 +55,14 @@ export const clientPortalQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export const CLIENT_PORTAL_OWNER_ROLES = ['OWNER'] as const;
-export const CLIENT_PORTAL_STAFF_ROLES = ['EMPLOYEE'] as const;
+export const barbershopIdQuerySchema = z.object({
+  barbershopId: z.string().uuid(),
+});
+
+export const staffDashboardQuerySchema = z.object({
+  identityId: z.string().uuid(),
+});
+
+export const linkIdParamsSchema = z.object({
+  linkId: z.string().uuid(),
+});

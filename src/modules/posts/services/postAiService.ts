@@ -74,7 +74,8 @@ Contexto:
 - Tom da mensagem: ${tom}`;
 
   if (input.extra) {
-    prompt += `\n- Informação adicional do usuário: ${input.extra}`;
+    const extra = input.extra.replace(/[\u0000-\u001f<>]/g, " ").slice(0, 500).trim();
+    if (extra) prompt += `\n- Informação adicional do usuário: ${extra}`;
   }
 
   prompt += `\n\nPara cada opção, retorne APENAS um JSON com exatamente este formato (sem markdown, sem explicação):

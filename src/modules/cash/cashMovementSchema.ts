@@ -35,7 +35,7 @@ export const createCashMovementSchema = z.object({
     "WITHDRAWAL",
     "ADJUSTMENT",
   ]),
-  amount: z.coerce.number(),
+  amount: z.coerce.number().positive("O valor deve ser maior que zero"),
   paymentMethod: z.enum(["CASH", "PIX", "CREDIT_CARD", "DEBIT_CARD", "FIADO"]),
   description: z.string().max(300).optional().nullable(),
   sourceType: z.enum(["APPOINTMENT", "RETAIL_SALE", "FIADO", "MANUAL"]).optional().nullable(),

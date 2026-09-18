@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 import crypto from "node:crypto";
 import { ProcessWebhookController } from "./processWebhook/ProcessWebhookController";
 import { ProcessAbacateWebhookController } from "./processAbacateWebhook/ProcessAbacateWebhookController";

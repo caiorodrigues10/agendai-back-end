@@ -108,6 +108,7 @@ export class VoucherUseCases {
 
   async applyVoucher(barbershopId: string, input: ApplyInput): Promise<ApplyResult> {
     return prisma.$transaction(async (tx: typeof prisma) => {
+      await tx.$queryRaw`SELECT id FROM vouchers WHERE id = ${input.voucherId}::uuid FOR UPDATE`;
       const voucher = await tx.voucher.findUnique({
         where: { id: input.voucherId },
       });
@@ -125,8 +126,8 @@ export class VoucherUseCases {
         throw new AppError("Cupom atingiu o limite de uso", 400);
       }
 
-      if (voucher.minPurchase !== null && input.originalAmount < voucher.minPurchase) {
-        throw new AppError(`Valor mínimo de compra: R$ ${voucher.minPurchase.toFixed(2)}`, 400);
+      if (voucher.minPurchase !== null && input.originalAmount < Number(voucher.minPurchase)) {
+        throw new AppError(`Valor mínimo de compra: R$ ${Number(voucher.minPurchase).toFixed(2)}`, 400);
       }
 
       if (input.clientId) {
@@ -142,16 +143,16 @@ export class VoucherUseCases {
 
       switch (voucher.type) {
         case "PERCENT":
-          discountAmount = input.originalAmount * (voucher.value / 100);
+          discountAmount = input.originalAmount * (Number(voucher.value) / 100);
           break;
         case "FIXED":
-          discountAmount = Math.min(voucher.value, input.originalAmount);
+          discountAmount = Math.min(Number(voucher.value), input.originalAmount);
           break;
         case "FREE_SERVICE":
           discountAmount = input.originalAmount;
           break;
         case "BUY_X_GET_Y":
-          discountAmount = voucher.value;
+          discountAmount = Number(voucher.value);
           break;
       }
 
@@ -168,10 +169,16 @@ export class VoucherUseCases {
           discountAmount,
         },
       });
-      await tx.voucher.update({
-        where: { id: voucher.id },
+      const consumed = await tx.voucher.updateMany({
+        where: {
+          id: voucher.id,
+          OR: [{ maxUses: null }, { usedCount: { lt: voucher.maxUses ?? 0 } }],
+        },
         data: { usedCount: { increment: 1 } },
       });
+      if (consumed.count !== 1) {
+        throw new AppError("Cupom atingiu o limite de uso", 400);
+      }
 
       return {
         voucherId: voucher.id,

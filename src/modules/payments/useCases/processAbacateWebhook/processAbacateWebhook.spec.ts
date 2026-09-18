@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { MockPaymentRepository } from "@/modules/payments/infra/repositories/mocks/MockPaymentRepository";
 import { ProcessAbacateWebhookUseCase } from "./ProcessAbacateWebhookUseCase";
 

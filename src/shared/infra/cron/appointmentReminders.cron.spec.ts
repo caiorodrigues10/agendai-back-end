@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+/// <reference types="vitest/globals" />
 
 // Mocka o node-cron ANTES de importar o módulo sob teste.
 vi.mock("node-cron", () => {

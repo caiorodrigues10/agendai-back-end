@@ -58,6 +58,7 @@ export class ExportUserDataUseCase {
         createdAt: true,
       },
       orderBy: { date: "desc" },
+      take: 2_000,
     });
 
     const payments = user.barbershopId
@@ -74,6 +75,7 @@ export class ExportUserDataUseCase {
             serviceId: true,
           },
           orderBy: { createdAt: "desc" },
+          take: 2_000,
         })
       : [];
 

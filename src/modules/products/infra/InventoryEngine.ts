@@ -460,6 +460,7 @@ export class InventoryEngine {
 
   async reverseReceipt(input: { barbershopId: string; receiptId: string; createdById: string; reason: string }) {
     return prisma.$transaction(async (tx: any) => {
+      await tx.$queryRaw`SELECT id FROM inventory_receipts WHERE id = ${input.receiptId}::uuid FOR UPDATE`;
       const receipt = await tx.inventoryReceipt.findFirst({
         where: { id: input.receiptId, barbershopId: input.barbershopId },
         include: { items: true, expenses: true },

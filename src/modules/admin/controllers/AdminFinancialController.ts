@@ -404,9 +404,9 @@ export class AdminFinancialController {
         _sum: { amount: true },
         _count: { id: true },
       }),
-      prisma.fiado.findMany({
+      prisma.fiado.aggregate({
         where: { status: { in: ["PENDING", "PARTIAL"] } },
-        select: { originalAmount: true, paidAmount: true },
+        _sum: { originalAmount: true, paidAmount: true },
       }),
       prisma.fiado.count({
         where: {
@@ -421,12 +421,9 @@ export class AdminFinancialController {
       }),
     ]);
 
-    type ActiveFiadoRow = { originalAmount: number; paidAmount: number };
-
-    const totalDebtActive = totalFiadosActive.reduce(
-      (s: number, f: ActiveFiadoRow) => s + (f.originalAmount - f.paidAmount),
-      0
-    );
+    const totalDebtActive =
+      Number(totalFiadosActive._sum.originalAmount ?? 0) -
+      Number(totalFiadosActive._sum.paidAmount ?? 0);
 
     return reply.send({
       success: true,

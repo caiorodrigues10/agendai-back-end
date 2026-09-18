@@ -8,10 +8,14 @@ import { container } from 'tsyringe';
 export async function activationRoutes(app: FastifyInstance) {
   const controller = container.resolve(ActivationController);
 
-  // Public endpoint - called by frontend during onboarding (no auth)
-  app.post('/analytics/activation', async (request, reply) => {
-    await controller.record(request, reply);
-  });
+  // Authenticated — onboarding events must belong to the caller's shop
+  app.post(
+    '/analytics/activation',
+    { preHandler: [authenticate, authorize(['OWNER', 'MASTER_ADMIN']), setRlsContext] },
+    async (request, reply) => {
+      await controller.record(request, reply);
+    },
+  );
 
   // Authenticated endpoint - list metrics for a barbershop (OWNER only)
   app.get(

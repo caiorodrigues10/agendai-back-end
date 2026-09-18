@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { AsaasService } from "./AsaasService";
 
 describe("AsaasService", () => {

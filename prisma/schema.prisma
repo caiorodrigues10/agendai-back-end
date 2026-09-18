@@ -362,6 +362,7 @@ model Barbershop {
       fiscalConfig             FiscalConfig?
      nfeRecords               NfeRecord[]
      integrations             Integration[]
+     dismissedRecommendations DismissedRecommendation[]
 
      @@index([approvalStatus])
    @@index([active])
@@ -2782,6 +2783,8 @@ model ClientSession {
   identity ClientIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
 
   @@index([identityId])
+  @@index([accessTokenHash])
+  @@index([refreshTokenHash])
   @@map("client_sessions")
 }
 
@@ -3326,8 +3329,8 @@ model Voucher {
   code          String   @db.VarChar(30)
   description   String?  @db.Text
   type          VoucherType
-  value         Float    @db.Real
-  minPurchase   Float?   @db.Real
+  value         Decimal  @db.Decimal(12,2)
+  minPurchase   Decimal? @db.Decimal(12,2)
   maxUses       Int?
   usedCount     Int      @default(0)
   perClientLimit Int     @default(1)
@@ -3842,3 +3845,17 @@ enum SyncStatus {
   PARTIAL
   FAILED
 }
+
+model DismissedRecommendation {
+  id               String   @id @default(uuid()) @db.Uuid
+  barbershopId     String   @db.Uuid
+  recommendationId String   @db.VarChar(120)
+  createdAt        DateTime @default(now())
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId, recommendationId])
+  @@index([barbershopId])
+  @@map("dismissed_recommendations")
+}
+

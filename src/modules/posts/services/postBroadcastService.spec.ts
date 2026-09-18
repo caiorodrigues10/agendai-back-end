@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+/// <reference types="vitest/globals" />
 
 const mockFindUnique = vi.fn();
 const mockFindMany = vi.fn();

@@ -2,11 +2,13 @@
 set -eu
 
 PROCESS_ROLE="${PROCESS_ROLE:-api}"
-# A API é o único processo que pode aplicar migrations. Por padrão, aplique-as
-# antes de iniciar: Render não injeta RUN_MIGRATIONS automaticamente e executar
-# código Prisma novo contra um schema anterior torna a API indisponível.
-# Workers e schedulers continuam exigindo a definição explícita `false`.
-RUN_MIGRATIONS="${RUN_MIGRATIONS:-true}"
+# A API é o único processo que pode aplicar migrations. Worker/scheduler
+# defaultam para false (nunca migrate deploy em réplica).
+if [ "$PROCESS_ROLE" = "api" ]; then
+  RUN_MIGRATIONS="${RUN_MIGRATIONS:-true}"
+else
+  RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
+fi
 export PROCESS_ROLE
 
 case "$PROCESS_ROLE" in

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+/// <reference types="vitest/globals" />
 import { MockServiceRepository } from "@/modules/services/infra/repositories/mocks/MockServiceRepository";
 import { CreateServiceUseCase } from "./createService/CreateServiceUseCase";
 import { ListServicesUseCase } from "./listServices/ListServicesUseCase";

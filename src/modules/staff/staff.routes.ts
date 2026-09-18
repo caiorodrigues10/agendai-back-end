@@ -10,7 +10,9 @@ export async function staffRoutes(app: FastifyInstance) {
   const controller = new StaffController();
 
   const ownerRoles = ["MASTER_ADMIN", "OWNER"];
+  const staffRoles = ["MASTER_ADMIN", "OWNER", "EMPLOYEE"];
   const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess, setRlsContext];
+  const staffGuard = [authenticate, authorize(staffRoles), checkSubscription, checkDashboardAccess, setRlsContext];
 
   // ─── Schedules ────────────────────────────────────────────────
   app.get(
@@ -53,13 +55,13 @@ export async function staffRoutes(app: FastifyInstance) {
   // ─── Time Off ─────────────────────────────────────────────────
   app.get(
     "/barbershops/:barbershopId/time-off",
-    { preHandler: ownerGuard },
+    { preHandler: staffGuard },
     controller.listTimeOff.bind(controller)
   );
 
   app.post(
     "/barbershops/:barbershopId/time-off",
-    { preHandler: ownerGuard },
+    { preHandler: staffGuard },
     controller.requestTimeOff.bind(controller)
   );
 

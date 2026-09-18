@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 import { ZodError } from "zod";
 import { cashMovementQuerySchema, cashSummaryQuerySchema, createCashMovementSchema } from "./cashMovementSchema";
 
@@ -56,14 +56,30 @@ describe("cashMovementSchema", () => {
   });
 
   describe("createCashMovementSchema", () => {
-    it("accepts valid cash movement data", () => {
+    it("accepts positive amount", () => {
       const result = createCashMovementSchema.parse({
         type: "SERVICE_SALE",
         amount: 100,
         paymentMethod: "CASH",
       });
-      expect(result.type).toBe("SERVICE_SALE");
       expect(result.amount).toBe(100);
+    });
+
+    it("rejects zero or negative amount", () => {
+      expect(() =>
+        createCashMovementSchema.parse({
+          type: "SERVICE_SALE",
+          amount: 0,
+          paymentMethod: "CASH",
+        }),
+      ).toThrow(ZodError);
+      expect(() =>
+        createCashMovementSchema.parse({
+          type: "WITHDRAWAL",
+          amount: -10,
+          paymentMethod: "CASH",
+        }),
+      ).toThrow(ZodError);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+/// <reference types="vitest/globals" />
 import { AppError } from "@/shared/errors/AppError";
 import { requireOpenShopWhatsAppInstance } from "./requireOpenShopWhatsApp";
 

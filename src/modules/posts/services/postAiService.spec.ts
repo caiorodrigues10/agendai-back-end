@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+/// <reference types="vitest/globals" />
 
 // Mock Redis before importing the service
 const mockRedisGet = vi.fn();
