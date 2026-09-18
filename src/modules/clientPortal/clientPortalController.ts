@@ -9,6 +9,9 @@ import {
   updateCareTemplateSchema,
   sendCareInstructionSchema,
   clientPortalQuerySchema,
+  barbershopIdQuerySchema,
+  staffDashboardQuerySchema,
+  linkIdParamsSchema,
 } from "./clientPortalSchema";
 import { ClientPortalRepositoryInstance } from "./clientPortalUseCases";
 import { AppError } from "@/shared/errors/AppError";
@@ -20,7 +23,7 @@ export class ClientPortalController {
   async requestOtp(request: FastifyRequest, reply: FastifyReply) {
     const body = requestOtpSchema.parse(request.body);
     const ip = request.ip;
-    const result = await this.useCases.requestOtp(body.phone, body.name, ip);
+    const result = await this.useCases.requestOtp(body.phone, body.name ?? "Cliente", ip);
 
     reply.send({
       success: true,
@@ -35,6 +38,14 @@ export class ClientPortalController {
     const body = verifyOtpSchema.parse(request.body);
     const result = await this.useCases.verifyOtp(body.phone, body.code);
 
+    reply.send({ success: true, data: result });
+  }
+
+  async refreshSession(request: FastifyRequest, reply: FastifyReply) {
+    const { refreshToken } = request.body as { refreshToken?: string };
+    if (!refreshToken) throw new AppError("refreshToken é obrigatório", 400);
+
+    const result = await this.useCases.refreshSession(refreshToken);
     reply.send({ success: true, data: result });
   }
 
@@ -55,12 +66,13 @@ export class ClientPortalController {
   }
 
   async confirmLink(request: FastifyRequest, reply: FastifyReply) {
-    const { linkId } = request.params as { linkId: string };
+    const { linkId, barbershopId } = request.params as { linkId: string; barbershopId: string };
     const body = confirmLinkSchema.parse(request.body ?? {});
     const user = request.user!;
 
     const link = await this.useCases.confirmLink(
       linkId,
+      barbershopId,
       body.confirmedById ?? user.id
     );
 
@@ -68,12 +80,13 @@ export class ClientPortalController {
   }
 
   async rejectLink(request: FastifyRequest, reply: FastifyReply) {
-    const { linkId } = request.params as { linkId: string };
+    const { linkId, barbershopId } = request.params as { linkId: string; barbershopId: string };
     const body = rejectLinkSchema.parse(request.body ?? {});
     const user = request.user!;
 
     const link = await this.useCases.rejectLink(
       linkId,
+      barbershopId,
       body.rejectedById ?? user.id,
       body.reason
     );
@@ -82,8 +95,8 @@ export class ClientPortalController {
   }
 
   async revokeLink(request: FastifyRequest, reply: FastifyReply) {
-    const { linkId } = request.params as { linkId: string };
-    const link = await this.useCases.revokeLink(linkId);
+    const { linkId, barbershopId } = request.params as { linkId: string; barbershopId: string };
+    const link = await this.useCases.revokeLink(linkId, barbershopId);
     reply.send({ success: true, data: link });
   }
 
@@ -112,6 +125,43 @@ export class ClientPortalController {
 
     const links = await this.useCases.listMyLinks(identityId);
     reply.send({ success: true, data: links });
+  }
+
+  async getMe(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user as any;
+    const identityId = user.identityId;
+    if (!identityId) throw new AppError("identityId required", 400);
+
+    const identity = await this.useCases.getMe(identityId);
+    reply.send({ success: true, data: identity });
+  }
+
+  async logout(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user as any;
+    const sessionId = user.sessionId;
+    if (!sessionId) throw new AppError("Sessão não encontrada", 400);
+
+    await this.useCases.logout(sessionId);
+    reply.send({ success: true, message: "Sessão encerrada" });
+  }
+
+  async logoutAll(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user as any;
+    const identityId = user.identityId;
+    if (!identityId) throw new AppError("identityId required", 400);
+
+    await this.useCases.logoutAll(identityId);
+    reply.send({ success: true, message: "Todas as sessões foram encerradas" });
+  }
+
+  async revokeOwnLink(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user as any;
+    const identityId = user.identityId;
+    if (!identityId) throw new AppError("identityId required", 400);
+
+    const { linkId } = linkIdParamsSchema.parse(request.params);
+    const link = await this.useCases.revokeOwnLink(identityId, linkId);
+    reply.send({ success: true, data: link });
   }
 
   // ─── Care Templates ──────────────────────────────────────────
@@ -185,8 +235,12 @@ export class ClientPortalController {
   }
 
   async markCareInstructionRead(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user as any;
+    const identityId = user.identityId;
+    if (!identityId) throw new AppError("identityId required", 400);
+
     const { id } = request.params as { id: string };
-    await this.useCases.markCareInstructionRead(id);
+    await this.useCases.markCareInstructionRead(id, identityId);
     reply.send({ success: true, message: "Marcado como lido" });
   }
 
@@ -205,15 +259,45 @@ export class ClientPortalController {
   }
 
   // ─── Portal Dashboard ────────────────────────────────────────
-  async getPortalDashboard(request: FastifyRequest, reply: FastifyReply) {
+  async getMyPortalDashboard(request: FastifyRequest, reply: FastifyReply) {
     const user = request.user as any;
     const identityId = user.identityId;
     if (!identityId) throw new AppError("identityId required", 400);
 
-    const { barbershopId } = request.params as { barbershopId: string };
+    const query = barbershopIdQuerySchema.parse(request.query);
+    const dashboard = await this.useCases.getPortalDashboard(
+      query.barbershopId,
+      identityId
+    );
+
+    reply.send({ success: true, data: dashboard });
+  }
+
+  async getMyPortalHistory(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user as any;
+    const identityId = user.identityId;
+    if (!identityId) throw new AppError("identityId required", 400);
+
+    const { barbershopId } = request.query as { barbershopId?: string };
+    if (!barbershopId) throw new AppError("barbershopId é obrigatório", 400);
+
+    const page = Math.max(1, parseInt((request.query as any)?.page ?? "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt((request.query as any)?.limit ?? "20", 10)));
+
+    const history = await this.useCases.getPortalHistory(barbershopId, identityId, page, limit);
+    reply.send({ success: true, data: history });
+  }
+
+  async getStaffPortalDashboard(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user!;
+    const { barbershopId: paramBarbershopId } = request.params as { barbershopId: string };
+    const barbershopId = user.barbershopId ?? paramBarbershopId;
+    if (!barbershopId) throw new AppError("barbershopId required", 400);
+
+    const query = staffDashboardQuerySchema.parse(request.query);
     const dashboard = await this.useCases.getPortalDashboard(
       barbershopId,
-      identityId
+      query.identityId
     );
 
     reply.send({ success: true, data: dashboard });

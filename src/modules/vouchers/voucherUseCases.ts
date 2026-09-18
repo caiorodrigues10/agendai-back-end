@@ -1,5 +1,6 @@
 import { VoucherRepository } from "./voucherRepository";
 import { AppError } from "@/shared/errors/AppError";
+import { prisma } from "@/libs/prismaClient";
 import type { z } from "zod";
 import type {
   createVoucherSchema,
@@ -106,63 +107,79 @@ export class VoucherUseCases {
   }
 
   async applyVoucher(barbershopId: string, input: ApplyInput): Promise<ApplyResult> {
-    const voucher = await this.repo.findById(input.voucherId);
-    if (!voucher) throw new AppError("Voucher não encontrado", 404);
-    if (voucher.barbershopId !== barbershopId) throw new AppError("Acesso negado", 403);
+    return prisma.$transaction(async (tx: typeof prisma) => {
+      const voucher = await tx.voucher.findUnique({
+        where: { id: input.voucherId },
+      });
+      if (!voucher) throw new AppError("Voucher não encontrado", 404);
+      if (voucher.barbershopId !== barbershopId) throw new AppError("Acesso negado", 403);
 
-    if (!voucher.isActive) throw new AppError("Voucher está inativo", 400);
+      if (!voucher.isActive) throw new AppError("Voucher está inativo", 400);
 
-    const now = new Date();
-    if (now < voucher.startAt || now > voucher.endAt) {
-      throw new AppError("Cupom fora do período de validade", 400);
-    }
-
-    if (voucher.maxUses !== null && voucher.usedCount >= voucher.maxUses) {
-      throw new AppError("Cupom atingiu o limite de uso", 400);
-    }
-
-    if (voucher.minPurchase !== null && input.originalAmount < voucher.minPurchase) {
-      throw new AppError(`Valor mínimo de compra: R$ ${voucher.minPurchase.toFixed(2)}`, 400);
-    }
-
-    if (input.clientId) {
-      const clientUsages = await this.repo.countClientUsages(voucher.id, input.clientId);
-      if (clientUsages >= voucher.perClientLimit) {
-        throw new AppError("Cupom já atingiu o limite por cliente", 400);
+      const now = new Date();
+      if (now < voucher.startAt || now > voucher.endAt) {
+        throw new AppError("Cupom fora do período de validade", 400);
       }
-    }
 
-    let discountAmount = 0;
+      if (voucher.maxUses !== null && voucher.usedCount >= voucher.maxUses) {
+        throw new AppError("Cupom atingiu o limite de uso", 400);
+      }
 
-    switch (voucher.type) {
-      case "PERCENT":
-        discountAmount = input.originalAmount * (voucher.value / 100);
-        break;
-      case "FIXED":
-        discountAmount = Math.min(voucher.value, input.originalAmount);
-        break;
-      case "FREE_SERVICE":
-        discountAmount = input.originalAmount;
-        break;
-      case "BUY_X_GET_Y":
-        discountAmount = voucher.value;
-        break;
-    }
+      if (voucher.minPurchase !== null && input.originalAmount < voucher.minPurchase) {
+        throw new AppError(`Valor mínimo de compra: R$ ${voucher.minPurchase.toFixed(2)}`, 400);
+      }
 
-    discountAmount = Math.round(discountAmount * 100) / 100;
-    discountAmount = Math.min(discountAmount, input.originalAmount);
+      if (input.clientId) {
+        const clientUsages = await tx.voucherUsage.count({
+          where: { voucherId: voucher.id, clientId: input.clientId },
+        });
+        if (clientUsages >= voucher.perClientLimit) {
+          throw new AppError("Cupom já atingiu o limite por cliente", 400);
+        }
+      }
 
-    const finalAmount = Math.round((input.originalAmount - discountAmount) * 100) / 100;
+      let discountAmount = 0;
 
-    await this.repo.recordUsage(voucher.id, input.clientId ?? null, input.appointmentId ?? null, discountAmount);
-    await this.repo.incrementUsedCount(voucher.id);
+      switch (voucher.type) {
+        case "PERCENT":
+          discountAmount = input.originalAmount * (voucher.value / 100);
+          break;
+        case "FIXED":
+          discountAmount = Math.min(voucher.value, input.originalAmount);
+          break;
+        case "FREE_SERVICE":
+          discountAmount = input.originalAmount;
+          break;
+        case "BUY_X_GET_Y":
+          discountAmount = voucher.value;
+          break;
+      }
 
-    return {
-      voucherId: voucher.id,
-      code: voucher.code,
-      discountAmount,
-      finalAmount,
-    };
+      discountAmount = Math.round(discountAmount * 100) / 100;
+      discountAmount = Math.min(discountAmount, input.originalAmount);
+
+      const finalAmount = Math.round((input.originalAmount - discountAmount) * 100) / 100;
+
+      await tx.voucherUsage.create({
+        data: {
+          voucherId: voucher.id,
+          clientId: input.clientId ?? null,
+          appointmentId: input.appointmentId ?? null,
+          discountAmount,
+        },
+      });
+      await tx.voucher.update({
+        where: { id: voucher.id },
+        data: { usedCount: { increment: 1 } },
+      });
+
+      return {
+        voucherId: voucher.id,
+        code: voucher.code,
+        discountAmount,
+        finalAmount,
+      };
+    });
   }
 
   async getUsages(barbershopId: string, voucherId: string) {

@@ -23,7 +23,7 @@ function generateOtpCode(): string {
 }
 
 export class ClientPortalRepositoryInstance {
-  private repo = new ClientPortalRepository();
+  constructor(private repo: ClientPortalRepository = new ClientPortalRepository()) {}
 
   // ─── OTP ─────────────────────────────────────────────────────
   async requestOtp(phone: string, name: string, ip?: string) {
@@ -184,29 +184,42 @@ export class ClientPortalRepositoryInstance {
     });
   }
 
-  async confirmLink(linkId: string, confirmedById?: string, salonClientId?: string) {
+  async confirmLink(linkId: string, barbershopId: string, confirmedById?: string, salonClientId?: string) {
     const existing = await prisma.clientSalonLink.findUnique({
       where: { id: linkId },
     });
     if (!existing) throw new AppError("Vínculo não encontrado", 404);
+    if (existing.barbershopId !== barbershopId) {
+      throw new AppError("Vínculo não pertence a esta barbearia", 403);
+    }
     if (existing.status !== "PENDING") {
       throw new AppError("Vínculo não está pendente", 400);
     }
     return this.repo.confirmSalonLink(linkId, confirmedById, salonClientId);
   }
 
-  async rejectLink(linkId: string, rejectedById?: string, reason?: string) {
+  async rejectLink(linkId: string, barbershopId: string, rejectedById?: string, reason?: string) {
     const existing = await prisma.clientSalonLink.findUnique({
       where: { id: linkId },
     });
     if (!existing) throw new AppError("Vínculo não encontrado", 404);
+    if (existing.barbershopId !== barbershopId) {
+      throw new AppError("Vínculo não pertence a esta barbearia", 403);
+    }
     if (existing.status !== "PENDING") {
       throw new AppError("Vínculo não está pendente", 400);
     }
     return this.repo.rejectSalonLink(linkId, rejectedById, reason);
   }
 
-  async revokeLink(linkId: string) {
+  async revokeLink(linkId: string, barbershopId: string) {
+    const existing = await prisma.clientSalonLink.findUnique({
+      where: { id: linkId },
+    });
+    if (!existing) throw new AppError("Vínculo não encontrado", 404);
+    if (existing.barbershopId !== barbershopId) {
+      throw new AppError("Vínculo não pertence a esta barbearia", 403);
+    }
     return this.repo.revokeSalonLink(linkId);
   }
 
@@ -220,6 +233,31 @@ export class ClientPortalRepositoryInstance {
 
   async listMyLinks(identityId: string) {
     return this.repo.listLinksByIdentity(identityId);
+  }
+
+  async getMe(identityId: string) {
+    const identity = await this.repo.findIdentityById(identityId);
+    if (!identity) throw new AppError("Identidade não encontrada", 404);
+    return identity;
+  }
+
+  async logout(sessionId: string) {
+    await this.repo.revokeSession(sessionId);
+  }
+
+  async logoutAll(identityId: string) {
+    await this.repo.revokeAllSessions(identityId);
+  }
+
+  async revokeOwnLink(identityId: string, linkId: string) {
+    const link = await this.repo.findLinkById(linkId);
+    if (!link || link.identityId !== identityId) {
+      throw new AppError("Vínculo não encontrado", 404);
+    }
+    if (link.status === "REVOKED") {
+      throw new AppError("Vínculo já revogado", 400);
+    }
+    return this.repo.revokeSalonLink(linkId);
   }
 
   // ─── Care Instructions ───────────────────────────────────────
@@ -281,7 +319,15 @@ export class ClientPortalRepositoryInstance {
     return this.repo.listCareInstructions(barbershopId, identityId);
   }
 
-  async markCareInstructionRead(id: string) {
+  async markCareInstructionRead(id: string, identityId: string) {
+    const instruction = await prisma.clientCareInstruction.findUnique({
+      where: { id },
+      select: { id: true, identityId: true },
+    });
+    if (!instruction) throw new AppError("Instrução não encontrada", 404);
+    if (instruction.identityId !== identityId) {
+      throw new AppError("Instrução não pertence a este cliente", 403);
+    }
     return this.repo.markCareInstructionRead(id);
   }
 
@@ -292,5 +338,9 @@ export class ClientPortalRepositoryInstance {
   // ─── Portal Dashboard ────────────────────────────────────────
   async getPortalDashboard(barbershopId: string, identityId: string) {
     return this.repo.getPortalDashboard(barbershopId, identityId);
+  }
+
+  async getPortalHistory(barbershopId: string, identityId: string, page = 1, limit = 20) {
+    return this.repo.getPortalHistory(barbershopId, identityId, page, limit);
   }
 }

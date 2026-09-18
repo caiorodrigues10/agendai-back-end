@@ -1,5 +1,6 @@
 import { AppError } from "@/shared/errors/AppError";
 import { IntegrationRepository } from "./integrationRepository";
+import { encryptObject, decryptObject, maskCredentials } from "@/shared/utils/encryption";
 
 const SUPPORTED_TYPES = new Set([
   "GOOGLE_CALENDAR",
@@ -32,21 +33,43 @@ export class IntegrationUseCases {
     if (!SUPPORTED_TYPES.has(data.type)) {
       throw new AppError(`Tipo de integração não suportado: ${data.type}`, 400);
     }
+    const encryptedCreds = encryptObject(data.credentials);
     return this.repo.upsert(barbershopId, data.type, data.provider, {
       config: data.config,
-      credentials: data.credentials,
+      credentials: { __encrypted: encryptedCreds } as any,
       status: data.status,
     });
   }
 
   async list(barbershopId: string) {
-    return this.repo.findByBarbershop(barbershopId);
+    const integrations = await this.repo.findByBarbershop(barbershopId);
+    return integrations.map((i: (typeof integrations)[number]) => {
+      const raw = (i.credentials as Record<string, unknown>) ?? {};
+      if (raw.__encrypted) {
+        return { ...i, credentials: maskCredentials(decryptObject<Record<string, unknown>>(String(raw.__encrypted))) };
+      }
+      return { ...i, credentials: maskCredentials(raw) };
+    });
   }
 
   async getById(id: string, barbershopId: string) {
     const integration = await this.repo.findById(id, barbershopId);
     if (!integration) throw new AppError("Integração não encontrada", 404);
+    const raw = (integration.credentials as Record<string, unknown>) ?? {};
+    if (raw.__encrypted) {
+      return { ...integration, credentials: decryptObject<Record<string, unknown>>(String(raw.__encrypted)) };
+    }
     return integration;
+  }
+
+  async getDecryptedCredentials(id: string, barbershopId: string): Promise<Record<string, unknown>> {
+    const integration = await this.repo.findById(id, barbershopId);
+    if (!integration) throw new AppError("Integração não encontrada", 404);
+    const raw = (integration.credentials as Record<string, unknown>) ?? {};
+    if (raw.__encrypted) {
+      return decryptObject<Record<string, unknown>>(String(raw.__encrypted));
+    }
+    return raw;
   }
 
   async update(id: string, barbershopId: string, data: { config?: Record<string, unknown>; credentials?: Record<string, unknown>; status?: string }) {
@@ -54,7 +77,7 @@ export class IntegrationUseCases {
     if (!existing) throw new AppError("Integração não encontrada", 404);
     return this.repo.update(id, {
       ...(data.config !== undefined ? { config: data.config as any } : {}),
-      ...(data.credentials !== undefined ? { credentials: data.credentials as any } : {}),
+      ...(data.credentials !== undefined ? { credentials: { __encrypted: encryptObject(data.credentials) } as any } : {}),
       ...(data.status !== undefined ? { status: data.status as any } : {}),
     });
   }

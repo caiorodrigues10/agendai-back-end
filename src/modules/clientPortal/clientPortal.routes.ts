@@ -6,12 +6,16 @@ import { checkSubscription } from "@/shared/infra/http/middlewares/checkSubscrip
 import { checkDashboardAccess } from "@/shared/infra/http/middlewares/checkDashboardAccess";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 import { ClientPortalController } from "./clientPortalController";
+import {
+  CLIENT_PORTAL_OWNER_ROLES,
+  CLIENT_PORTAL_STAFF_ROLES,
+} from "./clientPortalSchema";
 
 export async function clientPortalRoutes(app: FastifyInstance) {
   const controller = new ClientPortalController();
 
-  const ownerRoles = ["MASTER_ADMIN", "OWNER"];
-  const staffRoles = ["MASTER_ADMIN", "OWNER", "MANAGER", "PROFESSIONAL"];
+  const ownerRoles = [...CLIENT_PORTAL_OWNER_ROLES];
+  const staffRoles = [...CLIENT_PORTAL_STAFF_ROLES];
   const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess, setRlsContext];
   const staffGuard = [authenticate, authorize(staffRoles), checkSubscription, checkDashboardAccess, setRlsContext];
 
@@ -24,6 +28,11 @@ export async function clientPortalRoutes(app: FastifyInstance) {
   app.post(
     "/client/portal/verify-otp",
     controller.verifyOtp.bind(controller)
+  );
+
+  app.post(
+    "/client/portal/refresh",
+    controller.refreshSession.bind(controller)
   );
 
   // ─── Authenticated: Client Portal ────────────────────────────
@@ -43,6 +52,42 @@ export async function clientPortalRoutes(app: FastifyInstance) {
     "/client/portal/request-link",
     { preHandler: [authenticateClient] },
     controller.requestLink.bind(controller)
+  );
+
+  app.get(
+    "/client/portal/me",
+    { preHandler: [authenticateClient] },
+    controller.getMe.bind(controller)
+  );
+
+  app.get(
+    "/client/portal/dashboard",
+    { preHandler: [authenticateClient] },
+    controller.getMyPortalDashboard.bind(controller)
+  );
+
+  app.get(
+    "/client/portal/history",
+    { preHandler: [authenticateClient] },
+    controller.getMyPortalHistory.bind(controller)
+  );
+
+  app.post(
+    "/client/portal/my-links/:linkId/revoke",
+    { preHandler: [authenticateClient] },
+    controller.revokeOwnLink.bind(controller)
+  );
+
+  app.post(
+    "/client/portal/logout",
+    { preHandler: [authenticateClient] },
+    controller.logout.bind(controller)
+  );
+
+  app.post(
+    "/client/portal/logout-all",
+    { preHandler: [authenticateClient] },
+    controller.logoutAll.bind(controller)
   );
 
   // ─── Staff: Link Management ──────────────────────────────────
@@ -120,10 +165,10 @@ export async function clientPortalRoutes(app: FastifyInstance) {
     controller.markCareInstructionRead.bind(controller)
   );
 
-  // ─── Staff: Portal Dashboard ─────────────────────────────────
+  // ─── Staff: Portal Dashboard (identityId via query, not staff JWT) ─
   app.get(
     "/barbershops/:barbershopId/client-portal/dashboard",
     { preHandler: ownerGuard },
-    controller.getPortalDashboard.bind(controller)
+    controller.getStaffPortalDashboard.bind(controller)
   );
 }

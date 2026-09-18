@@ -29,8 +29,19 @@ export async function appointmentsRoutes(app: FastifyInstance) {
 	// Disponibilidade de horários — pública (cliente escolhe horário antes de logar)
 
   // Agendamento público — sem necessidade de autenticação
+  // Rate-limit dedicado: máximo 5 bookings por minuto por IP (previne flooding)
+  const publicBookingRateLimit = {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "1 minute",
+      },
+    },
+  };
+
   app.post(
     '/appointments/public',
+    publicBookingRateLimit,
     appointments.createPublic.bind(appointments),
   )
   app.post('/appointments/public/session', appointments.publicSession.bind(appointments));

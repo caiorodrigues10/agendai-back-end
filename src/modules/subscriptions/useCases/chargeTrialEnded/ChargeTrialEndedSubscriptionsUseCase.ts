@@ -5,6 +5,7 @@ import { IPaymentRepository } from "@/modules/payments/repositories/IPaymentRepo
 import { handleSubscriptionPaymentWebhook } from "@/modules/subscriptions/services/handleSubscriptionPaymentWebhook";
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { decrypt } from "@/shared/utils/encryption";
 
 const logger = getModuleLogger("subscriptions:charge-trial-ended");
 
@@ -105,7 +106,7 @@ export class ChargeTrialEndedSubscriptionsUseCase {
           dueDate: dueDate.toISOString().slice(0, 10),
           description,
           externalReference,
-          creditCardToken: sub.asaasCreditCardToken,
+          creditCardToken: decrypt(sub.asaasCreditCardToken),
           remoteIp: "127.0.0.1",
         });
 

@@ -4,6 +4,7 @@ import { AppError } from '@/shared/errors/AppError'
 import { AsaasService } from '@/modules/payments/services/AsaasService'
 import { TRIAL_DAYS } from '@/shared/constants/subscription'
 import { invalidateSubscriptionCache } from '@/shared/infra/http/middlewares/subscriptionAccessCache'
+import { encrypt } from '@/shared/utils/encryption'
 import { buildSubscriptionResponse } from '../../utils/subscriptionMapper'
 
 export interface ISetupTrialCardDTO {
@@ -122,7 +123,7 @@ export class SetupTrialCardUseCase {
 						status: 'TRIALING',
 						endDate: trialEnd,
 						asaasCustomerId: customerId,
-						asaasCreditCardToken: tokenized.creditCardToken,
+						asaasCreditCardToken: encrypt(tokenized.creditCardToken),
 						cardLast4: last4,
 						cardBrand: tokenized.creditCardBrand ?? null,
 						cancelDate: null,
@@ -138,7 +139,7 @@ export class SetupTrialCardUseCase {
 						startDate: new Date(),
 						endDate: trialEnd,
 						asaasCustomerId: customerId,
-						asaasCreditCardToken: tokenized.creditCardToken,
+						asaasCreditCardToken: encrypt(tokenized.creditCardToken),
 						cardLast4: last4,
 						cardBrand: tokenized.creditCardBrand ?? null,
 					},

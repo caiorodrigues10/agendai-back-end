@@ -1,5 +1,6 @@
 import { GiftCardRepository } from "./giftCardRepository";
 import { AppError } from "@/shared/errors/AppError";
+import { prisma } from "@/libs/prismaClient";
 import type { z } from "zod";
 import type { purchaseGiftCardSchema, redeemGiftCardSchema, giftCardListQuerySchema } from "./giftCardSchema";
 
@@ -34,46 +35,63 @@ export class GiftCardUseCases {
   }
 
   async redeem(id: string, barbershopId: string, data: RedeemInput) {
-    const card = await this.repo.findById(id);
-    if (!card) throw new AppError("Gift card não encontrado", 404);
-    if (card.barbershopId !== barbershopId) {
-      throw new AppError("Gift card não pertence a esta barbearia", 403);
-    }
-    if (card.status === "CANCELED") {
-      throw new AppError("Gift card está cancelado", 400);
-    }
-    if (card.status === "EXPIRED") {
-      throw new AppError("Gift card expirado", 400);
-    }
-    if (card.status === "EXHAUSTED") {
-      throw new AppError("Gift card sem saldo", 400);
-    }
-    if (card.expiresAt && new Date(card.expiresAt) < new Date()) {
-      throw new AppError("Gift card expirou", 400);
-    }
+    return prisma.$transaction(async (tx: typeof prisma) => {
+      const card = await tx.giftCard.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          barbershopId: true,
+          currentBalance: true,
+          status: true,
+          expiresAt: true,
+        },
+      });
 
-    const currentBalance = Number(card.currentBalance);
-    if (data.amount > currentBalance) {
-      throw new AppError("Valor excede o saldo disponível", 400);
-    }
+      if (!card) throw new AppError("Gift card não encontrado", 404);
+      if (card.barbershopId !== barbershopId) {
+        throw new AppError("Gift card não pertence a esta barbearia", 403);
+      }
+      if (card.status === "CANCELED") {
+        throw new AppError("Gift card está cancelado", 400);
+      }
+      if (card.status === "EXPIRED") {
+        throw new AppError("Gift card expirado", 400);
+      }
+      if (card.status === "EXHAUSTED") {
+        throw new AppError("Gift card sem saldo", 400);
+      }
+      if (card.expiresAt && new Date(card.expiresAt) < new Date()) {
+        throw new AppError("Gift card expirou", 400);
+      }
 
-    const newBalance = currentBalance - data.amount;
-    const newStatus = newBalance === 0 ? "EXHAUSTED" : "PARTIALLY_USED";
+      const currentBalance = Number(card.currentBalance);
+      if (data.amount > currentBalance) {
+        throw new AppError("Valor excede o saldo disponível", 400);
+      }
 
-    await this.repo.addUsage({
-      giftCardId: id,
-      amount: data.amount,
-      appointmentId: data.appointmentId,
-      notes: data.notes,
+      const newBalance = currentBalance - data.amount;
+      const newStatus = newBalance === 0 ? "EXHAUSTED" : "PARTIALLY_USED";
+
+      await tx.giftCardUsage.create({
+        data: {
+          giftCardId: id,
+          amount: data.amount,
+          appointmentId: data.appointmentId ?? null,
+          notes: data.notes ?? null,
+        },
+      });
+
+      const updated = await tx.giftCard.update({
+        where: { id },
+        data: {
+          currentBalance: newBalance,
+          status: newStatus,
+          ...(newStatus === "EXHAUSTED" ? { redeemedAt: new Date() } : {}),
+        },
+      });
+
+      return updated;
     });
-
-    const updated = await this.repo.updateBalance(id, newBalance, newStatus);
-
-    if (newStatus === "EXHAUSTED") {
-      await this.repo.markRedeemed(id);
-    }
-
-    return updated;
   }
 
   async cancel(id: string, barbershopId: string) {

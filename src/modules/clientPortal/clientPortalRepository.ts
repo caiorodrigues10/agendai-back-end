@@ -6,6 +6,10 @@ export class ClientPortalRepository {
     return prisma.clientIdentity.findUnique({ where: { normalizedPhone } });
   }
 
+  async findIdentityById(identityId: string) {
+    return prisma.clientIdentity.findUnique({ where: { id: identityId } });
+  }
+
   async createIdentity(data: {
     name: string;
     phone: string;
@@ -99,11 +103,22 @@ export class ClientPortalRepository {
     });
   }
 
+  async revokeAllSessions(identityId: string) {
+    return prisma.clientSession.updateMany({
+      where: { identityId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   // ─── Salon Links ─────────────────────────────────────────────
   async findLinkByIdentityAndSalon(identityId: string, barbershopId: string) {
     return prisma.clientSalonLink.findUnique({
       where: { identityId_barbershopId: { identityId, barbershopId } },
     });
+  }
+
+  async findLinkById(linkId: string) {
+    return prisma.clientSalonLink.findUnique({ where: { id: linkId } });
   }
 
   async createSalonLink(data: {
@@ -175,7 +190,7 @@ export class ClientPortalRepository {
   async listLinksByIdentity(identityId: string) {
     return prisma.clientSalonLink.findMany({
       where: { identityId },
-      include: { barbershop: true },
+      include: { barbershop: true, salonClient: true },
       orderBy: { createdAt: "desc" },
     });
   }
@@ -275,15 +290,77 @@ export class ClientPortalRepository {
     ]);
 
     const salonClientId = links[0]?.salonClientId;
-    const recentAppointments = salonClientId
-      ? await prisma.appointment.findMany({
-          where: { barbershopId, clientId: salonClientId },
-          orderBy: { date: "desc" },
-          take: 10,
-          include: { service: true, staff: true },
-        })
-      : [];
 
-    return { identity, links, careInstructions, recentAppointments };
+    const [recentAppointments, benefits] = await Promise.all([
+      salonClientId
+        ? prisma.appointment.findMany({
+            where: { barbershopId, clientId: salonClientId },
+            orderBy: { date: "desc" },
+            take: 10,
+            include: {
+              service: true,
+              staff: true,
+              barbershop: { select: { name: true } },
+            },
+          })
+        : Promise.resolve([]),
+      salonClientId
+        ? this.getPortalBenefits(barbershopId, salonClientId)
+        : Promise.resolve([]),
+    ]);
+
+    return { identity, links, careInstructions, recentAppointments, benefits };
+  }
+
+  private async getPortalBenefits(barbershopId: string, salonClientId: string) {
+    const membership = await prisma.clientMembership.findFirst({
+      where: { barbershopId, clientId: salonClientId, status: "ACTIVE" },
+      include: {
+        plan: {
+          include: {
+            benefits: { include: { service: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!membership) return [];
+
+    return membership.plan.benefits.map((b: (typeof membership.plan.benefits)[number]) => ({
+      type: b.type,
+      description: b.description,
+      available: b.quantity,
+      used: 0,
+      validUntil: membership.currentPeriodEnd.toISOString(),
+    }));
+  }
+
+  async getPortalHistory(barbershopId: string, identityId: string, page = 1, limit = 20) {
+    const link = await prisma.clientSalonLink.findFirst({
+      where: { barbershopId, identityId },
+      select: { salonClientId: true },
+    });
+
+    if (!link?.salonClientId) return { data: [], total: 0, page, limit };
+
+    const offset = (page - 1) * limit;
+    const [appointments, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where: { barbershopId, clientId: link.salonClientId },
+        orderBy: { date: "desc" },
+        skip: offset,
+        take: limit,
+        include: {
+          service: true,
+          staff: true,
+          barbershop: { select: { name: true } },
+        },
+      }),
+      prisma.appointment.count({
+        where: { barbershopId, clientId: link.salonClientId },
+      }),
+    ]);
+
+    return { data: appointments, total, page, limit };
   }
 }

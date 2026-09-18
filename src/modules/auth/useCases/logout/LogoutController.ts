@@ -78,6 +78,19 @@ export class LogoutController {
   async forgetAccount(request: FastifyRequest, reply: FastifyReply) {
     const { userId } = request.body as { userId: string };
 
+    // Segurança: só permitir remover a própria conta salva.
+    // O cookie saved_refresh_{userId} deve existir e ser um JWT válido.
+    const savedCookie = request.cookies[`saved_refresh_${userId}`];
+    if (!savedCookie) {
+      return reply.status(403).send({ message: "Acesso negado" });
+    }
+
+    // Valida que o cookie é um JWT bem formado (mínimo) antes de prosseguir
+    const parts = savedCookie.split(".");
+    if (parts.length !== 3) {
+      return reply.status(403).send({ message: "Acesso negado" });
+    }
+
     const useCase = container.resolve(LogoutUseCase);
     await useCase.revokeRememberedDevice(userId);
 
