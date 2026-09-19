@@ -18,4 +18,11 @@ describe("client portal staff roles", () => {
       phone: "11999999999",
     });
   });
+
+  it("exports query and params schemas used by ClientPortalController", async () => {
+    const schema = await import("./clientPortalSchema");
+    expect(schema.barbershopIdQuerySchema.parse({ barbershopId: "10000000-0000-4000-8000-000000000001" })).toBeTruthy();
+    expect(schema.staffDashboardQuerySchema.parse({ identityId: "10000000-0000-4000-8000-000000000002" })).toBeTruthy();
+    expect(schema.linkIdParamsSchema.parse({ linkId: "10000000-0000-4000-8000-000000000003" })).toBeTruthy();
+  });
 });
