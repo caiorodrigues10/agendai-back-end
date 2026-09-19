@@ -86,6 +86,10 @@ Por conta desse drift, o `docker-compose.dev.yml` tem `RUN_MIGRATIONS: "false"` 
 
 **Se bater em drift de shadow database (P3006), a saída é investigar o drift, não rodar db pull.** Usar `prisma db diff` para diagnosticar, ou restaurar o schema do último commit e reaplicar as mudanças manualmente.
 
+## ⚠️ Risco conhecido: Prisma Client velho no container dev após mudança no schema
+
+Após qualquer mudança em `prisma/schema.prisma`, `docker exec agendai_api_dev npx prisma generate` sozinho **não é suficiente**: o `tsx watch` recarrega o código de `src/`, mas o processo continua com o Prisma Client antigo em memória. É preciso `docker restart agendai_api_dev` (o entrypoint já roda `prisma generate` na subida). Sintoma típico: `Unknown field 'X' for select statement on model 'Y'` logo após adicionar uma relation/field nova. Observado em 2026-09-19 (dois restarts de debug na mesma sessão).
+
 ## ⚠️ Cuidado: Queries com comparação entre colunas
 
 Prisma **não suporta** comparar duas colunas da mesma tabela no `where` (ex: `quantityAvailable < minQuantity`). Se você tentar algo como `{ quantityAvailable: { lt: prisma.equipment.fields.minQuantity } }`, vai falhar em runtime — mas se houver um `.catch(() => 0)` ou similar, o erro fica silencioso e o valor retornado será sempre o fallback.
