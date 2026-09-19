@@ -68,6 +68,7 @@ model User {
     qualityAudits            QualityAudit[]
     purchaseOrdersCreated    PurchaseOrder[]
     reviewResponses          ReviewResponse[]
+    performedMovements       EquipmentMovement[]
 
   @@index([cpf])
   @@index([deletedAt])
@@ -335,9 +336,10 @@ model Barbershop {
    careInstructionTemplates CareInstructionTemplate[]
    clientCareInstructions   ClientCareInstruction[]
    giftCards                GiftCard[]
-    resources                Resource[]
-    resourceBookings         ResourceBooking[]
-    profitEntries            ProfitEntry[]
+     equipment               Equipment[]
+     equipmentMovements      EquipmentMovement[]
+     equipmentNeeds          EquipmentNeed[]
+     profitEntries            ProfitEntry[]
      profitSettings           ProfitSettings?
      organization             Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
      customForms              CustomForm[]
@@ -634,9 +636,8 @@ model Appointment {
   waitlistOffers  AppointmentWaitlistOffer[]
   membershipUsages MembershipUsage[]
   tabItem          TabItem?
-   visit            Visit?             @relation(fields: [visitId], references: [id], onDelete: SetNull)
-   careInstructions ClientCareInstruction[]
-   resourceBookings ResourceBooking[]
+    visit            Visit?             @relation(fields: [visitId], references: [id], onDelete: SetNull)
+    careInstructions ClientCareInstruction[]
 
   @@index([barbershopId, staffId, date, status])
   @@index([clientId])
@@ -2979,59 +2980,118 @@ model ProfitSettings {
   @@map("profit_settings")
 }
 
-// ─── Resources / Scheduling ────────────────────────────────────
+// ─── Equipment ────────────────────────────────────────────────
 
-enum ResourceType {
-  ROOM
-  CHAIR
-  EQUIPMENT
-  VEHICLE
+model Equipment {
+  id                String              @id @default(uuid()) @db.Uuid
+  barbershopId      String              @db.Uuid
+  name              String              @db.VarChar(150)
+  category          EquipmentCategory   @default(OTHER)
+  brand             String?             @db.VarChar(100)
+  model             String?             @db.VarChar(100)
+  serialNumber      String?             @db.VarChar(100)
+  quantityTotal     Int                 @default(1)
+  quantityAvailable Int                 @default(1)
+  condition         EquipmentCondition  @default(NEW)
+  minQuantity       Int                 @default(0)
+  unitCost          Decimal?            @db.Decimal(10,2)
+  supplier          String?             @db.VarChar(150)
+  purchaseDate      DateTime?           @db.Timestamptz()
+  warrantyUntil     DateTime?           @db.Timestamptz()
+  isActive          Boolean             @default(true)
+  notes             String?             @db.Text
+  createdAt         DateTime            @default(now()) @db.Timestamptz()
+  updatedAt         DateTime            @updatedAt @db.Timestamptz()
+
+  barbershop Barbershop          @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  movements  EquipmentMovement[]
+  needs      EquipmentNeed[]
+
+  @@index([barbershopId, category])
+  @@index([barbershopId, isActive])
+  @@map("equipment")
+}
+
+model EquipmentMovement {
+  id              String                  @id @default(uuid()) @db.Uuid
+  barbershopId    String                  @db.Uuid
+  equipmentId     String                  @db.Uuid
+  type            EquipmentMovementType
+  quantity        Int
+  reason          String?                 @db.VarChar(300)
+  staffId         String?                 @db.Uuid
+  createdAt       DateTime                @default(now()) @db.Timestamptz()
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  equipment  Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [staffId], references: [id])
+
+  @@index([equipmentId, createdAt])
+  @@index([barbershopId, createdAt])
+  @@map("equipment_movements")
+}
+
+model EquipmentNeed {
+  id              String                  @id @default(uuid()) @db.Uuid
+  barbershopId    String                  @db.Uuid
+  equipmentId     String?                 @db.Uuid
+  name            String                  @db.VarChar(150)
+  quantityNeeded  Int                     @default(1)
+  priority        EquipmentNeedPriority   @default(MEDIUM)
+  status          EquipmentNeedStatus     @default(REQUESTED)
+  reason          String?                 @db.Text
+  estimatedCost   Decimal?                @db.Decimal(10,2)
+  requestedBy     String?                 @db.Uuid
+  createdAt       DateTime                @default(now()) @db.Timestamptz()
+  resolvedAt      DateTime?               @db.Timestamptz()
+
+  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  equipment  Equipment?  @relation(fields: [equipmentId], references: [id])
+
+  @@index([barbershopId, status])
+  @@index([barbershopId, priority])
+  @@index([equipmentId])
+  @@map("equipment_needs")
+}
+
+enum EquipmentCategory {
+  BARBER_TOOLS
+  BEARD_TOOLS
+  AESTHETICS
+  FURNITURE
+  CLEANING
   OTHER
 }
 
-enum ResourceBookingStatus {
-  CONFIRMED
-  CANCELED
-  COMPLETED
+enum EquipmentCondition {
+  NEW
+  GOOD
+  WORN
+  BROKEN
+  IN_MAINTENANCE
 }
 
-model Resource {
-  id            String       @id @default(uuid()) @db.Uuid
-  barbershopId  String       @db.Uuid
-  name          String       @db.VarChar(100)
-  type          ResourceType
-  description   String?      @db.Text
-  isActive      Boolean      @default(true)
-  maxConcurrent Int          @default(1)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  barbershop Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  bookings   ResourceBooking[]
-
-  @@index([barbershopId, type])
-  @@map("resources")
+enum EquipmentMovementType {
+  IN
+  OUT
+  MAINTENANCE
+  LOSS
+  ADJUSTMENT
 }
 
-model ResourceBooking {
-  id            String               @id @default(uuid()) @db.Uuid
-  resourceId    String               @db.Uuid
-  barbershopId  String               @db.Uuid
-  appointmentId String?              @db.Uuid
-  staffId       String?              @db.Uuid
-  startAt       DateTime
-  endTime       DateTime
-  status        ResourceBookingStatus @default(CONFIRMED)
-  notes         String?              @db.Text
-  createdAt     DateTime             @default(now())
+enum EquipmentNeedPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
 
-  resource    Resource      @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-  barbershop  Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  appointment Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-
-  @@index([resourceId, startAt])
-  @@index([barbershopId, startAt])
-  @@map("resource_bookings")
+enum EquipmentNeedStatus {
+  REQUESTED
+  APPROVED
+  ORDERED
+  RECEIVED
+  REJECTED
 }
 
 // ============================================================

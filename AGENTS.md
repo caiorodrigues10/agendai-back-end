@@ -67,10 +67,47 @@ Scripts que **alteram banco:** `prisma:migrate*`, `db:push`, `prisma:seed`, `sta
 
 ---
 
-## 4. Checklist de mudança
+## ⚠️ Risco conhecido: Drift do banco de dev
+
+O banco de dev não tem tabela `_prisma_migrations` (aparenta ter sido criado via `db push`, não via `migrate deploy`). O histórico em `prisma/migrations/` está dessincronizado do banco real. Antes de rodar `prisma migrate deploy` em staging/produção pela primeira vez, isso precisa ser investigado e corrigido (provavelmente com `prisma migrate resolve --applied` para as migrations já refletidas no schema, ou um baseline novo).
+
+Por conta desse drift, o `docker-compose.dev.yml` tem `RUN_MIGRATIONS: "false"` — caso contrário o container entra em crash loop (P3005). **Se você está clonando o projeto do zero e o banco de dev está vazio, mude `RUN_MIGRATIONS` para `true` temporariamente na primeira subida, ou rode `prisma db push` manualmente antes.**
+
+## ⚠️ Risco conhecido: `prisma db pull` sobrescreve schema.prisma
+
+**Nunca rodar `prisma db pull` com mudanças manuais não commitadas no schema.**
+
+`prisma db pull` (introspecção) sobrescreve `schema.prisma` inteiro com o estado refletido do banco. Se houver mudanças manuais não commitadas (novos models, campos, relations), elas são perdidas silenciosamente. Além disso, a introspecção:
+- Remove todos os `onDelete: SetNull` e `onDelete: Restrict` das relations (pois o banco não armazena essas instruções Prisma).
+- Remove todas as anotações `@db.Text` (o banco armazena como `text`, mas a introspecção gera `String` sem annotação).
+- Remove comentários inline do schema.
+- Reordena campos e relations alfabeticamente.
+- Pode alterar cardinalidade de relations (ex: `Subscription[]` → `Subscription?`).
+
+**Se bater em drift de shadow database (P3006), a saída é investigar o drift, não rodar db pull.** Usar `prisma db diff` para diagnosticar, ou restaurar o schema do último commit e reaplicar as mudanças manualmente.
+
+## ⚠️ Cuidado: Queries com comparação entre colunas
+
+Prisma **não suporta** comparar duas colunas da mesma tabela no `where` (ex: `quantityAvailable < minQuantity`). Se você tentar algo como `{ quantityAvailable: { lt: prisma.equipment.fields.minQuantity } }`, vai falhar em runtime — mas se houver um `.catch(() => 0)` ou similar, o erro fica silencioso e o valor retornado será sempre o fallback.
+
+**Regra:** Para comparações coluna-contra-coluna, use `findMany` + filtro em memória (opção A) ou `prisma.$queryRaw` (opção B). Nunca confie apenas em testes unitários com mock para validar essas queries — sempre teste contra o Postgres real (`docker exec agendai_db_dev psql ...`) antes de confiar no resultado.
+
+**Caso real (2026-09-18):** `equipmentRepository.countByBarbershop()` usava `quantityAvailable: { lt: prisma.equipment.fields.minQuantity as any }` dentro de `.catch(() => 0)`. O mockRepo do teste filtrava corretamente em memória, então todos os testes passavam — mas contra o banco real, `lowStockCount` sempre retornava 0.
+
+---
+
+## 5. Checklist de mudança
 
 - [ ] Rota/middleware/Zod/container atualizados?
 - [ ] UseCase sem acoplar SDK sem necessidade?
 - [ ] Transação onde há invariante financeira/estoque?
 - [ ] Teste unitário com mock de repository quando regra muda?
 - [ ] `docs:check` se package/scripts/estrutura documentada mudou?
+
+---
+
+## 6. Bugs conhecidos fora de escopo
+
+- **Vouchers (case mismatch):** `vouchersApi.ts` envia tipos `PERCENTAGE`/`FIXED`/`FREE_SERVICE` (maiúsculo), mas o backend (`voucherSchema.ts`) espera `percent`/`fixed`/`free_service` (minúsculo). Falha com 400 em criar/editar voucher. Necessário mapeamento de case no `vouchersApi.ts` ou alteração dos schemas.
+- **Cash Panel (tipo inválido):** `CashPanel.tsx` envia tipos de movimentação `TIP` e `OTHER` que não existem no enum do backend (`cashMovementSchema.ts`). Falha com 400 ao criar movimentação com esses tipos.
+- **clientPortalSchema (schemas faltantes):** `clientPortalController.ts` importa `barbershopIdQuerySchema`, `staffDashboardQuerySchema` e `linkIdParamsSchema` de `clientPortalSchema.ts`, mas esses exports não existem no schema. Gera erro TS2305 no typecheck. Bug pré-existente desde o commit 5be40c2.

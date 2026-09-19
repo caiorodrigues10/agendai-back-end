@@ -14,6 +14,7 @@ services:
       DATABASE_URL: "postgresql://agendai:agendai123@db:5432/agendai"
       DIRECT_URL: "postgresql://agendai:agendai123@db:5432/agendai"
       REDIS_URL: "redis://redis:6379"
+      RUN_MIGRATIONS: "false"  # Desligado porque o banco dev tem tabelas mas sem _prisma_migrations (drift). Ver AGENTS.md "Risco conhecido: Drift do banco de dev". Para ambiente novo do zero, mude para true na primeira subida ou rode `prisma db push` manualmente.
     ports:
       - "3333:3333"
     volumes:

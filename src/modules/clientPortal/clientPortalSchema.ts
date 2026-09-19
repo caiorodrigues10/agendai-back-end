@@ -50,3 +50,6 @@ export const clientPortalQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+export const CLIENT_PORTAL_OWNER_ROLES = ['OWNER'] as const;
+export const CLIENT_PORTAL_STAFF_ROLES = ['EMPLOYEE'] as const;

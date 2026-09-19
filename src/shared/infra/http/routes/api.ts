@@ -43,7 +43,7 @@ import { catalogRoutes } from '@/modules/catalog/catalog.routes'
 import { clientPortalRoutes } from '@/modules/clientPortal/clientPortal.routes'
 import { organizationRoutes } from '@/modules/organizations/organization.routes'
 import { visitRoutes } from '@/modules/visits/visit.routes'
-import { resourceRoutes } from '@/modules/resources/resource.routes'
+import { equipmentRoutes } from '@/modules/equipment/equipment.routes'
 import { profitRoutes } from '@/modules/profit/profit.routes'
 import { giftCardRoutes } from '@/modules/giftCards/giftCard.routes'
 import { formRoutes } from '@/modules/forms/form.routes'
@@ -109,7 +109,7 @@ export async function apiRoutes(app: FastifyInstance) {
 	await giftCardRoutes(app)
 	await pricingRoutes(app)
 	await voucherRoutes(app)
-	await resourceRoutes(app)
+	await equipmentRoutes(app)
 	await copilotRoutes(app)
 	await corporateRoutes(app)
 	await reputationRoutes(app)
