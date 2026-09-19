@@ -3019,15 +3019,15 @@ model Equipment {
 model EquipmentMovement {
   id              String                  @id @default(uuid()) @db.Uuid
   barbershopId    String                  @db.Uuid
-  equipmentId     String                  @db.Uuid
+  equipmentId     String?                 @db.Uuid
   type            EquipmentMovementType
   quantity        Int
   reason          String?                 @db.VarChar(300)
   staffId         String?                 @db.Uuid
   createdAt       DateTime                @default(now()) @db.Timestamptz()
 
-  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  equipment  Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  equipment  Equipment?  @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
   staff      User?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
   @@index([equipmentId, createdAt])
