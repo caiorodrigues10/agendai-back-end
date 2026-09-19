@@ -69,6 +69,7 @@ model User {
     purchaseOrdersCreated    PurchaseOrder[]
     reviewResponses          ReviewResponse[]
     performedMovements       EquipmentMovement[]
+  equipmentNeedsRequested  EquipmentNeed[]    @relation("EquipmentNeedRequester")
 
   @@index([cpf])
   @@index([deletedAt])
@@ -3024,7 +3025,7 @@ model EquipmentMovement {
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   equipment  Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  user       User?      @relation(fields: [staffId], references: [id])
+  staff      User?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
   @@index([equipmentId, createdAt])
   @@index([barbershopId, createdAt])
@@ -3047,6 +3048,7 @@ model EquipmentNeed {
 
   barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   equipment  Equipment?  @relation(fields: [equipmentId], references: [id])
+  requester  User?       @relation("EquipmentNeedRequester", fields: [requestedBy], references: [id], onDelete: SetNull)
 
   @@index([barbershopId, status])
   @@index([barbershopId, priority])

@@ -53,7 +53,7 @@ const movementSelect = {
   staffId: true,
   createdAt: true,
   equipment: { select: { id: true, name: true, category: true } },
-  user: { select: { id: true, name: true } },
+  staff: { select: { id: true, name: true } },
 } as const;
 
 const needSelect = {
@@ -70,6 +70,7 @@ const needSelect = {
   createdAt: true,
   resolvedAt: true,
   equipment: { select: { id: true, name: true, category: true } },
+  requester: { select: { id: true, name: true } },
 } as const;
 
 export class EquipmentRepository {
