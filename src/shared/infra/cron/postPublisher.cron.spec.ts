@@ -2,7 +2,7 @@
 
 // --- Mock prisma ---
 const mockFeedPostFindMany = vi.fn();
-const mockFeedPostUpdate = vi.fn();
+const mockFeedPostUpdateMany = vi.fn();
 const mockFeedPostCreate = vi.fn();
 const mockBarbershopFindMany = vi.fn();
 const mockScheduleFindFirst = vi.fn();
@@ -13,7 +13,7 @@ vi.mock("@/libs/prismaClient", () => ({
   prisma: {
     feedPost: {
       findMany: (...a: unknown[]) => mockFeedPostFindMany(...a),
-      update: (...a: unknown[]) => mockFeedPostUpdate(...a),
+      updateMany: (...a: unknown[]) => mockFeedPostUpdateMany(...a),
       create: (...a: unknown[]) => mockFeedPostCreate(...a),
     },
     barbershop: {
@@ -27,12 +27,6 @@ vi.mock("@/libs/prismaClient", () => ({
       findMany: (...a: unknown[]) => mockServiceFindMany(...a),
     },
   },
-}));
-
-// --- Mock broadcastPostToClients ---
-const mockBroadcast = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/modules/posts/services/postBroadcastService", () => ({
-  broadcastPostToClients: (...a: unknown[]) => mockBroadcast(...a),
 }));
 
 // --- Mock postImageService ---
@@ -76,7 +70,7 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
     mod.schedulePostPublisher(log);
   });
 
-  it("scheduled posts are published AND broadcastPostToClients is called with correct args", async () => {
+  it("scheduled posts are published atomically (updateMany with SCHEDULED guard)", async () => {
     mockFeedPostFindMany.mockResolvedValue([
       {
         id: POST_ID_1,
@@ -85,34 +79,44 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
         ctaText: "Garanta seu lugar",
       },
     ]);
-    mockFeedPostUpdate.mockResolvedValue({});
-    mockBroadcast.mockResolvedValue(undefined);
+    mockFeedPostUpdateMany.mockResolvedValue({ count: 1 });
 
     await handler();
 
-    expect(mockFeedPostUpdate).toHaveBeenCalledWith({
-      where: { id: POST_ID_1 },
-      data: { status: "PUBLISHED", publishedAt: expect.any(Date) },
+    expect(mockFeedPostUpdateMany).toHaveBeenCalledWith({
+      where: { id: POST_ID_1, status: "SCHEDULED" },
+      data: expect.objectContaining({ status: "PUBLISHED" }),
     });
 
-    expect(mockBroadcast).toHaveBeenCalledWith(
-      BARBERSHOP_ID,
-      POST_ID_1,
-      "Promo de sexta",
-      "Garanta seu lugar"
-    );
-
+    // WhatsApp NUNCA é disparado pelo cron — envio é ação explícita.
     expect(log.info).toHaveBeenCalledWith(
       { count: 1 },
       "Posts agendados publicados pelo cron"
     );
   });
 
-  it("auto-post triggers broadcastPostToClients with created post id", async () => {
-    // No scheduled posts
-    mockFeedPostFindMany.mockResolvedValue([]);
+  it("post whose status changed between find and update is skipped (updateMany count=0)", async () => {
+    mockFeedPostFindMany.mockResolvedValue([
+      { id: POST_ID_1, barbershopId: BARBERSHOP_ID, title: "X", ctaText: null },
+      { id: POST_ID_2, barbershopId: BARBERSHOP_ID, title: "Y", ctaText: null },
+    ]);
+    // First: race condition — someone published it already.
+    mockFeedPostUpdateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
 
-    // One shop eligible for auto-post
+    await handler();
+
+    expect(mockFeedPostUpdateMany).toHaveBeenCalledTimes(2);
+    expect(log.error).not.toHaveBeenCalled();
+    expect(log.info).toHaveBeenCalledWith(
+      { count: 1 },
+      "Posts agendados publicados pelo cron"
+    );
+  });
+
+  it("auto-post is created as PUBLISHED without broadcast", async () => {
+    mockFeedPostFindMany.mockResolvedValue([]);
     mockBarbershopFindMany.mockResolvedValue([
       {
         id: BARBERSHOP_ID,
@@ -123,128 +127,55 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
     ]);
 
     // Schedule: open today at 09:00
-    const now = new Date();
     mockScheduleFindFirst.mockResolvedValue({
       isOpen: true,
       openTime: "09:00",
       closeTime: "19:00",
     });
+    mockServiceFindMany.mockResolvedValue([{ name: "Corte", price: 45 }]);
 
-    // Force nowInSaoPaulo to return 09:00 on a matching day
-    // by mocking Date globally for the cron's internal nowInSaoPaulo()
     const fakeNow = new Date("2026-08-28T12:00:00Z"); // 09:00 BRT
     vi.useFakeTimers();
     vi.setSystemTime(fakeNow);
 
-    mockServiceFindMany.mockResolvedValue([
-      { name: "Corte", price: 45 },
-    ]);
-
-    const createdPostId = "00000000-0000-0000-0000-000000000099";
-    mockFeedPostCreate.mockResolvedValue({ id: createdPostId });
+    mockFeedPostCreate.mockResolvedValue({ id: "00000000-0000-0000-0000-000000000099" });
     mockBarbershopUpdate.mockResolvedValue({});
 
     await handler();
 
-    // Verify create was called with PUBLISHED status
     expect(mockFeedPostCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         barbershopId: BARBERSHOP_ID,
         status: "PUBLISHED",
       }),
     });
-
-    // Verify broadcast was called with the created post's id
-    expect(mockBroadcast).toHaveBeenCalledWith(
-      BARBERSHOP_ID,
-      createdPostId,
-      expect.stringContaining("Abrimos"),
-      "Entrar na fila"
+    expect(mockBarbershopUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { autoPostLastDate: expect.any(Date) },
+      })
     );
 
     vi.useRealTimers();
   });
 
-  it("broadcast failure on one scheduled post does not block others", async () => {
+  it("a thrown error inside a post publish does not abort other posts", async () => {
     mockFeedPostFindMany.mockResolvedValue([
-      {
-        id: POST_ID_1,
-        barbershopId: BARBERSHOP_ID,
-        title: "Post 1",
-        ctaText: null,
-      },
-      {
-        id: POST_ID_2,
-        barbershopId: BARBERSHOP_ID,
-        title: "Post 2",
-        ctaText: "CTA 2",
-      },
+      { id: POST_ID_1, barbershopId: BARBERSHOP_ID, title: "P1", ctaText: null },
+      { id: POST_ID_2, barbershopId: BARBERSHOP_ID, title: "P2", ctaText: null },
     ]);
 
-    mockFeedPostUpdate.mockResolvedValue({});
-
-    // First broadcast throws, second succeeds
-    mockBroadcast
-      .mockRejectedValueOnce(new Error("broadcast boom"))
-      .mockResolvedValueOnce(undefined);
+    mockFeedPostUpdateMany
+      .mockRejectedValueOnce(new Error("db timeout"))
+      .mockResolvedValueOnce({ count: 1 });
 
     await handler();
 
-    // Both posts should have been updated
-    expect(mockFeedPostUpdate).toHaveBeenCalledTimes(2);
-
-    // Both broadcasts should have been attempted
-    expect(mockBroadcast).toHaveBeenCalledTimes(2);
-
-    // First broadcast should have had error logged
+    expect(mockFeedPostUpdateMany).toHaveBeenCalledTimes(2);
     expect(log.error).toHaveBeenCalledWith(
       { err: expect.any(Error), postId: POST_ID_1 },
-      "Broadcast post failed"
+      "Falha ao publicar post agendado"
     );
-
-    // Second broadcast should have succeeded (no error for POST_ID_2)
-    expect(mockBroadcast).toHaveBeenLastCalledWith(
-      BARBERSHOP_ID,
-      POST_ID_2,
-      "Post 2",
-      "CTA 2"
-    );
-  });
-
-  it("salon without WhatsApp: post is still PUBLISHED and broadcast fails silently without breaking cron", async () => {
-    mockFeedPostFindMany.mockResolvedValue([
-      {
-        id: POST_ID_1,
-        barbershopId: BARBERSHOP_ID,
-        title: "Post sem WhatsApp",
-        ctaText: null,
-      },
-    ]);
-    mockFeedPostUpdate.mockResolvedValue({});
-
-    // Simulates broadcastPostToClients returning silently (no WhatsApp configured)
-    mockBroadcast.mockResolvedValue(undefined);
-
-    await handler();
-
-    // Post must be marked as PUBLISHED regardless
-    expect(mockFeedPostUpdate).toHaveBeenCalledWith({
-      where: { id: POST_ID_1 },
-      data: { status: "PUBLISHED", publishedAt: expect.any(Date) },
-    });
-
-    // Broadcast was called (fire-and-forget)
-    expect(mockBroadcast).toHaveBeenCalledWith(
-      BARBERSHOP_ID,
-      POST_ID_1,
-      "Post sem WhatsApp",
-      null
-    );
-
-    // No error should have been logged — broadcast succeeded silently
-    expect(log.error).not.toHaveBeenCalled();
-
-    // Info log for the published count should still fire
+    // Second post published successfully, no broadcast fired.
     expect(log.info).toHaveBeenCalledWith(
       { count: 1 },
       "Posts agendados publicados pelo cron"

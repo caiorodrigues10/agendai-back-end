@@ -7,9 +7,11 @@ const logger = getModuleLogger("posts:broadcast");
 
 /**
  * Enfileira jobs de broadcast de post via WhatsApp para todos os clientes
- * da barbearia. Chamado de forma fire-and-forget no controller.
+ * da barbearia. Chamado APENAS pela ação explícita "Enviar pelo WhatsApp"
+ * (POST /posts/:id/whatsapp) — publicar/agendar não dispara mensagens.
  *
- * - Não aguarda conclusão dos jobs.
+ * - Retorna quantos envios foram enfileirados.
+ * - Erros internos são logados e não propagam — o controller decide o que responder.
  * - Deduplicação via postId + clientId.
  * - Ignora clientes sem WhatsApp.
  * - Usa a imagem já armazenada no post (imageUrl).
@@ -19,18 +21,18 @@ export async function broadcastPostToClients(
   postId: string,
   title: string,
   ctaText: string | null
-): Promise<void> {
+): Promise<number> {
   try {
     const barbershop = await prisma.barbershop.findUnique({
       where: { id: barbershopId },
       select: { evolutionInstanceName: true },
     });
 
-    if (!barbershop) return;
+    if (!barbershop) return 0;
 
     if (!barbershop.evolutionInstanceName?.trim()) {
       logger.warn({ postId, barbershopId }, "Broadcast skipped — salão sem WhatsApp conectado");
-      return;
+      return 0;
     }
 
     const clients = await prisma.salonClient.findMany({
@@ -43,7 +45,7 @@ export async function broadcastPostToClients(
 
     if (clients.length === 0) {
       logger.info({ postId, barbershopId }, "No clients with WhatsApp — broadcast skipped");
-      return;
+      return 0;
     }
 
     const post = await prisma.feedPost.findUnique({
@@ -57,12 +59,12 @@ export async function broadcastPostToClients(
 
     if (!post || !post.imageUrl) {
       logger.warn({ postId }, "Post not found or has no image — broadcast aborted");
-      return;
+      return 0;
     }
 
     if (!post.imageUrl.startsWith("data:image")) {
       logger.warn({ postId }, "Post imageUrl is not a data URL — broadcast aborted");
-      return;
+      return 0;
     }
 
     const imageBase64 = post.imageUrl.replace(/^data:image\/\w+;base64,/, "");
@@ -89,7 +91,9 @@ export async function broadcastPostToClients(
     }
 
     logger.info({ postId, barbershopId, queued }, "Post broadcast enqueued");
+    return queued;
   } catch (err) {
     logger.error({ err, postId, barbershopId }, "Failed to broadcast post");
+    return 0;
   }
 }

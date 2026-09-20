@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { Resvg } from "@resvg/resvg-js";
+import { getPostPalette, type PostPalette } from "./postPalettes";
 
 export type PostSvgInput = {
   shopName: string;
@@ -20,33 +21,8 @@ export type PostSvgInput = {
 
 /** Open Sans (Apache-2.0) — embutida para o PNG renderizar no Render/Linux. */
 const FONT_FAMILY = "Open Sans";
-
-const BG = "#0F0F0F";
-const BG_MID = "#161616";
-const SURFACE = "#212121";
-const BORDER = "#303030";
-const EMERALD = "#10B981";
-const EMERALD_LIGHT = "#34D399";
-const EMERALD_FG = "#052E1F";
 const TEAL = "#00C2B3";
 const TEAL_FG = "#0A0F18";
-const TEXT_WHITE = "#F1F1F1";
-const TEXT_MUTED = "#AAAAAA";
-
-const TEMPLATE_STYLE: Record<string, { accent: string; background: string }> = {
-  "agenda-aberta": { accent: EMERALD, background: BG },
-  "ultimas-vagas": { accent: "#FB7185", background: "#180D12" },
-  "promocao-relampago": { accent: "#F59E0B", background: "#17120A" },
-  "servico-destaque": { accent: "#60A5FA", background: "#0B1220" },
-  "antes-depois": { accent: "#C084FC", background: "#160E20" },
-  "transformacao": { accent: "#2DD4BF", background: "#071716" },
-  "profissional-destaque": { accent: "#F472B6", background: "#1B0D18" },
-  "depoimento": { accent: "#A3E635", background: "#111806" },
-  "menu-servicos": { accent: "#38BDF8", background: "#08151D" },
-  "horario-especial": { accent: "#FBBF24", background: "#181306" },
-  "novidade": { accent: "#818CF8", background: "#0E1020" },
-  "editorial-minimalista": { accent: "#171717", background: "#F5F5F4" },
-};
 
 function escapeXml(value: string): string {
   return value
@@ -76,7 +52,7 @@ function wrapTitle(raw: string): string[] {
 }
 
 /** Wordmark do site: AGEND sobrepõe o quadrado teal com AI. */
-function agendaiWordmark(cx: number, cy: number, textColor: string = TEXT_WHITE): string {
+function agendaiWordmark(cx: number, cy: number, textColor: string): string {
   const boxW = 78;
   const boxH = 46;
   const overlap = 16;
@@ -108,6 +84,7 @@ function resolvePostFontFile(): string | null {
 type LayoutCtx = {
   input: PostSvgInput;
   accent: string;
+  accentFg: string;
   fg: string;
   muted: string;
   surface: string;
@@ -140,7 +117,7 @@ function hoursCard(ctx: LayoutCtx, y: number, opts?: { width?: number; x?: numbe
   const w = opts?.width ?? 880;
   const x = opts?.x ?? 100;
   const svg = `<g>
-  <rect x="${x}" y="${y}" width="${w}" height="88" rx="20" fill="${ctx.isLight ? "#FFFFFF" : SURFACE}" stroke="${ctx.border}" stroke-width="1.5" />
+  <rect x="${x}" y="${y}" width="${w}" height="88" rx="20" fill="${ctx.surface}" stroke="${ctx.border}" stroke-width="1.5" />
   <text x="${x + 36}" y="${y + 34}" font-family="${FONT_FAMILY}" font-size="16" font-weight="700" fill="${ctx.accent}" letter-spacing="3">${ctx.hoursKicker}</text>
   <text x="${x + 36}" y="${y + 68}" font-family="${FONT_FAMILY}" font-size="28" font-weight="700" fill="${ctx.fg}">${escapeXml(ctx.scheduleLabel)}</text>
 </g>`;
@@ -157,10 +134,10 @@ function serviceRows(
     .map((service, i) => {
       const ry = y + i * rowH;
       return `<g>
-  <rect x="100" y="${ry}" width="880" height="${rowH - 12}" rx="18" fill="${ctx.isLight ? "#FFFFFF" : SURFACE}" stroke="${ctx.border}" stroke-width="1.5" />
+  <rect x="100" y="${ry}" width="880" height="${rowH - 12}" rx="18" fill="${ctx.surface}" stroke="${ctx.border}" stroke-width="1.5" />
   <rect x="100" y="${ry}" width="7" height="${rowH - 12}" rx="3" fill="${ctx.accent}" />
   <text x="136" y="${ry + (rowH - 12) / 2 + 10}" font-family="${FONT_FAMILY}" font-size="26" font-weight="600" fill="${ctx.fg}">${escapeXml(truncate(service.name, 26))}</text>
-  <text x="948" y="${ry + (rowH - 12) / 2 + 10}" font-family="${FONT_FAMILY}" font-size="26" font-weight="700" fill="${ctx.isLight ? ctx.accent : EMERALD_LIGHT}" text-anchor="end">${escapeXml(formatBRL(service.price))}</text>
+  <text x="948" y="${ry + (rowH - 12) / 2 + 10}" font-family="${FONT_FAMILY}" font-size="26" font-weight="700" fill="${ctx.accent}" text-anchor="end">${escapeXml(formatBRL(service.price))}</text>
 </g>`;
     })
     .join("");
@@ -184,7 +161,7 @@ function photoPanel(
 <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="#000" opacity="${overlay}" />
 <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="none" stroke="${ctx.border}" stroke-width="1.5" />`;
   }
-  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="${ctx.isLight ? "#FFFFFF" : SURFACE}" stroke="${ctx.border}" stroke-width="1.5" />
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="${ctx.surface}" stroke="${ctx.border}" stroke-width="1.5" />
 <circle cx="${x + w / 2}" cy="${y + h / 2 - 14}" r="34" fill="none" stroke="${ctx.accent}" stroke-width="3" opacity="0.55" />
 <path d="M ${x + w / 2 - 14} ${y + h / 2 - 20} l 28 0 l -14 20 z" fill="${ctx.accent}" opacity="0.55" />
 ${placeholderLabel ? `<text x="${x + w / 2}" y="${y + h / 2 + 52}" font-family="${FONT_FAMILY}" font-size="20" font-weight="700" fill="${ctx.muted}" text-anchor="middle">${escapeXml(placeholderLabel)}</text>` : ""}`;
@@ -194,7 +171,7 @@ function badge(ctx: LayoutCtx, cx: number, y: number, label: string): string {
   const w = Math.max(180, label.length * 15 + 64);
   return `<g>
   <rect x="${cx - w / 2}" y="${y}" width="${w}" height="52" rx="26" fill="${ctx.accent}" />
-  <text x="${cx}" y="${y + 35}" font-family="${FONT_FAMILY}" font-size="22" font-weight="800" fill="${ctx.isLight ? "#FFFFFF" : EMERALD_FG}" text-anchor="middle" letter-spacing="2">${escapeXml(label)}</text>
+  <text x="${cx}" y="${y + 35}" font-family="${FONT_FAMILY}" font-size="22" font-weight="800" fill="${ctx.accentFg}" text-anchor="middle" letter-spacing="2">${escapeXml(label)}</text>
 </g>`;
 }
 
@@ -243,7 +220,7 @@ ${hours.svg}`;
     const title = titleBlock(ctx, ctx.top + 52, 44);
     const cardY = title.bottom + 40;
     const cardH = Math.min(430, ctx.ctaY - cardY - 40);
-    let card = `<rect x="120" y="${cardY}" width="840" height="${cardH}" rx="32" fill="${ctx.isLight ? "#FFFFFF" : SURFACE}" stroke="${ctx.accent}" stroke-width="2.5" />
+    let card = `<rect x="120" y="${cardY}" width="840" height="${cardH}" rx="32" fill="${ctx.surface}" stroke="${ctx.accent}" stroke-width="2.5" />
 <rect x="120" y="${cardY}" width="840" height="10" rx="5" fill="${ctx.accent}" />`;
     if (svc) {
       card += `<text x="540" y="${cardY + cardH * 0.34}" font-family="${FONT_FAMILY}" font-size="46" font-weight="800" fill="${ctx.fg}" text-anchor="middle">${escapeXml(truncate(svc.name, 22))}</text>
@@ -264,10 +241,10 @@ ${hours.svg}`;
     const right = photoPanel(ctx, ctx.input.secondaryImageUrl, 560, panelY, 436, panelH, "afterClip", "Adicione a foto do depois");
     const labelY = panelY + panelH + 16;
     return `${title.svg}${left}${right}
-<rect x="188" y="${labelY}" width="228" height="46" rx="23" fill="${ctx.isLight ? "#FFFFFF" : SURFACE}" stroke="${ctx.border}" stroke-width="1.5" />
+<rect x="188" y="${labelY}" width="228" height="46" rx="23" fill="${ctx.surface}" stroke="${ctx.border}" stroke-width="1.5" />
 <text x="302" y="${labelY + 31}" font-family="${FONT_FAMILY}" font-size="20" font-weight="800" fill="${ctx.muted}" text-anchor="middle" letter-spacing="3">ANTES</text>
 <rect x="664" y="${labelY}" width="228" height="46" rx="23" fill="${ctx.accent}" />
-<text x="778" y="${labelY + 31}" font-family="${FONT_FAMILY}" font-size="20" font-weight="800" fill="${ctx.isLight ? "#FFFFFF" : EMERALD_FG}" text-anchor="middle" letter-spacing="3">DEPOIS</text>`;
+<text x="778" y="${labelY + 31}" font-family="${FONT_FAMILY}" font-size="20" font-weight="800" fill="${ctx.accentFg}" text-anchor="middle" letter-spacing="3">DEPOIS</text>`;
   },
 
   /** Foto grande do resultado com faixa de título por cima. */
@@ -290,7 +267,7 @@ ${title.svg}`;
     const photo = ctx.input.primaryImageUrl?.startsWith("data:image")
       ? `<clipPath id="proClip"><circle cx="540" cy="${cy}" r="${r}" /></clipPath>
 <image href="${escapeXml(ctx.input.primaryImageUrl)}" x="${540 - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#proClip)" />`
-      : `<circle cx="540" cy="${cy}" r="${r}" fill="${ctx.isLight ? "#FFFFFF" : SURFACE}" stroke="${ctx.border}" stroke-width="1.5" />
+      : `<circle cx="540" cy="${cy}" r="${r}" fill="${ctx.surface}" stroke="${ctx.border}" stroke-width="1.5" />
 <circle cx="540" cy="${cy - 40}" r="56" fill="${ctx.accent}" opacity="0.45" />
 <path d="M 420 ${cy + 130} a 120 120 0 0 1 240 0 z" fill="${ctx.accent}" opacity="0.45" />`;
     const title = titleBlock(ctx, cy + r + 84, 54);
@@ -345,14 +322,14 @@ ${stars}
     const title = titleBlock(ctx, cy + 190, 58);
     return `<g transform="rotate(-8 540 ${cy})">
   <rect x="380" y="${cy - 56}" width="320" height="112" rx="24" fill="${ctx.accent}" />
-  <text x="540" y="${cy + 22}" font-family="${FONT_FAMILY}" font-size="60" font-weight="800" fill="${ctx.isLight ? "#FFFFFF" : EMERALD_FG}" text-anchor="middle" letter-spacing="6">NOVO</text>
+  <text x="540" y="${cy + 22}" font-family="${FONT_FAMILY}" font-size="60" font-weight="800" fill="${ctx.accentFg}" text-anchor="middle" letter-spacing="6">NOVO</text>
 </g>
 <circle cx="220" cy="${cy - 90}" r="7" fill="${ctx.accent}" /><circle cx="860" cy="${cy - 60}" r="10" fill="${ctx.accent}" opacity="0.6" /><circle cx="790" cy="${cy + 110}" r="6" fill="${ctx.accent}" /><circle cx="270" cy="${cy + 90}" r="9" fill="${ctx.accent}" opacity="0.5" />
 ${title.svg}
 <text x="540" y="${title.bottom + 44}" font-family="${FONT_FAMILY}" font-size="24" font-weight="600" fill="${ctx.muted}" text-anchor="middle">${escapeXml(ctx.scheduleLabel)}</text>`;
   },
 
-  /** Fundo claro, tipografia enxuta, linhas finas. */
+  /** Linhas finas + espaçamento amplo; funciona com qualquer paleta. */
   "editorial-minimalista": (ctx) => {
     const midTop = ctx.top + 60;
     const title = titleBlock(ctx, midTop + 120, 58);
@@ -360,13 +337,13 @@ ${title.svg}
     const list = svc
       .map(
         (s, i) =>
-          `<text x="140" y="${title.bottom + 110 + i * 56}" font-family="${FONT_FAMILY}" font-size="26" font-weight="600" fill="#404040">${escapeXml(truncate(s.name, 28))}</text>
-<text x="940" y="${title.bottom + 110 + i * 56}" font-family="${FONT_FAMILY}" font-size="26" font-weight="700" fill="#171717" text-anchor="end">${escapeXml(formatBRL(s.price))}</text>
-<line x1="140" y1="${title.bottom + 126 + i * 56}" x2="940" y2="${title.bottom + 126 + i * 56}" stroke="#E5E5E4" stroke-width="1.5" />`
+          `<text x="140" y="${title.bottom + 110 + i * 56}" font-family="${FONT_FAMILY}" font-size="26" font-weight="600" fill="${ctx.fg}">${escapeXml(truncate(s.name, 28))}</text>
+<text x="940" y="${title.bottom + 110 + i * 56}" font-family="${FONT_FAMILY}" font-size="26" font-weight="700" fill="${ctx.accent}" text-anchor="end">${escapeXml(formatBRL(s.price))}</text>
+<line x1="140" y1="${title.bottom + 126 + i * 56}" x2="940" y2="${title.bottom + 126 + i * 56}" stroke="${ctx.border}" stroke-width="1.5" />`
       )
       .join("");
-    return `<line x1="140" y1="${midTop}" x2="940" y2="${midTop}" stroke="#171717" stroke-width="2" />
-<text x="140" y="${midTop + 44}" font-family="${FONT_FAMILY}" font-size="20" font-weight="700" fill="#737373" letter-spacing="5">${ctx.hoursKicker} · ${escapeXml(ctx.scheduleLabel)}</text>
+    return `<line x1="140" y1="${midTop}" x2="940" y2="${midTop}" stroke="${ctx.fg}" stroke-width="2" />
+<text x="140" y="${midTop + 44}" font-family="${FONT_FAMILY}" font-size="20" font-weight="700" fill="${ctx.muted}" letter-spacing="5">${ctx.hoursKicker} · ${escapeXml(ctx.scheduleLabel)}</text>
 ${title.svg}
 ${list}`;
   },
@@ -374,20 +351,18 @@ ${list}`;
 
 /**
  * SVG 1080 no visual do site, com logo AgendAI.
- * Cada template tem uma composição própria (TEMPLATE_LAYOUTS);
- * TEMPLATE_STYLE define acento e fundo.
- * Sem fontes da web: o PNG usa o TTF empacotado (resvg).
+ * Templates definem APENAS a composição; toda a cor vem da paleta
+ * (`postPalettes.ts`). Sem fontes da web: o PNG usa o TTF empacotado.
  */
 export function buildPostSvg(input: PostSvgInput): string {
+  const palette: PostPalette = getPostPalette(input.paletteKey);
   const shopName = escapeXml(truncate(input.shopName, 34).toUpperCase());
   const templateKey = input.templateKey ?? "agenda-aberta";
   const format = input.format ?? "square";
   const height = format === "portrait" ? 1350 : format === "story" ? 1920 : 1080;
-  const style = TEMPLATE_STYLE[templateKey] ?? TEMPLATE_STYLE["agenda-aberta"];
-  const accent = style.accent;
-  const isLight = templateKey === "editorial-minimalista";
-  const fg = isLight ? "#171717" : TEXT_WHITE;
-  const muted = isLight ? "#737373" : TEXT_MUTED;
+  const accent = palette.accent;
+  const fg = palette.foreground;
+  const muted = palette.muted;
 
   const hasLogo = Boolean(input.logoUrl?.startsWith("data:image"));
   const logoBlock = hasLogo
@@ -397,18 +372,18 @@ export function buildPostSvg(input: PostSvgInput): string {
     : "";
 
   const shopY = hasLogo ? 236 : 152;
-  // Story/portrait: centraliza o miolo no espaço extra.
   const extraOffset = Math.round((height - 1080) / 2);
   const ctaY = height - 172 - Math.round(extraOffset * 0.4);
 
   const ctx: LayoutCtx = {
     input,
     accent,
+    accentFg: palette.accentForeground,
     fg,
     muted,
-    surface: SURFACE,
-    border: isLight ? "#E5E5E4" : BORDER,
-    isLight,
+    surface: palette.surface,
+    border: palette.border,
+    isLight: palette.isLight,
     height,
     top: shopY + extraOffset,
     ctaY,
@@ -427,11 +402,11 @@ export function buildPostSvg(input: PostSvgInput): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="${height}" viewBox="0 0 1080 ${height}">
   <defs>
     <radialGradient id="glowTR" cx="0.9" cy="0.05" r="0.48">
-      <stop offset="0%" stop-color="${accent}" stop-opacity="${isLight ? 0.08 : 0.2}" />
+      <stop offset="0%" stop-color="${accent}" stop-opacity="${palette.isLight ? 0.08 : 0.2}" />
       <stop offset="100%" stop-color="${accent}" stop-opacity="0" />
     </radialGradient>
   </defs>
-  <rect width="1080" height="${height}" fill="${style.background}" />
+  <rect width="1080" height="${height}" fill="${palette.background}" />
   <rect width="1080" height="${height}" fill="url(#glowTR)" />
   <rect width="1080" height="6" fill="${accent}" />
   ${agendaiWordmark(540, 78, fg)}
@@ -440,7 +415,7 @@ export function buildPostSvg(input: PostSvgInput): string {
   ${middle}
   <g>
     <rect x="170" y="${ctaY}" width="740" height="88" rx="44" fill="${accent}" />
-    <text x="540" y="${ctaY + 56}" font-family="${FONT_FAMILY}" font-size="30" font-weight="800" fill="${isLight ? "#FFFFFF" : EMERALD_FG}" text-anchor="middle">${ctx.ctaText}</text>
+    <text x="540" y="${ctaY + 56}" font-family="${FONT_FAMILY}" font-size="30" font-weight="800" fill="${palette.accentForeground}" text-anchor="middle">${ctx.ctaText}</text>
   </g>
   <text x="540" y="${height - 36}" font-family="${FONT_FAMILY}" font-size="18" font-weight="600" fill="${muted}" text-anchor="middle">agendai.app  ·  fila digital e agenda</text>
 </svg>`;

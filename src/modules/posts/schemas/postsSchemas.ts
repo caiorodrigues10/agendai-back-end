@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidPaletteKey } from "../services/postPalettes";
 
 /** Modos do CTA (minúsculos, front) ↔ enum Prisma PostMode (maiúsculos). */
 export const POST_MODE_MAP = {
@@ -26,6 +27,12 @@ export const designOptionsSchema = z.object({
   overlay: z.number().min(0).max(100).optional(),
 }).optional();
 
+/** Paleta validada contra o catálogo `postPalettes` (sem seletor livre). */
+export const paletteKeySchema = z
+  .string()
+  .regex(/^[a-z0-9-]{2,32}$/)
+  .refine(isValidPaletteKey, { message: "Paleta não suportada" });
+
 export const previewPostQuerySchema = z.object({
   barbershopId: z.string().uuid(),
   postMode: postModeSchema.default("both"),
@@ -36,10 +43,11 @@ export const previewPostQuerySchema = z.object({
   format: postFormatSchema.default("square"),
   primaryMediaId: z.string().uuid().optional().nullable(),
   secondaryMediaId: z.string().uuid().optional().nullable(),
-  paletteKey: z.string().regex(/^[a-z0-9-]{2,32}$/).default("brand"),
+  paletteKey: paletteKeySchema.default("brand"),
   designOptions: designOptionsSchema,
 });
 
+/** status "draft" salva rascunho; "scheduled" exige scheduledFor futuro. */
 export const createPostSchema = z.object({
   barbershopId: z.string().uuid(),
   type: postTypeSchema,
@@ -50,22 +58,36 @@ export const createPostSchema = z.object({
   format: postFormatSchema.optional(),
   primaryMediaId: z.string().uuid().optional().nullable(),
   secondaryMediaId: z.string().uuid().optional().nullable(),
-  paletteKey: z.string().regex(/^[a-z0-9-]{2,32}$/).optional(),
+  paletteKey: paletteKeySchema.optional(),
   designOptions: designOptionsSchema,
   postMode: postModeSchema.optional().default("both"),
   scheduledFor: z.string().datetime().optional().nullable(),
+  status: z.enum(["draft"]).optional(),
 });
 
+/** Edição de conteúdo/mídia/visual. Transições de status ficam nas rotas de ação. */
 export const updatePostSchema = z.object({
   title: z.string().max(200).optional().nullable(),
   ctaText: z.string().max(120).optional().nullable(),
+  content: z.string().max(5000).optional(),
   postMode: postModeSchema.optional(),
-  scheduledFor: z.string().datetime().optional().nullable(),
-  status: z.enum(["published"]).optional(),
   templateKey: templateKeySchema.optional(),
   format: postFormatSchema.optional(),
-  paletteKey: z.string().regex(/^[a-z0-9-]{2,32}$/).optional(),
+  paletteKey: paletteKeySchema.optional(),
+  primaryMediaId: z.string().uuid().optional().nullable(),
+  secondaryMediaId: z.string().uuid().optional().nullable(),
   designOptions: designOptionsSchema,
+});
+
+export const schedulePostSchema = z.object({
+  scheduledFor: z.string().datetime(),
+});
+
+export const listPostsQuerySchema = z.object({
+  barbershopId: z.string().uuid(),
+  status: z.enum(["draft", "scheduled", "published"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(12),
 });
 
 export const listScheduledQuerySchema = z.object({

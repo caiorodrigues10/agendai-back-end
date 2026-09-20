@@ -5,7 +5,6 @@ import {
   pngToDataUrl,
   renderPostSvgToPng,
 } from "@/modules/posts/services/postImageService";
-import { broadcastPostToClients } from "@/modules/posts/services/postBroadcastService";
 
 type CronLogger = {
   info: (obj: object | string, msg?: string) => void;
@@ -70,26 +69,27 @@ async function runPostPublisherTick(log: CronLogger) {
     select: { id: true, barbershopId: true, title: true, ctaText: true },
   });
 
+  let publishedCount = 0;
+
   for (const post of scheduledPosts) {
     try {
-      await prisma.feedPost.update({
-        where: { id: post.id },
-        data: { status: "PUBLISHED", publishedAt: new Date() },
+      // Atômico: só publica se ainda estiver SCHEDULED (evita corrida com
+      // publicação manual ou cancelamento de agendamento).
+      const result = await prisma.feedPost.updateMany({
+        where: { id: post.id, status: "SCHEDULED" },
+        data: { status: "PUBLISHED", publishedAt: new Date(), scheduledFor: null },
       });
+      if (result.count === 0) continue;
+      publishedCount++;
 
-      broadcastPostToClients(
-        post.barbershopId,
-        post.id,
-        post.title ?? "Vem pra cá hoje!",
-        post.ctaText ?? null
-      ).catch((err) => log.error({ err, postId: post.id }, "Broadcast post failed"));
+      // WhatsApp NÃO é disparado aqui: envio é ação explícita do usuário.
     } catch (err) {
       log.error({ err, postId: post.id }, "Falha ao publicar post agendado");
     }
   }
 
-  if (scheduledPosts.length > 0) {
-    log.info({ count: scheduledPosts.length }, "Posts agendados publicados pelo cron");
+  if (publishedCount > 0) {
+    log.info({ count: publishedCount }, "Posts agendados publicados pelo cron");
   }
 
   const now = nowInSaoPaulo();
@@ -162,12 +162,7 @@ async function runPostPublisherTick(log: CronLogger) {
         },
       });
 
-      broadcastPostToClients(
-        shop.id,
-        createdPost.id,
-        title,
-        ctaText
-      ).catch((err) => log.error({ err, postId: createdPost.id }, "Broadcast auto-post failed"));
+      void createdPost; // WhatsApp não é disparado: envio é ação explícita.
 
       await prisma.barbershop.update({
         where: { id: shop.id },

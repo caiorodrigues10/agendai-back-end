@@ -8,6 +8,8 @@ import {
   updatePostSchema,
   previewPostQuerySchema,
   listScheduledQuerySchema,
+  listPostsQuerySchema,
+  schedulePostSchema,
   getConfigQuerySchema,
   saveConfigBodySchema,
   postParamsSchema,
@@ -26,6 +28,8 @@ import { broadcastPostToClients } from "../services/postBroadcastService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
 import { listPostTemplates } from "../services/postTemplates";
+import { listPostPalettes } from "../services/postPalettes";
+import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 
 const logger = getModuleLogger("posts:controller");
 
@@ -53,6 +57,8 @@ const postSelect = {
   format: true,
   paletteKey: true,
   designOptions: true,
+  primaryMediaId: true,
+  secondaryMediaId: true,
   author: { select: { name: true } },
 } as const;
 
@@ -74,6 +80,8 @@ type PostRow = {
   format: "SQUARE" | "PORTRAIT" | "STORY";
   paletteKey: string;
   designOptions: unknown;
+  primaryMediaId: string | null;
+  secondaryMediaId: string | null;
   author: { name: string } | null;
 };
 
@@ -98,6 +106,8 @@ function toPostResponse(post: PostRow) {
     format: (post.format ?? "SQUARE").toLowerCase(),
     paletteKey: post.paletteKey ?? "brand",
     designOptions: post.designOptions,
+    primaryMediaId: post.primaryMediaId ?? undefined,
+    secondaryMediaId: post.secondaryMediaId ?? undefined,
   };
 }
 
@@ -150,6 +160,22 @@ async function loadPostContext(barbershopId: string) {
   return { barbershop, services, schedule };
 }
 
+async function loadMediaDataUrl(
+  mediaId: string | null | undefined,
+  barbershopId: string
+): Promise<string | null> {
+  if (!mediaId) return null;
+  const media = await prisma.postMedia.findFirst({
+    where: { id: mediaId, barbershopId },
+    select: { url: true },
+  });
+  if (!media?.url) return null;
+  const response = await fetch(media.url);
+  if (!response.ok) return null;
+  const contentType = response.headers.get("content-type") || "image/jpeg";
+  return `data:${contentType};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
+}
+
 /** Gera a imagem (SVG → PNG → data-URL) com os defaults de título e CTA. */
 async function buildPostImage(
   barbershopId: string,
@@ -168,14 +194,10 @@ async function buildPostImage(
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
   const title = opts.title ?? "Vem pra cá hoje!";
   const ctaText = opts.ctaText ?? defaultCtaText(opts.postMode);
-  const media = opts.primaryMediaId
-    ? await prisma.postMedia.findFirst({ where: { id: opts.primaryMediaId, barbershopId }, select: { url: true } })
-    : null;
-  let primaryImageUrl: string | null = null;
-  if (media?.url) {
-    const response = await fetch(media.url);
-    if (response.ok) primaryImageUrl = `data:${response.headers.get("content-type") || "image/jpeg"};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
-  }
+  const [primaryImageUrl, secondaryImageUrl] = await Promise.all([
+    loadMediaDataUrl(opts.primaryMediaId, barbershopId),
+    loadMediaDataUrl(opts.secondaryMediaId, barbershopId),
+  ]);
   const svg = buildPostSvg({
     shopName: barbershop.name,
     logoUrl: barbershop.logoUrl,
@@ -189,6 +211,7 @@ async function buildPostImage(
     paletteKey: opts.paletteKey,
     designOptions: opts.designOptions,
     primaryImageUrl,
+    secondaryImageUrl,
   });
   return pngToDataUrl(renderPostSvgToPng(svg));
 }
@@ -197,6 +220,11 @@ export class PostsController {
   async templates(_request: FastifyRequest, reply: FastifyReply) {
     return reply.status(200).send({ success: true, data: listPostTemplates() });
   }
+
+  async palettes(_request: FastifyRequest, reply: FastifyReply) {
+    return reply.status(200).send({ success: true, data: listPostPalettes() });
+  }
+
   /** Pré-visualiza a imagem do post sem persistir nada. */
   async preview(request: FastifyRequest, reply: FastifyReply) {
     const query = previewPostQuerySchema.parse(request.query);
@@ -209,6 +237,8 @@ export class PostsController {
       format: query.format,
       paletteKey: query.paletteKey,
       primaryMediaId: query.primaryMediaId,
+      secondaryMediaId: query.secondaryMediaId,
+      designOptions: query.designOptions,
     });
     return reply.status(200).send({ success: true, data: { imageUrl } });
   }
@@ -236,11 +266,27 @@ export class PostsController {
     }
   }
 
+  /**
+   * Cria um post. Por padrão nasce como DRAFT — publicação e agendamento
+   * têm rotas de ação explícitas. Nunca dispara WhatsApp aqui.
+   */
   async create(request: FastifyRequest, reply: FastifyReply) {
     const user = request.user!;
     const body = createPostSchema.parse(request.body);
 
     assertSameBarbershop(user, body.barbershopId);
+
+    const parsedScheduledFor = body.scheduledFor
+      ? new Date(body.scheduledFor)
+      : null;
+    if (parsedScheduledFor && parsedScheduledFor.getTime() <= Date.now()) {
+      throw new AppError("O agendamento precisa estar no futuro", 400);
+    }
+
+    const status =
+      parsedScheduledFor !== null
+        ? ("SCHEDULED" as const)
+        : ("DRAFT" as const);
 
     const imageUrl = await buildPostImage(body.barbershopId, {
       title: body.title,
@@ -251,18 +297,8 @@ export class PostsController {
       paletteKey: body.paletteKey ?? "brand",
       designOptions: body.designOptions ?? undefined,
       primaryMediaId: body.primaryMediaId,
+      secondaryMediaId: body.secondaryMediaId,
     });
-
-    const parsedScheduledFor = body.scheduledFor
-      ? new Date(body.scheduledFor)
-      : null;
-    const isScheduled =
-      parsedScheduledFor !== null && parsedScheduledFor.getTime() > Date.now();
-    const status = isScheduled ? "SCHEDULED" : "PUBLISHED";
-
-    if (status === "PUBLISHED") {
-      await assertShopWhatsAppConnected(body.barbershopId);
-    }
 
     const post = await prisma.feedPost.create({
       data: {
@@ -279,25 +315,22 @@ export class PostsController {
         format: (body.format ?? "square").toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
         paletteKey: body.paletteKey ?? "brand",
         designOptions: body.designOptions,
-        scheduledFor: isScheduled ? parsedScheduledFor : null,
-        publishedAt: isScheduled ? null : new Date(),
+        primaryMediaId: body.primaryMediaId ?? null,
+        secondaryMediaId: body.secondaryMediaId ?? null,
+        scheduledFor: parsedScheduledFor,
+        publishedAt: null,
       },
       select: postSelect,
     });
 
-    // Fire-and-forget: broadcast post image to clients if status is PUBLISHED
-    if (status === "PUBLISHED") {
-      broadcastPostToClients(
-        body.barbershopId,
-        post.id,
-        body.title ?? "Vem pra cá hoje!",
-        body.ctaText ?? null
-      ).catch((err) => logger.error({ err, postId: post.id }, "Broadcast post failed"));
-    }
-
     return reply.status(201).send({ success: true, data: toPostResponse(post) });
   }
 
+  /**
+   * Edita conteúdo/mídia/opções visuais. Se algo visual mudou, regenera a
+   * imagem ANTES de salvar; se a geração falhar, o post fica intacto.
+   * Transições de status NÃO acontecem aqui — usar as rotas de ação.
+   */
   async update(request: FastifyRequest, reply: FastifyReply) {
     const { id } = postParamsSchema.parse(request.params);
     const body = updatePostSchema.parse(request.body);
@@ -305,36 +338,68 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, status: true, templateKey: true, format: true, paletteKey: true, designOptions: true },
+      select: {
+        id: true,
+        barbershopId: true,
+        status: true,
+        title: true,
+        ctaText: true,
+        postMode: true,
+        templateKey: true,
+        format: true,
+        paletteKey: true,
+        designOptions: true,
+        primaryMediaId: true,
+        secondaryMediaId: true,
+      },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
 
     assertSameBarbershop(user, existing.barbershopId);
 
-    const wasNotPublished = existing.status !== "PUBLISHED";
+    const visualChanged =
+      body.title !== undefined ||
+      body.ctaText !== undefined ||
+      body.templateKey !== undefined ||
+      body.format !== undefined ||
+      body.paletteKey !== undefined ||
+      body.designOptions !== undefined ||
+      body.primaryMediaId !== undefined ||
+      body.secondaryMediaId !== undefined;
 
-    let statusData: {
-      status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
-      publishedAt: Date | null;
-      scheduledFor: Date | null;
-    } | null = null;
-
-    if (body.status === "published" || body.scheduledFor === null) {
-      statusData = {
-        status: "PUBLISHED",
-        publishedAt: new Date(),
-        scheduledFor: null,
+    let imageUrl: string | undefined;
+    if (visualChanged) {
+      const formatEnumToInput: Record<"SQUARE" | "PORTRAIT" | "STORY", "square" | "portrait" | "story"> = {
+        SQUARE: "square",
+        PORTRAIT: "portrait",
+        STORY: "story",
       };
-    } else if (body.scheduledFor) {
-      statusData = {
-        status: "SCHEDULED",
-        publishedAt: null,
-        scheduledFor: new Date(body.scheduledFor),
+      const modeEnumToInput: Record<"QUEUE" | "APPOINTMENTS" | "BOTH", "queue" | "appointments" | "both"> = {
+        QUEUE: "queue",
+        APPOINTMENTS: "appointments",
+        BOTH: "both",
       };
-    }
-
-    if (wasNotPublished && statusData?.status === "PUBLISHED") {
-      await assertShopWhatsAppConnected(existing.barbershopId);
+      imageUrl = await buildPostImage(existing.barbershopId, {
+        title: body.title !== undefined ? body.title : existing.title,
+        ctaText: body.ctaText !== undefined ? body.ctaText : existing.ctaText,
+        postMode: body.postMode ?? modeEnumToInput[existing.postMode as "QUEUE" | "APPOINTMENTS" | "BOTH"],
+        templateKey: body.templateKey ?? existing.templateKey,
+        format:
+          body.format ?? formatEnumToInput[(existing.format ?? "SQUARE") as "SQUARE" | "PORTRAIT" | "STORY"],
+        paletteKey: body.paletteKey ?? existing.paletteKey,
+        designOptions:
+          body.designOptions !== undefined
+            ? body.designOptions ?? undefined
+            : (existing.designOptions as { focalX?: number; focalY?: number; overlay?: number } | undefined) ?? undefined,
+        primaryMediaId:
+          body.primaryMediaId !== undefined
+            ? body.primaryMediaId
+            : existing.primaryMediaId,
+        secondaryMediaId:
+          body.secondaryMediaId !== undefined
+            ? body.secondaryMediaId
+            : existing.secondaryMediaId,
+      });
     }
 
     const post = await prisma.feedPost.update({
@@ -342,29 +407,221 @@ export class PostsController {
       data: {
         ...(body.title !== undefined && { title: body.title }),
         ...(body.ctaText !== undefined && { ctaText: body.ctaText }),
+        ...(body.content !== undefined && { content: body.content }),
         ...(body.postMode && { postMode: POST_MODE_MAP[body.postMode] }),
         ...(body.templateKey && { templateKey: body.templateKey }),
         ...(body.format && { format: body.format.toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY" }),
         ...(body.paletteKey && { paletteKey: body.paletteKey }),
         ...(body.designOptions !== undefined && { designOptions: body.designOptions }),
-        ...(statusData ?? {}),
+        ...(body.primaryMediaId !== undefined && { primaryMediaId: body.primaryMediaId }),
+        ...(body.secondaryMediaId !== undefined && { secondaryMediaId: body.secondaryMediaId }),
+        ...(imageUrl !== undefined && { imageUrl }),
       },
       select: postSelect,
     });
 
-    if (wasNotPublished && statusData?.status === "PUBLISHED") {
-      broadcastPostToClients(
-        existing.barbershopId,
-        post.id,
-        post.title ?? "Vem pra cá hoje!",
-        post.ctaText ?? null
-      ).catch((err) => logger.error({ err, postId: post.id }, "Broadcast post failed"));
+    return reply.status(200).send({ success: true, data: toPostResponse(post) });
+  }
+
+  /**
+   * Publica um rascunho/agendado no perfil. Atômico: a guarda de status no
+   * UPDATE impede publicação dupla mesmo com requisições concorrentes.
+   * Não exige WhatsApp e não envia mensagens.
+   */
+  async publish(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = postParamsSchema.parse(request.params);
+    const user = request.user!;
+
+    const existing = await prisma.feedPost.findUnique({
+      where: { id },
+      select: { id: true, barbershopId: true, status: true },
+    });
+    if (!existing) throw new AppError("Post não encontrado", 404);
+    assertSameBarbershop(user, existing.barbershopId);
+
+    const result = await prisma.feedPost.updateMany({
+      where: { id, status: { in: ["DRAFT", "SCHEDULED"] } },
+      data: { status: "PUBLISHED", publishedAt: new Date(), scheduledFor: null },
+    });
+    if (result.count === 0) {
+      throw new AppError("Este post já está publicado", 409);
     }
+
+    const post = await prisma.feedPost.findUnique({ where: { id }, select: postSelect });
+    return reply.status(200).send({ success: true, data: toPostResponse(post!) });
+  }
+
+  /** Agenda (ou reagenda) um post. Requer horário futuro (persistido em UTC). */
+  async schedule(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = postParamsSchema.parse(request.params);
+    const body = schedulePostSchema.parse(request.body);
+    const user = request.user!;
+
+    const existing = await prisma.feedPost.findUnique({
+      where: { id },
+      select: { id: true, barbershopId: true, status: true },
+    });
+    if (!existing) throw new AppError("Post não encontrado", 404);
+    assertSameBarbershop(user, existing.barbershopId);
+
+    const when = new Date(body.scheduledFor);
+    if (when.getTime() <= Date.now()) {
+      throw new AppError("O agendamento precisa estar no futuro", 400);
+    }
+
+    const post = await prisma.feedPost.update({
+      where: { id },
+      data: { status: "SCHEDULED", scheduledFor: when, publishedAt: null },
+      select: postSelect,
+    });
 
     return reply.status(200).send({ success: true, data: toPostResponse(post) });
   }
 
-  /** Lista rascunhos e posts agendados (nunca publicados). */
+  /** Cancela o agendamento: o post volta a ser rascunho. */
+  async cancelSchedule(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = postParamsSchema.parse(request.params);
+    const user = request.user!;
+
+    const existing = await prisma.feedPost.findUnique({
+      where: { id },
+      select: { id: true, barbershopId: true, status: true },
+    });
+    if (!existing) throw new AppError("Post não encontrado", 404);
+    assertSameBarbershop(user, existing.barbershopId);
+
+    if (existing.status !== "SCHEDULED") {
+      throw new AppError("Este post não está agendado", 400);
+    }
+
+    const post = await prisma.feedPost.update({
+      where: { id },
+      data: { status: "DRAFT", scheduledFor: null },
+      select: postSelect,
+    });
+
+    return reply.status(200).send({ success: true, data: toPostResponse(post) });
+  }
+
+  /**
+   * "Enviar pelo WhatsApp" — ação separada da publicação.
+   * Lock no Redis impede envio duplicado ( retries / double-click ).
+   */
+  async sendWhatsapp(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = postParamsSchema.parse(request.params);
+    const user = request.user!;
+
+    const existing = await prisma.feedPost.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        barbershopId: true,
+        status: true,
+        title: true,
+        ctaText: true,
+        imageUrl: true,
+      },
+    });
+    if (!existing) throw new AppError("Post não encontrado", 404);
+    assertSameBarbershop(user, existing.barbershopId);
+
+    if (existing.status !== "PUBLISHED") {
+      throw new AppError("Publique o post no perfil antes de enviar pelo WhatsApp", 400);
+    }
+
+    await assertShopWhatsAppConnected(existing.barbershopId);
+
+    const redis = getRedisConnection();
+    const lockKey = `posts:whatsapp:lock:${existing.id}`;
+    const acquired = await redis.set(lockKey, "1", "EX", 3600, "NX");
+    if (!acquired) {
+      throw new AppError(
+        "Este post já foi enviado pelo WhatsApp recentemente",
+        409
+      );
+    }
+
+    try {
+      const queued = await broadcastPostToClients(
+        existing.barbershopId,
+        existing.id,
+        existing.title ?? "Novo post",
+        existing.ctaText ?? null
+      );
+
+      return reply.status(200).send({ success: true, data: { queued } });
+    } catch (err) {
+      await redis.del(lockKey);
+      throw err;
+    }
+  }
+
+  /** Contagem de clientes elegíveis para o envio (prévia da confirmação). */
+  async whatsappAudience(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = postParamsSchema.parse(request.params);
+    const user = request.user!;
+
+    const existing = await prisma.feedPost.findUnique({
+      where: { id },
+      select: { id: true, barbershopId: true, status: true },
+    });
+    if (!existing) throw new AppError("Post não encontrado", 404);
+    assertSameBarbershop(user, existing.barbershopId);
+
+    const shop = await prisma.barbershop.findUnique({
+      where: { id: existing.barbershopId },
+      select: { evolutionInstanceName: true },
+    });
+
+    const eligible = await prisma.salonClient.count({
+      where: { barbershopId: existing.barbershopId, whatsapp: { not: "" } },
+    });
+
+    return reply.status(200).send({
+      success: true,
+      data: {
+        eligible,
+        whatsappConnected: Boolean(shop?.evolutionInstanceName?.trim()),
+        postPublished: existing.status === "PUBLISHED",
+      },
+    });
+  }
+
+  /** Listagem paginada por status — gestão (abas Publicados/Agendados/Rascunhos). */
+  async list(request: FastifyRequest, reply: FastifyReply) {
+    const query = listPostsQuerySchema.parse(request.query);
+    const user = request.user!;
+
+    assertSameBarbershop(user, query.barbershopId);
+
+    const where = {
+      barbershopId: query.barbershopId,
+      ...(query.status
+        ? { status: query.status.toUpperCase() as "DRAFT" | "SCHEDULED" | "PUBLISHED" }
+        : {}),
+    };
+
+    const [posts, total] = await Promise.all([
+      prisma.feedPost.findMany({
+        where,
+        select: postSelect,
+        orderBy: query.status === "scheduled"
+          ? { scheduledFor: "asc" }
+          : { createdAt: "desc" },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      prisma.feedPost.count({ where }),
+    ]);
+
+    return reply.status(200).send({
+      success: true,
+      data: posts.map(toPostResponse),
+      meta: { total, page: query.page, limit: query.limit },
+    });
+  }
+
+  /** Compat: rascunhos + agendados (legado do frontend antigo). */
   async listScheduled(request: FastifyRequest, reply: FastifyReply) {
     const { barbershopId } = listScheduledQuerySchema.parse(request.query);
     const user = request.user!;
@@ -416,7 +673,7 @@ export class PostsController {
       .send({ success: true, data: { autoPostEnabled: barbershop.autoPostEnabled } });
   }
 
-  /** Remove apenas rascunhos/agendados; publicados seguem o fluxo do feed. */
+  /** Remove rascunhos/agendados; publicados seguem o fluxo do feed. */
   async delete(request: FastifyRequest, reply: FastifyReply) {
     const { id } = postParamsSchema.parse(request.params);
     const user = request.user!;
