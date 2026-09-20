@@ -73,6 +73,8 @@ O banco de dev não tem tabela `_prisma_migrations` (aparenta ter sido criado vi
 
 Por conta desse drift, o `docker-compose.dev.yml` tem `RUN_MIGRATIONS: "false"` — caso contrário o container entra em crash loop (P3005). **Se você está clonando o projeto do zero e o banco de dev está vazio, mude `RUN_MIGRATIONS` para `true` temporariamente na primeira subida, ou rode `prisma db push` manualmente antes.**
 
+**Drift corrigido em 2026-09-19 via `db push --accept-data-loss`:** A constraint unique `queue_appointmentId_key` na tabela `queue` estava declarada no schema (`@unique` em `appointmentId`) mas não existia no banco. O `db push` a aplicou. Dados verificados: zero valores duplicados não-nulos em `appointmentId`, portanto a aplicação é segura. Além disso, o `equipment_movements.equipmentId` foi alterado de `ON DELETE CASCADE` para `ON DELETE SET NULL` (campo tornado nullable) — migration manual criada em `prisma/migrations/20260919000000_equipment_movement_set_null/`.
+
 ## ⚠️ Risco conhecido: `prisma db pull` sobrescreve schema.prisma
 
 **Nunca rodar `prisma db pull` com mudanças manuais não commitadas no schema.**
@@ -85,6 +87,10 @@ Por conta desse drift, o `docker-compose.dev.yml` tem `RUN_MIGRATIONS: "false"` 
 - Pode alterar cardinalidade de relations (ex: `Subscription[]` → `Subscription?`).
 
 **Se bater em drift de shadow database (P3006), a saída é investigar o drift, não rodar db pull.** Usar `prisma db diff` para diagnosticar, ou restaurar o schema do último commit e reaplicar as mudanças manualmente.
+
+## ⚠️ Risco conhecido: Prisma Client velho no container dev após mudança no schema
+
+Após qualquer mudança em `prisma/schema.prisma`, `docker exec agendai_api_dev npx prisma generate` sozinho **não é suficiente**: o `tsx watch` recarrega o código de `src/`, mas o processo continua com o Prisma Client antigo em memória. É preciso `docker restart agendai_api_dev` (o entrypoint já roda `prisma generate` na subida). Sintoma típico: `Unknown field 'X' for select statement on model 'Y'` logo após adicionar uma relation/field nova. Observado em 2026-09-19 (dois restarts de debug na mesma sessão).
 
 ## ⚠️ Cuidado: Queries com comparação entre colunas
 
