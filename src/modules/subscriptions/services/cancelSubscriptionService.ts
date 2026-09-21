@@ -3,6 +3,8 @@ import { revokeReferralOnCancellation } from "@/modules/referrals/services/refer
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import { issueProratedRefund } from "@/modules/payments/services/proratedRefundService";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
+import { getOwnerContactForBarbershop } from "@/modules/email/services/ownerContact";
 
 const logger = getModuleLogger('subscriptions:cancel');
 
@@ -94,6 +96,23 @@ await revokeReferralOnCancellation(barbershopId).catch((err) => {
       logger.error({ err, barbershopId }, 'Failed to issue prorated refund');
     }
   }
+
+  // E-mail: assinatura cancelada — fire-and-forget, nunca bloqueia o fluxo.
+  void getOwnerContactForBarbershop(barbershopId)
+    .then((owner) => {
+      if (!owner) return;
+      return enqueueEmail({
+        kind: "subscription_canceled",
+        ownerName: owner.name,
+        email: owner.email,
+        planName: updated.plan.name,
+        endDate: updated.endDate,
+        deduplicationKey: `sub-cancel:${subscription.id}`,
+      });
+    })
+    .catch((err) =>
+      logger.error({ err, barbershopId }, "Failed to queue subscription_canceled email")
+    );
 
   return {
     id: updated.id,

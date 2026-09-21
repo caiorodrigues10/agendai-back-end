@@ -4,6 +4,13 @@ import { AppError } from "@/shared/errors/AppError";
 import { assertAppointmentBookable } from "../../utils/assertAppointmentBookable";
 import { createPublicAppointmentToken, readPublicAppointmentToken } from "../../services/publicAppointmentToken";
 import { publishRealtime } from "@/shared/services/realtimeService";
+import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
+import { getOwnerContactForBarbershop } from "@/modules/email/services/ownerContact";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("appointments:public-management");
+
+const URGENT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
 
 function appointmentInstant(date: string, time: string): Date {
   return new Date(`${date}T${time}:00-03:00`);
@@ -16,6 +23,7 @@ async function getAppointment(id: string, barbershopId: string, version: number)
       service: { select: { name: true, price: true, avgTimeMinutes: true } },
       staff: { select: { name: true } },
       barbershop: { select: { name: true, address: true, city: true } },
+      client: { select: { name: true } },
     },
   });
   if (!appointment || appointment.publicAccessVersion !== version) {
@@ -53,9 +61,42 @@ export class PublicAppointmentManagementUseCase {
     const cancelled = await prisma.appointment.update({
       where: { id: appointment.id },
       data: { status: "CANCELLED", canceledAt: new Date(), cancellationSource: "CUSTOMER", cancellationReason: reason?.slice(0, 300) },
-      include: { service: { select: { name: true, price: true } }, staff: { select: { name: true } }, barbershop: { select: { name: true } } },
+      include: {
+        service: { select: { name: true, price: true } },
+        staff: { select: { name: true } },
+        barbershop: { select: { name: true } },
+        client: { select: { name: true } },
+      },
     });
     publishRealtime(appointment.barbershopId, "appointments:changed");
+
+    // Se o cancelamento é nas próximas 24h, notifica o salão — dono precisa
+    // reagendar ou abrir a vaga para outra cliente.
+    const msUntilAppointment = appointmentInstant(
+      cancelled.date.toISOString().slice(0, 10),
+      cancelled.time
+    ).getTime() - Date.now();
+
+    if (msUntilAppointment >= 0 && msUntilAppointment < URGENT_WINDOW_MS) {
+      void getOwnerContactForBarbershop(cancelled.barbershopId)
+        .then((owner) => {
+          if (!owner) return;
+          return enqueueEmail({
+            kind: "appointment_urgent_cancelled",
+            ownerName: owner.name,
+            email: owner.email,
+            cancelledBy: "CLIENTE",
+            clientName: cancelled.customerName ?? cancelled.client?.name ?? undefined,
+            serviceName: cancelled.service?.name,
+            originalTime: cancelled.time,
+            deduplicationKey: `appt-cancelled:${cancelled.id}`,
+          });
+        })
+        .catch((err) =>
+          logger.error({ err, appointmentId: cancelled.id }, "Failed to queue urgent cancel email")
+        );
+    }
+
     return cancelled;
   }
 
@@ -72,10 +113,41 @@ export class PublicAppointmentManagementUseCase {
       return tx.appointment.update({
         where: { id: appointment.id },
         data: { date: new Date(date), time, publicAccessVersion: { increment: 1 } },
-        include: { service: { select: { name: true, price: true } }, staff: { select: { name: true } }, barbershop: { select: { name: true } } },
+        include: {
+          service: { select: { name: true, price: true } },
+          staff: { select: { name: true } },
+          barbershop: { select: { name: true } },
+          client: { select: { name: true } },
+        },
       });
     });
     publishRealtime(updated.barbershopId, "appointments:changed");
+
+    // Se a remarcação alterou um horário nas próximas 24h, avisa o salão.
+    const oldMsUntil = appointmentInstant(
+      appointment.date.toISOString().slice(0, 10),
+      appointment.time,
+    ).getTime() - Date.now();
+    if (oldMsUntil >= 0 && oldMsUntil < URGENT_WINDOW_MS) {
+      void getOwnerContactForBarbershop(updated.barbershopId)
+        .then((owner) => {
+          if (!owner) return;
+          return enqueueEmail({
+            kind: "appointment_urgent_rescheduled",
+            ownerName: owner.name,
+            email: owner.email,
+            originalTime: appointment.time,
+            newTime: updated.time,
+            clientName: updated.customerName ?? updated.client?.name ?? undefined,
+            serviceName: updated.service?.name,
+            deduplicationKey: `appt-rescheduled:${appointment.id}:${updated.time}`,
+          });
+        })
+        .catch((err) =>
+          logger.error({ err, appointmentId: appointment.id }, "Failed to queue urgent reschedule email")
+        );
+    }
+
     return { appointment: updated, manageToken: createPublicAppointmentToken(updated.id, updated.barbershopId, updated.publicAccessVersion) };
   }
 }

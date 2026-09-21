@@ -8,6 +8,8 @@ import {
 import { billingPeriodDays } from "@/shared/constants/subscription";
 import { getNextStatus, type SubscriptionStatus, type SubscriptionEvent } from "@/shared/services/paymentStateMachine";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
+import { getOwnerContactForBarbershop } from "@/modules/email/services/ownerContact";
 
 const logger = getModuleLogger('subscriptions:webhook');
 
@@ -39,7 +41,7 @@ export async function handleSubscriptionPaymentWebhook(
 
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
-    include: { plan: { select: { billingCycle: true } } },
+    include: { plan: { select: { billingCycle: true, name: true, price: true } } },
   });
   if (!subscription) return;
 
@@ -113,6 +115,22 @@ export async function handleSubscriptionPaymentWebhook(
       .catch((err: unknown) => {
         logger.error({ err }, 'Failed to create payment received admin notification');
       });
+
+    // E-mail: pagamento aprovado — fire-and-forget
+    void getOwnerContactForBarbershop(subscription.barbershopId)
+      .then((owner) => {
+        if (!owner) return;
+        return enqueueEmail({
+          kind: "payment_approved",
+          ownerName: owner.name,
+          email: owner.email,
+          planName: subscription.plan?.name ?? "Assinatura AgendAI",
+          amount: invoice.amount,
+          nextBillingDate: newEndDate,
+          deduplicationKey: `payment:${invoiceId}:approved`,
+        });
+      })
+      .catch((err) => logger.error({ err }, "Failed to queue payment_approved email"));
 
     await qualifyReferralOnPayment(subscription.barbershopId).catch((err) => {
       logger.error({ err, barbershopId: subscription.barbershopId }, 'Failed to qualify referral on payment');
@@ -250,6 +268,21 @@ export async function handleSubscriptionPaymentWebhook(
       .catch((err: unknown) => {
         logger.error({ err }, 'Failed to create payment rejected admin notification');
       });
+
+    // E-mail: pagamento falhou — fire-and-forget
+    void getOwnerContactForBarbershop(subscription.barbershopId)
+      .then((owner) => {
+        if (!owner) return;
+        return enqueueEmail({
+          kind: "payment_failed",
+          ownerName: owner.name,
+          email: owner.email,
+          planName: subscription.plan?.name ?? "Assinatura AgendAI",
+          reason: "Pagamento não efetivado pela operadora",
+          deduplicationKey: `payment:${invoiceId}:failed`,
+        });
+      })
+      .catch((err) => logger.error({ err }, "Failed to queue payment_failed email"));
 
     await revokeReferralOnCancellation(subscription.barbershopId).catch((err) => {
       logger.error({ err }, 'Failed to revoke referral on cancellation');

@@ -6,6 +6,8 @@ import { handleSubscriptionPaymentWebhook } from "@/modules/subscriptions/servic
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { decrypt } from "@/shared/utils/encryption";
+import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
+import { getOwnerContactForBarbershop } from "@/modules/email/services/ownerContact";
 
 const logger = getModuleLogger("subscriptions:charge-trial-ended");
 
@@ -143,6 +145,25 @@ export class ChargeTrialEndedSubscriptionsUseCase {
             subscriptionId: sub.id,
             message: `Cartão recusado (${payment.status})`,
           });
+
+          // E-mail: trial encerrado com cobrança falha — fire-and-forget.
+          void getOwnerContactForBarbershop(sub.barbershopId)
+            .then((owner) => {
+              if (!owner) return;
+              const daysLeft = 0;
+              return enqueueEmail({
+                kind: "subscription_trial_ended",
+                ownerName: owner.name,
+                email: owner.email,
+                planName: sub.plan.name,
+                amount: sub.plan.price,
+                graceDays: daysLeft,
+                deduplicationKey: `sub-trial-ended:${sub.id}`,
+              });
+            })
+            .catch((err) =>
+              logger.error({ err, subscriptionId: sub.id }, "Failed to queue trial_ended email")
+            );
         }
       } catch (err: any) {
         result.failed += 1;

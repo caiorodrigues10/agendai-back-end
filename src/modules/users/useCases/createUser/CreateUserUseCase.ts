@@ -6,6 +6,12 @@ import { IUserResponseDTO }  from "../../dtos/IUserResponseDTO";
 import { AppError }          from "@/shared/errors/AppError";
 import { assertCpfNotBlocked } from "@/shared/services/blockedEntityService";
 import { normalizeCpf }      from "@/shared/utils/cpfUtils";
+import { enqueueEmail }      from "@/shared/infra/queue/emailQueue";
+import { prisma }            from "@/libs/prismaClient";
+import { getModuleLogger }   from "@/shared/utils/logger";
+import { getFrontendUrl }    from "@/shared/constants/env";
+
+const logger = getModuleLogger("users:create-user");
 
 @injectable()
 export class CreateUserUseCase {
@@ -48,11 +54,34 @@ export class CreateUserUseCase {
     const hashedPassword = await this.hashProvider.hash(data.password);
 
     // 5. Cria o usuário
-    return this.userRepository.create({
+    const user = await this.userRepository.create({
       ...data,
       role,
       cpf: normalizedCpf,   // undefined quando não informado (compatível com ICreateUserDTO)
       password: hashedPassword
     });
+
+    // 6. E-mail de boas-vindas da equipe (não o dono — não é cliente final).
+    if (role === "EMPLOYEE" && data.barbershopId) {
+      const barbershop = await prisma.barbershop.findUnique({
+        where: { id: data.barbershopId },
+        select: { name: true },
+      });
+
+      if (barbershop?.name) {
+        await enqueueEmail({
+          kind: "welcome_staff",
+          staffName: user.name,
+          barbershopName: barbershop.name,
+          email: user.email,
+          inviteUrl: `${getFrontendUrl()}/login?email=${encodeURIComponent(user.email)}`,
+          deduplicationKey: `welcome-staff:${user.id}`,
+        }).catch((err) =>
+          logger.error({ err, userId: user.id }, "Failed to queue welcome_staff email")
+        );
+      }
+    }
+
+    return user;
   }
 }

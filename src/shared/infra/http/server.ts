@@ -5,6 +5,7 @@ import authConfig from "@/config/auth";
 import { buildApp } from "./app";
 import { scheduleAppointmentReminders } from "@/shared/infra/cron/appointmentReminders.cron";
 import { schedulePostPublisher } from "@/shared/infra/cron/postPublisher.cron";
+import { scheduleEmailReminders } from "@/shared/infra/cron/emailReminders.cron";
 import { scheduleTrialCardCharges } from "@/shared/infra/cron/trialCardCharges.cron";
 import { scheduleCleanOldLogs } from "@/shared/infra/cron/cleanOldLogs.cron";
 import { scheduleDailyWeatherLog } from "@/shared/infra/cron/dailyWeatherLog.cron";
@@ -181,6 +182,7 @@ function registerCrons(log: CronLog): void {
     ['reconciliação de estornos', () => scheduleRefundReconciliation(log)],
     ['expiração de depósitos', () => scheduleDepositExpiration(log)],
     ['expiração de waitlist', () => scheduleWaitlistExpiration(log)],
+    ['e-mails de lembrete', () => scheduleEmailReminders()],
   ] as const;
 
   for (const [name, startJob] of jobs) {
