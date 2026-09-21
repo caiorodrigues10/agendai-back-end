@@ -59,6 +59,7 @@ import { voucherRoutes } from '@/modules/vouchers/voucher.routes'
 import { fiscalRoutes } from '@/modules/fiscal/fiscal.routes'
 import { integrationRoutes } from '@/modules/integrations/integration.routes'
 import { whatsappAiRoutes } from '@/modules/whatsappAi/whatsappAi.routes'
+import { emailPreferenceRoutes } from './emailPreferences.routes'
 import { emailGalleryRoutes } from './emailGallery.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
@@ -122,5 +123,6 @@ export async function apiRoutes(app: FastifyInstance) {
 	await fiscalRoutes(app)
 	await integrationRoutes(app)
 	await whatsappAiRoutes(app)
+	await emailPreferenceRoutes(app)
 	await emailGalleryRoutes(app)
 }

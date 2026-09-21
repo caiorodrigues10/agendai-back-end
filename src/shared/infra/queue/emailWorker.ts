@@ -25,6 +25,8 @@ import {
   buildWelcomeStaffEmail,
 } from "@/modules/email/templates/operationalEmails";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { categoryForTemplate } from "@/modules/email/services/emailPreferenceService";
+import { prisma } from "@/libs/prismaClient";
 
 const logger = getModuleLogger('queue:email');
 
@@ -78,6 +80,43 @@ export function buildEmailPayload(data: EmailJobData) {
   }
 }
 
+// ─── Logging no painel ─────────────────────────────────────────
+
+/** Grava a entrega no histórico visível do proprietário, sem bloquear o fluxo. */
+async function logDeliveryToPanel(
+  raw: EmailJobData,
+  payload: ReturnType<typeof buildEmailPayload>,
+  result: { ok: boolean; providerId?: string; error?: string; skipped?: boolean }
+): Promise<void> {
+  try {
+    const barbershopId = "barbershopId" in raw ? (raw.barbershopId as string) : undefined;
+    if (!barbershopId) return;
+    const email = "email" in raw ? (raw.email as string) : undefined;
+    if (!email) return;
+
+    const masked = `${email[0]}***@${email.split("@")[1]}`;
+
+    await prisma.emailDeliveryLog.create({
+      data: {
+        barbershopId,
+        category: categoryForTemplate(payload.template),
+        to: email,
+        recipientMasked: masked,
+        subject: payload.subject,
+        template: payload.template,
+        status: result.ok ? (result.skipped ? "SKIPPED" : "SENT") : "FAILED",
+        providerId: result.providerId ?? null,
+        errorMessage: result.error ?? null,
+        attemptCount: 1,
+        idempotencyKey: raw.deduplicationKey ?? null,
+        sentAt: result.ok && !result.skipped ? new Date() : null,
+      },
+    });
+  } catch (err) {
+    logger.warn({ err }, "Falha ao gravar email_delivery_logs — não crítico");
+  }
+}
+
 let _worker: Worker<EmailJobData> | null = null;
 let _idleTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -101,6 +140,10 @@ function createWorker(): Worker<EmailJobData> {
         ...payload,
         idempotencyKey: job.data.deduplicationKey ?? `email-${job.id}`,
       });
+
+      // Sincroniza o log do salão: SENT ou FAILED.
+      void logDeliveryToPanel(job.data, payload, result);
+
       if (!result.ok) {
         const DeliveryError = result.errorKind === "PERMANENT" || result.errorKind === "CONFIG"
           ? UnrecoverableError : Error;

@@ -168,8 +168,12 @@ async function runDailyDigest(): Promise<number> {
 // ─── Scheduler ────────────────────────────────────────────────
 
 export function scheduleEmailReminders(): void {
+  // 18:00 no fuso America/Sao_Paulo = ~21:00 UTC
+  // O fuso do salão é lido da configuração `BarbershopEmailSettings` e não
+  // desse cron global — cada execução itera os salões e despacha no horário
+  // local do salão.
   cron.schedule(
-    "0 9 * * *",
+    "0 18 * * *", // 18:00 America/Sao_Paulo
     async () => {
       try {
         await runTrialEndingReminders();
@@ -180,5 +184,5 @@ export function scheduleEmailReminders(): void {
     },
     { timezone: TZ }
   );
-  logger.info("Email reminders scheduler registered (09:00 America/Sao_Paulo)");
+  logger.info("Email reminders scheduler registered (18:00 America/Sao_Paulo)");
 }

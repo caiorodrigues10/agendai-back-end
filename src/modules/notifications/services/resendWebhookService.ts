@@ -18,6 +18,57 @@ function payloadHash(rawBody: string): string {
   return createHash("sha256").update(rawBody).digest("hex");
 }
 
+/** Mascarado para exibição pública — `usuario***` */
+function maskEmailForLog(rawEmail: string): string {
+  const [user, domain] = rawEmail.split("@");
+  if (!domain) return "***";
+  const prefix = user.length > 1 ? user[0] : "*";
+  return `${prefix}***@${domain}`;
+}
+
+/** Sincroniza o evento do Resend para o log do salão (email_delivery_logs). */
+async function syncEmailDeliveryLog(
+  delivery: {
+    id: string;
+    status: string;
+    barbershopId: string | null;
+    destinationHash: string;
+    destinationMasked: string;
+    providerId: string | null;
+  },
+  eventType: EmailWebhookEvent["type"],
+  at: Date
+) {
+  if (!delivery.barbershopId || !delivery.providerId) return;
+
+  const statusMap: Record<string, string> = {
+    "email.sent": "SENT",
+    "email.delivered": "DELIVERED",
+    "email.opened": "READ",
+    "email.clicked": "READ",
+    "email.bounced": "FAILED",
+    "email.complained": "FAILED",
+    "email.suppressed": "FAILED",
+    "email.failed": "FAILED",
+    "email.delivery_delayed": "SENT",
+  };
+
+  const mapped = statusMap[eventType] ?? "SENT";
+
+  await prisma.emailDeliveryLog.updateMany({
+    where: {
+      providerId: delivery.providerId,
+      barbershopId: delivery.barbershopId,
+    },
+    data: {
+      status: mapped as any,
+      updatedAt: new Date(at),
+      ...(mapped === "DELIVERED" && { deliveredAt: at }),
+      ...(mapped === "SENT" && { sentAt: at }),
+    },
+  }).catch(() => {});
+}
+
 async function addSuppression(
   delivery: {
     barbershopId: string | null;
@@ -59,6 +110,7 @@ async function applyEmailEvent(
     barbershopId: string | null;
     destinationHash: string;
     destinationMasked: string;
+    providerId: string | null;
   },
   event: EmailWebhookEvent,
 ): Promise<void> {
@@ -154,7 +206,7 @@ async function applyEmailEvent(
           status: "SUPPRESSED",
           failedAt: at,
           errorCode: "RESEND_SUPPRESSED",
-          errorMessage: sanitizeNotificationError(event.data.suppressed.message).message,
+          errorMessage: sanitizeNotificationError((event as { data: { suppressed: { message: string } } }).data.suppressed.message).message,
         },
       });
       await addSuppression(delivery, "SUPPRESSED");
@@ -162,6 +214,11 @@ async function applyEmailEvent(
     case "email.received":
       break;
   }
+
+  // Sincroniza o log visível pro painel (não bloqueante).
+  await syncEmailDeliveryLog(delivery, event.type, at).catch(() => {
+    // Push não crítico — não quebrar o webhook por isso.
+  });
 }
 
 export async function processResendWebhook(
@@ -212,6 +269,7 @@ export async function processResendWebhook(
         barbershopId: true,
         destinationHash: true,
         destinationMasked: true,
+        providerId: true,
       },
     });
     if (!delivery) {

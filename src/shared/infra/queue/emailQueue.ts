@@ -6,6 +6,8 @@ import {
   getNotificationV2Mode,
   scheduleNotification,
 } from "@/modules/notifications/services/notificationDeliveryService";
+import { canReceiveEmail } from "@/modules/email/services/emailPreferenceService";
+import { prisma } from "@/libs/prismaClient";
 import type { NotificationType } from "@/modules/notifications/services/notificationRegistry";
 
 export type EmailJobData =
@@ -240,7 +242,6 @@ function emailNotificationType(kind: EmailJobData["kind"]): NotificationType {
     case "appointment_urgent_rescheduled": return "APPOINTMENT_URGENT_RESCHEDULED";
   }
 }
-
 async function persistV2(data: EmailJobData): Promise<void> {
   const destination = emailDestination(data);
   await scheduleNotification({
@@ -258,8 +259,63 @@ async function persistV2(data: EmailJobData): Promise<void> {
   });
 }
 
+// ─── Checagem de preferência antes de prosseguir ────────────────
+
+/**
+ * Verifica se o usuário deve receber este e-mail.
+ * Se a categoria não permitir (ex.: usuário desativou operation/marketing),
+ * a mensagem é descartada silenciosamente antes de entrar na fila.
+ */
+async function shouldSendEmail(data: EmailJobData): Promise<boolean> {
+  const kind = data.kind as string;
+
+  // ESSENTIAL — nunca bloquear (auth, pagamentos, senha)
+  if (
+    [
+      "verify_email",
+      "welcome",
+      "welcome_staff",
+      "forgot_password",
+      "password_changed",
+      "payment_approved",
+      "payment_failed",
+      "subscription_renewal_failed",
+      "subscription_canceled",
+      "subscription_trial_ended",
+    ].includes(kind)
+  ) {
+    return true;
+  }
+
+  // OPERATION e MARKETING — checa preferência por categoria.
+  // Para e-mails de salão, o usuário é identificado pelo e-mail.
+  const email = "email" in data ? data.email : undefined;
+  if (!email) return true;
+
+  // localiza usuário ativo associado a esse e-mail em algum salão
+  const user = await prisma.user.findFirst({
+    where: { email, active: true, deletedAt: null },
+    select: { id: true, barbershopId: true },
+  });
+  if (!user) return true; // sem usuário registrado — não impede
+
+  const category = kind === "daily_digest" || kind.startsWith("appointment_urgent")
+    ? "OPERATION" as const
+    : kind === "subscription_trial_ending" || kind === "subscription_renewed"
+      ? "OPERATION" as const
+      : "MARKETING" as const;
+
+  return canReceiveEmail(user.id, user.barbershopId!, category);
+}
+
 async function enqueueLegacy(data: EmailJobData): Promise<void> {
   if (process.env.VITEST) return;
+
+  if (!(await shouldSendEmail(data))) {
+    logger.debug({ kind: data.kind }, "E-mail descartado por preferência do usuário");
+    return;
+  }
+
   const { ensureEmailWorker } = await import("./emailWorker");
   await ensureEmailWorker();
   await getQueue().add(data.kind as EmailTemplateId, data, {
@@ -277,5 +333,11 @@ export async function enqueueEmail(data: EmailJobData): Promise<void> {
     });
     return enqueueLegacy(data);
   }
+
+  if (!(await shouldSendEmail(data))) {
+    logger.debug({ kind: data.kind }, "E-mail descartado por preferência no V2");
+    return;
+  }
+
   await persistV2(data);
 }

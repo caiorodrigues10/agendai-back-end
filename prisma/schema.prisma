@@ -70,6 +70,8 @@ model User {
     reviewResponses          ReviewResponse[]
     performedMovements       EquipmentMovement[]
   equipmentNeedsRequested  EquipmentNeed[]    @relation("EquipmentNeedRequester")
+  salonEmailPreferences     SalonEmailPreference[]
+  emailDeliveryLogs         EmailDeliveryLog[]
 
   @@index([cpf])
   @@index([deletedAt])
@@ -363,6 +365,9 @@ model Barbershop {
      nfeRecords               NfeRecord[]
      integrations             Integration[]
      dismissedRecommendations DismissedRecommendation[]
+     salonEmailPreferences    SalonEmailPreference[]
+     emailSettings            BarbershopEmailSettings?
+     emailDeliveryLogs        EmailDeliveryLog[]
 
      @@index([approvalStatus])
    @@index([active])
@@ -1515,6 +1520,82 @@ enum EmailDeliveryStatus {
 enum NotificationChannel {
   EMAIL
   WHATSAPP
+}
+
+enum EmailCategory {
+  ESSENTIAL
+  OPERATION
+  MARKETING
+}
+
+/// Preferência de e-mail por usuário dentro de um salão — isolada por (userId, barbershopId, category).
+model SalonEmailPreference {
+  id            String         @id @default(uuid()) @db.Uuid
+  barbershopId  String         @db.Uuid
+  userId        String         @db.Uuid
+  category      EmailCategory
+  enabled       Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  barbershop    Barbershop     @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, barbershopId, category], name: "user_shop_category")
+  @@index([barbershopId])
+  @@index([userId, category])
+  @@map("salon_email_preferences")
+}
+
+/// Configurações de e-mail por salão (timezone, digest, etc.)
+model BarbershopEmailSettings {
+  id                          String   @id @default(uuid()) @db.Uuid
+  barbershopId                String   @unique @db.Uuid
+  dailyDigestEnabled          Boolean  @default(true)
+  dailyDigestTime             String   @default("18:00") @db.VarChar(5)
+  timezone                    String   @default("America/Sao_Paulo") @db.VarChar(64)
+  urgentAppointmentWindowHours Int     @default(24)
+  lowStockEnabled             Boolean  @default(false)
+  performanceSummaryFrequency String   @default("weekly") @db.VarChar(20)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId])
+  @@map("barbershop_email_settings")
+}
+
+/// Log de entrega de e-mails — visível no painel do proprietário.
+model EmailDeliveryLog {
+  id              String                   @id @default(uuid()) @db.Uuid
+  barbershopId    String                   @db.Uuid
+  userId          String?                  @db.Uuid
+  template        String                   @db.VarChar(64)
+  category        EmailCategory
+  to              String                   @db.VarChar(200)
+  recipientMasked String                   @db.VarChar(200)
+  subject         String                   @db.VarChar(200)
+  status          EmailDeliveryStatus      @default(PENDING)
+  attemptCount    Int                      @default(0)
+  providerId      String?                  @db.VarChar(128)
+  errorCode       String?                  @db.VarChar(64)
+  errorMessage    String?                  @db.Text
+  idempotencyKey  String?                  @db.VarChar(180)
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([barbershopId, createdAt])
+  @@index([userId, createdAt])
+  @@index([category])
+  @@index([status])
+  @@index([providerId])
+  @@map("email_delivery_logs")
 }
 
 enum NotificationDeliveryStatus {
