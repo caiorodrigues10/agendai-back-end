@@ -9,6 +9,6 @@ export class MockEmailProvider implements IEmailProvider {
 
 	async send(input: SendEmailInput): Promise<SendEmailResult> {
 		this.sent.push(input)
-		return { ok: true, providerId: `mock-${this.sent.length}` }
+		return { ok: true, providerId: `mock-${this.sent.length}`, idempotencyKey: input.idempotencyKey }
 	}
 }

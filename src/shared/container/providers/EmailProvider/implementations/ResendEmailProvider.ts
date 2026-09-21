@@ -7,6 +7,7 @@ import type {
 	SendEmailInput,
 	SendEmailResult,
 } from '../IEmailProvider'
+import { classifyResendError } from '../IEmailProvider'
 import { maskEmail } from '@/modules/notifications/services/notificationSecurity'
 import { sanitizeJsonForStorage } from '@/shared/utils/securitySanitization'
 
@@ -45,7 +46,7 @@ export class ResendEmailProvider implements IEmailProvider {
 			})
 			.catch(() => null)
 
-const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
+		const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
 		if (allowlist && process.env.NODE_ENV !== 'production') {
 			const allowed = allowlist
 				.split(',')
@@ -66,7 +67,7 @@ const allowlist = process.env.EMAIL_ALLOWLIST?.trim()
 			}
 		}
 
-const client = this.getClient()
+		const client = this.getClient()
 		if (!client) {
 		logger.warn({ to: maskEmail(input.to), template: input.template }, 'RESEND_API_KEY ausente — skip envio')
 		logger.debug({ subject: input.subject }, 'Email subject')
@@ -92,10 +93,21 @@ const client = this.getClient()
 				html: input.html,
 				text: input.text,
 				replyTo: process.env.EMAIL_REPLY_TO?.trim() || undefined,
-			})
+				...(input.tags ? { tags: Object.entries(input.tags).map(([name, value]) => ({ name, value: String(value).slice(0, 256) })) } : {}),
+				...(input.headers && Object.keys(input.headers).length > 0 ? { headers: input.headers } : {}),
+			}, input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined)
 
-if (error) {
+			if (error) {
 				const errMsg = error.message || 'Resend error'
+				const errorKind = classifyResendError({
+					name: error.name,
+					httpStatus: error.statusCode,
+					message: errMsg,
+				})
+				logger.warn(
+					{ to: maskEmail(input.to), template: input.template, errorKind, errMsg },
+					'Resend rejeitou envio',
+				)
 				if (delivery) {
 					await prisma.emailDelivery
 						.update({
@@ -104,7 +116,7 @@ if (error) {
 					})
 					.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
 				}
-				return { ok: false, error: errMsg }
+				return { ok: false, error: errMsg, errorKind, idempotencyKey: input.idempotencyKey }
 			}
 
 			if (delivery) {
@@ -119,10 +131,11 @@ if (error) {
 					.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to SENT'))
 			}
 
-			return { ok: true, providerId: data?.id }
+			return { ok: true, providerId: data?.id, idempotencyKey: input.idempotencyKey }
 		} catch (err) {
 			const errMsg =
 				err instanceof Error ? err.message : 'Unknown email error'
+			const errorKind = classifyResendError({ message: errMsg })
 			if (delivery) {
 				await prisma.emailDelivery
 					.update({
@@ -131,7 +144,7 @@ if (error) {
 				})
 				.catch((err: unknown) => logger.error({ err }, 'Failed to update email delivery status to FAILED'))
 			}
-			return { ok: false, error: errMsg }
+			return { ok: false, error: errMsg, errorKind, idempotencyKey: input.idempotencyKey }
 		}
 	}
 }

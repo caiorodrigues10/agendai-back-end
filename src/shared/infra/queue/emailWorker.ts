@@ -1,4 +1,4 @@
-import { Worker, Job } from "bullmq";
+import { Worker, Job, UnrecoverableError } from "bullmq";
 import { container } from "tsyringe";
 import { getRedisConnection } from "./redisConnection";
 import type { EmailJobData } from "./emailQueue";
@@ -10,6 +10,20 @@ import {
   buildReferralRevokedEmail,
 } from "@/modules/email/templates/referralEmails";
 import { buildForgotPasswordEmail, buildVerifyEmail } from "@/modules/email/templates/authEmails";
+import {
+  buildPasswordChangedEmail,
+  buildPaymentApprovedEmail,
+  buildPaymentFailedEmail,
+  buildSubscriptionCanceledEmail,
+  buildSubscriptionRenewedEmail,
+  buildSubscriptionRenewalFailedEmail,
+  buildSubscriptionTrialEndedEmail,
+  buildSubscriptionTrialEndingEmail,
+  buildDailyDigestEmail,
+  buildAppointmentUrgentCancelledEmail,
+  buildAppointmentUrgentRescheduledEmail,
+  buildWelcomeStaffEmail,
+} from "@/modules/email/templates/operationalEmails";
 import { getModuleLogger } from "@/shared/utils/logger";
 
 const logger = getModuleLogger('queue:email');
@@ -21,16 +35,40 @@ export function buildEmailPayload(data: EmailJobData) {
   switch (data.kind) {
     case "welcome":
       return buildWelcomeEmail(data);
+    case "welcome_staff":
+      return buildWelcomeStaffEmail(data);
     case "referral_applied":
       return buildReferralAppliedEmail(data);
     case "referral_converted":
       return buildReferralConvertedEmail(data);
+    case "referral_revoked":
+      return buildReferralRevokedEmail(data);
     case "verify_email":
       return buildVerifyEmail(data);
     case "forgot_password":
       return buildForgotPasswordEmail(data);
-    case "referral_revoked":
-      return buildReferralRevokedEmail(data);
+    case "password_changed":
+      return buildPasswordChangedEmail(data);
+    case "payment_approved":
+      return buildPaymentApprovedEmail(data);
+    case "payment_failed":
+      return buildPaymentFailedEmail(data);
+    case "subscription_renewed":
+      return buildSubscriptionRenewedEmail(data);
+    case "subscription_renewal_failed":
+      return buildSubscriptionRenewalFailedEmail(data);
+    case "subscription_canceled":
+      return buildSubscriptionCanceledEmail(data);
+    case "subscription_trial_ended":
+      return buildSubscriptionTrialEndedEmail(data);
+    case "subscription_trial_ending":
+      return buildSubscriptionTrialEndingEmail(data);
+    case "daily_digest":
+      return buildDailyDigestEmail(data);
+    case "appointment_urgent_cancelled":
+      return buildAppointmentUrgentCancelledEmail(data);
+    case "appointment_urgent_rescheduled":
+      return buildAppointmentUrgentRescheduledEmail(data);
     default: {
       const _exhaustive: never = data;
       throw new Error(
@@ -59,9 +97,14 @@ function createWorker(): Worker<EmailJobData> {
       const emailProvider =
         container.resolve<IEmailProvider>("EmailProvider");
       const payload = buildEmailPayload(job.data);
-      const result = await emailProvider.send(payload);
+      const result = await emailProvider.send({
+        ...payload,
+        idempotencyKey: job.data.deduplicationKey ?? `email-${job.id}`,
+      });
       if (!result.ok) {
-        throw new Error(
+        const DeliveryError = result.errorKind === "PERMANENT" || result.errorKind === "CONFIG"
+          ? UnrecoverableError : Error;
+        throw new DeliveryError(
           result.error || `Falha ao enviar e-mail ${job.data.kind}`
         );
       }

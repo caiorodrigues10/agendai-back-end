@@ -1,4 +1,4 @@
-import { Job, Worker } from "bullmq";
+import { Job, Worker, UnrecoverableError } from "bullmq";
 import type { Prisma } from "@prisma/client";
 import { container } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
@@ -221,8 +221,15 @@ async function processNotification(job: Job<NotificationJobData>): Promise<{ sen
       if (!payload.email) throw new Error("NOTIFICATION_PAYLOAD_CHANNEL_MISMATCH");
       const emailProvider = container.resolve<IEmailProvider>("EmailProvider");
       const emailPayload = buildEmailPayload(payload.email as unknown as EmailJobData);
-      const result = await emailProvider.send({ ...emailPayload, trackLegacyDelivery: false });
-      if (!result.ok) throw new Error(result.error ?? "Falha no envio pelo Resend");
+      const result = await emailProvider.send({
+        ...emailPayload, trackLegacyDelivery: false,
+        idempotencyKey: `notification-${job.data.deliveryId}`,
+      });
+      if (!result.ok) {
+        const DeliveryError = result.errorKind === "PERMANENT" || result.errorKind === "CONFIG"
+          ? UnrecoverableError : Error;
+        throw new DeliveryError(result.error ?? "Falha no envio pelo Resend");
+      }
       await completeAttempt(job.data.deliveryId, claimed.attemptId, {
         provider: "RESEND",
         providerId: result.providerId,
@@ -243,7 +250,7 @@ async function processNotification(job: Job<NotificationJobData>): Promise<{ sen
     );
     return { sent: true };
   } catch (error) {
-    const finalAttempt = isFinalAttempt(job);
+    const finalAttempt = error instanceof UnrecoverableError || isFinalAttempt(job);
     const safe = await failAttempt(
       job.data.deliveryId,
       claimed.attemptId,
