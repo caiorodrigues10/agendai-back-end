@@ -160,6 +160,13 @@ export class ProductsController {
     reply.send({ success: true, data });
   }
 
+  async stockAlerts(request: FastifyRequest, reply: FastifyReply) {
+    const query = request.query as { days?: string };
+    const days = query.days ? Number(query.days) : undefined;
+    const result = await this.useCase().stockAlerts(shopId(request), request.user!, days);
+    reply.send({ success: true, data: result });
+  }
+
   async previewTemplate(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
     const query = request.query as { segment?: string };

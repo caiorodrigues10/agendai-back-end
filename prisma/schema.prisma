@@ -1906,6 +1906,17 @@ model IdempotencyRecord {
   @@map("idempotency_records")
 }
 
+enum StockUnit {
+  UNIT
+  ML
+  L
+  G
+  KG
+  BOX
+  PACK
+  OTHER
+}
+
 enum ProductType {
   RETAIL
   CONSUMABLE
@@ -1965,24 +1976,27 @@ model Supplier {
 }
 
 model Product {
-  id           String      @id @default(uuid()) @db.Uuid
-  barbershopId String      @db.Uuid
-  categoryId   String?     @db.Uuid
-  name         String      @db.VarChar(160)
-  description  String?     @db.VarChar(400)
-  sku          String?     @db.VarChar(60)
-  barcode      String?     @db.VarChar(80)
-  imageUrl     String?     @db.VarChar(500)
-  unitLabel    String      @default("unidade") @db.VarChar(40)
-  salePrice    Float       @db.Real
-  averageCost  Float       @default(0) @db.Real
-  stockQty     Float       @default(0) @db.Real
-  minStock     Float       @default(0) @db.Real
-  active       Boolean     @default(true)
-  type         ProductType @default(RETAIL)
-  trackStock   Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id             String      @id @default(uuid()) @db.Uuid
+  barbershopId   String      @db.Uuid
+  categoryId     String?     @db.Uuid
+  name           String      @db.VarChar(160)
+  description    String?     @db.VarChar(400)
+  sku            String?     @db.VarChar(60)
+  barcode        String?     @db.VarChar(80)
+  imageUrl       String?     @db.VarChar(500)
+  unit           StockUnit   @default(UNIT)
+  unitLabel      String      @default("unidade") @db.VarChar(40)
+  salePrice      Float       @db.Real
+  averageCost    Float       @default(0) @db.Real
+  stockQty       Float       @default(0) @db.Real
+  minStock       Float       @default(0) @db.Real
+  active         Boolean     @default(true)
+  type           ProductType @default(RETAIL)
+  trackStock     Boolean     @default(true)
+  expirationDate DateTime?   @db.Date
+  lotNumber      String?     @db.VarChar(60)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   barbershop   Barbershop             @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   category     ProductCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -1996,6 +2010,7 @@ model Product {
   @@index([barbershopId, name])
   @@index([barbershopId, sku])
   @@index([barbershopId, barcode])
+  @@index([barbershopId, expirationDate])
   @@map("products")
 }
 

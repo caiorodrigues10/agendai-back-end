@@ -14,22 +14,75 @@ export const retailSalePayloadSchema = z.object({
   idempotencyKey: z.string().min(8).max(120).optional(),
 });
 
-export const createProductSchema = z.object({
+const stockUnitEnum = z.enum(["UNIT", "ML", "L", "G", "KG", "BOX", "PACK", "OTHER"]);
+
+/** YYYY-MM-DD calendar date validation (real calendar, year 2000–2100). */
+const expirationDateSchema = z.string()
+  .trim()
+  .max(0)
+  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD"))
+  .optional()
+  .nullable()
+  .refine((v) => {
+    if (!v || v === "") return true;
+    const [y, m, d] = v.split("-").map(Number);
+    if (y < 2000 || y > 2100) return false;
+    const date = new Date(y, m - 1, d);
+    return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+  }, "Data de validade inválida")
+  .transform((v) => {
+    if (!v || v === "") return null;
+    // Return midnight UTC Date (matches @db.Date behavior)
+    const [y, m, d] = v.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  });
+
+/** Base schema shared by create and update. */
+const productBaseSchema = z.object({
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(400).optional().nullable(),
   categoryId: z.string().uuid().optional().nullable(),
   sku: z.string().trim().max(60).optional().nullable(),
   barcode: z.string().trim().max(80).optional().nullable(),
   imageUrl: z.string().url().max(500).optional().nullable(),
+  unit: stockUnitEnum.optional(),
   unitLabel: z.string().trim().min(1).max(40).optional(),
   salePrice: z.number().min(0),
   minStock: z.number().min(0).optional(),
   type: z.enum(["RETAIL", "CONSUMABLE", "BOTH"]).optional(),
   trackStock: z.boolean().optional(),
   active: z.boolean().optional(),
+  expirationDate: expirationDateSchema,
+  lotNumber: z.string().trim().max(60).optional().nullable().transform((v) => v === "" ? null : v),
 });
 
-export const updateProductSchema = createProductSchema.partial();
+/**
+ * Create product schema: all fields required where appropriate.
+ * superRefine: if unit === OTHER, unitLabel is required.
+ */
+export const createProductSchema = productBaseSchema.superRefine((data, ctx) => {
+  if (data.unit === "OTHER" && !data.unitLabel) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Quando a unidade é 'Outra', o nome da unidade é obrigatório",
+      path: ["unitLabel"],
+    });
+  }
+});
+
+/**
+ * Update product schema: all fields optional (partial).
+ * superRefine: if unit === OTHER, unitLabel is required.
+ */
+export const updateProductSchema = productBaseSchema.partial().superRefine((data, ctx) => {
+  if (data.unit === "OTHER" && !data.unitLabel) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Quando a unidade é 'Outra', o nome da unidade é obrigatório",
+      path: ["unitLabel"],
+    });
+  }
+});
 
 export const listProductsQuerySchema = z.object({
   search: z.string().trim().max(80).optional(),
@@ -40,8 +93,18 @@ export const listProductsQuerySchema = z.object({
   purpose: z.enum(["sale", "own"]).optional(),
   lowStock: z.enum(["true", "false"]).optional(),
   forSale: z.enum(["true", "false"]).optional(),
+  expiry: z.enum(["expired", "expiring"]).optional(),
+  days: z.coerce.number().int().min(1).max(365).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+}).superRefine((data, ctx) => {
+  if (data.expiry && data.lowStock === "true") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Filtros 'expiry' e 'lowStock' não podem ser usados juntos",
+      path: ["expiry"],
+    });
+  }
 });
 
 export const productCategorySchema = z.object({

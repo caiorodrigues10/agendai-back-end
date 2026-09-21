@@ -1,6 +1,7 @@
 import { inject, injectable } from "tsyringe";
 import { randomUUID } from "node:crypto";
 import { prisma, Prisma } from "@/libs/prismaClient";
+import type { ProductType as ProductTypeEnum } from "@prisma/client";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { getModuleLogger } from "@/shared/utils/logger";
@@ -25,12 +26,34 @@ import {
 } from "../utils/productCodeUtils";
 import { summarizeRetailLines } from "../utils/retailSummary";
 import { buildProductAttention } from "../utils/productAttention";
+import { resolveUnitFields } from "../utils/productStockUnit";
+import {
+  getShopToday,
+  getExpirationStatus,
+  expirationWhere,
+  EXPIRING_SOON_DAYS,
+} from "../utils/productExpiration";
 
-function stripCost<T extends { averageCost?: number }>(row: T, showCost: boolean) {
+type ProductListItem = Record<string, unknown> & { averageCost?: number; expirationDate?: Date | null; type?: string };
+
+function stripCost<T extends ProductListItem>(row: T, showCost: boolean): T {
   if (showCost) return row;
-  const { averageCost: _cost, ...rest } = row as T & { averageCost?: number };
+  const { averageCost: _cost, ...rest } = row;
   void _cost;
-  return rest;
+  return rest as T;
+}
+
+function enrichExpiration(row: ProductListItem, todayISO: string, days: number): ProductListItem {
+  if (!row.expirationDate || (row.type !== "CONSUMABLE" && row.type !== "BOTH")) {
+    const { expirationDate: _, ...rest } = row;
+    return { ...rest, expirationStatus: null, daysToExpire: null };
+  }
+  const status = getExpirationStatus(row.expirationDate, todayISO, days);
+  const expStr = row.expirationDate.toISOString().slice(0, 10);
+  const diffMs = new Date(expStr).getTime() - new Date(todayISO).getTime();
+  const daysToExpire = Math.round(diffMs / 86_400_000);
+  const { expirationDate: _, ...rest } = row;
+  return { ...rest, expirationStatus: status, daysToExpire };
 }
 
 @injectable()
@@ -41,10 +64,14 @@ export class ProductCatalogUseCase {
   ) {}
 
   async listProducts(barbershopId: string, user: ProductActor, query: {
-    search?: string; categoryId?: string; active?: string; type?: string; purpose?: "sale" | "own"; lowStock?: string; forSale?: string; page: number; limit: number;
+    search?: string; categoryId?: string; active?: string; type?: string; purpose?: "sale" | "own"; lowStock?: string; forSale?: string; expiry?: "expired" | "expiring"; days?: number; page: number; limit: number;
   }) {
     const perms = await assertProductPermission(user, barbershopId, ["PRODUCTS_VIEW", "PRODUCTS_MANAGE", "RETAIL_SELL", "INVENTORY_MANAGE"]);
     const showCost = canSeeProductCosts(user, perms);
+    const shop = await prisma.barbershop.findUnique({ where: { id: barbershopId }, select: { timezone: true } });
+    const shopTz = shop?.timezone ?? "America/Sao_Paulo";
+    const todayISO = getShopToday(shopTz);
+    const days = query.days ?? EXPIRING_SOON_DAYS;
     const where: Prisma.ProductWhereInput = { barbershopId };
     if (query.active) where.active = query.active === "true";
     if (query.categoryId) where.categoryId = query.categoryId;
@@ -56,6 +83,12 @@ export class ProductCatalogUseCase {
         { sku: { contains: query.search, mode: "insensitive" } },
         { barcode: { contains: query.search, mode: "insensitive" } },
       ];
+    }
+    if (query.expiry) {
+      const expiryFilter = expirationWhere(query.expiry, todayISO, days);
+      // Merge via AND to not override the OR from search
+      const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      where.AND = [...existingAnd, expiryFilter];
     }
 
     if (query.lowStock === "true") {
@@ -104,7 +137,7 @@ export class ProductCatalogUseCase {
       rows.sort((a: { id: string }, b: { id: string }) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
       const total = Number(countRows[0]?.count ?? 0);
       return {
-        data: rows.map((row: { averageCost?: number }) => stripCost(row, showCost)),
+        data: rows.map((row: ProductListItem) => enrichExpiration(stripCost(row, showCost), todayISO, days)),
         total,
       };
     }
@@ -119,7 +152,7 @@ export class ProductCatalogUseCase {
       }),
       prisma.product.count({ where }),
     ]);
-    const data = rows.map((row: { averageCost?: number }) => stripCost(row, showCost));
+    const data = rows.map((row: ProductListItem) => enrichExpiration(stripCost(row, showCost), todayISO, days));
     return { data, total };
   }
 
@@ -132,9 +165,28 @@ export class ProductCatalogUseCase {
     const sku = normalizeCode(data.sku as string | null | undefined);
     const barcode = normalizeCode(data.barcode as string | null | undefined);
     await assertUniqueProductCode({ barbershopId, sku, barcode });
+    // Resolve unit fields from payload
+    const unitFields = resolveUnitFields({
+      unit: data.unit as string | undefined,
+      unitLabel: data.unitLabel as string | undefined,
+    });
+    // Normalize: if type is RETAIL, clear expirationDate and lotNumber
+    const effectiveType = (data.type as string) ?? "RETAIL";
+    const isRetail = effectiveType === "RETAIL";
     try {
       return await prisma.product.create({
-        data: { ...data, barbershopId, sku, barcode, stockQty: 0, averageCost: 0 },
+        data: {
+          ...data,
+          barbershopId,
+          sku,
+          barcode,
+          stockQty: 0,
+          averageCost: 0,
+          ...(unitFields?.unit !== undefined ? { unit: unitFields.unit } : {}),
+          ...(unitFields?.unitLabel != null ? { unitLabel: unitFields.unitLabel } : {}),
+          expirationDate: isRetail ? null : (data.expirationDate as Date | null | undefined) ?? null,
+          lotNumber: isRetail ? null : (data.lotNumber as string | null | undefined) ?? null,
+        },
       });
     } catch (error) {
       if (isProductUniqueViolation(error)) throwProductUniqueViolation();
@@ -158,14 +210,31 @@ export class ProductCatalogUseCase {
       barcode: barcode !== undefined ? barcode : product.barcode,
       excludeId: id,
     });
+    // Resolve unit fields from payload
+    const unitFields = data.unit !== undefined || data.unitLabel !== undefined
+      ? resolveUnitFields({
+          unit: data.unit as string | null | undefined,
+          unitLabel: data.unitLabel as string | null | undefined,
+        })
+      : undefined;
+    // Normalize: if type result is RETAIL, clear expirationDate and lotNumber
+    const effectiveType = ((data.type as string) ?? product.type) as string;
+    const isRetail = effectiveType === "RETAIL";
+    const updateData: Prisma.ProductUncheckedUpdateInput = {
+      ...data,
+      ...(sku !== undefined ? { sku } : {}),
+      ...(barcode !== undefined ? { barcode } : {}),
+      ...(unitFields?.unit !== undefined ? { unit: unitFields.unit } : {}),
+      ...(unitFields?.unitLabel != null ? { unitLabel: unitFields.unitLabel } : {}),
+    };
+    if (isRetail) {
+      updateData.expirationDate = null;
+      updateData.lotNumber = null;
+    }
     try {
       return await prisma.product.update({
         where: { id },
-        data: {
-          ...data,
-          ...(sku !== undefined ? { sku } : {}),
-          ...(barcode !== undefined ? { barcode } : {}),
-        },
+        data: updateData,
       });
     } catch (error) {
       if (isProductUniqueViolation(error)) throwProductUniqueViolation();
@@ -535,6 +604,7 @@ export class ProductCatalogUseCase {
         for (const row of template.products) {
           if (skipSet(products).has(row.name.toLowerCase())) continue;
           const category = latestProductCats.find((cat: { name: string; id: string }) => cat.name.toLowerCase() === row.categoryName.toLowerCase());
+          const unitFields = resolveUnitFields({ unitLabel: row.unitLabel });
           await tx.product.create({
             data: {
               barbershopId,
@@ -542,6 +612,7 @@ export class ProductCatalogUseCase {
               description: row.description,
               categoryId: category?.id,
               salePrice: row.salePrice,
+              ...(unitFields ?? {}),
               unitLabel: row.unitLabel,
               type: row.type,
               stockQty: 0,
@@ -556,5 +627,71 @@ export class ProductCatalogUseCase {
       await tx.catalogTemplateInstall.create({ data: { barbershopId, segment, version: template.version } });
       return { alreadyInstalled: false, created };
     });
+  }
+
+  async stockAlerts(barbershopId: string, user: ProductActor, days?: number) {
+    await assertProductPermission(user, barbershopId, ["PRODUCTS_VIEW", "PRODUCTS_MANAGE", "RETAIL_SELL", "INVENTORY_MANAGE"]);
+    const shop = await prisma.barbershop.findUnique({ where: { id: barbershopId }, select: { timezone: true } });
+    const shopTz = shop?.timezone ?? "America/Sao_Paulo";
+    const todayISO = getShopToday(shopTz);
+    const effectiveDays = days ?? EXPIRING_SOON_DAYS;
+
+    const baseWhere: Prisma.ProductWhereInput = {
+      barbershopId,
+      active: true,
+      trackStock: true,
+      stockQty: { gt: 0 },
+      type: { in: ["CONSUMABLE", "BOTH"] as ProductTypeEnum[] },
+      expirationDate: { not: null },
+    };
+
+    const [expiredRows, expiringRows] = await Promise.all([
+      prisma.product.findMany({
+        where: { ...baseWhere, expirationDate: { lt: new Date(todayISO) } },
+        select: {
+          id: true, name: true, stockQty: true, unit: true, unitLabel: true,
+          expirationDate: true, lotNumber: true,
+        },
+        orderBy: { expirationDate: "asc" },
+        take: 50,
+      }),
+      prisma.product.findMany({
+        where: {
+          ...baseWhere,
+          expirationDate: { gte: new Date(todayISO), lte: new Date(Date.UTC(
+            ...todayISO.split("-").map(Number) as [number, number, number],
+            effectiveDays,
+          )) },
+        },
+        select: {
+          id: true, name: true, stockQty: true, unit: true, unitLabel: true,
+          expirationDate: true, lotNumber: true,
+        },
+        orderBy: { expirationDate: "asc" },
+        take: 50,
+      }),
+    ]);
+
+    const enrich = (rows: typeof expiredRows) =>
+      rows.map((r: { id: string; name: string; stockQty: number; unit: string; unitLabel: string; expirationDate: Date | null; lotNumber: string | null }) => {
+        const expStr = r.expirationDate!.toISOString().slice(0, 10);
+        const diffMs = new Date(expStr).getTime() - new Date(todayISO).getTime();
+        return {
+          id: r.id,
+          name: r.name,
+          stockQty: r.stockQty,
+          unit: r.unit,
+          unitLabel: r.unitLabel,
+          expirationDate: expStr,
+          lotNumber: r.lotNumber,
+          daysToExpire: Math.round(diffMs / 86_400_000),
+        };
+      });
+
+    return {
+      days: effectiveDays,
+      expired: { count: expiredRows.length, items: enrich(expiredRows) },
+      expiringSoon: { count: expiringRows.length, items: enrich(expiringRows) },
+    };
   }
 }
