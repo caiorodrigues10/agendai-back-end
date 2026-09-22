@@ -67,11 +67,21 @@ model User {
     timeOffApproved          StaffTimeOff[]         @relation("TimeOffApprovedBy")
     qualityAudits            QualityAudit[]
     purchaseOrdersCreated    PurchaseOrder[]
-    reviewResponses          ReviewResponse[]
-    performedMovements       EquipmentMovement[]
+  reviewResponses          ReviewResponse[]
+  performedMovements       EquipmentMovement[]
   equipmentNeedsRequested  EquipmentNeed[]    @relation("EquipmentNeedRequester")
   salonEmailPreferences     SalonEmailPreference[]
   emailDeliveryLogs         EmailDeliveryLog[]
+  invitationsSent          InternalInvitation[]
+  ticketsCreated           Ticket[]           @relation("TicketCreatedBy")
+  ticketsAssigned          Ticket[]           @relation("TicketAssignedTo")
+  ticketComments           TicketComment[]
+  ticketHistoryEntries     TicketHistory[]
+  tasksCreated             Task[]             @relation("TaskCreatedBy")
+  tasksAssigned            Task[]             @relation("TaskAssignedTo")
+  tasksCompleted           Task[]             @relation("TaskCompletedBy")
+  taskComments             TaskComment[]
+  taskHistoryEntries       TaskHistory[]
 
   @@index([cpf])
   @@index([deletedAt])
@@ -367,9 +377,11 @@ model Barbershop {
      dismissedRecommendations DismissedRecommendation[]
      salonEmailPreferences    SalonEmailPreference[]
      emailSettings            BarbershopEmailSettings?
-     emailDeliveryLogs        EmailDeliveryLog[]
+      emailDeliveryLogs        EmailDeliveryLog[]
+      tickets                  Ticket[]
+      tasks                    Task[]
 
-     @@index([approvalStatus])
+      @@index([approvalStatus])
    @@index([active])
    @@index([referredByCodeId])
    @@map("barbershops")
@@ -3953,5 +3965,212 @@ model DismissedRecommendation {
   @@unique([barbershopId, recommendationId])
   @@index([barbershopId])
   @@map("dismissed_recommendations")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Internal Staff Panel — Tickets, Tasks, Team Invitations
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum TicketChannel {
+  WHATSAPP
+  EMAIL
+  PHONE
+  OTHER
+}
+
+enum TicketCategory {
+  ACCESS
+  BILLING
+  SCHEDULE
+  ERROR
+  QUESTION
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_SHOP
+  RESOLVED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model InternalInvitation {
+  id           String             @id @default(uuid()) @db.Uuid
+  email        String             @db.VarChar(100)
+  invitedById  String             @db.Uuid
+  role         Role               @default(MASTER_ADMIN)
+  tokenHash    String             @db.VarChar(128)
+  status       InvitationStatus   @default(PENDING)
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime           @default(now())
+
+  invitedBy User @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([invitedById])
+  @@index([status])
+  @@map("internal_invitations")
+}
+
+model Ticket {
+  id              String         @id @default(uuid()) @db.Uuid
+  protocol        String         @unique @db.VarChar(20)
+  title           String         @db.VarChar(200)
+  description     String         @db.Text
+  barbershopId    String?        @db.Uuid
+  channel         TicketChannel  @default(OTHER)
+  category        TicketCategory @default(QUESTION)
+  priority        TicketPriority @default(NORMAL)
+  status          TicketStatus   @default(OPEN)
+  createdById     String         @db.Uuid
+  assignedToId    String?        @db.Uuid
+  resolvedAt      DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?        @db.VarChar(500)
+  resolveNote     String?        @db.VarChar(500)
+  version         Int            @default(1)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  barbershop Barbershop?   @relation(fields: [barbershopId], references: [id], onDelete: SetNull)
+  createdBy  User          @relation("TicketCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo User?         @relation("TicketAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  comments   TicketComment[]
+  history    TicketHistory[]
+  tasks      Task[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([barbershopId])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticketId  String   @db.Uuid
+  authorId  String   @db.Uuid
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@map("ticket_comments")
+}
+
+model TicketHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @db.Uuid
+  actorId    String   @db.Uuid
+  field      String   @db.VarChar(50)
+  oldValue   String?  @db.VarChar(500)
+  newValue   String?  @db.VarChar(500)
+  reason     String?  @db.VarChar(500)
+  createdAt  DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor  User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([actorId])
+  @@map("ticket_history")
+}
+
+model Task {
+  id           String     @id @default(uuid()) @db.Uuid
+  title        String     @db.VarChar(200)
+  description  String?    @db.Text
+  status       TaskStatus @default(TODO)
+  priority     TicketPriority @default(NORMAL)
+  assignedToId String?    @db.Uuid
+  createdById  String     @db.Uuid
+  dueDate      DateTime?
+  barbershopId String?    @db.Uuid
+  ticketId     String?    @db.Uuid
+  completedAt  DateTime?
+  completedById String?   @db.Uuid
+  version      Int        @default(1)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  assignedTo  User?          @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy   User           @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  completedBy User?          @relation("TaskCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  barbershop  Barbershop?    @relation(fields: [barbershopId], references: [id], onDelete: SetNull)
+  ticket      Ticket?        @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  comments    TaskComment[]
+  history     TaskHistory[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([dueDate])
+  @@index([barbershopId])
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @db.Uuid
+  authorId  String   @db.Uuid
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([authorId])
+  @@map("task_comments")
+}
+
+model TaskHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @db.Uuid
+  actorId   String   @db.Uuid
+  field     String   @db.VarChar(50)
+  oldValue  String?  @db.VarChar(500)
+  newValue  String?  @db.VarChar(500)
+  reason    String?  @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  task  Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([actorId])
+  @@map("task_history")
 }
 

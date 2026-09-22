@@ -61,6 +61,7 @@ import { integrationRoutes } from '@/modules/integrations/integration.routes'
 import { whatsappAiRoutes } from '@/modules/whatsappAi/whatsappAi.routes'
 import { emailPreferenceRoutes } from './emailPreferences.routes'
 import { emailGalleryRoutes } from './emailGallery.routes'
+import { adminInternalRoutes } from './adminInternal.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	await realtimeWsRoutes(app)
@@ -125,4 +126,5 @@ export async function apiRoutes(app: FastifyInstance) {
 	await whatsappAiRoutes(app)
 	await emailPreferenceRoutes(app)
 	await emailGalleryRoutes(app)
+	await adminInternalRoutes(app)
 }
