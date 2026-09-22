@@ -3,6 +3,7 @@ import { LoginController, validateLogin } from "@/modules/auth/useCases/login/Lo
 import { RefreshController, validateRefresh } from "@/modules/auth/useCases/refresh/RefreshController";
 import { MeController, mePreHandler } from "@/modules/auth/useCases/me/MeController";
 import { RegisterController, validateRegister } from "@/modules/auth/useCases/register/RegisterController";
+import { RegisterGoogleController, validateRegisterWithGoogle } from "@/modules/auth/useCases/registerGoogle/RegisterGoogleController";
 import { VerifyEmailController } from "@/modules/auth/controllers/VerifyEmailController";
 import { GoogleLoginController, validateGoogleLogin } from "@/modules/auth/useCases/googleLogin/GoogleLoginController";
 import { LogoutController } from "@/modules/auth/useCases/logout/LogoutController";
@@ -29,6 +30,7 @@ export async function authRoutes(app: FastifyInstance) {
   const refresh = new RefreshController();
   const me = new MeController();
   const register = new RegisterController();
+  const registerGoogle = new RegisterGoogleController();
   const verifyEmail = new VerifyEmailController();
   const googleLogin = new GoogleLoginController();
   const logout = new LogoutController();
@@ -39,6 +41,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin, verifyRecaptcha] }, login.handle.bind(login));
   app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister, verifyRecaptcha] }, register.handle.bind(register));
+  app.post("/auth/register-google", { ...authRateLimit, preHandler: [validateRegisterWithGoogle, verifyRecaptcha] }, registerGoogle.handle.bind(registerGoogle));
   app.post("/auth/refresh", { ...authRateLimit, preHandler: [validateRefresh] }, refresh.handle.bind(refresh));
   app.get("/auth/me", { preHandler: [mePreHandler] }, me.handle.bind(me));
   app.get("/auth/verify-email", {

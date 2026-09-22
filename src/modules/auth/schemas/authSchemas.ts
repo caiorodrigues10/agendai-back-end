@@ -64,6 +64,12 @@ export const registerSchema = z.object({
   schedule: z.array(scheduleItemSchema).min(7).max(7).optional(),
 });
 
+export const registerWithGoogleSchema = registerSchema
+  .omit({ email: true, password: true })
+  .extend({
+    idToken: z.string().min(10, "Google idToken é obrigatório"),
+  });
+
 export const forgotPasswordSchema = z.object({
   email: z.string().email("E-mail inválido"),
   recaptchaToken: z.string().optional().default(""),

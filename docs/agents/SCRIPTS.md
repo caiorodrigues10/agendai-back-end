@@ -16,7 +16,7 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `start:prod` | `prisma migrate deploy && node …` | **altera banco** + runtime | build, `DATABASE_URL` | Migra e sobe |
 | `typecheck` | `tsc --noEmit` | leitura | `npm install` | TypeScript |
 | `test` | `vitest` | testes | setup | Vitest (modo interativo/padrão do CLI) |
-| `test:unit` | `vitest run --exclude src/tests/integration/**` | testes | — | Unitários (exclui integration) |
+| `test:unit` | `vitest run --exclude "src/tests/integration/**"` | testes | — | Unitários (exclui integration; aspas obrigatórias — sem elas o shell expande o glob e a suíte inteira não roda) |
 | `test:integration` | `dotenv-cli` + vitest integration | testes | Postgres `:5442`, Redis | Integration contra DB local |
 | `test:integration:containers` | vitest + testcontainers | testes | Docker | Integration com containers |
 | `test:pentest` | vitest pentest | testes | Docker / env pentest | Suite de segurança |

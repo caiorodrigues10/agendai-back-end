@@ -1,9 +1,8 @@
 import { inject, injectable } from "tsyringe";
-import { sign, Secret, SignOptions } from "jsonwebtoken";
-import { randomBytes, randomUUID } from "crypto";
+import { randomBytes } from "crypto";
 import { FastifyReply } from "fastify";
+import { OAuth2Client } from "google-auth-library";
 import { prisma } from "@/libs/prismaClient";
-import auth from "@/config/auth";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { AppError } from "@/shared/errors/AppError";
 import { assertCpfNotBlocked } from "@/shared/services/blockedEntityService";
@@ -17,18 +16,17 @@ import {
   ensureReferralCode,
 } from "@/modules/referrals/services/referralService";
 import { validateEmail } from "@/shared/services/emailValidationService";
-import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 import { geocodeCity } from "@/shared/services/geocodeCity";
-import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
+import { issueAuthSession } from "../../services/issueAuthSession";
 
-const logger = getModuleLogger("register");
+const logger = getModuleLogger("register-google");
+const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
 
-export interface IRegisterDTO {
+export interface IRegisterGoogleDTO {
+  idToken: string;
   ownerName: string;
-  email: string;
-  password: string;
   cpf: string;
   barbershopName: string;
   whatsapp: string;
@@ -46,14 +44,33 @@ export interface IRegisterDTO {
 }
 
 @injectable()
-export class RegisterUseCase {
+export class RegisterGoogleUseCase {
   constructor(
     @inject("HashProvider")
     private hashProvider: IHashProvider
   ) {}
 
-  async execute(data: IRegisterDTO, reply?: FastifyReply) {
-    const email = data.email.trim().toLowerCase();
+  async execute(data: IRegisterGoogleDTO, reply?: FastifyReply) {
+    const client = new OAuth2Client(googleClientId);
+
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: data.idToken,
+        audience: googleClientId,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw new AppError("Token Google inválido ou expirado", 401);
+    }
+
+    if (!payload || !payload.email || payload.email_verified !== true) {
+      throw new AppError("E-mail não verificado pelo Google", 401);
+    }
+
+    const email = payload.email.trim().toLowerCase();
+    const googleSub = payload.sub;
+
     const emailValidation = await validateEmail(email);
     if (!emailValidation.valid) {
       throw new AppError("E-mail inválido", 400);
@@ -69,6 +86,16 @@ export class RegisterUseCase {
     });
     if (existingEmail) {
       throw new AppError("E-mail já cadastrado", 400);
+    }
+
+    if (googleSub) {
+      const existingGoogle = await prisma.user.findFirst({
+        where: { googleSub },
+        select: { id: true },
+      });
+      if (existingGoogle) {
+        throw new AppError("Esta conta Google já está cadastrada", 400);
+      }
     }
 
     const existingCpf = await prisma.user.findFirst({ where: { cpf: normalizedCpf } });
@@ -90,9 +117,8 @@ export class RegisterUseCase {
       await checkCnpjAccess(normalizedCnpj);
     }
 
-    const hashedPassword = await this.hashProvider.hash(data.password);
-    const verificationToken = randomBytes(32).toString("hex");
-    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const randomPassword = randomBytes(32).toString("hex");
+    const hashedPassword = await this.hashProvider.hash(randomPassword);
     const now = new Date();
 
     let city = data.city?.trim() || undefined;
@@ -125,18 +151,18 @@ export class RegisterUseCase {
           },
         });
 
-        // Serviços e horários iniciais
         await seedBarbershopDefaults(tx, barbershop.id, data.schedule);
 
         const created = await tx.user.create({
           data: {
-            name: data.ownerName,
+            name: data.ownerName.trim(),
             email,
             password: hashedPassword,
             role: "OWNER",
             barbershopId: barbershop.id,
             cpf: normalizedCpf,
-            emailVerified: false,
+            emailVerified: true,
+            ...(googleSub ? { googleSub } : {}),
             termsVersion: data.termsVersion,
             termsAcceptedAt: data.termsAccepted ? now : null,
             marketingOptIn: data.marketingOptIn,
@@ -149,14 +175,7 @@ export class RegisterUseCase {
             email: true,
             role: true,
             barbershopId: true,
-          },
-        });
-
-        await tx.verificationToken.create({
-          data: {
-            token: verificationToken,
-            userId: created.id,
-            expiresAt: tokenExpires,
+            cpf: true,
           },
         });
 
@@ -166,30 +185,6 @@ export class RegisterUseCase {
       throw mapUniqueConstraintError(error) ?? error;
     }
 
-    const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
-    const accessToken = sign(
-      { role: user.role, barbershopId: user.barbershopId ?? undefined },
-      auth.secret as Secret,
-      accessOpts
-    );
-
-    const expiresAt = new Date(Date.now() + parseDuration(auth.refreshExpiresIn));
-    const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
-    const refreshToken = sign(
-      { sub: user.id, jti: randomUUID() },
-      auth.refreshSecret as Secret,
-      refreshOpts
-    );
-
-    await prisma.refreshToken.deleteMany({
-      where: { userId: user.id, expiresAt: { lt: new Date() } },
-    });
-
-    await prisma.refreshToken.create({
-      data: { token: refreshToken, userId: user.id, expiresAt },
-    });
-
-    // Código de indicação do novo owner (para compartilhar depois)
     if (user.barbershopId) {
       await ensureReferralCode({
         ownerUserId: user.id,
@@ -211,17 +206,6 @@ export class RegisterUseCase {
     }
 
     await enqueueEmail({
-      kind: "verify_email",
-      ownerName: user.name,
-      email: user.email,
-      token: verificationToken,
-      deduplicationKey: `verify-email:${user.id}`,
-    }).catch((err) => {
-      logger.error({ err }, "Falha ao enfileirar verificação de e-mail");
-    });
-
-    // Boas-vindas (não bloqueia cadastro se fila/e-mail falhar)
-    await enqueueEmail({
       kind: "welcome",
       ownerName: user.name,
       barbershopName: data.barbershopName,
@@ -231,24 +215,17 @@ export class RegisterUseCase {
       logger.error({ err }, "Falha ao enfileirar e-mail de boas-vindas");
     });
 
-    if (reply) {
-      reply.setCookie('refresh_token', refreshToken, {
-        ...getAuthCookieSecurityOptions(),
-        maxAge: parseDuration(auth.refreshExpiresIn) / 1000,
-      });
-    }
-
-    const session = {
-      user: {
+    return issueAuthSession(
+      {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: mapRole(user.role),
-        barbershopId: user.barbershopId ?? undefined,
+        role: user.role,
+        barbershopId: user.barbershopId ?? null,
+        cpf: user.cpf ?? null,
+        emailVerified: true,
       },
-      accessToken,
-    };
-
-    return reply ? session : { ...session, refreshToken };
+      reply
+    );
   }
 }
