@@ -11,7 +11,7 @@ import {
   IFiadoPaymentResponseDTO,
   FiadoStatus,
 } from "../../dtos/IFiadoDTO"
-import { mapFiadoToDTO, mapPaymentToDTO } from "./fiadoMapper";
+import { mapFiadoToDTO } from "./fiadoMapper";
 
 export class FiadoRepository implements IFiadoRepository {
   async create(data: ICreateFiadoDTO): Promise<IFiadoResponseDTO> {
@@ -123,6 +123,8 @@ export class FiadoRepository implements IFiadoRepository {
 
   async addPayment(data: ICreateFiadoPaymentDTO): Promise<IFiadoPaymentResponseDTO> {
     return prisma.$transaction(async (tx: any) => {
+      await tx.$executeRaw`SELECT set_config('app.current_barbershop_id', ${data.barbershopId}, TRUE)`;
+
       const rows = await tx.$queryRaw<
         Array<{
           id: string;
@@ -158,25 +160,27 @@ export class FiadoRepository implements IFiadoRepository {
       const newStatus: FiadoStatus =
         newPaidAmount + creditAdjustedAmount >= originalAmount ? "PAID" : "PARTIAL";
 
-      const [payment] = await Promise.all([
-        tx.fiadoPayment.create({
-          data: {
-            fiadoId: data.fiadoId,
-            amount: data.amount,
-            notes: data.notes ?? null,
-            registeredById: data.registeredById,
-          },
-        }),
-        tx.fiado.update({
-          where: { id: data.fiadoId },
-          data: {
-            paidAmount: newPaidAmount,
-            status: newStatus,
-          },
-        }),
-      ]);
+      const paymentId = crypto.randomUUID();
+      const createdAt = new Date();
 
-      return mapPaymentToDTO(payment);
+      await tx.$executeRaw`
+        INSERT INTO fiado_payments (id, "fiadoId", amount, notes, "registeredById", "createdAt")
+        VALUES (${paymentId}::uuid, ${data.fiadoId}::uuid, ${data.amount}, ${data.notes ?? null}, ${data.registeredById}::uuid, ${createdAt})
+      `;
+      await tx.$executeRaw`
+        UPDATE fiados
+        SET "paidAmount" = ${newPaidAmount}, status = ${newStatus}::"FiadoStatus", "updatedAt" = ${createdAt}
+        WHERE id = ${data.fiadoId}::uuid
+      `;
+
+      return {
+        id: paymentId,
+        fiadoId: data.fiadoId,
+        amount: data.amount,
+        notes: data.notes ?? null,
+        registeredById: data.registeredById,
+        createdAt,
+      };
     });
   }
 

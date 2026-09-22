@@ -21,10 +21,20 @@ type FiadoWithPayments = Prisma.FiadoGetPayload<{
 }>;
 
 export class BarbershopFinancialController {
+  private resolveBarbershopId(request: FastifyRequest): string {
+    const user = request.user!;
+    if (user.role === "MASTER_ADMIN") {
+      const query = request.query as { barbershopId?: string };
+      const fromQuery = query.barbershopId;
+      if (fromQuery) return fromQuery;
+    }
+    if (!user.barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
+    return user.barbershopId;
+  }
+
   // GET /barbershop/insights?period=7d|30d|90d
   async insights(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = request.user?.barbershopId;
-    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
+    const barbershopId = this.resolveBarbershopId(request);
 
     const { period: raw } = request.query as { period?: string };
     const period = (["7d", "30d", "90d", "1y"].includes(raw ?? "")
@@ -40,10 +50,9 @@ export class BarbershopFinancialController {
 
   // GET /barbershop/financial/summary
   async summary(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = request.user?.barbershopId;
-    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
+    const barbershopId = this.resolveBarbershopId(request);
 
-    const { from, to } = request.query as { from?: string; to?: string };
+    const { from, to } = request.query as { from?: string; to?: string; barbershopId?: string };
     const fromDate = from ? new Date(from) : undefined;
     const toDate = to ? new Date(to) : undefined;
 
@@ -162,11 +171,10 @@ export class BarbershopFinancialController {
 
   // GET /barbershop/financial/expenses
   async expenses(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = request.user?.barbershopId;
-    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
+    const barbershopId = this.resolveBarbershopId(request);
 
     const { from, to, page = "1", limit = "20" } = request.query as {
-      from?: string; to?: string; page?: string; limit?: string;
+      from?: string; to?: string; page?: string; limit?: string; barbershopId?: string;
     };
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -221,11 +229,10 @@ export class BarbershopFinancialController {
 
   // GET /barbershop/financial/fiados
   async fiados(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = request.user?.barbershopId;
-    if (!barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
+    const barbershopId = this.resolveBarbershopId(request);
 
     const { page = "1", limit = "20", status } = request.query as {
-      page?: string; limit?: string; status?: string;
+      page?: string; limit?: string; status?: string; barbershopId?: string;
     };
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -286,8 +293,7 @@ export class BarbershopFinancialController {
 
   async weatherInsights(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
-    const barbershopId = user.barbershopId;
-    if (!barbershopId) throw new AppError("barbershopId é obrigatório", 400);
+    const barbershopId = this.resolveBarbershopId(request);
 
     const { days } = request.query as { days?: string };
     const parsedDays = days ? parseInt(days, 10) : 7;

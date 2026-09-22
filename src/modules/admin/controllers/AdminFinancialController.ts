@@ -7,11 +7,13 @@ type ExpenseRow = {
   paidAt: Date | null;
   type: string;
   barbershopId: string;
+  inventoryReceiptId?: string | null;
 };
 
 type FiadoRow = {
   originalAmount: number;
   paidAmount: number;
+  creditAdjustedAmount?: number;
   dueDate: Date | null;
   barbershopId: string;
 };
@@ -19,8 +21,17 @@ type FiadoRow = {
 type FiadoSummaryRow = {
   originalAmount: number;
   paidAmount: number;
+  creditAdjustedAmount?: number;
   dueDate: Date | null;
 };
+
+function remainingFiado(f: {
+  originalAmount: number;
+  paidAmount: number;
+  creditAdjustedAmount?: number;
+}): number {
+  return Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0));
+}
 
 type EnrichedBarbershop = {
   id: string;
@@ -73,6 +84,7 @@ export class AdminFinancialController {
           paidAt: true,
           type: true,
           barbershopId: true,
+          inventoryReceiptId: true,
         },
       }),
       prisma.fiado.findMany({
@@ -83,6 +95,7 @@ export class AdminFinancialController {
         select: {
           originalAmount: true,
           paidAmount: true,
+          creditAdjustedAmount: true,
           dueDate: true,
           barbershopId: true,
         },
@@ -96,25 +109,28 @@ export class AdminFinancialController {
       }),
     ]);
 
-    const totalExpenses = expenses.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
-    const totalPaidExp = expenses
+    const operationalExpenses = expenses.filter((e: ExpenseRow) => !e.inventoryReceiptId);
+    const stockPurchases = expenses.filter((e: ExpenseRow) => e.inventoryReceiptId);
+    const totalExpenses = operationalExpenses.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
+    const totalPaidExp = operationalExpenses
       .filter((e: ExpenseRow) => e.paidAt)
       .reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
     const totalPendingExp = totalExpenses - totalPaidExp;
+    const stockPurchaseTotal = stockPurchases.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
 
     const expenseByType: Record<string, { total: number; count: number }> = {};
-    for (const e of expenses) {
+    for (const e of operationalExpenses) {
       const cur = expenseByType[e.type] ?? { total: 0, count: 0 };
       expenseByType[e.type] = { total: cur.total + e.amount, count: cur.count + 1 };
     }
 
     const now = new Date();
-    const totalFiadoDebt = fiadosRaw.reduce((s: number, f: FiadoRow) => s + (f.originalAmount - f.paidAmount), 0);
+    const totalFiadoDebt = fiadosRaw.reduce((s: number, f: FiadoRow) => s + remainingFiado(f), 0);
     const totalFiadoPaid = fiadosRaw.reduce((s: number, f: FiadoRow) => s + f.paidAmount, 0);
     const totalFiadoOrig = fiadosRaw.reduce((s: number, f: FiadoRow) => s + f.originalAmount, 0);
     const overdueAmount = fiadosRaw
       .filter((f: FiadoRow) => f.dueDate && f.dueDate < now)
-      .reduce((s: number, f: FiadoRow) => s + (f.originalAmount - f.paidAmount), 0);
+      .reduce((s: number, f: FiadoRow) => s + remainingFiado(f), 0);
 
     return reply.send({
       success: true,
@@ -123,7 +139,8 @@ export class AdminFinancialController {
           total: totalExpenses,
           totalPaid: totalPaidExp,
           totalPending: totalPendingExp,
-          count: expenses.length,
+          count: operationalExpenses.length,
+          stockPurchases: stockPurchaseTotal,
           byType: Object.entries(expenseByType).map(([type, v]) => ({ type, ...v })),
         },
         fiados: {
@@ -181,7 +198,7 @@ export class AdminFinancialController {
       barbershops.map(async (shop: BarbershopRow): Promise<EnrichedBarbershop> => {
         const [expenseAgg, fiadoAgg, overdueCount] = await Promise.all([
           prisma.expense.aggregate({
-            where: { barbershopId: shop.id },
+            where: { barbershopId: shop.id, inventoryReceiptId: null },
             _sum: { amount: true },
             _count: { id: true },
           }),
@@ -190,7 +207,7 @@ export class AdminFinancialController {
               barbershopId: shop.id,
               status: { in: ["PENDING", "PARTIAL"] },
             },
-            select: { originalAmount: true, paidAmount: true, dueDate: true },
+            select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true, dueDate: true },
           }),
           prisma.fiado.count({
             where: {
@@ -202,7 +219,7 @@ export class AdminFinancialController {
         ]);
 
         const totalDebt = fiadoAgg.reduce(
-          (s: number, f: FiadoSummaryRow) => s + (f.originalAmount - f.paidAmount),
+          (s: number, f: FiadoSummaryRow) => s + remainingFiado(f),
           0
         );
 
@@ -287,6 +304,7 @@ export class AdminFinancialController {
       prisma.expense.findMany({
         where: {
           barbershopId,
+          inventoryReceiptId: null,
           ...(dateFilter && { referenceDate: dateFilter }),
         },
         include: { category: { select: { name: true } } },
@@ -322,10 +340,10 @@ export class AdminFinancialController {
       .reduce((s: number, e: ExpenseDetail) => s + e.amount, 0);
 
     const now = new Date();
-    const totalFiadoDebt = fiados.reduce((s: number, f: FiadoDetail) => s + (f.originalAmount - f.paidAmount), 0);
+    const totalFiadoDebt = fiados.reduce((s: number, f: FiadoDetail) => s + remainingFiado(f), 0);
     const overdueAmount = fiados
       .filter((f: FiadoDetail) => f.dueDate && f.dueDate < now)
-      .reduce((s: number, f: FiadoDetail) => s + (f.originalAmount - f.paidAmount), 0);
+      .reduce((s: number, f: FiadoDetail) => s + remainingFiado(f), 0);
 
     return reply.send({
       success: true,
@@ -371,7 +389,7 @@ export class AdminFinancialController {
             description: f.description,
             originalAmount: f.originalAmount,
             paidAmount: f.paidAmount,
-            remainingAmount: Math.max(0, f.originalAmount - f.paidAmount),
+            remainingAmount: remainingFiado(f),
             status: f.status,
             dueDate: f.dueDate,
             isOverdue:
@@ -392,21 +410,25 @@ export class AdminFinancialController {
     const [
       totalExpensesMonth,
       totalExpensesAll,
-      totalFiadosActive,
+      fiadosActiveRows,
       totalFiadosOverdue,
       barbershopsWithDebt,
     ] = await Promise.all([
       prisma.expense.aggregate({
-        where: { referenceDate: { gte: startOfMonth } },
+        where: {
+          referenceDate: { gte: startOfMonth },
+          inventoryReceiptId: null,
+        },
         _sum: { amount: true },
       }),
       prisma.expense.aggregate({
+        where: { inventoryReceiptId: null },
         _sum: { amount: true },
         _count: { id: true },
       }),
-      prisma.fiado.aggregate({
+      prisma.fiado.findMany({
         where: { status: { in: ["PENDING", "PARTIAL"] } },
-        _sum: { originalAmount: true, paidAmount: true },
+        select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true },
       }),
       prisma.fiado.count({
         where: {
@@ -421,9 +443,12 @@ export class AdminFinancialController {
       }),
     ]);
 
-    const totalDebtActive =
-      Number(totalFiadosActive._sum.originalAmount ?? 0) -
-      Number(totalFiadosActive._sum.paidAmount ?? 0);
+    const totalDebtActive = fiadosActiveRows.reduce(
+      (s: number, f: { originalAmount: number; paidAmount: number; creditAdjustedAmount?: number }) =>
+        s + remainingFiado(f),
+      0
+    );
+    const activeDebtors = fiadosActiveRows.length;
 
     return reply.send({
       success: true,
@@ -434,7 +459,7 @@ export class AdminFinancialController {
           count: totalExpensesAll._count.id ?? 0,
         },
         fiados: {
-          activeDebtors: totalFiadosActive.length,
+          activeDebtors,
           totalDebtPending: totalDebtActive,
           overdueCount: totalFiadosOverdue,
           barbershopsWithDebt: barbershopsWithDebt.length,

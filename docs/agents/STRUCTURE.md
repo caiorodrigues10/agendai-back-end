@@ -32,7 +32,7 @@ agendai-back-end/
 
 Há **56** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
 
-`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `giftCards`, `goals`, `integrations`, `loyalty`, `memberships`, `monitoring`, `notifications`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `products`, `profit`, `purchasing`, `quality`, `queue`, `referrals`, `reputation`, `resources`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`.
+`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `memberships`, `monitoring`, `notifications`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `products`, `profit`, `purchasing`, `quality`, `queue`, `referrals`, `reputation`, `resources`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`.
 
 Módulos que escaparam a varredura A1–A11 e agora entram na matriz de STATUS: **pricing**, **catalog** (avançado), **purchasing** (receive → estoque), **corporate** (admin com `setRlsContext`).
 

@@ -348,8 +348,7 @@ model Barbershop {
    clientLinks              ClientSalonLink[]
    careInstructionTemplates CareInstructionTemplate[]
    clientCareInstructions   ClientCareInstruction[]
-   giftCards                GiftCard[]
-     equipment               Equipment[]
+      equipment               Equipment[]
      equipmentMovements      EquipmentMovement[]
      equipmentNeeds          EquipmentNeed[]
      profitEntries            ProfitEntry[]
@@ -736,9 +735,7 @@ model SalonClient {
    visits                 Visit[]
    clientLinks            ClientSalonLink[]
    voucherUsages          VoucherUsage[]
-   formResponses          FormResponse[]
-    purchasedGiftCards     GiftCard[]            @relation("GiftCardBuyer")
-    receivedGiftCards      GiftCard[]            @relation("GiftCardRecipient")
+    formResponses          FormResponse[]
     procedureRecords       ClientProcedureRecord[]
 
   @@unique([barbershopId, normalizedWhatsapp])
@@ -3002,59 +2999,6 @@ enum SalonLinkStatus {
   REVOKED
 }
 
-// ─── Gift Cards ──────────────────────────────────────────────
-
-enum GiftCardStatus {
-  ACTIVE
-  PARTIALLY_USED
-  EXHAUSTED
-  EXPIRED
-  CANCELED
-}
-
-model GiftCard {
-  id              String          @id @default(uuid()) @db.Uuid
-  barbershopId    String          @db.Uuid
-  code            String          @unique @db.VarChar(30)
-  initialBalance  Decimal         @db.Decimal(12,2)
-  currentBalance  Decimal         @db.Decimal(12,2)
-  buyerName       String?         @db.VarChar(200)
-  buyerPhone      String?         @db.VarChar(20)
-  recipientName   String?         @db.VarChar(200)
-  recipientPhone  String?         @db.VarChar(20)
-  purchaserId     String?         @db.Uuid
-  recipientId     String?         @db.Uuid
-  status          GiftCardStatus  @default(ACTIVE)
-  expiresAt       DateTime?
-  purchasedAt     DateTime        @default(now())
-  redeemedAt      DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-
-  barbershop Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  usages     GiftCardUsage[]
-  purchaser  SalonClient?    @relation("GiftCardBuyer", fields: [purchaserId], references: [id], onDelete: SetNull)
-  recipient  SalonClient?    @relation("GiftCardRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
-
-  @@index([barbershopId, status])
-  @@index([code])
-  @@map("gift_cards")
-}
-
-model GiftCardUsage {
-  id            String   @id @default(uuid()) @db.Uuid
-  giftCardId    String   @db.Uuid
-  amount        Decimal  @db.Decimal(12,2)
-  appointmentId String?  @db.Uuid
-  notes         String?  @db.Text
-  createdAt     DateTime @default(now())
-
-  giftCard GiftCard @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
-
-  @@index([giftCardId])
-  @@map("gift_card_usages")
-}
-
 // ─── Profit Engine ──────────────────────────────────────────────
 
 model ProfitEntry {
@@ -3548,7 +3492,6 @@ enum WalletEntryType {
   DEBIT
   REFUND
   TRANSFER
-  GIFT_CARD
   CASHBACK
 }
 

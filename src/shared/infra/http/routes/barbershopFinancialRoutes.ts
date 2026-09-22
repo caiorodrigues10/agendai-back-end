@@ -9,7 +9,7 @@ import { BarbershopFinancialController } from "@/modules/barbershops/controllers
 const financial = new BarbershopFinancialController();
 
 export async function barbershopFinancialRoutes(app: FastifyInstance) {
-  const preHandler = [authenticate, authorize(["OWNER"]), checkSubscription, checkDashboardAccess, setRlsContext];
+  const preHandler = [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, checkDashboardAccess, setRlsContext];
 
   app.get("/barbershop/insights", { preHandler }, financial.insights.bind(financial));
   app.get("/barbershop/financial/summary", { preHandler }, financial.summary.bind(financial));

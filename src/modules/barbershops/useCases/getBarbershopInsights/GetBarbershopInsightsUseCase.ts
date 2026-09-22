@@ -126,6 +126,7 @@ export class GetBarbershopInsightsUseCase {
         where: {
           barbershopId,
           referenceDate: { gte: from, lte: to },
+          inventoryReceiptId: null,
         },
         select: { amount: true },
       }),
@@ -137,6 +138,7 @@ export class GetBarbershopInsightsUseCase {
         select: {
           originalAmount: true,
           paidAmount: true,
+          creditAdjustedAmount: true,
           dueDate: true,
         },
       }),
@@ -219,13 +221,16 @@ export class GetBarbershopInsightsUseCase {
 
     const totalExpenses = expenses.reduce((s: number, e: { amount: number }) => s + e.amount, 0);
     const now = new Date();
+    const remainingOf = (f: { originalAmount: number; paidAmount: number; creditAdjustedAmount?: number }) =>
+      Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0));
     const openFiado = fiadosOpen.reduce(
-      (s: number, f: { originalAmount: number; paidAmount: number }) => s + (f.originalAmount - f.paidAmount),
+      (s: number, f: { originalAmount: number; paidAmount: number; creditAdjustedAmount?: number }) =>
+        s + remainingOf(f),
       0
     );
     const overdueFiado = fiadosOpen
-      .filter((f: { dueDate: Date | null; originalAmount: number; paidAmount: number }) => f.dueDate && f.dueDate < now)
-      .reduce((s: number, f: { originalAmount: number; paidAmount: number }) => s + (f.originalAmount - f.paidAmount), 0);
+      .filter((f: { dueDate: Date | null; originalAmount: number; paidAmount: number; creditAdjustedAmount?: number }) => f.dueDate && f.dueDate < now)
+      .reduce((s: number, f: { originalAmount: number; paidAmount: number; creditAdjustedAmount?: number }) => s + remainingOf(f), 0);
 
     const byWeekday = WEEKDAY_LABELS.map((label, day) => ({
       day: String(day),

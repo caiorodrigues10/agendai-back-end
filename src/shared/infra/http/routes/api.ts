@@ -45,7 +45,6 @@ import { organizationRoutes } from '@/modules/organizations/organization.routes'
 import { visitRoutes } from '@/modules/visits/visit.routes'
 import { equipmentRoutes } from '@/modules/equipment/equipment.routes'
 import { profitRoutes } from '@/modules/profit/profit.routes'
-import { giftCardRoutes } from '@/modules/giftCards/giftCard.routes'
 import { formRoutes } from '@/modules/forms/form.routes'
 import { staffRoutes } from '@/modules/staff/staff.routes'
 import { qualityRoutes } from '@/modules/quality/quality.routes'
@@ -109,7 +108,6 @@ export async function apiRoutes(app: FastifyInstance) {
 	await organizationRoutes(app)
 	await visitRoutes(app)
 	await profitRoutes(app)
-	await giftCardRoutes(app)
 	await pricingRoutes(app)
 	await voucherRoutes(app)
 	await equipmentRoutes(app)
