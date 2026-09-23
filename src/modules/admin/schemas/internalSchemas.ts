@@ -33,8 +33,8 @@ export const createTicketSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
   barbershopId: z.string().uuid().nullable().optional(),
-  channel: z.enum(["WHATSAPP", "EMAIL", "PHONE", "OTHER"]).optional().default("OTHER"),
-  category: z.enum(["ACCESS", "BILLING", "SCHEDULE", "ERROR", "QUESTION"]).optional().default("QUESTION"),
+  channel: z.enum(["WHATSAPP", "EMAIL", "PHONE", "IN_APP", "OTHER"]).optional().default("OTHER"),
+  category: z.enum(["ACCESS", "BILLING", "SCHEDULE", "ERROR", "QUESTION", "SUGGESTION", "FEEDBACK"]).optional().default("QUESTION"),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional().default("NORMAL"),
 }).strict();
 
@@ -42,7 +42,7 @@ export const updateTicketSchema = z.object({
   status: z.enum(["OPEN", "IN_PROGRESS", "WAITING_SHOP", "RESOLVED", "CANCELLED"]).optional(),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
   assignedToId: z.string().uuid().nullable().optional(),
-  category: z.enum(["ACCESS", "BILLING", "SCHEDULE", "ERROR", "QUESTION"]).optional(),
+  category: z.enum(["ACCESS", "BILLING", "SCHEDULE", "ERROR", "QUESTION", "SUGGESTION", "FEEDBACK"]).optional(),
   cancelReason: z.string().max(500).optional(),
   resolveNote: z.string().max(500).optional(),
   version: z.number().int().min(1),
@@ -53,8 +53,8 @@ export const listTicketsQuerySchema = paginationSchema.extend({
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
   assignedToId: z.string().uuid().optional(),
   barbershopId: z.string().uuid().optional(),
-  channel: z.enum(["WHATSAPP", "EMAIL", "PHONE", "OTHER"]).optional(),
-  category: z.enum(["ACCESS", "BILLING", "SCHEDULE", "ERROR", "QUESTION"]).optional(),
+  channel: z.enum(["WHATSAPP", "EMAIL", "PHONE", "IN_APP", "OTHER"]).optional(),
+  category: z.enum(["ACCESS", "BILLING", "SCHEDULE", "ERROR", "QUESTION", "SUGGESTION", "FEEDBACK"]).optional(),
   unassigned: z.literal("true").optional(),
 }).strict();
 

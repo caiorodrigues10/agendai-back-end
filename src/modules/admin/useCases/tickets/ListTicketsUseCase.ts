@@ -49,7 +49,7 @@ export class ListTicketsUseCase {
           createdAt: true,
           updatedAt: true,
           resolvedAt: true,
-          createdBy: { select: { id: true, name: true } },
+          createdBy: { select: { id: true, name: true, email: true } },
           assignedTo: { select: { id: true, name: true } },
           barbershop: { select: { id: true, name: true } },
           _count: { select: { comments: true, history: true, tasks: true } },

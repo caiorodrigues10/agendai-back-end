@@ -3936,6 +3936,7 @@ enum TicketChannel {
   WHATSAPP
   EMAIL
   PHONE
+  IN_APP
   OTHER
 }
 
@@ -3945,6 +3946,8 @@ enum TicketCategory {
   SCHEDULE
   ERROR
   QUESTION
+  SUGGESTION
+  FEEDBACK
 }
 
 enum TicketPriority {
