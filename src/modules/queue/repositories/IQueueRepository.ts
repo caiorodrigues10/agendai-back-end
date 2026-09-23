@@ -10,7 +10,10 @@ export interface IQueueRepository {
     whatsappDigits: string,
     customerName: string
   ): Promise<IQueueItemResponseDTO | null>;
-  list(barbershopId?: string): Promise<IQueueItemResponseDTO[]>;
+  list(
+    barbershopId?: string,
+    options?: { statuses?: readonly ("WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED")[] }
+  ): Promise<IQueueItemResponseDTO[]>;
   findById(id: string): Promise<IQueueItemResponseDTO | null>;
   updateStatus(
     id: string,

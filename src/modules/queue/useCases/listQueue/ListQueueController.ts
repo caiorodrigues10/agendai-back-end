@@ -20,12 +20,21 @@ function toPublicView(
   }));
 }
 
+const ACTIVE_STATUSES = ["WAITING", "IN_CHAIR"] as const;
+const ALL_STATUSES = ["WAITING", "IN_CHAIR", "COMPLETED", "CANCELLED"] as const;
+
+function resolveStatuses(status?: string) {
+  return status === "all" ? ALL_STATUSES : ACTIVE_STATUSES;
+}
+
 export class ListQueueController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
-    const { barbershopId, sessionId: rawSession } = request.query as {
+    const { barbershopId, sessionId: rawSession, status } = request.query as {
       barbershopId?: string;
       sessionId?: string;
+      status?: string;
     };
+    const statuses = resolveStatuses(status);
     const sessionId =
       typeof rawSession === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawSession)
@@ -42,7 +51,7 @@ export class ListQueueController {
         });
       }
       const listQueueUseCase = container.resolve(ListQueueUseCase);
-      const queue = await listQueueUseCase.execute(barbershopId);
+      const queue = await listQueueUseCase.execute(barbershopId, { statuses });
       return reply.status(200).send(toPublicView(queue, sessionId));
     }
 
@@ -57,7 +66,7 @@ export class ListQueueController {
         });
       }
       const listQueueUseCase = container.resolve(ListQueueUseCase);
-      const queue = await listQueueUseCase.execute(resolvedId);
+      const queue = await listQueueUseCase.execute(resolvedId, { statuses });
       return reply.status(200).send(queue);
     }
 
@@ -69,7 +78,7 @@ export class ListQueueController {
     }
 
     const listQueueUseCase = container.resolve(ListQueueUseCase);
-    const queue = await listQueueUseCase.execute(barbershopId);
+    const queue = await listQueueUseCase.execute(barbershopId, { statuses });
     return reply.status(200).send(queue);
   }
 }

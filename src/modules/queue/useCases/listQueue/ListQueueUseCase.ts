@@ -8,7 +8,10 @@ export class ListQueueUseCase {
     @inject("QueueRepository")
     private queueRepository: IQueueRepository
   ) {}
-  async execute(barbershopId?: string): Promise<IQueueItemResponseDTO[]> {
-    return this.queueRepository.list(barbershopId);
+  async execute(
+    barbershopId?: string,
+    options?: { statuses?: readonly ("WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED")[] }
+  ): Promise<IQueueItemResponseDTO[]> {
+    return this.queueRepository.list(barbershopId, options);
   }
 }

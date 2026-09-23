@@ -55,9 +55,16 @@ export class QueueRepository implements IQueueRepository {
     return this.mapToDTO(item);
   }
 
-  async list(barbershopId?: string): Promise<IQueueItemResponseDTO[]> {
+  async list(
+    barbershopId?: string,
+    options?: { statuses?: readonly ("WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED")[] }
+  ): Promise<IQueueItemResponseDTO[]> {
+    const statuses = options?.statuses ?? ["WAITING", "IN_CHAIR"] as const;
     const items = await prisma.queueItem.findMany({
-      where:   barbershopId ? { barbershopId } : {},
+      where: {
+        ...(barbershopId ? { barbershopId } : {}),
+        status: { in: [...statuses] },
+      },
       orderBy: { joinedAt: "asc" },
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
     });

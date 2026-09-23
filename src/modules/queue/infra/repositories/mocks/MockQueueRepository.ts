@@ -48,9 +48,14 @@ export class MockQueueRepository implements IQueueRepository {
     if (index >= 0) this.data[index] = { ...this.data[index], clientId };
   }
 
-  async list(barbershopId?: string): Promise<IQueueItemResponseDTO[]> {
-    if (!barbershopId) return [...this.data];
-    return this.data.filter((q) => q.barbershopId === barbershopId);
+  async list(
+    barbershopId?: string,
+    options?: { statuses?: readonly ("WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED")[] }
+  ): Promise<IQueueItemResponseDTO[]> {
+    const statuses = (options?.statuses ?? ["WAITING", "IN_CHAIR"]).map(s => s.toLowerCase());
+    let result = this.data;
+    if (barbershopId) result = result.filter((q) => q.barbershopId === barbershopId);
+    return result.filter((q) => statuses.includes(q.status));
   }
 
   async findById(id: string): Promise<IQueueItemResponseDTO | null> {
