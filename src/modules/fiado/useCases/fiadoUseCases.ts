@@ -111,7 +111,7 @@ export class UpdateFiadoUseCase {
   async execute(
     id: string,
     data: IUpdateFiadoDTO,
-    requestingUser: { role: string; barbershopId?: string }
+    requestingUser: { id: string; role: string; barbershopId?: string }
   ): Promise<IFiadoResponseDTO> {
     const fiado = await this.fiadoRepository.findById(id);
     if (!fiado) throw new AppError("Fiado não encontrado", 404);
@@ -127,7 +127,7 @@ export class UpdateFiadoUseCase {
       throw new AppError("Fiado já quitado não pode ser editado", 400);
     }
 
-    return this.fiadoRepository.update(id, data);
+    return this.fiadoRepository.update(id, { ...data, updatedById: requestingUser.id });
   }
 }
 

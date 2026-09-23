@@ -313,7 +313,7 @@ export class ClientPortalRepository {
   }
 
   private async getPortalBenefits(barbershopId: string, salonClientId: string) {
-    const membership = await prisma.clientMembership.findFirst({
+    const recurringPackage = await prisma.clientRecurringPackage.findFirst({
       where: { barbershopId, clientId: salonClientId, status: "ACTIVE" },
       include: {
         plan: {
@@ -324,14 +324,14 @@ export class ClientPortalRepository {
       },
     });
 
-    if (!membership) return [];
+    if (!recurringPackage) return [];
 
-    return membership.plan.benefits.map((b: (typeof membership.plan.benefits)[number]) => ({
+    return recurringPackage.plan.benefits.map((b: (typeof recurringPackage.plan.benefits)[number]) => ({
       type: b.type,
       description: b.description,
       available: b.quantity,
       used: 0,
-      validUntil: membership.currentPeriodEnd.toISOString(),
+      validUntil: recurringPackage.currentPeriodEnd.toISOString(),
     }));
   }
 

@@ -31,6 +31,7 @@ export class MockFiadoRepository implements IFiadoRepository {
       dueDate: data.dueDate ?? null,
       notes: data.notes ?? null,
       createdById: data.createdById,
+      updatedById: null,
       createdAt: now,
       updatedAt: now,
       payments: [],
@@ -96,6 +97,7 @@ export class MockFiadoRepository implements IFiadoRepository {
       ...(data.dueDate !== undefined && { dueDate: data.dueDate }),
       ...(data.notes !== undefined && { notes: data.notes }),
       ...(data.status !== undefined && { status: data.status }),
+      ...(data.updatedById !== undefined && { updatedById: data.updatedById }),
       updatedAt: new Date(),
     };
 

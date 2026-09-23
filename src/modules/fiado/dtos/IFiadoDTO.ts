@@ -38,6 +38,7 @@ export interface IUpdateFiadoDTO {
   dueDate?: Date | null;     // novo prazo — null remove o prazo
   notes?: string | null;     // novas observações
   status?: FiadoStatus;      // usado para marcar como FORGIVEN manualmente
+  updatedById?: string;      // ID de quem fez a última alteração
 }
 
 // ─── DTOs de saída ────────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ export interface IFiadoResponseDTO {
   dueDate: Date | null;      // prazo combinado — null se não foi definido
   notes: string | null;      // observações do barbeiro
   createdById: string;       // quem criou o fiado
+  updatedById: string | null; // quem fez a última alteração
   createdAt: Date;           // quando o fiado foi criado
   updatedAt: Date;           // última atualização (pagamento, edição, etc.)
   payments: IFiadoPaymentResponseDTO[]; // histórico completo de pagamentos

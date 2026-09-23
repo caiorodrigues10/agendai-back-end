@@ -104,6 +104,7 @@ export class ExpenseRepository implements IExpenseRepository {
         ...(data.supplierName !== undefined && { supplierName: data.supplierName }),
         ...(data.receiptUrl !== undefined && { receiptUrl: data.receiptUrl }),
         ...(data.notes !== undefined && { notes: data.notes }),
+        ...(data.updatedById !== undefined && { updatedById: data.updatedById }),
       },
       include,
     });

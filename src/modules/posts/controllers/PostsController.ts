@@ -176,6 +176,17 @@ async function loadMediaDataUrl(
   return `data:${contentType};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
 }
 
+async function loadExternalImageUrl(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "image/png";
+    return `data:${contentType};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 /** Gera a imagem (SVG → PNG → data-URL) com os defaults de título e CTA. */
 async function buildPostImage(
   barbershopId: string,
@@ -194,13 +205,15 @@ async function buildPostImage(
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
   const title = opts.title ?? "Vem pra cá hoje!";
   const ctaText = opts.ctaText ?? defaultCtaText(opts.postMode);
-  const [primaryImageUrl, secondaryImageUrl] = await Promise.all([
+  const [primaryImageUrl, secondaryImageUrl, logoDataUrl] = await Promise.all([
     loadMediaDataUrl(opts.primaryMediaId, barbershopId),
     loadMediaDataUrl(opts.secondaryMediaId, barbershopId),
+    // Fetch shop logo URL and convert to data URL for the renderer
+    barbershop.logoUrl ? loadExternalImageUrl(barbershop.logoUrl) : Promise.resolve(null),
   ]);
   const svg = buildPostSvg({
     shopName: barbershop.name,
-    logoUrl: barbershop.logoUrl,
+    logoUrl: logoDataUrl,
     services,
     todaySchedule: schedule,
     postMode: opts.postMode,

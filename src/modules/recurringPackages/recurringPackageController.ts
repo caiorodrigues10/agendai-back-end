@@ -1,17 +1,17 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import {
-  createMembershipPlanSchema,
-  updateMembershipPlanSchema,
-  createMembershipSchema,
+  createRecurringPackagePlanSchema,
+  updateRecurringPackagePlanSchema,
+  createClientRecurringPackageSchema,
   recordPaymentSchema,
   useBenefitSchema,
-  membershipListQuerySchema,
-} from "./membershipSchema";
-import { MembershipUseCases } from "./membershipUseCases";
+  recurringPackageListQuerySchema,
+} from "./recurringPackageSchema";
+import { RecurringPackageUseCases } from "./recurringPackageUseCases";
 import { AppError } from "@/shared/errors/AppError";
 
-export class MembershipController {
-  private useCases = new MembershipUseCases();
+export class RecurringPackageController {
+  private useCases = new RecurringPackageUseCases();
 
   async listPlans(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
@@ -31,7 +31,7 @@ export class MembershipController {
   async createPlan(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId } = request.params as { barbershopId: string };
-    const body = createMembershipPlanSchema.parse(request.body);
+    const body = createRecurringPackagePlanSchema.parse(request.body);
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"
@@ -47,7 +47,7 @@ export class MembershipController {
   async updatePlan(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId, planId } = request.params as { barbershopId: string; planId: string };
-    const body = updateMembershipPlanSchema.parse(request.body);
+    const body = updateRecurringPackagePlanSchema.parse(request.body);
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"
@@ -60,10 +60,10 @@ export class MembershipController {
     reply.send({ success: true, data: plan });
   }
 
-  async listMemberships(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async listPackages(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId } = request.params as { barbershopId: string };
-    const query = membershipListQuerySchema.parse(request.query);
+    const query = recurringPackageListQuerySchema.parse(request.query);
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"
@@ -72,16 +72,16 @@ export class MembershipController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const { MembershipRepository } = await import("./membershipRepository");
-    const repo = new MembershipRepository();
-    const result = await repo.listMemberships(resolvedBarbershopId, query);
+    const { RecurringPackageRepository } = await import("./recurringPackageRepository");
+    const repo = new RecurringPackageRepository();
+    const result = await repo.listPackages(resolvedBarbershopId, query);
     reply.send({ success: true, data: result });
   }
 
-  async createMembership(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async createPackage(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId } = request.params as { barbershopId: string };
-    const body = createMembershipSchema.parse(request.body);
+    const body = createClientRecurringPackageSchema.parse(request.body);
 
     const resolvedBarbershopId =
       user.role === "MASTER_ADMIN"
@@ -90,11 +90,11 @@ export class MembershipController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const membership = await this.useCases.createMembership(resolvedBarbershopId, body);
-    reply.status(201).send({ success: true, data: membership });
+    const pkg = await this.useCases.createPackage(resolvedBarbershopId, body);
+    reply.status(201).send({ success: true, data: pkg });
   }
 
-  async getMembershipDetails(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async getPackageDetails(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId, id } = request.params as { barbershopId: string; id: string };
 
@@ -105,11 +105,11 @@ export class MembershipController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const membership = await this.useCases.getMembershipDetails(resolvedBarbershopId, id);
-    reply.send({ success: true, data: membership });
+    const pkg = await this.useCases.getPackageDetails(resolvedBarbershopId, id);
+    reply.send({ success: true, data: pkg });
   }
 
-  async activateMembership(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async activatePackage(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId, id } = request.params as { barbershopId: string; id: string };
 
@@ -120,11 +120,11 @@ export class MembershipController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const membership = await this.useCases.activateMembership(resolvedBarbershopId, id);
-    reply.send({ success: true, data: membership });
+    const pkg = await this.useCases.activatePackage(resolvedBarbershopId, id);
+    reply.send({ success: true, data: pkg });
   }
 
-  async pauseMembership(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async pausePackage(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId, id } = request.params as { barbershopId: string; id: string };
 
@@ -135,11 +135,11 @@ export class MembershipController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const membership = await this.useCases.pauseMembership(resolvedBarbershopId, id);
-    reply.send({ success: true, data: membership });
+    const pkg = await this.useCases.pausePackage(resolvedBarbershopId, id);
+    reply.send({ success: true, data: pkg });
   }
 
-  async resumeMembership(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async resumePackage(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId, id } = request.params as { barbershopId: string; id: string };
 
@@ -150,11 +150,11 @@ export class MembershipController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const membership = await this.useCases.resumeMembership(resolvedBarbershopId, id);
-    reply.send({ success: true, data: membership });
+    const pkg = await this.useCases.resumePackage(resolvedBarbershopId, id);
+    reply.send({ success: true, data: pkg });
   }
 
-  async cancelMembership(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  async cancelPackage(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
     const { barbershopId, id } = request.params as { barbershopId: string; id: string };
 
@@ -165,8 +165,8 @@ export class MembershipController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const membership = await this.useCases.cancelMembership(resolvedBarbershopId, id);
-    reply.send({ success: true, data: membership });
+    const pkg = await this.useCases.cancelPackage(resolvedBarbershopId, id);
+    reply.send({ success: true, data: pkg });
   }
 
   async recordPayment(request: FastifyRequest, reply: FastifyReply): Promise<void> {

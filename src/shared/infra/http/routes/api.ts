@@ -37,7 +37,7 @@ import { loyaltyRoutes } from '@/modules/loyalty/loyalty.routes'
 import { goalRoutes } from '@/modules/goals/goal.routes'
 import { depositRoutes } from '@/modules/deposits/deposit.routes'
 import { waitlistRoutes } from '@/modules/waitlist/waitlist.routes'
-import { membershipRoutes } from '@/modules/memberships/membership.routes'
+import { recurringPackageRoutes } from '@/modules/recurringPackages/recurringPackage.routes'
 import { showcaseRoutes } from '@/modules/showcase/showcase.routes'
 import { catalogRoutes } from '@/modules/catalog/catalog.routes'
 import { clientPortalRoutes } from '@/modules/clientPortal/clientPortal.routes'
@@ -101,7 +101,7 @@ export async function apiRoutes(app: FastifyInstance) {
 	await goalRoutes(app)
 	await depositRoutes(app)
 	await waitlistRoutes(app)
-	await membershipRoutes(app)
+	await recurringPackageRoutes(app)
 	await showcaseRoutes(app)
 	await catalogRoutes(app)
 	await clientPortalRoutes(app)

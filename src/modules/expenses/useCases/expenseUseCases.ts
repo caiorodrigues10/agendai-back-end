@@ -85,7 +85,7 @@ export class UpdateExpenseUseCase {
   async execute(
     id: string,
     data: IUpdateExpenseDTO,
-    requestingUser: { role: string; barbershopId?: string }
+    requestingUser: { id: string; role: string; barbershopId?: string }
   ): Promise<IExpenseResponseDTO> {
     const expense = await this.expenseRepository.findById(id);
     if (!expense) throw new AppError("Despesa não encontrada", 404);
@@ -99,7 +99,7 @@ export class UpdateExpenseUseCase {
     if (expense.locked || expense.inventoryReceiptId) {
       throw new AppError("Despesas geradas por compra de estoque só podem ser corrigidas pela tela da compra.", 409);
     }
-    return this.expenseRepository.update(id, data);
+    return this.expenseRepository.update(id, { ...data, updatedById: requestingUser.id });
   }
 }
 

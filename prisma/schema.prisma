@@ -338,8 +338,8 @@ model Barbershop {
   appointmentDeposits      AppointmentDeposit[]
   waitlistEntries          AppointmentWaitlistEntry[]
   waitlistOffers           AppointmentWaitlistOffer[]
-  membershipPlans          SalonMembershipPlan[]
-  clientMemberships        ClientMembership[]
+   recurringPackagePlans     SalonRecurringPackagePlan[]
+   clientRecurringPackages   ClientRecurringPackage[]
   showcaseEntries          ShowcaseEntry[]
   showcaseEvents           ShowcaseEvent[]
   combos                   ServiceCombo[]
@@ -528,7 +528,7 @@ model Service {
   clientPackages    ClientPackage[]
   commissionEntries CommissionEntry[]
   depositOverrides  AppointmentDeposit[]
-  membershipBenefits MembershipBenefit[]
+   recurringPackageBenefits RecurringPackageBenefit[]
   waitlistEntries   AppointmentWaitlistEntry[]
   variations        ServiceVariation[]
   addons            ServiceAddon[]
@@ -652,7 +652,7 @@ model Appointment {
   retailSales     RetailSale[]
   deposit         AppointmentDeposit?
   waitlistOffers  AppointmentWaitlistOffer[]
-  membershipUsages MembershipUsage[]
+   recurringPackageUsages RecurringPackageUsage[]
   tabItem          TabItem?
     visit            Visit?             @relation(fields: [visitId], references: [id], onDelete: SetNull)
     careInstructions ClientCareInstruction[]
@@ -731,8 +731,8 @@ model SalonClient {
   retailSales            RetailSale[]
   loyaltyAccounts        LoyaltyAccount[]
   waitlistEntries        AppointmentWaitlistEntry[]
-  clientMemberships      ClientMembership[]
-   visits                 Visit[]
+   clientRecurringPackages ClientRecurringPackage[]
+    visits                 Visit[]
    clientLinks            ClientSalonLink[]
    voucherUsages          VoucherUsage[]
     formResponses          FormResponse[]
@@ -1218,6 +1218,7 @@ model Expense {
   receiptUrl         String?           @db.VarChar(500)
   notes              String?           @db.Text
   createdById        String            @db.Uuid
+  updatedById        String?           @db.Uuid
   /// Despesa gerada por entrada de estoque — não editar pelo painel financeiro.
   inventoryReceiptId String?           @unique @db.Uuid
   locked             Boolean           @default(false)
@@ -1263,6 +1264,7 @@ model Fiado {
   dueDate              DateTime?
   notes                String?     @db.Text
   createdById          String      @db.Uuid
+  updatedById          String?     @db.Uuid
   origin               FiadoOrigin @default(MANUAL)
   retailSaleId         String?     @unique @db.Uuid
   creditAdjustedAmount Float       @default(0) @db.Real
@@ -1324,6 +1326,22 @@ model FiadoPayment {
 
   @@index([fiadoId])
   @@map("fiado_payments")
+}
+
+model FinancialCorrectionLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  barbershopId    String   @db.Uuid
+  entityType      String   @db.VarChar(50)
+  entityId        String   @db.Uuid
+  correctedById   String   @db.Uuid
+  correctedAt     DateTime @default(now())
+  previousAmount  Float    @db.Real
+  newAmount       Float    @db.Real
+  reason          String?  @db.VarChar(500)
+
+  @@index([barbershopId, entityType, entityId])
+  @@index([correctedById])
+  @@map("financial_correction_logs")
 }
 
 /// Livro imutável usado pelo CRM para separar faturamento, recebimento e saldo devedor.
@@ -2364,7 +2382,7 @@ enum WaitlistOfferResponse {
   EXPIRED
 }
 
-enum MembershipCycleType {
+enum RecurringPackageCycleType {
   MONTHLY
   QUARTERLY
   YEARLY
@@ -2381,7 +2399,7 @@ enum BenefitType {
   BIRTHDAY_BENEFIT
 }
 
-enum MembershipStatus {
+enum RecurringPackageStatus {
   PENDING
   ACTIVE
   PAST_DUE
@@ -2487,74 +2505,74 @@ model AppointmentWaitlistOffer {
   @@map("appointment_waitlist_offers")
 }
 
-model SalonMembershipPlan {
-  id                String              @id @default(uuid()) @db.Uuid
-  barbershopId      String              @db.Uuid
-  name              String              @db.VarChar(100)
-  description       String?             @db.Text
-  price             Decimal             @db.Decimal(12,2)
-  billingCycle      MembershipCycleType @default(MONTHLY)
-  isActive          Boolean             @default(true)
+model SalonRecurringPackagePlan {
+  id                String                      @id @default(uuid()) @db.Uuid
+  barbershopId      String                      @db.Uuid
+  name              String                      @db.VarChar(100)
+  description       String?                     @db.Text
+  price             Decimal                     @db.Decimal(12,2)
+  billingCycle      RecurringPackageCycleType    @default(MONTHLY)
+  isActive          Boolean                     @default(true)
   maxMembers        Int?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
 
-  barbershop        Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  benefits          MembershipBenefit[]
-  clientMemberships ClientMembership[]
+  barbershop               Barbershop                    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  benefits                 RecurringPackageBenefit[]
+  clientRecurringPackages  ClientRecurringPackage[]
 
   @@index([barbershopId, isActive])
-  @@map("salon_membership_plans")
+  @@map("salon_recurring_package_plans")
 }
 
-model MembershipBenefit {
-  id                String              @id @default(uuid()) @db.Uuid
-  planId            String              @db.Uuid
-  serviceId         String?             @db.Uuid
+model RecurringPackageBenefit {
+  id                String                    @id @default(uuid()) @db.Uuid
+  planId            String                    @db.Uuid
+  serviceId         String?                   @db.Uuid
   type              BenefitType
-  quantity          Int                 @default(1)
-  discountPercent   Float?              @db.Real
-  discountAmount    Decimal?            @db.Decimal(12,2)
-  description       String              @db.VarChar(200)
-  createdAt         DateTime            @default(now())
+  quantity          Int                       @default(1)
+  discountPercent   Float?                    @db.Real
+  discountAmount    Decimal?                  @db.Decimal(12,2)
+  description       String                    @db.VarChar(200)
+  createdAt         DateTime                  @default(now())
 
-  plan    SalonMembershipPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  service Service?            @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  usages  MembershipUsage[]
+  plan    SalonRecurringPackagePlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  service Service?                   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  usages  RecurringPackageUsage[]
 
   @@index([planId])
-  @@map("membership_benefits")
+  @@map("recurring_package_benefits")
 }
 
-model ClientMembership {
-  id                String              @id @default(uuid()) @db.Uuid
-  barbershopId      String              @db.Uuid
-  planId            String              @db.Uuid
-  clientId          String              @db.Uuid
-  status            MembershipStatus    @default(PENDING)
-  startDate         DateTime            @db.Date
-  currentPeriodEnd  DateTime            @db.Date
+model ClientRecurringPackage {
+  id                String                    @id @default(uuid()) @db.Uuid
+  barbershopId      String                    @db.Uuid
+  planId            String                    @db.Uuid
+  clientId          String                    @db.Uuid
+  status            RecurringPackageStatus    @default(PENDING)
+  startDate         DateTime                  @db.Date
+  currentPeriodEnd  DateTime                  @db.Date
   cancelDate        DateTime?
   pauseDate         DateTime?
   resumeDate        DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 
-  barbershop Barbershop           @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  plan       SalonMembershipPlan  @relation(fields: [planId], references: [id], onDelete: Restrict)
-  client     SalonClient          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  cycles     ClientMembershipCycle[]
-  usages     MembershipUsage[]
+  barbershop Barbershop                  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  plan       SalonRecurringPackagePlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  client     SalonClient                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  cycles     RecurringPackageCycle[]
+  usages     RecurringPackageUsage[]
 
   @@unique([barbershopId, clientId, planId])
   @@index([barbershopId, status])
   @@index([clientId])
-  @@map("client_memberships")
+  @@map("client_recurring_packages")
 }
 
-model ClientMembershipCycle {
+model RecurringPackageCycle {
   id                String              @id @default(uuid()) @db.Uuid
-  membershipId      String              @db.Uuid
+  packageId         String              @db.Uuid
   periodStart       DateTime            @db.Date
   periodEnd         DateTime            @db.Date
   dueDate           DateTime            @db.Date
@@ -2565,28 +2583,28 @@ model ClientMembershipCycle {
   idempotencyKey    String?             @unique @db.VarChar(100)
   createdAt         DateTime            @default(now())
 
-  membership ClientMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  package_  ClientRecurringPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
-  @@index([membershipId, dueDate])
+  @@index([packageId, dueDate])
   @@index([status, dueDate])
-  @@map("membership_cycles")
+  @@map("recurring_package_cycles")
 }
 
-model MembershipUsage {
-  id                String              @id @default(uuid()) @db.Uuid
-  membershipId      String              @db.Uuid
-  benefitId         String              @db.Uuid
-  appointmentId     String?             @db.Uuid
-  usedAt            DateTime            @default(now())
-  quantity          Int                 @default(1)
-  idempotencyKey    String?             @unique @db.VarChar(100)
+model RecurringPackageUsage {
+  id                String                  @id @default(uuid()) @db.Uuid
+  packageId         String                  @db.Uuid
+  benefitId         String                  @db.Uuid
+  appointmentId     String?                 @db.Uuid
+  usedAt            DateTime                @default(now())
+  quantity          Int                     @default(1)
+  idempotencyKey    String?                 @unique @db.VarChar(100)
 
-  membership ClientMembership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  benefit    MembershipBenefit    @relation(fields: [benefitId], references: [id], onDelete: Restrict)
-  appointment Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  package_    ClientRecurringPackage     @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  benefit     RecurringPackageBenefit    @relation(fields: [benefitId], references: [id], onDelete: Restrict)
+  appointment Appointment?               @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
-  @@index([membershipId, benefitId])
-  @@map("membership_usages")
+  @@index([packageId, benefitId])
+  @@map("recurring_package_usages")
 }
 
 // ─── Showcase ─────────────────────────────────────────────────────

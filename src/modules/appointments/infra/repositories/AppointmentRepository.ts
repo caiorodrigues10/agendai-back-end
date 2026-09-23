@@ -47,6 +47,15 @@ const include = {
 	barbershop: { select: { name: true } },
 } as const
 
+/** Limites UTC do dia civil. `new Date("YYYY-MM-DD")` + `setDate` no fuso local desloca o intervalo e some o agendamento. */
+function utcDayBounds(isoDate: string): { gte: Date; lt: Date } {
+	const [year, month, day] = isoDate.split("-").map(Number);
+	return {
+		gte: new Date(Date.UTC(year, month - 1, day)),
+		lt: new Date(Date.UTC(year, month - 1, day + 1)),
+	};
+}
+
 /** YYYY-MM-DD no fuso America/Sao_Paulo (mesmo padrão de comparação de date do módulo). */
 function todayInSaoPaulo(): string {
 	return new Intl.DateTimeFormat('en-CA', {
@@ -94,10 +103,8 @@ export class AppointmentRepository implements IAppointmentRepository {
 		const where: Prisma.AppointmentWhereInput = { barbershopId }
 
 		if (query.date) {
-			const day = new Date(query.date)
-			const next = new Date(day)
-			next.setDate(next.getDate() + 1)
-			where.date = { gte: day, lt: next }
+			const { gte, lt } = utcDayBounds(query.date)
+			where.date = { gte, lt }
 		}
 		if (query.status) where.status = query.status
 		if (query.staffId) where.staffId = query.staffId
@@ -156,15 +163,13 @@ export class AppointmentRepository implements IAppointmentRepository {
 		date: string,
 		staffId?: string,
 	): Promise<IAvailabilitySlotDTO[]> {
-		const day = new Date(date)
-		const next = new Date(day)
-		next.setDate(next.getDate() + 1)
+		const { gte, lt } = utcDayBounds(date)
 
 		const records = await prisma.appointment.findMany({
 			where: {
 				barbershopId,
 				status: 'CONFIRMED',
-				date: { gte: day, lt: next },
+				date: { gte, lt },
 				...(staffId
 					? {
 							OR: [{ staffId }, { staffId: null }],
@@ -186,16 +191,13 @@ export class AppointmentRepository implements IAppointmentRepository {
 	}
 
 	async findConfirmedForReminderToday(): Promise<IAppointmentResponseDTO[]> {
-		const today = todayInSaoPaulo()
-		const day = new Date(today)
-		const next = new Date(day)
-		next.setDate(next.getDate() + 1)
+		const { gte, lt } = utcDayBounds(todayInSaoPaulo())
 
 		const records = await prisma.appointment.findMany({
 			where: {
 				status: 'CONFIRMED',
 				reminderSentAt: null,
-				date: { gte: day, lt: next },
+				date: { gte, lt },
 			},
 			orderBy: [{ time: 'asc' }],
 			include,

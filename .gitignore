@@ -11,6 +11,7 @@ gcs-key.json
 evolution-qrcode.png
 docker-compose.evolution.yml
 graphify-out/cache/
+graphify-out/202*
 
 # Snapshots locais de produção — nunca versionar
 *.dump

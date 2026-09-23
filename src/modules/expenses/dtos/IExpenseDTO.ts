@@ -33,6 +33,7 @@ export interface IUpdateExpenseDTO {
   supplierName?: string | null;  // Novo fornecedor
   receiptUrl?: string | null;    // Novo comprovante
   notes?: string | null;         // Novas observações
+  updatedById?: string;          // ID de quem fez a última alteração
 }
 
 export interface IExpenseResponseDTO {
@@ -53,6 +54,7 @@ export interface IExpenseResponseDTO {
   receiptUrl: string | null;    // URL do comprovante
   notes: string | null;         // Observações
   createdById: string;          // ID de quem lançou
+  updatedById: string | null;   // ID de quem fez a última alteração
   locked?: boolean;
   inventoryReceiptId?: string | null;
   createdAt: Date;              // Data de criação do registro

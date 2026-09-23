@@ -43,6 +43,7 @@ export function mapFiadoToDTO(record: FiadoWithPayments): IFiadoResponseDTO {
     dueDate: record.dueDate ?? null,
     notes: record.notes ?? null,
     createdById: record.createdById,
+    updatedById: ("updatedById" in record ? record.updatedById : null) as string | null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     payments: record.payments.map(mapPaymentToDTO),

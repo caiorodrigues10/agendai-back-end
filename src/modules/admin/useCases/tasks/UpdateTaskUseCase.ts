@@ -63,7 +63,7 @@ export class UpdateTaskUseCase {
         throw new AppError("É necessário atribuir um responsável para iniciar a tarefa", 422);
       }
 
-      if (updates.status === "BLOCKED" && !updates.reason) {
+      if (updates.status === "BLOCKED" && !updates.reason?.trim()) {
         throw new AppError("É necessário informar o motivo ao bloquear uma tarefa", 422);
       }
     }
@@ -94,6 +94,10 @@ export class UpdateTaskUseCase {
         txData.completedAt = new Date();
         txData.completedById = performedById;
       }
+      if (updates.status === "TODO") {
+        txData.completedAt = null;
+        txData.completedById = null;
+      }
     }
 
     if (updates.priority && updates.priority !== task.priority) {
@@ -111,16 +115,53 @@ export class UpdateTaskUseCase {
       txData.title = updates.title;
     }
 
+    if (updates.description !== undefined && updates.description !== task.description) {
+      historyEntries.push({
+        field: "description",
+        oldValue: task.description,
+        newValue: updates.description,
+      });
+      txData.description = updates.description;
+    }
+
+    if (updates.dueDate !== undefined) {
+      const nextDueDate = updates.dueDate ? new Date(updates.dueDate) : null;
+      const currentDueDate = task.dueDate?.toISOString() ?? null;
+      const nextDueDateKey = nextDueDate?.toISOString() ?? null;
+
+      if (nextDueDateKey !== currentDueDate) {
+        historyEntries.push({
+          field: "dueDate",
+          oldValue: currentDueDate,
+          newValue: nextDueDateKey,
+        });
+        txData.dueDate = nextDueDate;
+      }
+    }
+
     const updated = await prisma.$transaction(async (tx: any) => {
-      const result = await tx.task.update({
-        where: { id: taskId },
+      const write = await tx.task.updateMany({
+        where: { id: taskId, version },
         data: { ...txData, version: { increment: 1 } },
+      });
+
+      if (write.count !== 1) {
+        throw new AppError(
+          "Esta tarefa foi modificada por outra pessoa. Atualize e tente novamente.",
+          409
+        );
+      }
+
+      const result = await tx.task.findUniqueOrThrow({
+        where: { id: taskId },
         select: {
           id: true,
           title: true,
+          description: true,
           status: true,
           priority: true,
           assignedToId: true,
+          dueDate: true,
           version: true,
           updatedAt: true,
           completedAt: true,

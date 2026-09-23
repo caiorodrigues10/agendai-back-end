@@ -107,6 +107,7 @@ export class FiadoRepository implements IFiadoRepository {
         ...(data.dueDate !== undefined && { dueDate: data.dueDate }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.status !== undefined && { status: data.status }),
+        ...(data.updatedById !== undefined && { updatedById: data.updatedById }),
       },
       include: { payments: { orderBy: { createdAt: "asc" } } },
     });

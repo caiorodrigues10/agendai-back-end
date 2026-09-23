@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const createMembershipPlanSchema = z.object({
+export const createRecurringPackagePlanSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional().nullable(),
   price: z.number().min(0),
@@ -15,7 +15,7 @@ export const createMembershipPlanSchema = z.object({
   })).optional().default([]),
 });
 
-export const updateMembershipPlanSchema = z.object({
+export const updateRecurringPackagePlanSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional().nullable(),
   price: z.number().min(0).optional(),
@@ -32,7 +32,7 @@ export const updateMembershipPlanSchema = z.object({
   })).optional(),
 });
 
-export const createMembershipSchema = z.object({
+export const createClientRecurringPackageSchema = z.object({
   planId: z.string().uuid(),
   clientId: z.string().uuid(),
 });
@@ -48,7 +48,7 @@ export const useBenefitSchema = z.object({
   appointmentId: z.string().uuid(),
 });
 
-export const membershipListQuerySchema = z.object({
+export const recurringPackageListQuerySchema = z.object({
   status: z.string().optional(),
   clientId: z.string().uuid().optional(),
   planId: z.string().uuid().optional(),
@@ -56,9 +56,9 @@ export const membershipListQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(20).optional(),
 });
 
-export type CreateMembershipPlanInput = z.infer<typeof createMembershipPlanSchema>;
-export type UpdateMembershipPlanInput = z.infer<typeof updateMembershipPlanSchema>;
-export type CreateMembershipInput = z.infer<typeof createMembershipSchema>;
+export type CreateRecurringPackagePlanInput = z.infer<typeof createRecurringPackagePlanSchema>;
+export type UpdateRecurringPackagePlanInput = z.infer<typeof updateRecurringPackagePlanSchema>;
+export type CreateClientRecurringPackageInput = z.infer<typeof createClientRecurringPackageSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type UseBenefitInput = z.infer<typeof useBenefitSchema>;
-export type MembershipListQueryInput = z.infer<typeof membershipListQuerySchema>;
+export type RecurringPackageListQueryInput = z.infer<typeof recurringPackageListQuerySchema>;

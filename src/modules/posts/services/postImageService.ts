@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { Resvg } from "@resvg/resvg-js";
 import { getPostPalette, type PostPalette } from "./postPalettes";
+import { TEMPLATE_VERSION } from "./postTemplates";
 
 export type PostSvgInput = {
   shopName: string;
@@ -19,7 +20,6 @@ export type PostSvgInput = {
   designOptions?: { focalX?: number; focalY?: number; overlay?: number };
 };
 
-/** Open Sans (Apache-2.0) — embutida para o PNG renderizar no Render/Linux. */
 const FONT_FAMILY = "Open Sans";
 const TEAL = "#00C2B3";
 const TEAL_FG = "#0A0F18";
@@ -34,9 +34,7 @@ function escapeXml(value: string): string {
 }
 
 function formatBRL(value: number): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-    value
-  );
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
 function truncate(value: string, max: number): string {
@@ -51,22 +49,9 @@ function wrapTitle(raw: string): string[] {
   return [t.slice(0, at).trim(), truncate(t.slice(at).trim(), 24)];
 }
 
-/** Wordmark do site: AGEND sobrepõe o quadrado teal com AI. */
+/** New wordmark: clean "agendai" text, no teal box. */
 function agendaiWordmark(cx: number, cy: number, textColor: string): string {
-  const boxW = 78;
-  const boxH = 46;
-  const overlap = 16;
-  const agendW = 118;
-  const totalW = agendW + boxW - overlap;
-  const left = cx - totalW / 2;
-  const boxX = left + agendW - overlap;
-  const boxY = cy - boxH / 2;
-  const agendRight = left + agendW;
-  return `<g>
-  <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="10" fill="${TEAL}" />
-  <text x="${boxX + boxW / 2}" y="${cy + 10}" font-family="${FONT_FAMILY}" font-size="22" font-weight="800" fill="${TEAL_FG}" text-anchor="middle">AI</text>
-  <text x="${agendRight}" y="${cy + 11}" font-family="${FONT_FAMILY}" font-size="32" font-weight="800" fill="${textColor}" text-anchor="end" letter-spacing="-1.6">AGEND</text>
-</g>`;
+  return `<text x="${cx}" y="${cy + 11}" font-family="${FONT_FAMILY}" font-size="32" font-weight="800" fill="${textColor}" text-anchor="middle" letter-spacing="-1">agendai</text>`;
 }
 
 function resolvePostFontFile(): string | null {
@@ -91,15 +76,18 @@ type LayoutCtx = {
   border: string;
   isLight: boolean;
   height: number;
-  /** Y onde o conteúdo do miolo começa (depois de wordmark + nome do salão). */
+  width: number;
+  format: "square" | "portrait" | "story";
   top: number;
-  /** Y do CTA (o miolo deve terminar antes disso). */
   ctaY: number;
   titleLines: string[];
   ctaText: string;
   scheduleLabel: string;
   hoursKicker: string;
   services: { name: string; price: number }[];
+  focalX: number;
+  focalY: number;
+  overlayOpacity: number;
 };
 
 function titleBlock(ctx: LayoutCtx, y: number, size = 52, anchor = "middle", x = 540): { svg: string; bottom: number } {
@@ -155,9 +143,14 @@ function photoPanel(
   placeholderLabel?: string
 ): string {
   if (href?.startsWith("data:image")) {
-    const overlay = Math.max(0.05, Math.min(0.6, ((ctx.input.designOptions?.overlay ?? 30) / 100)));
+    const overlay = ctx.overlayOpacity;
+    // Focal point: compute image offset for controlled framing
+    const fx = (ctx.focalX - 50) / 100; // -0.5 to 0.5
+    const fy = (ctx.focalY - 50) / 100;
+    const imgX = x + fx * w * 0.3;
+    const imgY = y + fy * h * 0.3;
     return `<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" /></clipPath>
-<image href="${escapeXml(href)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clipId})" />
+<image href="${escapeXml(href)}" x="${imgX}" y="${imgY}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clipId})" />
 <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="#000" opacity="${overlay}" />
 <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="none" stroke="${ctx.border}" stroke-width="1.5" />`;
   }
@@ -175,9 +168,7 @@ function badge(ctx: LayoutCtx, cx: number, y: number, label: string): string {
 </g>`;
 }
 
-/** Miolo de cada template: recebe o contexto e devolve o SVG entre o cabeçalho e o CTA. */
 const TEMPLATE_LAYOUTS: Record<string, (ctx: LayoutCtx) => string> = {
-  /** Padrão: título, horário de hoje e lista de serviços. */
   "agenda-aberta": (ctx) => {
     const title = titleBlock(ctx, ctx.top + 56);
     const hours = hoursCard(ctx, title.bottom + 28);
@@ -185,7 +176,6 @@ const TEMPLATE_LAYOUTS: Record<string, (ctx: LayoutCtx) => string> = {
     return title.svg + hours.svg + services.svg;
   },
 
-  /** Urgência: contador de vagas gigante no centro. */
   "ultimas-vagas": (ctx) => {
     const midY = ctx.top + Math.round((ctx.ctaY - ctx.top) * 0.42);
     const title = titleBlock(ctx, ctx.top + 50, 44);
@@ -197,7 +187,6 @@ ${badge(ctx, 540, title.bottom + 24, "CORRE QUE ACABA")}
 ${hours.svg}`;
   },
 
-  /** Oferta: primeiro serviço com preço gigante e raio decorativo. */
   "promocao-relampago": (ctx) => {
     const svc = ctx.services[0];
     const title = titleBlock(ctx, ctx.top + 56, 46);
@@ -205,6 +194,11 @@ ${hours.svg}`;
     let middle = badge(ctx, 540, y, "SÓ HOJE");
     y += 120;
     middle += `<path d="M 560 ${y - 40} l -52 96 l 40 0 l -30 84 l 84 -110 l -44 0 l 40 -70 z" fill="${ctx.accent}" opacity="0.9" />`;
+    if (ctx.format === "story") {
+      // Story: photo on top, price below
+      const photo = photoPanel(ctx, ctx.input.primaryImageUrl, 84, ctx.top + 24, 912, 400, "promoClip", "Adicione a foto da promoção");
+      return `${photo}${title.svg}${middle}`;
+    }
     if (svc) {
       middle += `<text x="540" y="${y + 210}" font-family="${FONT_FAMILY}" font-size="40" font-weight="700" fill="${ctx.fg}" text-anchor="middle">${escapeXml(truncate(svc.name, 24))}</text>
 <text x="540" y="${y + 320}" font-family="${FONT_FAMILY}" font-size="104" font-weight="800" fill="${ctx.accent}" text-anchor="middle">${escapeXml(formatBRL(svc.price))}</text>`;
@@ -214,7 +208,6 @@ ${hours.svg}`;
     return title.svg + middle;
   },
 
-  /** Um serviço em evidência com preço grande num cartão central. */
   "servico-destaque": (ctx) => {
     const svc = ctx.services[0];
     const title = titleBlock(ctx, ctx.top + 52, 44);
@@ -232,7 +225,6 @@ ${hours.svg}`;
     return title.svg + card;
   },
 
-  /** Duas fotos lado a lado com selos ANTES / DEPOIS. */
   "antes-depois": (ctx) => {
     const title = titleBlock(ctx, ctx.top + 52, 44);
     const panelY = title.bottom + 32;
@@ -247,7 +239,6 @@ ${hours.svg}`;
 <text x="778" y="${labelY + 31}" font-family="${FONT_FAMILY}" font-size="20" font-weight="800" fill="${ctx.accentFg}" text-anchor="middle" letter-spacing="3">DEPOIS</text>`;
   },
 
-  /** Foto grande do resultado com faixa de título por cima. */
   "transformacao": (ctx) => {
     const photoY = ctx.top + 24;
     const photoH = Math.min(600, ctx.ctaY - photoY - 140);
@@ -260,7 +251,6 @@ ${badge(ctx, 540, photoY + 20, "TRANSFORMAÇÃO")}
 ${title.svg}`;
   },
 
-  /** Retrato circular grande + nome (usa o título como nome). */
   "profissional-destaque": (ctx) => {
     const cy = ctx.top + Math.round((ctx.ctaY - ctx.top) * 0.38);
     const r = 190;
@@ -278,7 +268,6 @@ ${title.svg}
 <text x="540" y="${title.bottom + 40}" font-family="${FONT_FAMILY}" font-size="24" font-weight="600" fill="${ctx.muted}" text-anchor="middle">${escapeXml(ctx.scheduleLabel)}</text>`;
   },
 
-  /** Aspas gigantes + depoimento (título como citação). */
   "depoimento": (ctx) => {
     const quoteY = ctx.top + 250;
     const title = titleBlock(ctx, quoteY + 90, 46);
@@ -295,7 +284,6 @@ ${stars}
 <text x="540" y="${title.bottom + 120}" font-family="${FONT_FAMILY}" font-size="22" font-weight="600" fill="${ctx.muted}" text-anchor="middle" letter-spacing="2">CLIENTE ${escapeXml(truncate(ctx.input.shopName, 24).toUpperCase())}</text>`;
   },
 
-  /** Lista completa de serviços, sem cartão de horário. */
   "menu-servicos": (ctx) => {
     const title = titleBlock(ctx, ctx.top + 52, 44);
     const list = ctx.services.slice(0, 5);
@@ -304,7 +292,6 @@ ${stars}
     return title.svg + `<rect x="100" y="${title.bottom + 16}" width="880" height="3" fill="${ctx.accent}" opacity="0.6" />` + services.svg;
   },
 
-  /** Aviso de horário: relógio + horário centralizado grande. */
   "horario-especial": (ctx) => {
     const title = titleBlock(ctx, ctx.top + 56, 46);
     const cy = title.bottom + Math.round((ctx.ctaY - title.bottom) * 0.42);
@@ -316,10 +303,19 @@ ${stars}
 <text x="540" y="${cy + 258}" font-family="${FONT_FAMILY}" font-size="24" font-weight="700" fill="${ctx.accent}" text-anchor="middle" letter-spacing="4">${ctx.hoursKicker}</text>`;
   },
 
-  /** Lançamento: selo NOVO + título grande. */
   "novidade": (ctx) => {
     const cy = ctx.top + Math.round((ctx.ctaY - ctx.top) * 0.3);
     const title = titleBlock(ctx, cy + 190, 58);
+    // Story: add photo panel
+    if (ctx.format === "story") {
+      const photo = photoPanel(ctx, ctx.input.primaryImageUrl, 84, ctx.top + 24, 912, 360, "newClip", "Adicione a foto da novidade");
+      return `${photo}
+<g transform="rotate(-8 540 ${cy + 400})">
+  <rect x="380" y="${cy + 344}" width="320" height="112" rx="24" fill="${ctx.accent}" />
+  <text x="540" y="${cy + 422}" font-family="${FONT_FAMILY}" font-size="60" font-weight="800" fill="${ctx.accentFg}" text-anchor="middle" letter-spacing="6">NOVO</text>
+</g>
+${title.svg}`;
+    }
     return `<g transform="rotate(-8 540 ${cy})">
   <rect x="380" y="${cy - 56}" width="320" height="112" rx="24" fill="${ctx.accent}" />
   <text x="540" y="${cy + 22}" font-family="${FONT_FAMILY}" font-size="60" font-weight="800" fill="${ctx.accentFg}" text-anchor="middle" letter-spacing="6">NOVO</text>
@@ -329,7 +325,6 @@ ${title.svg}
 <text x="540" y="${title.bottom + 44}" font-family="${FONT_FAMILY}" font-size="24" font-weight="600" fill="${ctx.muted}" text-anchor="middle">${escapeXml(ctx.scheduleLabel)}</text>`;
   },
 
-  /** Linhas finas + espaçamento amplo; funciona com qualquer paleta. */
   "editorial-minimalista": (ctx) => {
     const midTop = ctx.top + 60;
     const title = titleBlock(ctx, midTop + 120, 58);
@@ -350,9 +345,9 @@ ${list}`;
 };
 
 /**
- * SVG 1080 no visual do site, com logo AgendAI.
- * Templates definem APENAS a composição; toda a cor vem da paleta
- * (`postPalettes.ts`). Sem fontes da web: o PNG usa o TTF empacotado.
+ * SVG 1080 wide, format-dependent height.
+ * New wordmark: "agendai" in foreground color (no teal box).
+ * Format-specific layouts. Focal point support. Template version tracking.
  */
 export function buildPostSvg(input: PostSvgInput): string {
   const palette: PostPalette = getPostPalette(input.paletteKey);
@@ -364,16 +359,19 @@ export function buildPostSvg(input: PostSvgInput): string {
   const fg = palette.foreground;
   const muted = palette.muted;
 
+  // Logo: render if data URL, otherwise skip (controller fetches external URLs)
   const hasLogo = Boolean(input.logoUrl?.startsWith("data:image"));
   const logoBlock = hasLogo
-    ? `<clipPath id="logoClip"><circle cx="540" cy="168" r="32" /></clipPath>
-  <circle cx="540" cy="168" r="34" fill="none" stroke="${accent}" stroke-width="2.5" />
-  <image href="${escapeXml(input.logoUrl!)}" x="508" y="136" width="64" height="64" preserveAspectRatio="xMidYMid slice" clip-path="url(#logoClip)" />`
+    ? `<image href="${escapeXml(input.logoUrl!)}" x="508" y="136" width="64" height="64" preserveAspectRatio="xMidYMid meet" />`
     : "";
 
   const shopY = hasLogo ? 236 : 152;
   const extraOffset = Math.round((height - 1080) / 2);
   const ctaY = height - 172 - Math.round(extraOffset * 0.4);
+
+  const focalX = input.designOptions?.focalX ?? 50;
+  const focalY = input.designOptions?.focalY ?? 50;
+  const overlayOpacity = Math.max(0.05, Math.min(0.6, ((input.designOptions?.overlay ?? 30) / 100)));
 
   const ctx: LayoutCtx = {
     input,
@@ -385,6 +383,8 @@ export function buildPostSvg(input: PostSvgInput): string {
     border: palette.border,
     isLight: palette.isLight,
     height,
+    width: 1080,
+    format,
     top: shopY + extraOffset,
     ctaY,
     titleLines: wrapTitle(input.title || "Vem pra cá hoje!").map(escapeXml),
@@ -394,6 +394,9 @@ export function buildPostSvg(input: PostSvgInput): string {
       : "Consulte nossos horários",
     hoursKicker: input.todaySchedule?.isOpen ? "HOJE" : "HORÁRIOS",
     services: input.services.filter((s) => s.name?.trim()),
+    focalX,
+    focalY,
+    overlayOpacity,
   };
 
   const layout = TEMPLATE_LAYOUTS[templateKey] ?? TEMPLATE_LAYOUTS["agenda-aberta"];

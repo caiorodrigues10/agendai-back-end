@@ -60,10 +60,10 @@ export class UpdateTicketUseCase {
       if (updates.status === "IN_PROGRESS" && !updates.assignedToId && !ticket.assignedToId) {
         throw new AppError("É necessário atribuir um responsável para iniciar o atendimento", 422);
       }
-      if (updates.status === "RESOLVED" && !updates.resolveNote) {
+      if (updates.status === "RESOLVED" && !updates.resolveNote?.trim()) {
         throw new AppError("É necessário informar a solução ao resolver um chamado", 422);
       }
-      if (updates.status === "CANCELLED" && !updates.cancelReason) {
+      if (updates.status === "CANCELLED" && !updates.cancelReason?.trim()) {
         throw new AppError("É necessário informar o motivo ao cancelar um chamado", 422);
       }
     }
@@ -91,10 +91,24 @@ export class UpdateTicketUseCase {
         reason: updates.status === "CANCELLED" ? updates.cancelReason : updates.status === "RESOLVED" ? updates.resolveNote : null,
       });
       txData.status = updates.status;
-      if (updates.status === "RESOLVED") txData.resolvedAt = new Date();
-      if (updates.status === "CANCELLED") txData.cancelledAt = new Date();
-      if (updates.cancelReason) txData.cancelReason = updates.cancelReason;
-      if (updates.resolveNote) txData.resolveNote = updates.resolveNote;
+      if (updates.status === "RESOLVED") {
+        txData.resolvedAt = new Date();
+        txData.cancelledAt = null;
+        txData.cancelReason = null;
+      }
+      if (updates.status === "CANCELLED") {
+        txData.cancelledAt = new Date();
+        txData.resolvedAt = null;
+        txData.resolveNote = null;
+      }
+      if (updates.status === "OPEN") {
+        txData.resolvedAt = null;
+        txData.cancelledAt = null;
+        txData.cancelReason = null;
+        txData.resolveNote = null;
+      }
+      if (updates.cancelReason?.trim()) txData.cancelReason = updates.cancelReason.trim();
+      if (updates.resolveNote?.trim()) txData.resolveNote = updates.resolveNote.trim();
     }
 
     if (updates.priority && updates.priority !== ticket.priority) {
@@ -125,9 +139,20 @@ export class UpdateTicketUseCase {
     }
 
     const updated = await prisma.$transaction(async (tx: any) => {
-      const result = await tx.ticket.update({
-        where: { id: ticketId },
+      const write = await tx.ticket.updateMany({
+        where: { id: ticketId, version },
         data: { ...txData, version: { increment: 1 } },
+      });
+
+      if (write.count !== 1) {
+        throw new AppError(
+          "Este chamado foi modificado por outra pessoa. Atualize e tente novamente.",
+          409
+        );
+      }
+
+      const result = await tx.ticket.findUniqueOrThrow({
+        where: { id: ticketId },
         select: {
           id: true,
           protocol: true,

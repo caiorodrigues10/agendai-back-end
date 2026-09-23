@@ -10,6 +10,16 @@ import { GetScheduleUseCase } from "./getSchedule/GetScheduleUseCase";
 import { UpdateScheduleUseCase } from "./updateSchedule/UpdateScheduleUseCase";
 import { AppError } from "@/shared/errors/AppError";
 
+vi.mock("@/libs/prismaClient", () => ({
+  prisma: {
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({
+      refreshToken: { deleteMany: vi.fn() },
+      subscription: { updateMany: vi.fn() },
+      barbershop: { update: vi.fn() },
+    })),
+  },
+}));
+
 vi.mock("@/modules/barbershops/utils/getShopOpenState", () => ({
   getShopOpenState: vi.fn().mockResolvedValue({ open: true, reason: "SCHEDULE", queueClosed: false }),
 }));
