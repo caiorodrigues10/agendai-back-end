@@ -7,9 +7,7 @@ export class DepositUseCases {
 
   async getDepositPolicy(barbershopId: string) {
     if (!barbershopId) throw new AppError("barbershopId is required", 400);
-    const policy = await this.repo.getPolicy(barbershopId);
-    if (!policy) throw new AppError("Appointment policy not found", 404);
-    return policy;
+    return this.repo.getPolicy(barbershopId);
   }
 
   async updateDepositPolicy(barbershopId: string, data: UpdatePolicyData) {

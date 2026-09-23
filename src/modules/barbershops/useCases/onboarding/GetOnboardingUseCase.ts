@@ -52,25 +52,49 @@ export class GetOnboardingUseCase {
       });
     }
 
-    const steps: OnboardingStep[] = ONBOARDING_STEPS.map(step => ({
-      key: step.key,
-      label: step.label,
-      completed: onboarding[step.field as keyof typeof onboarding] !== null,
-      completedAt: onboarding[step.field as keyof typeof onboarding] as Date | null,
-      required: step.required,
-    }));
+    const [openDays, activeServices, shop] = await Promise.all([
+      prisma.schedule.count({ where: { barbershopId, isOpen: true } }),
+      prisma.service.count({ where: { barbershopId, active: true } }),
+      prisma.barbershop.findUnique({
+        where: { id: barbershopId },
+        select: { name: true, city: true, businessSegment: true },
+      }),
+    ]);
+
+    const realOk: Record<string, boolean> = {
+      PROFILE: Boolean(shop?.name?.trim() && shop?.city?.trim()),
+      SCHEDULE: openDays > 0,
+      SERVICES: activeServices > 0,
+      SEGMENT: shop ? shop.businessSegment !== 'OTHER' : false,
+      OPERATION_MODE: false,
+      PUBLIC_LINK: false,
+      WHATSAPP: false,
+      FIRST_SERVICE: false,
+    };
+
+    const steps: OnboardingStep[] = ONBOARDING_STEPS.map(step => {
+      const flagged = onboarding[step.field as keyof typeof onboarding] !== null;
+      return {
+        key: step.key,
+        label: step.label,
+        completed: flagged || (realOk[step.key] ?? false),
+        completedAt: onboarding[step.field as keyof typeof onboarding] as Date | null,
+        required: step.required,
+      };
+    });
 
     const completedRequired = steps.filter(s => s.required && s.completed).length;
     const totalRequired = steps.filter(s => s.required).length;
     const progress = totalRequired > 0 ? Math.round((completedRequired / totalRequired) * 100) : 0;
 
     const nextStep = steps.find(s => !s.completed && s.required);
+    const allRequiredDone = steps.filter(s => s.required).every(s => s.completed);
 
     return {
       steps,
       progress,
       nextStep: nextStep?.key ?? null,
-      completed: onboarding.completedAt !== null,
+      completed: onboarding.completedAt !== null || allRequiredDone,
       welcomeSeen: onboarding.welcomeSeenAt !== null,
       dismissed: onboarding.dismissedAt !== null,
       operationModeConfirmed: onboarding.operationModeConfirmedAt !== null,

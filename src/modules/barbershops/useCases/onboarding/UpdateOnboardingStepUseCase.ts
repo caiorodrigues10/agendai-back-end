@@ -73,8 +73,39 @@ export class UpdateOnboardingStepUseCase {
       });
     }
 
-    const allRequired = ['profileConfirmedAt', 'segmentConfirmedAt', 'scheduleConfirmedAt', 'servicesConfirmedAt', 'publicLinkValidatedAt', 'operationModeConfirmedAt'];
-    const allComplete = allRequired.every(f => onboarding[f as keyof typeof onboarding] !== null);
+    const [openDays, activeServices, shop] = await Promise.all([
+      prisma.schedule.count({ where: { barbershopId, isOpen: true } }),
+      prisma.service.count({ where: { barbershopId, active: true } }),
+      prisma.barbershop.findUnique({
+        where: { id: barbershopId },
+        select: { name: true, city: true, businessSegment: true },
+      }),
+    ]);
+
+    const realOk: Record<string, boolean> = {
+      PROFILE: Boolean(shop?.name?.trim() && shop?.city?.trim()),
+      SCHEDULE: openDays > 0,
+      SERVICES: activeServices > 0,
+      SEGMENT: shop ? shop.businessSegment !== 'OTHER' : false,
+      OPERATION_MODE: false,
+      PUBLIC_LINK: false,
+      WHATSAPP: false,
+      FIRST_SERVICE: false,
+    };
+
+    const requiredFields: Record<string, string> = {
+      PROFILE: 'profileConfirmedAt',
+      SEGMENT: 'segmentConfirmedAt',
+      SCHEDULE: 'scheduleConfirmedAt',
+      SERVICES: 'servicesConfirmedAt',
+      PUBLIC_LINK: 'publicLinkValidatedAt',
+      OPERATION_MODE: 'operationModeConfirmedAt',
+    };
+
+    const allComplete = Object.entries(requiredFields).every(([stepKey, fieldKey]) => {
+      const flagged = onboarding[fieldKey as keyof typeof onboarding] !== null;
+      return flagged || (realOk[stepKey] ?? false);
+    });
 
     if (allComplete && !onboarding.completedAt) {
       await prisma.barbershopOnboarding.update({

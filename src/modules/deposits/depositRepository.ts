@@ -37,8 +37,11 @@ export interface DepositListFilters {
 
 export class DepositRepository {
   async getPolicy(barbershopId: string) {
-    return prisma.appointmentPolicy.findUnique({
+    // Same pattern as GET /appointment-policy: create defaults on first read
+    return prisma.appointmentPolicy.upsert({
       where: { barbershopId },
+      create: { barbershopId },
+      update: {},
     });
   }
 
