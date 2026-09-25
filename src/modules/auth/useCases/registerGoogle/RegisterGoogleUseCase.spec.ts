@@ -100,9 +100,28 @@ function mockTransactionSuccess() {
   mockFindFirst.mockResolvedValue(null);
   mockTransaction.mockImplementation(async (fn: any) => {
     const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
       barbershop: { create: mockTxBarbershopCreate },
-      service: { createMany: vi.fn().mockResolvedValue({}) },
+      serviceCategory: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: "sc-1" }),
+      },
+      service: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+        update: vi.fn().mockResolvedValue({}),
+      },
       schedule: { createMany: vi.fn().mockResolvedValue({}) },
+      expenseCategory: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      productCategory: { createMany: vi.fn().mockResolvedValue({}) },
+      appointmentPolicy: { upsert: vi.fn().mockResolvedValue({}) },
+      barbershopEmailSettings: { upsert: vi.fn().mockResolvedValue({}) },
+      notificationPreference: { createMany: vi.fn().mockResolvedValue({}) },
+      profitSettings: { upsert: vi.fn().mockResolvedValue({}) },
+      loyaltyProgram: { upsert: vi.fn().mockResolvedValue({}) },
       user: { create: mockTxUserCreate },
     };
     mockTxBarbershopCreate.mockResolvedValue({ id: "barbershop-1", name: "Barber Test" });

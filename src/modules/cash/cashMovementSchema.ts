@@ -5,7 +5,14 @@ const dateValue = z.union([
   z.string().refine(value => !Number.isNaN(new Date(value).getTime()), {
     message: "Data inválida. Use o formato YYYY-MM-DD.",
   }),
-]).transform(value => value instanceof Date ? value : new Date(value));
+]).transform(value => {
+  if (value instanceof Date) return value;
+  // YYYY-MM-DD é data de calendário: monta como data LOCAL (new Date("2026-09-25")
+  // seria meia-noite UTC e o setHours(0,0,0,0) local cairia no dia anterior em hosts não-UTC)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(value);
+});
 
 const optionalDateQuery = z.preprocess(
   value => {
@@ -30,6 +37,8 @@ export const createCashMovementSchema = z.object({
     "PACKAGE_SALE",
     "FIADO_PAYMENT",
     "EXPENSE",
+    "TIP",
+    "OTHER",
     "REFUND",
     "SUPPLY",
     "WITHDRAWAL",

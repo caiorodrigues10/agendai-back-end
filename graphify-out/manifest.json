@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "prisma/seed.ts": {
-    "mtime": 1786032722.5997171,
-    "ast_hash": "8077997ab686cd589441992308e9c069",
+    "mtime": 1790160957.013755,
+    "ast_hash": "62ec993c69690e8982477b2717b6ba91",
     "semantic_hash": ""
   },
   "scripts/ensure-gcs-key.sh": {
@@ -175,7 +175,7 @@
     "semantic_hash": ""
   },
   "src/modules/auth/controllers/VerifyEmailController.ts": {
-    "mtime": 1790125887.9944632,
+    "mtime": 1790344123.7238393,
     "ast_hash": "c2097ebd5262ee29e6a80cf202c2a22d",
     "semantic_hash": ""
   },
@@ -215,7 +215,7 @@
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/verifyEmail/VerifyEmailUseCase.ts": {
-    "mtime": 1790125887.9944632,
+    "mtime": 1790344123.7198453,
     "ast_hash": "0ce4ede3800a53faab75f672c4153a6a",
     "semantic_hash": ""
   },
@@ -895,13 +895,13 @@
     "semantic_hash": ""
   },
   "src/modules/subscriptions/dtos/ISubscriptionDTO.ts": {
-    "mtime": 1789821084.969426,
-    "ast_hash": "6049a99ba7b98b5dc5d0188ba52ec931",
+    "mtime": 1790366534.7679353,
+    "ast_hash": "8500a2cd8b8e9c80fcf54c699ceaf644",
     "semantic_hash": ""
   },
   "src/modules/subscriptions/schemas/subscriptionSchemas.ts": {
-    "mtime": 1789821085.0293353,
-    "ast_hash": "e1f5a2aa2fb65d928070cbf67dfec7d6",
+    "mtime": 1790366529.9986212,
+    "ast_hash": "7961a35c629464d45cdce4e5c89d3757",
     "semantic_hash": ""
   },
   "src/modules/subscriptions/services/handleSubscriptionPaymentWebhook.ts": {
@@ -930,8 +930,8 @@
     "semantic_hash": ""
   },
   "src/modules/subscriptions/useCases/subscribe/SubscribeUseCase.ts": {
-    "mtime": 1789821085.2232857,
-    "ast_hash": "a391540af9f9f66312121cbc8affcdaa",
+    "mtime": 1790366763.177185,
+    "ast_hash": "d1d18091278b0f76fed54bc4ab4c22be",
     "semantic_hash": ""
   },
   "src/modules/subscriptions/useCases/subscriptionEconomics/SubscriptionEconomicsController.ts": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/app.ts": {
-    "mtime": 1789821085.4161725,
-    "ast_hash": "1fca3a92666d5cd4f22583c602488288",
+    "mtime": 1790347154.213659,
+    "ast_hash": "965d2b7a5796b0ca110052e2677e550b",
     "semantic_hash": ""
   },
   "src/shared/infra/http/middlewares/authenticate.ts": {
@@ -1370,8 +1370,8 @@
     "semantic_hash": ""
   },
   "vitest.config.mts": {
-    "mtime": 1789763509.8190658,
-    "ast_hash": "34f1a8e67cf5cb64acde57ad4ec71032",
+    "mtime": 1790347872.699583,
+    "ast_hash": "5beca9338cf370ae433207b8a58fbd2a",
     "semantic_hash": ""
   },
   "AI_GUIDE.md": {
@@ -1440,7 +1440,7 @@
     "semantic_hash": ""
   },
   "src/modules/clients/infra/repositories/SalonClientRepository.ts": {
-    "mtime": 1790125887.9959714,
+    "mtime": 1790344123.7238393,
     "ast_hash": "8b36fe9d2d30b56a382f2d833fb25adc",
     "semantic_hash": ""
   },
@@ -1450,13 +1450,13 @@
     "semantic_hash": ""
   },
   "src/modules/clients/repositories/ISalonClientRepository.ts": {
-    "mtime": 1790125887.9959714,
+    "mtime": 1790344123.7238393,
     "ast_hash": "318194394391dcf53197a69af870bc6a",
     "semantic_hash": ""
   },
   "src/modules/clients/schemas/clientSchemas.ts": {
-    "mtime": 1788276080.5712013,
-    "ast_hash": "308a57d7a34ddab642c1e7dad79eb101",
+    "mtime": 1790351472.7161536,
+    "ast_hash": "b5f12e99c9428a8aadae7a5c159bf8aa",
     "semantic_hash": ""
   },
   "src/modules/clients/useCases/clientUseCases.ts": {
@@ -1630,18 +1630,18 @@
     "semantic_hash": ""
   },
   "src/modules/subscriptions/useCases/setupTrialCard/SetupTrialCardController.ts": {
-    "mtime": 1789821085.208142,
-    "ast_hash": "4e137a3408f9992162957cf305afa25c",
+    "mtime": 1790366608.5027244,
+    "ast_hash": "b39558360d006f5549bef04368ba86f2",
     "semantic_hash": ""
   },
   "src/modules/subscriptions/useCases/setupTrialCard/SetupTrialCardUseCase.ts": {
-    "mtime": 1789821085.2212873,
-    "ast_hash": "398be7ccc886f22e98a9b85672b19426",
+    "mtime": 1790366620.556739,
+    "ast_hash": "12d3ef8bc1105cc830b3b9e7588b7f58",
     "semantic_hash": ""
   },
   "src/modules/subscriptions/useCases/subscribe/subscribe.spec.ts": {
-    "mtime": 1789821085.2283285,
-    "ast_hash": "29eea946393a7220ee79866e83a116c8",
+    "mtime": 1790366589.8137836,
+    "ast_hash": "24fbb62a60cf7438abbb1b49615ae525",
     "semantic_hash": ""
   },
   "src/shared/infra/cron/trialCardCharges.cron.ts": {
@@ -1930,8 +1930,8 @@
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/register/RegisterUseCase.spec.ts": {
-    "mtime": 1789821084.6289997,
-    "ast_hash": "f7506e758dabfeb6907441e9b93c8048",
+    "mtime": 1790160961.777865,
+    "ast_hash": "551276276f49e69ffe337b6f5632306b",
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/getBarbershop/ListPublicStaffUseCase.ts": {
@@ -1975,7 +1975,7 @@
     "semantic_hash": ""
   },
   "src/modules/clients/utils/ensureSalonClient.ts": {
-    "mtime": 1790125887.9982753,
+    "mtime": 1790344123.72535,
     "ast_hash": "b6fb792d68769c77e41e48f9acb97672",
     "semantic_hash": ""
   },
@@ -2185,8 +2185,8 @@
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/getWeatherInsights/GetWeatherInsightsUseCase.ts": {
-    "mtime": 1789341563.5384035,
-    "ast_hash": "f38d34d456136b900fbe8f9fcfa61c10",
+    "mtime": 1790352088.6235943,
+    "ast_hash": "232fae74e4a7cf11a0edd08db93e5498",
     "semantic_hash": ""
   },
   "src/modules/barbershops/useCases/onboarding/GetOnboardingUseCase.ts": {
@@ -2325,8 +2325,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/cron/dailyWeatherLog.cron.ts": {
-    "mtime": 1789261934.0856106,
-    "ast_hash": "8bf2eb76225836fa39c2cad7c64541df",
+    "mtime": 1790353540.9000156,
+    "ast_hash": "953ad3ea75f45fa20718fe94b06ccff7",
     "semantic_hash": ""
   },
   "src/shared/infra/http/routes/commissions.routes.ts": {
@@ -2575,8 +2575,8 @@
     "semantic_hash": ""
   },
   "src/shared/utils/seedBarbershopDefaults.ts": {
-    "mtime": 1788377210.915374,
-    "ast_hash": "cfbe3f861d3d990f0d35a7de39123f40",
+    "mtime": 1790160932.682636,
+    "ast_hash": "1f85a7ed199fd7cee1656261dd821fbe",
     "semantic_hash": ""
   },
   "prisma/migrations/20260902150000_add_post_templates/migration.sql": {
@@ -2790,8 +2790,8 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1789936766.062397,
-    "ast_hash": "d65bc266b260ddd7d755d26fc0be4ccf",
+    "mtime": 1790352323.761624,
+    "ast_hash": "484fbbe5eb950477bb70a709f4df5377",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -2820,8 +2820,8 @@
     "semantic_hash": ""
   },
   "docs/agents/DOMAIN_MAP.md": {
-    "mtime": 1789821084.2886465,
-    "ast_hash": "b9a7f9675c8a53306210287586ecfeab",
+    "mtime": 1790366616.5564797,
+    "ast_hash": "f26c664e7fa7a365016538cf46163f0a",
     "semantic_hash": ""
   },
   "docs/agents/GRAPHIFY.md": {
@@ -2835,13 +2835,13 @@
     "semantic_hash": ""
   },
   "docs/agents/SCRIPTS.md": {
-    "mtime": 1790126135.1979554,
-    "ast_hash": "7e8488a13271f31ad8ec4e70b3d0242e",
+    "mtime": 1790161187.890563,
+    "ast_hash": "d96c11824bcc07d9f15229abed68076b",
     "semantic_hash": ""
   },
   "docs/agents/STRUCTURE.md": {
-    "mtime": 1790126135.1999564,
-    "ast_hash": "6da4e41203452190dd681c45a6157b58",
+    "mtime": 1790347185.726097,
+    "ast_hash": "3f926a5241d5908018038bd48f9aec88",
     "semantic_hash": ""
   },
   "prisma/migrations/20260908000000_add_daily_closeout/migration.sql": {
@@ -2900,23 +2900,23 @@
     "semantic_hash": ""
   },
   "src/modules/financial/dailyCloseoutController.ts": {
-    "mtime": 1788913097.4431818,
-    "ast_hash": "74a0c6f118210affc4ba04f1e5536120",
+    "mtime": 1790351843.625554,
+    "ast_hash": "7cbedf9382bac54b0e597a216a3aff6f",
     "semantic_hash": ""
   },
   "src/modules/financial/dailyCloseoutRepository.ts": {
-    "mtime": 1788913085.5007374,
-    "ast_hash": "7da275a47db73869386e7256c84827ac",
+    "mtime": 1790356134.95886,
+    "ast_hash": "f40917bdeb9b24e81c71368dac7c6682",
     "semantic_hash": ""
   },
   "src/modules/financial/dailyCloseoutSchema.ts": {
-    "mtime": 1789549522.465307,
-    "ast_hash": "593031571ca9b870a14f067ca97a5f29",
+    "mtime": 1790351832.3781,
+    "ast_hash": "a0f6d14b4f62169371873dc8f7c2aa73",
     "semantic_hash": ""
   },
   "src/modules/financial/dailyCloseoutUseCases.ts": {
-    "mtime": 1789549086.9890356,
-    "ast_hash": "fa72c14d6765690783c4d0c43951d47d",
+    "mtime": 1790351874.3710387,
+    "ast_hash": "93b6e11a67a590fefce42c85ab835dc2",
     "semantic_hash": ""
   },
   "src/modules/monitoring/monitoringController.ts": {
@@ -2970,18 +2970,18 @@
     "semantic_hash": ""
   },
   "src/modules/cash/cashMovementRepository.ts": {
-    "mtime": 1788916313.5504777,
-    "ast_hash": "d2fb9255c9cb3294743d0f7238a88f78",
+    "mtime": 1790347203.788975,
+    "ast_hash": "fd56b1cf84c131781f49457fdb9d5d24",
     "semantic_hash": ""
   },
   "src/modules/cash/cashMovementSchema.ts": {
-    "mtime": 1789821084.6651654,
-    "ast_hash": "0fe85e3d0de3eb3a254abbe3fe9ac01c",
+    "mtime": 1790351896.2529998,
+    "ast_hash": "6f8e4582732df6b5667a6c3d791f41b6",
     "semantic_hash": ""
   },
   "src/modules/cash/cashMovementUseCases.ts": {
-    "mtime": 1788916320.687602,
-    "ast_hash": "ce1177ed66ec7094b8a2e460de2fc9ff",
+    "mtime": 1790347231.810704,
+    "ast_hash": "16cbd50a5c5e31197b2a5011d879d3d0",
     "semantic_hash": ""
   },
   "src/modules/goals/goal.routes.ts": {
@@ -3730,8 +3730,8 @@
     "semantic_hash": ""
   },
   "src/modules/cash/cashMovementSchema.spec.ts": {
-    "mtime": 1789821084.663177,
-    "ast_hash": "a15151c40da8af1d4ffd52564840c65c",
+    "mtime": 1790347240.3502774,
+    "ast_hash": "e23b962690e352ca1e85ab72268c83b4",
     "semantic_hash": ""
   },
   "src/modules/clientPortal/clientPortalSchema.spec.ts": {
@@ -3830,8 +3830,8 @@
     "semantic_hash": ""
   },
   "src/shared/container/providers/WeatherProvider/implementations/MetNoWeatherProvider.ts": {
-    "mtime": 1789069721.0398886,
-    "ast_hash": "e65e87274b41cae871a7b1545f7beaca",
+    "mtime": 1790353574.2452285,
+    "ast_hash": "6de2d6aac9c63cdba9014e30461332c2",
     "semantic_hash": ""
   },
   "src/shared/container/providers/WeatherProvider/implementations/ResilientWeatherProvider.ts": {
@@ -3840,8 +3840,8 @@
     "semantic_hash": ""
   },
   "src/shared/infra/http/app.errorHandler.spec.ts": {
-    "mtime": 1789821085.2584686,
-    "ast_hash": "a0d1973f366815823d332d718b6988e9",
+    "mtime": 1790347167.16194,
+    "ast_hash": "292916134a2e5eebe29a1b1b4ace19ae",
     "semantic_hash": ""
   },
   "src/shared/services/resolveWeatherLocation.ts": {
@@ -4165,7 +4165,7 @@
     "semantic_hash": ""
   },
   "prisma/migrations/20260922000000_rename_membership_to_recurring_packages/migration.sql": {
-    "mtime": 1790132547.6086872,
+    "mtime": 1790344123.7258716,
     "ast_hash": "3ae3797a981bba91ca95a768702c2284",
     "semantic_hash": ""
   },
@@ -4225,8 +4225,8 @@
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/registerGoogle/RegisterGoogleUseCase.spec.ts": {
-    "mtime": 1790126135.387026,
-    "ast_hash": "f5f2398d20fa7aa215565173e8862196",
+    "mtime": 1790160966.9528296,
+    "ast_hash": "93f1c317bfd92bcbf77d093a97fcb6e2",
     "semantic_hash": ""
   },
   "src/modules/auth/useCases/registerGoogle/RegisterGoogleUseCase.ts": {
@@ -4272,6 +4272,36 @@
   ".opencode/snapshots/after-20260923_011317.json": {
     "mtime": 1790136802.6273928,
     "ast_hash": "75220ad8590b8f12467a4ac96ad8e817",
+    "semantic_hash": ""
+  },
+  "prisma/seed.spec.ts": {
+    "mtime": 1790161185.3092227,
+    "ast_hash": "0fc6b6de9db7f2212d93347361f8275d",
+    "semantic_hash": ""
+  },
+  "src/shared/utils/seedBarbershopDefaults.spec.ts": {
+    "mtime": 1790161130.71226,
+    "ast_hash": "1ad31b874cd15467808f4299587f3649",
+    "semantic_hash": ""
+  },
+  "src/tests/helpers/fakeSeedDb.ts": {
+    "mtime": 1790161112.42361,
+    "ast_hash": "c416ada911862060cee2b622bc899905",
+    "semantic_hash": ""
+  },
+  ".opencode/snapshots/before-20260925_122822.json": {
+    "mtime": 1790350103.2457314,
+    "ast_hash": "f1a783d311d234b2eb81b488c447d795",
+    "semantic_hash": ""
+  },
+  ".opencode/snapshots/before-2026-09-25T19-12-01Z.json": {
+    "mtime": 1790363540.178911,
+    "ast_hash": "76b29204ec0c51765eba210a1f0470c6",
+    "semantic_hash": ""
+  },
+  "prisma/migrations/20260925170000_widen_asaas_card_token/migration.sql": {
+    "mtime": 1790366620.467269,
+    "ast_hash": "a318649d24ac69d90f6eb24e3357e6c0",
     "semantic_hash": ""
   }
 }

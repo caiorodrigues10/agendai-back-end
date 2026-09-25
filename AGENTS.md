@@ -61,7 +61,7 @@ npm run test:unit
 npm run docs:check
 ```
 
-Scripts que **alteram banco:** `prisma:migrate*`, `db:push`, `prisma:seed`, `start:prod`, `security:audit-logs`. Ver [SCRIPTS.md](docs/agents/SCRIPTS.md).
+Scripts que **alteram banco:** `prisma:migrate*`, `db:push`, `prisma:seed`, `prisma:seed:demo`, `prisma:seed:tenant`, `start:prod`, `security:audit-logs`. Ver [SCRIPTS.md](docs/agents/SCRIPTS.md).
 
 `test:coverage` **não** configura provider de coverage no `vitest.config.mts` — não afirmar geração de relatório de cobertura.
 
@@ -114,6 +114,9 @@ Prisma **não suporta** comparar duas colunas da mesma tabela no `where` (ex: `q
 
 ## 6. Bugs conhecidos fora de escopo
 
-- **Vouchers (case mismatch):** `vouchersApi.ts` envia tipos `PERCENTAGE`/`FIXED`/`FREE_SERVICE` (maiúsculo), mas o backend (`voucherSchema.ts`) espera `percent`/`fixed`/`free_service` (minúsculo). Falha com 400 em criar/editar voucher. Necessário mapeamento de case no `vouchersApi.ts` ou alteração dos schemas.
-- **Cash Panel (tipo inválido):** `CashPanel.tsx` envia tipos de movimentação `TIP` e `OTHER` que não existem no enum do backend (`cashMovementSchema.ts`). Falha com 400 ao criar movimentação com esses tipos.
-- **clientPortalSchema (schemas faltantes):** `clientPortalController.ts` importa `barbershopIdQuerySchema`, `staffDashboardQuerySchema` e `linkIdParamsSchema` de `clientPortalSchema.ts`, mas esses exports não existem no schema. Gera erro TS2305 no typecheck. Bug pré-existente desde o commit 5be40c2.
+> **Status (2026-09-25):** os 3 bugs abaixo foram RESOLVIDOS nesta sessão de trabalho.
+
+- **RESOLVIDO — Vouchers (case mismatch):** `agendai/src/infra/vouchersApi.ts` agora é um adapter que converte tipos FE (`PERCENTAGE`/`FIXED`/`FREE_SERVICE`) ↔ BE (`percent`/`fixed`/`free_service`) nos dois sentidos. Sem 400 em criar/editar.
+- **RESOLVIDO — Cash Panel (tipo inválido):** enum `cashMovementSchema.ts` aceita `TIP` e `OTHER` (coluna VarChar(30), sem migração); listas de sinal `positiveTypes` (+ TIP/OTHER como receita) atualizadas em `cashMovementRepository.getSummary`, `cashMovementUseCases.closeDay` e `dailyCloseoutUseCases` (closeDay + getCloseout).
+- **RESOLVIDO — clientPortalSchema (schemas faltantes):** `barbershopIdQuerySchema`, `staffDashboardQuerySchema` e `linkIdParamsSchema` existem em `clientPortalSchema.ts` (exports nas linhas ~58/62/66); typecheck passa. Bug do commit 5be40c2, já corrigido no código.
+

@@ -32,10 +32,20 @@ const symbolDetails = (symbol = '') => {
   return { code: 0, condition: 'Ensolarado', icon: '☀️' };
 };
 
+// O timeseries da MET vem em UTC; agrupa no calendário de São Paulo
+// (UTC-3 fixo desde 2019) para o card "hoje" casar com o dia de operação.
+const SP_UTC_OFFSET_MS = -3 * 60 * 60 * 1000;
+
+const spDateKey = (iso: string): string => {
+  const timestamp = Date.parse(iso);
+  if (!Number.isFinite(timestamp)) return iso.slice(0, 10);
+  return new Date(timestamp + SP_UTC_OFFSET_MS).toISOString().slice(0, 10);
+};
+
 export function parseMetNoForecast(points: MetNoPoint[], days: number): DailyForecast[] {
   const grouped = new Map<string, MetNoPoint[]>();
   for (const point of points) {
-    const date = point.time.slice(0, 10);
+    const date = spDateKey(point.time);
     grouped.set(date, [...(grouped.get(date) ?? []), point]);
   }
 

@@ -52,7 +52,7 @@ export class CashMovementUseCases {
 
     for (const m of movements) {
       const amt = Number(m.amount);
-      const isIn = ["SERVICE_SALE", "PRODUCT_SALE", "PACKAGE_SALE", "FIADO_PAYMENT"].includes(m.type);
+      const isIn = ["SERVICE_SALE", "PRODUCT_SALE", "PACKAGE_SALE", "FIADO_PAYMENT", "TIP", "OTHER"].includes(m.type);
       const signed = isIn ? amt : -amt;
 
       switch (m.paymentMethod) {

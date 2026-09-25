@@ -1,16 +1,16 @@
-# Graph Report - agendai-back-end  (2026-09-23)
+# Graph Report - agendai-back-end  (2026-09-25)
 
 ## Corpus Check
-- 850 files · ~310,413 words
+- 855 files · ~315,242 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5690 nodes · 13177 edges · 312 communities (226 shown, 86 thin omitted)
+- 5566 nodes · 13103 edges · 295 communities (241 shown, 54 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 367 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d847ed5a`
+- Built from commit: `eddbe9b2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -236,12 +236,12 @@
 - .barbershopId
 - seed.ts
 - Auth
-- Sistema de Assinaturas
+- postAiService.spec.ts
 - users.routes.ts
-- bcryptjs
+- CrmController.ts
 - ListSubscriptionsController
 - copilot-instructions.md
-- google-auth-library
+- emailWorker.ts
 - ioredis
 - @opentelemetry/exporter-prometheus
 - @testcontainers/postgresql
@@ -253,79 +253,53 @@
 - .execute
 - subscribe.spec.ts
 - @opentelemetry/instrumentation-fastify
-- ChargeTrialEndedSubscriptionsUseCase
+- CancelSubscriptionController.ts
 - paymentProviderSnapshot.ts
 - GetCrmForecastUseCase
 - subscriptionAccess.ts
 - RecordActivationEventUseCase
 - reconciliationService.ts
 - @fastify/cors
-- ExportFinancialDataUseCase
+- PlansController
 - ListSubscriptionsController
 - StaffUseCases
 - GoogleLoginUseCase
-- catalogTemplates.ts
+- verifyRecaptcha.ts
 - WhatsAppConnectionUseCase
 - subscribe.spec.ts
 - IntegrationRepository
 - 14. Integrações Externas
-- AdminNotificationController
-- .findCareTemplate
-- ReputationController
+- notifications.routes.ts
+- paymentProviderSnapshot.ts
 - formRepository.ts
 - productUseCases.ts
 - resourceRepository.ts
-- Auth
 - Sistema de Assinaturas
 - staffRepository.ts
 - .revokeSalonLink
-- ShopStatusController.ts
 - busboy
 - LoyaltyRepository
-- @fastify/cookie
 - blockedEntitySchemas.ts
-- @fastify/helmet
+- fiado.routes.ts
 - TicketController
 - enhancedDemandPredictor.ts
-- @fastify/swagger
 - wallet.routes.ts
-- @opentelemetry/api
-- bcryptjs
-- @opentelemetry/instrumentation-redis-4
-- pino
-- reflect-metadata
-- @sentry/profiling-node
-- @upstash/redis
 - verify-delivery.mjs
 - createAppointmentAtomic
 - ProfitController
 - auth-session.pentest.spec.ts
-- TaskController
 - GetPaymentStatusUseCase
-- payments.routes.ts
-- seed.ts
 - calendar.routes.ts
-- catalogTemplates.ts
-- subscribe.spec.ts
-- notifications.routes.ts
 - WorkSummaryController.ts
-- ResetPasswordUseCase
 - productsInventory.ts
 - cleanOldLogs.cron.ts
-- PlansController
 - Revisão do lote de e-mails — 2026-09-21
-- ws.routes.ts
 - queue.routes.ts
-- ReputationController
 - plans.routes.ts
-- categories.routes.ts
-- @google-cloud/storage
-- @fastify/multipart
-- .constructor
 
 ## God Nodes (most connected - your core abstractions)
 1. `AppError` - 261 edges
-2. `prisma` - 207 edges
+2. `prisma` - 206 edges
 3. `authenticate()` - 122 edges
 4. `setRlsContext()` - 116 edges
 5. `authorize()` - 113 edges
@@ -340,81 +314,81 @@
   src/modules/referrals/services/referralService.ts → src/modules/products/catalogTemplates.ts
 - `buildAuthProbeApp()` --indirect_call--> `authenticate()`  [INFERRED]
   src/tests/pentest/auth-session.pentest.spec.ts → src/shared/infra/http/middlewares/authenticate.ts
-- `analyticsRoutes()` --indirect_call--> `checkDashboardAccess()`  [INFERRED]
-  src/modules/analytics/routes/analytics.routes.ts → src/shared/infra/http/middlewares/checkDashboardAccess.ts
-- `scheduleAppointmentReminders()` --indirect_call--> `SendAppointmentRemindersUseCase`  [INFERRED]
-  src/shared/infra/cron/appointmentReminders.cron.ts → src/modules/appointments/useCases/appointmentUseCases.ts
-- `notificationsRoutes()` --indirect_call--> `SendAppointmentRemindersUseCase`  [INFERRED]
-  src/shared/infra/http/routes/notifications.routes.ts → src/modules/appointments/useCases/appointmentUseCases.ts
+- `seedDemoData()` --calls--> `seedBarbershopDefaults()`  [EXTRACTED]
+  prisma/seed.ts → src/shared/utils/seedBarbershopDefaults.ts
+- `seedTenantDefaults()` --calls--> `seedBarbershopDefaults()`  [EXTRACTED]
+  prisma/seed.ts → src/shared/utils/seedBarbershopDefaults.ts
+- `activationRoutes()` --indirect_call--> `authenticate()`  [INFERRED]
+  src/modules/analytics/routes/activation.routes.ts → src/shared/infra/http/middlewares/authenticate.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (312 total, 86 thin omitted)
+## Communities (295 total, 54 thin omitted)
 
 ### Community 0 - "api.ts"
 Cohesion: 0.15
-Nodes (58): activationRoutes(), analyticsRoutes(), ActivationController, reviewRoutes(), reviewSchema, cashMovementRoutes(), catalogRoutes(), clientPortalRoutes() (+50 more)
+Nodes (32): analyticsRoutes(), mePreHandler(), cashMovementRoutes(), catalogRoutes(), copilotRoutes(), depositRoutes(), equipmentRoutes(), fiscalRoutes() (+24 more)
 
 ### Community 1 - "IFiadoResponseDTO"
-Cohesion: 0.14
-Nodes (15): acceptInvitationSchema, adminAuditLogQuerySchema, createTaskCommentSchema, createTaskSchema, invitationQuerySchema, inviteTeamMemberSchema, listTasksQuerySchema, listTicketsQuerySchema (+7 more)
+Cohesion: 0.04
+Nodes (36): acceptInvitationSchema, adminAuditLogQuerySchema, createTaskCommentSchema, createTaskSchema, createTicketCommentSchema, createTicketSchema, invitationQuerySchema, inviteTeamMemberSchema (+28 more)
 
 ### Community 2 - "IServiceResponseDTO"
-Cohesion: 0.10
-Nodes (19): ProductsController, shopId(), adjustmentSchema, createProductSchema, createReceiptSchema, createRetailSaleSchema, expirationDateSchema, installTemplateSchema (+11 more)
+Cohesion: 0.09
+Nodes (20): ProductsController, shopId(), adjustmentSchema, createProductSchema, createReceiptSchema, createRetailSaleSchema, expirationDateSchema, installTemplateSchema (+12 more)
 
 ### Community 3 - "PostsController.ts"
-Cohesion: 0.06
-Nodes (44): ClientController, ICreateSalonClientDTO, ISalonClientAppointmentDTO, ISalonClientListQuery, ISalonClientPackageSummaryDTO, ISalonClientResponseDTO, IUpdateSalonClientDTO, MockSalonClientRepository (+36 more)
+Cohesion: 0.13
+Nodes (15): AppointmentStatus, IAppointmentResponseDTO, IAvailabilitySlotDTO, ICreateAppointmentDTO, IListAppointmentsQuery, IUpdateAppointmentDTO, AppointmentRepository, AppointmentWithRelations (+7 more)
 
 ### Community 4 - "IExpenseResponseDTO"
-Cohesion: 0.05
-Nodes (49): forgotPasswordSchema, googleLoginSchema, loginSchema, phoneBR, registerSchema, registerWithGoogleSchema, resetPasswordSchema, scheduleItemSchema (+41 more)
+Cohesion: 0.11
+Nodes (24): assertPaymentProviderEnabled(), EnabledPaymentProvider, enabledPaymentProviders(), IInvoiceResponseDTO, ISubscribeDTO, ISubscriptionResponseDTO, SubscriptionStatus, AsaasCreditCardInput (+16 more)
 
 ### Community 5 - "AbacatePayService"
-Cohesion: 0.12
-Nodes (13): ICreateServiceDTO, IServiceResponseDTO, IUpdateServiceDTO, MockServiceRepository, ServiceRepository, IServiceRepository, CreateServiceUseCase, inject (+5 more)
+Cohesion: 0.17
+Nodes (6): ICreateServiceDTO, IServiceResponseDTO, IUpdateServiceDTO, MockServiceRepository, ServiceRepository, IServiceRepository
 
 ### Community 6 - "index.ts"
-Cohesion: 0.04
-Nodes (66): createPublicAppointmentToken(), PublicAppointmentPayload, PublicPurpose, readPublicAppointmentToken(), appointmentInstant(), getAppointment(), logger, PublicAppointmentManagementUseCase (+58 more)
+Cohesion: 0.07
+Nodes (38): appointmentInstant(), getAppointment(), logger, PublicAppointmentManagementUseCase, getOwnerContactForBarbershop(), issueProratedRefund(), ProcessAsaasWebhookUseCase, injectable (+30 more)
 
 ### Community 7 - "compilerOptions"
 Cohesion: 0.08
 Nodes (25): ExpenseController, ExpenseRecurrence, ExpenseType, ICreateExpenseDTO, IExpenseListQuery, IExpenseResponseDTO, IExpenseSummary, IUpdateExpenseDTO (+17 more)
 
 ### Community 8 - "IBarbershopRepository"
-Cohesion: 0.08
-Nodes (44): connectSchema, WhatsAppConnectionController, assertShopAccess(), detachEvolutionInstanceWithTimeout(), ShopWhatsAppDto, ShopWhatsAppStatus, inject, injectable (+36 more)
+Cohesion: 0.12
+Nodes (36): assertShopAccess(), detachEvolutionInstanceWithTimeout(), ShopWhatsAppDto, ShopWhatsAppStatus, WhatsAppConnectInput, evolutionNotConfiguredError(), shopEvolutionInstanceName(), asRecord() (+28 more)
 
 ### Community 9 - "AppError"
 Cohesion: 0.07
-Nodes (28): billingAddressSchema, cardPayerSchema, CreateCardPaymentInput, createCardPaymentSchema, CreatePixPaymentInput, createPixPaymentSchema, getPaymentStatusSchema, identificationSchema (+20 more)
+Nodes (27): billingAddressSchema, cardPayerSchema, CreateCardPaymentInput, createCardPaymentSchema, CreatePixPaymentInput, createPixPaymentSchema, getPaymentStatusSchema, identificationSchema (+19 more)
 
 ### Community 10 - "💈 AgendAI — Backend API"
-Cohesion: 0.08
-Nodes (25): ClientPackageController, resolveBarbershopId(), ServicePackageController, BookClientPackageInput, bookClientPackageSchema, CreateServicePackageInput, createServicePackageSchema, dateField (+17 more)
+Cohesion: 0.07
+Nodes (29): ClientPackageController, resolveBarbershopId(), ServicePackageController, IClientPackageRepository, BookClientPackageInput, bookClientPackageSchema, CreateServicePackageInput, createServicePackageSchema (+21 more)
 
 ### Community 11 - "IBarbershopResponseDTO"
-Cohesion: 0.16
-Nodes (11): IBookPackageSlotDTO, ICreateServicePackageDTO, ISellClientPackageDTO, IServicePackageResponseDTO, IUpdateServicePackageDTO, MockServicePackageRepository, include, map() (+3 more)
+Cohesion: 0.12
+Nodes (20): IBookPackageSlotDTO, ICreateServicePackageDTO, ISellClientPackageDTO, IServicePackageResponseDTO, IUpdateServicePackageDTO, MockServicePackageRepository, include, map() (+12 more)
 
 ### Community 12 - "normalizeCpf"
-Cohesion: 0.10
-Nodes (23): assertPaymentProviderEnabled(), EnabledPaymentProvider, enabledPaymentProviders(), IInvoiceResponseDTO, ISubscribeDTO, ISubscriptionResponseDTO, SubscriptionStatus, makeFullSubscription() (+15 more)
+Cohesion: 0.06
+Nodes (15): AbacatePayService, injectable, AsaasService, injectable, CancelPaymentController, CancelPaymentUseCase, inject, injectable (+7 more)
 
 ### Community 13 - "IStorageProvider"
-Cohesion: 0.05
-Nodes (35): AuthConfig, refreshSchema, issueAuthSession(), mapRole(), UserLike, findUsableRefreshToken(), RefreshTokenResult, GoogleLoginUseCase (+27 more)
+Cohesion: 0.06
+Nodes (30): AuthConfig, switchAccountSchema, issueAuthSession(), mapRole(), UserLike, findUsableRefreshToken(), RefreshTokenResult, LogoutController (+22 more)
 
 ### Community 14 - "appointments.spec.ts"
-Cohesion: 0.15
-Nodes (11): ChangeOperationModeController, ChangeOperationModeUseCase, inject, injectable, assertOperationEnabled(), BarbershopMode, Feature, getBarbershopOperationMode() (+3 more)
+Cohesion: 0.16
+Nodes (14): OperationMode, ChangeOperationModeController, ChangeOperationModeDTO, ChangeOperationModeResult, ChangeOperationModeUseCase, inject, injectable, assertOperationEnabled() (+6 more)
 
 ### Community 15 - "IPlanResponseDTO"
-Cohesion: 0.11
-Nodes (34): getProcessRole(), shouldRunApi(), shouldRunCrons(), shouldRunWorkers(), VALID_ROLES, CronLog, scheduleCleanupExpiredPix(), CronLog (+26 more)
+Cohesion: 0.13
+Nodes (27): getProcessRole(), shouldRunApi(), shouldRunCrons(), shouldRunWorkers(), VALID_ROLES, ALLOWED_TABLES, cleanTable(), scheduleCleanOldLogs() (+19 more)
 
 ### Community 16 - "IAppointmentResponseDTO"
 Cohesion: 0.05
@@ -429,32 +403,32 @@ Cohesion: 0.06
 Nodes (16): CorporateController, CorporateRepository, CreatePlanInput, planSelect, subscriptionSelect, UpdatePlanInput, billingCycleMap, corporatePlanStatusMap (+8 more)
 
 ### Community 19 - "IUserResponseDTO"
-Cohesion: 0.10
-Nodes (14): DeleteLogoUseCase, inject, injectable, GetLogoUploadUrlUseCase, inject, injectable, ALLOWED_MIME_SET, confirmLogoSchema (+6 more)
+Cohesion: 0.03
+Nodes (65): sensitiveRoutes, adapter, hasSslMode, pool, prisma, EnrichedBarbershop, ExpenseRow, FiadoRow (+57 more)
 
 ### Community 20 - "RegisterUseCase.ts"
-Cohesion: 0.11
-Nodes (15): AppointmentStatus, IAppointmentResponseDTO, IAvailabilitySlotDTO, ICreateAppointmentDTO, IListAppointmentsQuery, IUpdateAppointmentDTO, AppointmentRepository, AppointmentWithRelations (+7 more)
+Cohesion: 0.07
+Nodes (26): IAppointmentRepository, ADMIN, otherOwner, buildQueueUpdateMessage(), buildReminderMessage(), calendarDateParts(), CancelAppointmentUseCase, createAppointmentAtomic() (+18 more)
 
 ### Community 21 - "IPaymentDTO.ts"
-Cohesion: 0.06
-Nodes (19): adapter, defaultPlans, pool, prisma, inject, inject, inject, logger (+11 more)
+Cohesion: 0.12
+Nodes (12): DeleteQueueItemController, DeleteQueueItemUseCase, injectable, staff, channelName(), isRealtimeEvent(), logger, publishRealtime() (+4 more)
 
 ### Community 22 - "IPaymentResponseDTO"
-Cohesion: 0.12
-Nodes (14): AbacateCheckout, AbacateCustomer, AbacateProduct, CreateCheckoutInput, EnsureProductInput, allowInsecureWebhooks(), ProcessAbacateWebhookController, RequestWithRawBody (+6 more)
+Cohesion: 0.11
+Nodes (15): AbacateCheckout, AbacateCustomer, AbacateProduct, CreateCheckoutInput, EnsureProductInput, allowInsecureWebhooks(), ProcessAbacateWebhookController, RequestWithRawBody (+7 more)
 
 ### Community 23 - "SubscribeUseCase.ts"
 Cohesion: 0.18
-Nodes (10): notifyQueueCapacity(), mocks, JoinQueueController, JoinQueueUseCase, inject, injectable, isQueueStaffForShop(), isPlaceholderWhatsApp() (+2 more)
+Nodes (7): GoogleLoginUseCase, mockFindByEmail, mockUser, mockVerifyIdToken, prismaMock, inject, injectable
 
 ### Community 24 - "AgendAI Back‑end — Manual do Sistema"
 Cohesion: 0.09
 Nodes (17): inject, ProcedureRecordController, ICreateProcedureRecordDTO, IProcedureRecordResponseDTO, IUpdateProcedureRecordDTO, IProcedureRecordRepository, ProcedureRecordRepository, assertShopAccess() (+9 more)
 
 ### Community 25 - "blockedEntityService.ts"
-Cohesion: 0.22
-Nodes (17): InventoryEngine, lockProduct(), injectable, Tx, writeMovement(), CatalogProductSnapshot, namesToSkip(), nextStockQty() (+9 more)
+Cohesion: 0.12
+Nodes (25): EmailTemplateId, emailDestination(), EmailJobData, emailNotificationType(), emailQueue, emailQueueEvents, enqueueLegacy(), getQueue() (+17 more)
 
 ### Community 26 - "AppointmentController.ts"
 Cohesion: 0.10
@@ -465,60 +439,60 @@ Cohesion: 0.12
 Nodes (29): buildPrompt(), callAnthropic(), callDeepseek(), callGemini(), callGroq(), callMistral(), callOpenAI(), DEFAULT_PROVIDER_ORDER (+21 more)
 
 ### Community 28 - "IQueueRepository"
-Cohesion: 0.16
-Nodes (14): GetSubscriptionController, loadActivePlans(), SubscriptionEconomicsController, computePlanEconomics(), computePlatformEconomics(), inferBillingCycle(), inferTierKey(), monthsBetween() (+6 more)
+Cohesion: 0.12
+Nodes (18): CancellationContextController, CancellationContextResult, CancellationContextUseCase, emptyContext(), GetSubscriptionController, loadActivePlans(), SubscriptionEconomicsController, computePlanEconomics() (+10 more)
 
 ### Community 29 - "BarbershopFinancialController.ts"
 Cohesion: 0.06
 Nodes (21): VisitController, AddItem, CloseTab, CreateVisit, RecordPayment, VisitRepository, visitSelect, addItemSchema (+13 more)
 
 ### Community 30 - "queue.spec.ts"
-Cohesion: 0.05
-Nodes (81): VerifyEmailController, VerifyEmailUseCase, BarbershopEmailSettings, canReceiveEmail(), categoryDefaultEnabled(), categoryForTemplate(), EMAIL_CATEGORY, emailCategoryLabel() (+73 more)
+Cohesion: 0.11
+Nodes (29): BarbershopEmailSettings, canReceiveEmail(), categoryDefaultEnabled(), EMAIL_CATEGORY, emailCategoryLabel(), EmailCategoryValue, EmailPreference, EmailUnsubscribePayload (+21 more)
 
 ### Community 31 - "LogoController.ts"
-Cohesion: 0.21
-Nodes (7): JwtPayload, checkDashboardAccess(), getCachedAccess(), setCachedAccess(), financial, requirePermission(), requirePermission()
+Cohesion: 0.15
+Nodes (13): corporateRoutes(), monitoringRoutes(), checkSubscription(), appointmentsRoutes(), barbershopsRoutes(), clientsRoutes(), commissionsRoutes(), packagesRoutes() (+5 more)
 
 ### Community 32 - "emailWorker.ts"
-Cohesion: 0.14
-Nodes (10): ClientPackageStatus, IClientPackageResponseDTO, IPackageSalesSummary, PackagePaymentMethod, ClientPackageRepository, include, map(), MockClientPackageRepository (+2 more)
+Cohesion: 0.16
+Nodes (9): ClientPackageStatus, IClientPackageResponseDTO, IPackageSalesSummary, PackagePaymentMethod, ClientPackageRepository, include, map(), MockClientPackageRepository (+1 more)
 
 ### Community 33 - "IPaymentRepository"
-Cohesion: 0.17
+Cohesion: 0.18
 Nodes (8): ICreatePlanDTO, IPlanResponseDTO, IUpdatePlanDTO, PlanBillingCycle, MockPlanRepository, PlanRepository, select, IPlanRepository
 
 ### Community 34 - "paymentSchemas.ts"
-Cohesion: 0.10
-Nodes (5): IQueueItemResponseDTO, MockQueueRepository, QueueRepository, IQueueRepository, QueueWaitEstimate
+Cohesion: 0.11
+Nodes (7): IQueueItemResponseDTO, MockQueueRepository, PrismaQueueStatus, QueueRepository, toDTO(), toPrisma(), QueueWaitEstimate
 
 ### Community 35 - "monitor-routes.js"
 Cohesion: 0.07
-Nodes (27): inject, ICreateUserDTO, RoleLiteral, ALL_PERMISSIONS, DEFAULT_EMPLOYEE_PERMISSIONS, IUserResponseDTO, RoleLiteral, MockUserRepository (+19 more)
+Nodes (27): inject, ICreateUserDTO, RoleLiteral, ALL_PERMISSIONS, DEFAULT_EMPLOYEE_PERMISSIONS, EmployeePermission, IUserResponseDTO, RoleLiteral (+19 more)
 
 ### Community 36 - "scripts"
-Cohesion: 0.07
-Nodes (29): scripts, build, db:migrate:status, db:push, db:push:prod, db:studio, db:validate-schema, dev (+21 more)
+Cohesion: 0.18
+Nodes (15): ReferralsController, applyReferralCode(), generateCode(), getReferralDashboard(), logger, tierLabel(), GetMyReferralsUseCase, injectable (+7 more)
 
 ### Community 37 - "planEconomics.ts"
-Cohesion: 0.07
-Nodes (24): RecordActivationEventUseCase, injectable, buildQueueUpdateMessage(), buildReminderMessage(), calendarDateParts(), createAppointmentAtomic(), FORBIDDEN_TRANSITIONS, formatSaoPauloTime() (+16 more)
+Cohesion: 0.19
+Nodes (18): InventoryEngine, lockProduct(), injectable, Tx, writeMovement(), CatalogProductSnapshot, namesToSkip(), nextStockQty() (+10 more)
 
 ### Community 38 - "index.ts"
 Cohesion: 0.07
 Nodes (14): LoyaltyController, AdjustManualInput, adjustManualSchema, ConfigureLoyaltyProgramInput, configureLoyaltyProgramSchema, RecordCashbackInput, recordCashbackSchema, RecordVisitInput (+6 more)
 
 ### Community 39 - "Referência Completa de Rotas"
-Cohesion: 0.16
-Nodes (12): getCatalogTemplate(), assertProductPermission(), canGiveDiscount(), canOverrideProductPrice(), canSeeProductCosts(), COST_PERMISSIONS, isPrivilegedActor(), loadEmployeePermissions() (+4 more)
+Cohesion: 0.17
+Nodes (10): assertProductPermission(), canGiveDiscount(), canOverrideProductPrice(), canSeeProductCosts(), COST_PERMISSIONS, isPrivilegedActor(), loadEmployeePermissions(), ProductActor (+2 more)
 
 ### Community 40 - "appointmentUseCases.ts"
-Cohesion: 0.19
-Nodes (7): IMercadoPagoWebhookDTO, ProcessWebhookController, webhookBodySchema, logger, ProcessWebhookUseCase, inject, injectable
+Cohesion: 0.18
+Nodes (16): hashToken(), VerifyEmailController, VerifyEmailUseCase, apiUrl(), buildForgotPasswordEmail(), buildVerifyEmail(), escapeHtml(), emailLayout() (+8 more)
 
 ### Community 41 - "payments.spec.ts"
-Cohesion: 0.38
-Nodes (3): ExportUserDataController, ExportUserDataUseCase, injectable
+Cohesion: 0.18
+Nodes (3): ClientPortalRepository, generateOtpCode(), normalizePhone()
 
 ### Community 42 - "IQueueItemResponseDTO"
 Cohesion: 0.11
@@ -529,24 +503,24 @@ Cohesion: 0.12
 Nodes (16): Admin — Audit Logs, Admin — Dashboard, Admin — Financeiro, `GET /admin/audit-logs` 🔒 🛡️ `MASTER_ADMIN`, `GET /admin/dashboard`, `GET /admin/financial/barbershops` 🔒 🛡️ `MASTER_ADMIN`, `GET /admin/financial/overview` 🔒 🛡️ `MASTER_ADMIN`, `GET /admin/financial/summary` 🔒 🛡️ `MASTER_ADMIN` (+8 more)
 
 ### Community 44 - "referralService.ts"
-Cohesion: 0.14
-Nodes (19): IBillingAddressDTO, ICardPayerDTO, ICreateCardPaymentDTO, ICreatePixPaymentDTO, IPixQrCodeDTO, PaymentMethod, PaymentProvider, PaymentStatus (+11 more)
+Cohesion: 0.12
+Nodes (28): createSeedClient(), defaultPlans, isDirectExecution(), looksLikeProductionEnvironment(), main(), parseCliArgs(), resolveSeedProfile(), runSeed() (+20 more)
 
 ### Community 45 - "index.ts"
-Cohesion: 0.10
-Nodes (26): assertShopAccess(), idSchema, manualStatusSchema, queueStatusSchema, shopPayload(), ShopStatusController, getShopOpenState(), utcDateFromYmd() (+18 more)
+Cohesion: 0.14
+Nodes (19): getShopOpenState(), utcDateFromYmd(), addDaysYmd(), computeShopOpenState(), ComputeShopOpenStateInput, effectiveManualStatus(), hoursFrom(), ManualShopStatus (+11 more)
 
 ### Community 46 - ".findById"
-Cohesion: 0.13
+Cohesion: 0.14
 Nodes (14): ExpenseCategoryRecord, mapExpenseCategoryToDTO(), mapServiceCategoryToDTO(), ServiceCategoryRecord, ExpenseCategoryRepository, ServiceCategoryRepository, IExpenseCategoryRepository, IServiceCategoryRepository (+6 more)
 
 ### Community 47 - "ContactController.ts"
-Cohesion: 0.14
-Nodes (7): DepositController, ConfirmDepositInput, confirmDepositSchema, DepositListQueryInput, depositListQuerySchema, UpdateDepositPolicyInput, updateDepositPolicySchema
+Cohesion: 0.08
+Nodes (8): DepositController, ConfirmDepositInput, confirmDepositSchema, DepositListQueryInput, depositListQuerySchema, UpdateDepositPolicyInput, updateDepositPolicySchema, DepositUseCases
 
 ### Community 48 - "IEmailProvider.ts"
-Cohesion: 0.12
-Nodes (6): ConfirmLogoUseCase, inject, injectable, DeleteAvatarUseCase, inject, injectable
+Cohesion: 0.30
+Nodes (21): agendaiEmailBase(), COLORS, EmailTheme, escapeHtml(), safeUrl(), buildAppointmentUrgentCancelledEmail(), buildAppointmentUrgentRescheduledEmail(), buildDailyDigestEmail() (+13 more)
 
 ### Community 49 - "devDependencies"
 Cohesion: 0.14
@@ -557,8 +531,8 @@ Cohesion: 0.10
 Nodes (15): SupportController, CreateAdminNotificationData, CreateHistoryData, CreateReportData, generateProtocol(), SupportRepository, addCommentSchema, CreateReportInput (+7 more)
 
 ### Community 51 - "server.ts"
-Cohesion: 0.12
-Nodes (16): AdminBarbershopController, adminCreateBarbershopSchema, adminCreateUserSchema, adminListBarbershopsQuerySchema, adminListBlockedEntitiesQuerySchema, adminListSubscriptionsQuerySchema, adminListUsersQuerySchema, adminUpdateBarbershopStatusSchema (+8 more)
+Cohesion: 0.06
+Nodes (39): ClientController, ICreateSalonClientDTO, ISalonClientAppointmentDTO, ISalonClientListQuery, ISalonClientPackageSummaryDTO, ISalonClientResponseDTO, IUpdateSalonClientDTO, MockSalonClientRepository (+31 more)
 
 ### Community 52 - "QueueRepository"
 Cohesion: 0.06
@@ -569,12 +543,12 @@ Cohesion: 0.10
 Nodes (21): AgendAI Back‑end — Manual do Sistema, Autenticação e Autorização, Banco de Dados (Prisma), Com Docker, Como Adicionar um Novo Caso de Uso/Endpoint, Convenções, Definições, Dicas para IA (+13 more)
 
 ### Community 54 - "9. Como Criar um Novo Módulo"
-Cohesion: 0.23
-Nodes (9): base(), CATALOG_TEMPLATES, CatalogTemplate, STOCK_EXPENSE, IMPORTANT: Keep in sync with the backfill SQL in, resolveUnitFields(), STOCK_UNIT_LABELS, StockUnit (+1 more)
+Cohesion: 0.16
+Nodes (16): base(), CATALOG_TEMPLATES, CatalogTemplate, getCatalogTemplate(), STOCK_EXPENSE, productTypeWhere(), ProductListItem, assertUniqueProductCode() (+8 more)
 
 ### Community 55 - "Barbearias"
-Cohesion: 0.11
-Nodes (14): IGetLogoUploadUrlDTO, IGetLogoUploadUrlResult, ADMIN, otherOwner, IGetAvatarUploadUrlDTO, ALLOWED_LOGO_MIME_TYPES, CloudinaryV2, FallbackStorageProvider (+6 more)
+Cohesion: 0.04
+Nodes (51): ConfirmLogoUseCase, IConfirmLogoDTO, inject, injectable, DeleteLogoUseCase, inject, injectable, GetLogoUploadUrlUseCase (+43 more)
 
 ### Community 57 - "12. Erros Comuns e Como Evitá-los"
 Cohesion: 0.10
@@ -589,28 +563,28 @@ Cohesion: 0.50
 Nodes (4): Admin — Assinaturas, `DELETE /admin/subscriptions/:barbershopId` 🔒 🛡️ `MASTER_ADMIN`, `GET /admin/subscriptions/:id` 🔒 🛡️ `MASTER_ADMIN`, `GET /admin/subscriptions` 🔒 🛡️ `MASTER_ADMIN`
 
 ### Community 60 - "GetQueueMetricsUseCase"
-Cohesion: 0.18
+Cohesion: 0.16
 Nodes (12): ALLOWED_MIME_SET, logger, UploadVideoController, IUploadVideoDTO, IUploadVideoResult, inject, injectable, UploadVideoUseCase (+4 more)
 
 ### Community 61 - "🤖 AI_GUIDE.md — Guia Completo para IAs no Projeto AgendAI"
-Cohesion: 0.08
-Nodes (8): AbacatePayService, injectable, AsaasService, injectable, ProratedRefundInput, inject, inject, inject
+Cohesion: 0.16
+Nodes (8): ICrmRepository, GetCrmClientUseCase, GetCrmForecastUseCase, GetCrmOverviewUseCase, ListCrmClientsUseCase, MergeCrmClientsUseCase, inject, injectable
 
 ### Community 62 - "Categorias"
 Cohesion: 0.17
 Nodes (11): 1. Preparação, 2. Pré-validação, 3. Aplicação, 4. Pós-validação, Escala horizontal, Estado conhecido, Falhas e recuperação, Fluxo de deploy (+3 more)
 
 ### Community 63 - "app.ts"
-Cohesion: 0.06
-Nodes (31): dotenv-cli, devDependencies, dotenv-cli, prisma, @testcontainers/postgresql, tsup, tsx, @types/bcryptjs (+23 more)
+Cohesion: 0.13
+Nodes (16): IJoinQueueDTO, QueueStatus, IUpdateQueueItemDTO, IQueueRepository, inject, buildQueueCancelledMessage(), buildQueueJoinedMessage(), logger (+8 more)
 
 ### Community 64 - "ListBarbershopsUseCase.ts"
-Cohesion: 0.10
-Nodes (14): ensureTenant(), PostMediaController, ALLOWED_MIME_SET, AvatarController, confirmAvatarSchema, getUploadUrlSchema, logger, ConfirmAvatarUseCase (+6 more)
+Cohesion: 0.08
+Nodes (30): forgotPasswordSchema, googleLoginSchema, loginSchema, phoneBR, refreshSchema, registerSchema, registerWithGoogleSchema, resetPasswordSchema (+22 more)
 
 ### Community 65 - "ListQueueController.ts"
-Cohesion: 0.05
-Nodes (27): CashMovementController, CashMovementFilters, CashMovementRepository, CreateCashMovementData, CashMovementQueryInput, cashMovementQuerySchema, CashSummaryQueryInput, cashSummaryQuerySchema (+19 more)
+Cohesion: 0.21
+Nodes (10): classifyResendError(), EmailErrorKind, IEmailProvider, SendEmailInput, SendEmailResult, logger, ResendEmailProvider, { send } (+2 more)
 
 ### Community 66 - "Google Cloud Storage — setup AgendAI"
 Cohesion: 0.50
@@ -621,72 +595,76 @@ Cohesion: 0.06
 Nodes (38): FiadoController, FiadoStatus, ICreateFiadoDTO, ICreateFiadoPaymentDTO, IFiadoListQuery, IFiadoPaymentResponseDTO, IFiadoResponseDTO, IFiadoSummary (+30 more)
 
 ### Community 68 - "Fiado"
-Cohesion: 0.12
-Nodes (14): RequestingUser, classifyMaturity(), confidenceInterval(), DemandPrediction, DemandPredictor, FEATURE_NAMES, finite(), MaturityLevel (+6 more)
+Cohesion: 0.21
+Nodes (5): classifyMaturity(), confidenceInterval(), DemandPredictor, finite(), walkForwardBacktest()
+
+### Community 69 - "GetBarbershopUseCase.ts"
+Cohesion: 0.16
+Nodes (6): DemandPrediction, WeatherDataPoint, WeatherForecastPoint, ConfidenceLevel, EnhancedDemandPrediction, EnhancedDemandPredictor
 
 ### Community 70 - "CheckInAppointmentController.ts"
-Cohesion: 0.13
-Nodes (11): CancelPaymentController, CancelPaymentUseCase, logger, injectable, abacateServiceMock, asaasServiceMock, mockMpCancel, mockMpCard (+3 more)
+Cohesion: 0.23
+Nodes (7): CrmCampaignListItem, CrmClientMetrics, CrmOverviewDTO, CrmSegment, buildClientMetrics(), CrmRepository, segmentFor()
 
 ### Community 71 - "PlansController.ts"
-Cohesion: 0.21
-Nodes (12): CreateClientRecurringPackageInput, createClientRecurringPackageSchema, CreateRecurringPackagePlanInput, createRecurringPackagePlanSchema, RecordPaymentInput, recordPaymentSchema, RecurringPackageListQueryInput, recurringPackageListQuerySchema (+4 more)
+Cohesion: 0.09
+Nodes (13): RecurringPackageController, CreateClientRecurringPackageInput, createClientRecurringPackageSchema, CreateRecurringPackagePlanInput, createRecurringPackagePlanSchema, RecordPaymentInput, recordPaymentSchema, RecurringPackageListQueryInput (+5 more)
 
 ### Community 72 - "enqueueWhatsApp"
 Cohesion: 0.50
 Nodes (4): Assinaturas, `DELETE /subscriptions/me` 🔒 🛡️ `MASTER_ADMIN, OWNER`, `GET /subscriptions/me` 🔒, `POST /subscriptions` 🔒 🛡️ `MASTER_ADMIN, OWNER`
 
 ### Community 73 - "6. Sistema de Autenticação e Autorização"
-Cohesion: 0.20
-Nodes (11): ExpenseRow, ExpenseWithCategory, FiadoRow, FiadoWithPayments, BarbershopInsightsDTO, GetBarbershopInsightsUseCase, InsightsPeriod, normalizeWhatsapp() (+3 more)
+Cohesion: 0.15
+Nodes (15): ExpenseRow, ExpenseWithCategory, FiadoRow, FiadoWithPayments, BarbershopInsightsDTO, GetBarbershopInsightsUseCase, InsightsPeriod, normalizeWhatsapp() (+7 more)
 
 ### Community 74 - "8. Banco de Dados e Prisma"
-Cohesion: 0.06
-Nodes (13): ProfitController, entrySelect, ProfitRepository, settingsSelect, profitByServiceQuerySchema, profitByStaffQuerySchema, profitComputeSchema, profitManualAdjustmentSchema (+5 more)
+Cohesion: 0.07
+Nodes (11): ProfitController, ProfitRepository, profitByServiceQuerySchema, profitByStaffQuerySchema, profitComputeSchema, profitManualAdjustmentSchema, profitPeriodQuerySchema, ProfitSettingsInput (+3 more)
 
 ### Community 75 - "dependencies"
-Cohesion: 0.17
-Nodes (5): IPaymentResponseDTO, MockPaymentRepository, mapToDTO(), PaymentRepository, IUpdatePaymentStatusDTO
+Cohesion: 0.14
+Nodes (9): IPaymentResponseDTO, MockPaymentRepository, mapToDTO(), PaymentRepository, IUpdatePaymentStatusDTO, makeFullSubscription(), makeSubscription(), NOW (+1 more)
 
 ### Community 76 - "Passo a passo"
 Cohesion: 0.15
 Nodes (15): setupSwagger(), buildApp(), handleAppError(), correlationIdMiddleware(), registerRoutes(), AUDIT_VALUE_ALLOWLIST, buildSafeAuditDetails(), sanitizeJsonForStorage() (+7 more)
 
 ### Community 77 - "Despesas"
-Cohesion: 0.18
-Nodes (9): ProfileController, inject, injectable, DeleteAccountController, validateDeleteAccount(), DeleteAccountUseCase, inject, injectable (+1 more)
+Cohesion: 0.48
+Nodes (5): ProfileController, injectable, DeleteAccountController, validateDeleteAccount(), usersRoutes()
 
 ### Community 78 - "Pagamentos"
 Cohesion: 0.32
 Nodes (6): planSelect, billingCycleSchema, CreatePlanInput, createPlanSchema, UpdatePlanInput, updatePlanSchema
 
 ### Community 80 - "7. Sistema de Assinaturas e Bloqueio de CPF"
-Cohesion: 0.47
-Nodes (8): addMinutes(), isBusinessHour(), isNotPast(), isValidDate(), isValidTime(), isWithinHorizon(), timesOverlap(), ymdInTimeZone()
+Cohesion: 0.19
+Nodes (6): inject, buildQueueCalledMessage(), NotifyQueuePositionUpdatesUseCase, inject, injectable, inject
 
 ### Community 81 - "Apêndice B — Endpoints por Role"
 Cohesion: 0.12
 Nodes (13): mockBarbershopFindUnique, mockBroadcast, mockFeedPostCount, mockFeedPostCreate, mockFeedPostFindMany, mockFeedPostFindUnique, mockFeedPostUpdate, mockFeedPostUpdateMany (+5 more)
 
 ### Community 82 - "Agendamentos"
-Cohesion: 0.16
-Nodes (15): CachedWeatherProvider, forecast, redis, MetNoPeriod, MetNoPoint, MetNoWeatherProvider, parseMetNoForecast(), symbolDetails() (+7 more)
+Cohesion: 0.22
+Nodes (10): CachedWeatherProvider, forecast, redis, DEFAULT_CONDITION, finite(), OpenMeteoWeatherProvider, WMO_CODES, ResilientWeatherProvider (+2 more)
 
 ### Community 83 - "Fila (Queue)"
 Cohesion: 0.20
 Nodes (16): catalogListQuerySchema, comboItemSchema, createAddonSchema, createComboSchema, createVariationSchema, updateAddonSchema, updateComboItemSchema, updateComboSchema (+8 more)
 
 ### Community 84 - "Serviços"
-Cohesion: 0.12
-Nodes (17): broadcastPostToClients(), mockEnqueue, mockFindMany, mockFindUnique, enqueuePostBroadcast(), getEvents(), getQueue(), PostBroadcastJobData (+9 more)
+Cohesion: 0.22
+Nodes (5): assertShopWhatsAppConnected(), broadcastPostToClients(), mockEnqueue, mockFindMany, mockFindUnique
 
 ### Community 85 - "setup-gcs.sh"
 Cohesion: 0.18
 Nodes (11): 9. Como Criar um Novo Módulo, Passo 10 — Schema Prisma, Passo 1 — DTOs, Passo 2 — Interface do Repositório, Passo 3 — Mock Repository (para testes), Passo 4 — Implementação Prisma, Passo 5 — Schemas Zod, Passo 6 — UseCases (+3 more)
 
 ### Community 86 - "VerifyEmailController.ts"
-Cohesion: 0.23
-Nodes (5): CreatePackageData, CreatePlanData, RecordPaymentData, RecurringPackageListFilters, UpdatePlanData
+Cohesion: 0.13
+Nodes (6): CreatePackageData, CreatePlanData, RecordPaymentData, RecurringPackageListFilters, UpdatePlanData, RecurringPackageUseCases
 
 ### Community 87 - "PlansController"
 Cohesion: 0.18
@@ -697,8 +675,8 @@ Cohesion: 0.18
 Nodes (11): Barbearias, `DELETE /barbershops/:id/logo` 🔒 🛡️ `MASTER_ADMIN, OWNER` 📋, `DELETE /barbershops/:id` 🔒 🛡️ `MASTER_ADMIN`, `GET /barbershops`, `GET /barbershops/:id`, `GET /barbershops/:id/schedule`, Logo — Fluxo via Signed URL (recomendado para produção), Logo — Upload Direto via Multipart (mais simples) (+3 more)
 
 ### Community 89 - "CrmController"
-Cohesion: 0.22
-Nodes (4): MercadoPagoService, injectable, inject, inject
+Cohesion: 0.05
+Nodes (41): IBillingAddressDTO, ICardPayerDTO, ICreateCardPaymentDTO, ICreatePixPaymentDTO, IMercadoPagoWebhookDTO, IPixQrCodeDTO, PaymentMethod, PaymentProvider (+33 more)
 
 ### Community 90 - "14. Integrações Externas"
 Cohesion: 0.20
@@ -718,7 +696,7 @@ Nodes (22): emailGalleryRoutes(), generateTemplateHtml(), getAppointmentSamples(
 
 ### Community 94 - "Admin — Usuários"
 Cohesion: 0.25
-Nodes (11): refreshCrmCampaignStatus(), prismaMock, loadNotificationPayload(), claimAttempt(), completeAttempt(), createWorker(), failAttempt(), isFinalAttempt() (+3 more)
+Nodes (11): refreshCrmCampaignStatus(), prismaMock, claimAttempt(), completeAttempt(), createWorker(), failAttempt(), isFinalAttempt(), logger (+3 more)
 
 ### Community 96 - "postgres.ts"
 Cohesion: 0.06
@@ -733,16 +711,20 @@ Cohesion: 0.22
 Nodes (9): Categorias, `DELETE /expense-categories/:id` 🔒 🛡️ `MASTER_ADMIN, OWNER` 📋, `DELETE /service-categories/:id` 🔒 🛡️ `MASTER_ADMIN, OWNER` 📋, `GET /expense-categories` 🔒 🛡️ `MASTER_ADMIN, OWNER, EMPLOYEE` 📋, `GET /service-categories` 🔒 🛡️ `MASTER_ADMIN, OWNER, EMPLOYEE` 📋, `PATCH /expense-categories/:id` 🔒 🛡️ `MASTER_ADMIN, OWNER` 📋, `PATCH /service-categories/:id` 🔒 🛡️ `MASTER_ADMIN, OWNER` 📋, `POST /expense-categories` 🔒 🛡️ `MASTER_ADMIN, OWNER` 📋 (+1 more)
 
 ### Community 100 - "Admin — Planos"
-Cohesion: 0.12
-Nodes (31): findExisting(), NotificationPayload, NotificationV2Mode, resolveSkipReason(), scheduleNotification(), ScheduleNotificationInput, uniqueKey(), canOwnerConfigureNotification() (+23 more)
+Cohesion: 0.11
+Nodes (34): findExisting(), loadNotificationPayload(), NotificationPayload, NotificationV2Mode, recordTerminalNotificationFailure(), resolveSkipReason(), retryNotification(), scheduleNotification() (+26 more)
 
 ### Community 101 - "Assinaturas"
-Cohesion: 0.07
-Nodes (15): PricingController, CreateInput, PricingRepository, ruleSelect, UpdateInput, createPricingRuleSchema, evaluatePriceSchema, pricingRuleTypeMap (+7 more)
+Cohesion: 0.14
+Nodes (13): CreateInput, PricingRepository, ruleSelect, UpdateInput, createPricingRuleSchema, evaluatePriceSchema, pricingRuleTypeMap, updatePricingRuleSchema (+5 more)
 
 ### Community 102 - "Auth"
-Cohesion: 0.10
-Nodes (15): CompleteAppointmentController, completeAppointmentSchema, CompleteAppointmentRequest, CompleteAppointmentUseCase, ProcedureInput, injectable, retailSalePayloadSchema, channelName() (+7 more)
+Cohesion: 0.12
+Nodes (11): CashMovementController, CashMovementQueryInput, cashMovementQuerySchema, CashSummaryQueryInput, cashSummaryQuerySchema, CreateCashMovementInput, createCashMovementSchema, dailyDateQuery (+3 more)
+
+### Community 103 - "Financeiro da Barbearia"
+Cohesion: 0.05
+Nodes (16): logger, inject, UserLike, UserWithEmailPassword, inject, inject, inject, inject (+8 more)
 
 ### Community 104 - "fastify.d.ts"
 Cohesion: 0.25
@@ -773,8 +755,8 @@ Cohesion: 0.12
 Nodes (8): Claude, dependencies, devDependencies, Inventário de pacotes — Backend (agendai-back-end), Contrato com o frontend, Inventário de scripts — Backend (`agendai-back-end`), Observações críticas, Gemini
 
 ### Community 111 - "@fastify/multipart"
-Cohesion: 0.13
-Nodes (14): CreditInput, DebitInput, entrySelect, TransferInput, walletSelect, creditWalletSchema, debitWalletSchema, transferWalletSchema (+6 more)
+Cohesion: 0.07
+Nodes (16): WalletController, CreditInput, DebitInput, entrySelect, TransferInput, WalletRepository, walletSelect, creditWalletSchema (+8 more)
 
 ### Community 112 - "@fastify/rate-limit"
 Cohesion: 0.29
@@ -796,6 +778,10 @@ Nodes (7): `DELETE /expenses/:id` 🔒 🛡️ `MASTER_ADMIN, OWNER` 📋, Despe
 Cohesion: 0.29
 Nodes (7): `GET /payments/:id` 🔒 🛡️ `MASTER_ADMIN, OWNER, EMPLOYEE`, `GET /payments` 🔒 🛡️ `MASTER_ADMIN, OWNER`, Pagamentos, `PATCH /payments/:id/cancel` 🔒 🛡️ `MASTER_ADMIN, OWNER`, `POST /payments/card` 🔒, `POST /payments/pix` 🔒, `POST /payments/webhook`
 
+### Community 118 - "ProcessAbacateWebhookController.ts"
+Cohesion: 0.06
+Nodes (15): ClientPortalController, barbershopIdQuerySchema, CLIENT_PORTAL_OWNER_ROLES, CLIENT_PORTAL_STAFF_ROLES, clientPortalQuerySchema, confirmLinkSchema, createCareTemplateSchema, linkIdParamsSchema (+7 more)
+
 ### Community 119 - "node-cron"
 Cohesion: 0.33
 Nodes (6): 3.1 Clean Architecture (simplificada), 3.2 Padrão por módulo, 3.3 Injeção de Dependências, 3.4 Tratamento de Erros, 3.5 Resposta HTTP padrão, 3. Arquitetura e Padrões
@@ -805,8 +791,8 @@ Cohesion: 0.33
 Nodes (6): 7.1 Fluxo de acesso, 7.2 Status de Subscription, 7.3 Resposta 402 padronizada, 7.4 Bloqueio automático de CPF, 7.5 Serviço de bloqueio, 7. Sistema de Assinaturas e Bloqueio de CPF
 
 ### Community 121 - "@prisma/client"
-Cohesion: 0.23
-Nodes (14): barbershopIdQuerySchema, CLIENT_PORTAL_OWNER_ROLES, CLIENT_PORTAL_STAFF_ROLES, clientPortalQuerySchema, confirmLinkSchema, createCareTemplateSchema, linkIdParamsSchema, rejectLinkSchema (+6 more)
+Cohesion: 0.52
+Nodes (6): getNotificationV2Mode(), dispatchBatch(), dispatchNotificationOutboxNow(), logger, nextBackoff(), startNotificationDispatcher()
 
 ### Community 122 - "reflect-metadata"
 Cohesion: 0.33
@@ -829,20 +815,16 @@ Cohesion: 0.60
 Nodes (5): err(), info(), ok(), setup-gcs.sh script, warn()
 
 ### Community 127 - "zod"
-Cohesion: 0.08
-Nodes (27): CronLogger, scheduleDepositExpiration(), getMonitoringDashboard(), hoursAgo(), minutesAgo(), ChargeTrialEndedSubscriptionsUseCase, injectable, CronLogger (+19 more)
+Cohesion: 0.12
+Nodes (13): CronLogger, scheduleDepositExpiration(), CronLogger, scheduleWaitlistExpiration(), CronLogger, scheduleAppointmentReminders(), CronLogger, scheduleTrialCardCharges() (+5 more)
 
 ### Community 128 - "tsup"
-Cohesion: 0.17
-Nodes (16): getNotificationV2Mode(), getNotificationOperationsHealth(), heartbeatStatus(), ProcessRole, dispatchBatch(), dispatchNotificationOutboxNow(), logger, nextBackoff() (+8 more)
-
-### Community 130 - "@types/bcryptjs"
-Cohesion: 0.05
-Nodes (4): ClientPortalRepository, ClientPortalRepositoryInstance, generateOtpCode(), normalizePhone()
+Cohesion: 0.09
+Nodes (27): LoginUseCase, injectable, getMonitoringDashboard(), hoursAgo(), minutesAgo(), getNotificationOperationsHealth(), heartbeatStatus(), ProcessRole (+19 more)
 
 ### Community 131 - "@types/node"
-Cohesion: 0.03
-Nodes (63): sensitiveRoutes, adapter, hasSslMode, pool, prisma, prismaMock, UpdateTaskUseCase, VALID_TASK_TRANSITIONS (+55 more)
+Cohesion: 0.16
+Nodes (5): updateBarbershopSchema, UpdateBarbershopController, inject, injectable, UpdateBarbershopUseCase
 
 ### Community 132 - "@types/node-cron"
 Cohesion: 0.40
@@ -860,21 +842,17 @@ Nodes (5): Admin — Notificações, `GET /admin/notifications` 🔒 🛡️ `MA
 Cohesion: 0.40
 Nodes (5): Admin — Usuários, `DELETE /admin/users/:id` 🔒 🛡️ `MASTER_ADMIN`, `GET /admin/users` 🔒 🛡️ `MASTER_ADMIN`, `PATCH /admin/users/:id` 🔒 🛡️ `MASTER_ADMIN`, `POST /admin/users` 🔒 🛡️ `MASTER_ADMIN`
 
-### Community 136 - "ensure-gcs-key.sh"
-Cohesion: 0.40
-Nodes (3): prisma, { PrismaClient }, { randomUUID }
-
 ### Community 138 - "disposable-email-domains.d.ts"
-Cohesion: 0.50
-Nodes (3): main, name, version
+Cohesion: 0.07
+Nodes (40): AdminUserController, BlockedEntityAdminController, adminListBlockedEntitiesQuerySchema, BlockInput, blockSchema, UnblockInput, unblockSchema, logger (+32 more)
 
 ### Community 139 - "setup.ts"
 Cohesion: 0.50
 Nodes (4): Admin — Barbearias, `GET /admin/barbershops` 🔒 🛡️ `MASTER_ADMIN`, `PATCH /admin/barbershops/:id/status` 🔒 🛡️ `MASTER_ADMIN`, `POST /admin/barbershops` 🔒 🛡️ `MASTER_ADMIN`
 
 ### Community 140 - "vitest.config.mts"
-Cohesion: 0.14
-Nodes (11): DeleteQueueItemController, DeleteQueueItemUseCase, inject, injectable, ALLOWED_TRANSITIONS, assertQueueStatusTransition(), assertQueueTenantAccess(), logger (+3 more)
+Cohesion: 0.12
+Nodes (13): CommissionSplit, ProcedureInput, RetailSalePayload, injectable, UpdateQueueItemUseCase, computeInsertJoinedAt(), ALLOWED_TRANSITIONS, assertQueueStatusTransition() (+5 more)
 
 ### Community 142 - "GoogleLoginUseCase"
 Cohesion: 0.50
@@ -882,7 +860,7 @@ Nodes (4): Financeiro da Barbearia, `GET /barbershop/financial/expenses` 🔒 �
 
 ### Community 145 - "sendWhatsAppMessage"
 Cohesion: 0.14
-Nodes (19): header(), RawBodyRequest, ResendWebhookController, resendWebhookPreParsing(), recordTerminalNotificationFailure(), sanitizeNotificationError(), addSuppression(), applyEmailEvent() (+11 more)
+Nodes (18): header(), RawBodyRequest, ResendWebhookController, resendWebhookPreParsing(), sanitizeNotificationError(), addSuppression(), applyEmailEvent(), EmailWebhookEvent (+10 more)
 
 ### Community 146 - "Pentest local — inputs, upload, XSS e exposição pública"
 Cohesion: 0.06
@@ -901,32 +879,44 @@ Cohesion: 0.17
 Nodes (11): 1. Criar conta no Cloudinary, 2. Copiar credenciais, 3. Adicionar ao `.env`, 4. (Opcional) Criar pasta folders, Cloudinary — Fallback de Storage AgendAI, Como funciona o fallback, Comportamento por cenário, Notas técnicas (+3 more)
 
 ### Community 153 - "cancelSubscription.spec.ts"
-Cohesion: 0.14
-Nodes (11): CrmForecastDTO, ICrmRepository, CrmPermission, CrmUser, GetCrmClientUseCase, GetCrmForecastUseCase, GetCrmOverviewUseCase, ListCrmClientsUseCase (+3 more)
+Cohesion: 0.26
+Nodes (6): WorkSummaryController, GetWorkSummaryUseCase, validateSchema(), protectLastAdmin(), adminInternalRoutes(), internalGuards
 
 ### Community 154 - "PENTEST_REPORT_TEMPLATE.md"
-Cohesion: 0.05
-Nodes (39): bcryptjs, bullmq, cloudinary, disposable-email-domains, fastify, @fastify/cors, @fastify/swagger-ui, @fastify/websocket (+31 more)
+Cohesion: 0.24
+Nodes (8): CloseoutQueryInput, closeoutQuerySchema, CloseoutRangeQueryInput, closeoutRangeQuerySchema, CreateCloseoutInput, createCloseoutSchema, dateValue, decimalString
 
 ### Community 155 - "fastify"
-Cohesion: 0.09
-Nodes (6): OrganizationController, createOrganizationSchema, inviteMemberSchema, updateMemberRoleSchema, updateOrganizationSchema, OrganizationUseCases
+Cohesion: 0.06
+Nodes (7): OrganizationController, OrganizationRepository, createOrganizationSchema, inviteMemberSchema, updateMemberRoleSchema, updateOrganizationSchema, OrganizationUseCases
 
 ### Community 156 - "@prisma/adapter-pg"
-Cohesion: 0.25
-Nodes (4): assertSameBarbershop(), assertShopWhatsAppConnected(), PostsController, toPostResponse()
+Cohesion: 0.30
+Nodes (3): assertSameBarbershop(), PostsController, toPostResponse()
 
 ### Community 157 - "@testcontainers/postgresql"
-Cohesion: 0.07
-Nodes (21): createBarbershopSchema, phoneBR, scheduleItemSchema, updateBarbershopSchema, updateScheduleSchema, CreateBarbershopController, CreateBarbershopUseCase, inject (+13 more)
+Cohesion: 0.11
+Nodes (15): createBarbershopSchema, phoneBR, scheduleItemSchema, updateScheduleSchema, CreateBarbershopController, CreateBarbershopUseCase, inject, injectable (+7 more)
 
-### Community 160 - "AdminDashboardController.ts"
-Cohesion: 0.25
-Nodes (6): AdminFinancialController, EnrichedBarbershop, ExpenseRow, FiadoRow, FiadoSummaryRow, remainingFiado()
+### Community 159 - "app.security.spec.ts"
+Cohesion: 0.21
+Nodes (5): connectSchema, WhatsAppConnectionController, inject, injectable, WhatsAppConnectionUseCase
+
+### Community 161 - "IQueueRepository"
+Cohesion: 0.29
+Nodes (9): enrichExpiration(), stripCost(), ExpirationStatus, expirationWhere(), getExpirationStatus(), getShopToday(), ProductType, supportsExpiration() (+1 more)
+
+### Community 162 - "issueAuthSession.ts"
+Cohesion: 0.20
+Nodes (4): GetScheduleController, GetScheduleUseCase, inject, injectable
 
 ### Community 163 - "AsaasService.ts"
-Cohesion: 0.25
-Nodes (4): DeleteServiceController, DeleteServiceUseCase, inject, injectable
+Cohesion: 0.12
+Nodes (9): DeleteServiceController, DeleteServiceUseCase, inject, injectable, ListServicesController, ListServicesUseCase, inject, injectable (+1 more)
+
+### Community 165 - "assertAppointmentBookable.ts"
+Cohesion: 0.33
+Nodes (6): MetNoPeriod, MetNoPoint, MetNoWeatherProvider, parseMetNoForecast(), spDateKey(), symbolDetails()
 
 ### Community 166 - "ExportUserDataUseCase"
 Cohesion: 0.13
@@ -936,36 +926,48 @@ Nodes (8): ReputationRepository, reputationSelect, RespondInput, reviewResponseS
 Cohesion: 0.18
 Nodes (6): CrmController, resolveCampaignClientIds(), resolveShop(), { findUnique }, assertCrmAccess(), BackfillCrmUseCase
 
-### Community 168 - "AdminNotificationController"
-Cohesion: 0.07
-Nodes (25): AppointmentController, executeSlots, availabilityQuerySchema, CreateAppointmentInput, createAppointmentSchema, dateField, listAppointmentsQuerySchema, phoneBR (+17 more)
-
 ### Community 169 - "google-auth-library"
 Cohesion: 0.13
 Nodes (8): CopilotRepository, suggestionSelect, acceptSchema, copilotSuggestionTypeMap, dismissSchema, listSuggestionsSchema, markReadSchema, ListQuery
 
+### Community 170 - "@opentelemetry/api"
+Cohesion: 0.12
+Nodes (20): activationRoutes(), ActivationController, clientPortalRoutes(), ListSubscriptionsController, walletRoutes(), authenticateClient(), extractBearerToken(), verifyInternalAdmin() (+12 more)
+
 ### Community 171 - "JoinQueueController.ts"
-Cohesion: 0.11
-Nodes (17): BusinessSegment, IBarbershopResponseDTO, ManualShopStatus, OpeningMode, OperationMode, ShopOpenStateDTO, ICreateBarbershopDTO, IUpdateBarbershopDTO (+9 more)
+Cohesion: 0.13
+Nodes (12): BusinessSegment, IBarbershopResponseDTO, ManualShopStatus, OpeningMode, ShopOpenStateDTO, ICreateBarbershopDTO, IUpdateBarbershopDTO, BarbershopRepository (+4 more)
 
 ### Community 173 - "@opentelemetry/resources"
-Cohesion: 0.25
+Cohesion: 0.24
 Nodes (4): DeleteBarbershopController, DeleteBarbershopUseCase, inject, injectable
 
 ### Community 174 - "@opentelemetry/sdk-node"
-Cohesion: 0.28
-Nodes (4): createServiceSchema, updateServiceSchema, CreateServiceController, UpdateServiceController
+Cohesion: 0.15
+Nodes (10): createServiceSchema, updateServiceSchema, CreateServiceController, CreateServiceUseCase, inject, injectable, UpdateServiceController, inject (+2 more)
+
+### Community 175 - "@opentelemetry/semantic-conventions"
+Cohesion: 0.22
+Nodes (7): CheckInAppointmentController, checkInSchema, CheckInAppointmentUseCase, ICheckInDTO, ICheckInResult, logger, injectable
 
 ### Community 176 - "pino"
-Cohesion: 0.39
-Nodes (6): CronLogger, fetchOpenMeteoLogDay(), finite(), getForecastForDate(), populateDailyWeatherLog(), scheduleDailyWeatherLog()
+Cohesion: 0.23
+Nodes (9): CrmForecastDTO, backfillDailyWeatherLog(), CronLogger, fetchOpenMeteoLogDay(), finite(), getForecastForDate(), populateDailyWeatherLog(), scheduleDailyWeatherLog() (+1 more)
 
 ### Community 177 - "@sentry/node"
-Cohesion: 0.19
-Nodes (8): assertOwner(), assertPackageBookable(), assertShopAccess(), batchSlotsOverlap(), IBatchSlot, overlaps(), timeToMinutes(), debitClientPackageInTx()
+Cohesion: 0.20
+Nodes (4): prisma, { PrismaClient }, { randomUUID }, AdvisoryLock
+
+### Community 178 - "ListSubscriptionsController"
+Cohesion: 0.09
+Nodes (24): AppointmentController, executeSlots, availabilityQuerySchema, CreateAppointmentInput, createAppointmentSchema, dateField, listAppointmentsQuerySchema, phoneBR (+16 more)
+
+### Community 179 - "queue.spec.ts"
+Cohesion: 0.20
+Nodes (7): IRegisterGoogleDTO, BASE_INPUT, mockFindFirst, mockTransaction, mockTxBarbershopCreate, mockTxUserCreate, mockVerifyIdToken
 
 ### Community 181 - "ForgotPasswordUseCase"
-Cohesion: 0.19
+Cohesion: 0.17
 Nodes (16): backfillCrmLedger(), EventInput, recordAppointmentCompletion(), recordCrmFinancialEvent(), recordFiadoCreated(), recordFiadoPayment(), recordPackageSale(), recordQueueCompletion() (+8 more)
 
 ### Community 182 - "payments.routes.ts"
@@ -975,6 +977,10 @@ Nodes (9): Fiado / despesas / comissões, Fila / agenda / híbrido, Notificaçõ
 ### Community 184 - "AdminBarbershopController"
 Cohesion: 0.19
 Nodes (16): addFieldSchema, createFormSchema, formFieldTypeEnum, formListQuerySchema, formResponseListQuerySchema, formTypeEnum, submitResponseSchema, updateFieldSchema (+8 more)
+
+### Community 185 - "ResetPasswordUseCase"
+Cohesion: 0.27
+Nodes (9): AttentionItem, AttentionProductSnap, AttentionPurpose, AttentionSaleRow, buildProductAttention(), daysOfCover(), periodDays(), ProductAttention (+1 more)
 
 ### Community 186 - "bruteForceProtection.spec.ts"
 Cohesion: 0.14
@@ -1005,16 +1011,16 @@ Cohesion: 0.21
 Nodes (8): ACTIVE_STATUSES, ALL_STATUSES, ListQueueController, resolveStatuses(), toPublicView(), ListQueueUseCase, inject, injectable
 
 ### Community 202 - "assertOperationEnabled.ts"
-Cohesion: 0.10
-Nodes (13): GetBarbershopController, GetBarbershopUseCase, inject, injectable, ListPublicStaffUseCase, PublicStaffMember, inject, injectable (+5 more)
+Cohesion: 0.09
+Nodes (16): GetBarbershopController, GetBarbershopUseCase, inject, injectable, ListPublicStaffUseCase, PublicStaffMember, inject, injectable (+8 more)
 
 ### Community 203 - "index.ts"
-Cohesion: 0.17
-Nodes (11): ICommissionEntryDTO, ICommissionSplitDTO, ICommissionSummary, IListCommissionsQuery, CommissionRepository, CommissionWithRelations, dateFilter(), include (+3 more)
+Cohesion: 0.19
+Nodes (10): ICommissionEntryDTO, ICommissionSplitDTO, ICommissionSummary, IListCommissionsQuery, CommissionRepository, CommissionWithRelations, dateFilter(), include (+2 more)
 
 ### Community 204 - "CancelSubscriptionController.ts"
-Cohesion: 0.22
-Nodes (10): IJoinQueueDTO, QueueStatus, IUpdateQueueItemDTO, PrismaQueueStatus, toDTO(), toPrisma(), computeIdentityKey(), digits() (+2 more)
+Cohesion: 0.24
+Nodes (4): GetQueueMetricsController, GetQueueMetricsUseCase, inject, injectable
 
 ### Community 205 - "check-docs.mjs"
 Cohesion: 0.25
@@ -1025,64 +1031,72 @@ Cohesion: 0.16
 Nodes (8): ExpenseCategoryController, expenseCatRepo, ServiceCategoryController, serviceCatRepo, createExpenseCategorySchema, createServiceCategorySchema, updateExpenseCategorySchema, updateServiceCategorySchema
 
 ### Community 207 - "ExportFinancialDataUseCase.ts"
-Cohesion: 0.26
-Nodes (6): WorkSummaryController, GetWorkSummaryUseCase, validateSchema(), protectLastAdmin(), adminInternalRoutes(), internalGuards
+Cohesion: 0.20
+Nodes (8): ListPaymentsController, abacateWebhookPreParsing(), ListRefundsController, expensesRoutes(), requirePermission(), checkoutRateLimit, paymentRoutes(), webhookRateLimit
 
 ### Community 208 - "resendWebhookService.ts"
-Cohesion: 0.15
-Nodes (11): IRegisterDTO, BASE_INPUT, mockCreate, mockFindFirst, mockFindUnique, mockTransaction, mockTxBarbershopCreate, mockTxScheduleCreateMany (+3 more)
+Cohesion: 0.17
+Nodes (10): IRegisterDTO, BASE_INPUT, mockCreate, mockFindFirst, mockFindUnique, mockTransaction, mockTxBarbershopCreate, mockTxScheduleCreateMany (+2 more)
 
 ### Community 209 - "GetPaymentStatusUseCase"
-Cohesion: 0.11
-Nodes (11): IPaymentRepository, inject, allowInsecureWebhooks(), ProcessAsaasWebhookController, timingSafeStringEqual(), IAsaasWebhookPayload, ProcessAsaasWebhookUseCase, inject (+3 more)
+Cohesion: 0.22
+Nodes (5): allowInsecureWebhooks(), ProcessAsaasWebhookController, timingSafeStringEqual(), IAsaasWebhookPayload, ProcessWebhookController
 
 ### Community 210 - "AGENTS.md — AgendAI Backend"
 Cohesion: 0.18
 Nodes (11): 0. Regras essenciais, 1. O que é esta API, 2. Inventários locais, 3. Comandos frequentes, 5. Checklist de mudança, 6. Bugs conhecidos fora de escopo, AGENTS.md — AgendAI Backend, ⚠️ Cuidado: Queries com comparação entre colunas (+3 more)
 
 ### Community 211 - "IPaymentRepository"
-Cohesion: 0.16
-Nodes (13): AttentionItem, AttentionProductSnap, AttentionPurpose, AttentionSaleRow, buildProductAttention(), daysOfCover(), periodDays(), ProductAttention (+5 more)
+Cohesion: 0.39
+Nodes (6): assertAppointmentBookable(), countEligibleStaff(), DbClient, overlaps(), timeToMinutes(), assertPublicShopOperationalAccess()
 
 ### Community 212 - "Arquitetura backend — Clean Architecture e SOLID"
 Cohesion: 0.33
 Nodes (5): Arquitetura backend — Clean Architecture e SOLID, Fluxo de execução vs direção das dependências, Responsabilidades, SOLID (exemplos locais), Transações
 
 ### Community 213 - "queueDuplicate.ts"
-Cohesion: 0.09
-Nodes (23): updateQueueItemSchema, buildQueueCalledMessage(), buildQueueCancelledMessage(), buildQueueJoinedMessage(), logger, notifyCustomerJoinedQueue(), NotifyQueuePositionResult, NotifyQueuePositionUpdatesUseCase (+15 more)
+Cohesion: 0.14
+Nodes (15): updateQueueItemSchema, notifyQueueCapacity(), mocks, JoinQueueController, JoinQueueUseCase, inject, injectable, UpdateQueueItemController (+7 more)
 
 ### Community 214 - "Estrutura — Backend (`agendai-back-end`)"
-Cohesion: 0.23
-Nodes (7): CrmCampaignListItem, CrmClientMetrics, CrmOverviewDTO, CrmSegment, buildClientMetrics(), CrmRepository, segmentFor()
+Cohesion: 0.28
+Nodes (6): CompleteAppointmentController, completeAppointmentSchema, CompleteAppointmentRequest, CompleteAppointmentUseCase, ProcedureInput, injectable
 
 ### Community 216 - "CheckInAppointmentUseCase.ts"
 Cohesion: 0.24
 Nodes (11): assignServiceSchema, deleteScheduleSchema, removeServiceSchema, requestTimeOffSchema, timeOffQuerySchema, timeOffStatusEnum, upsertScheduleSchema, AssignServiceInput (+3 more)
 
+### Community 218 - "onboarding.routes.ts"
+Cohesion: 0.33
+Nodes (6): assertShopAccess(), idSchema, manualStatusSchema, queueStatusSchema, shopPayload(), ShopStatusController
+
 ### Community 219 - "verifyRecaptcha.ts"
-Cohesion: 0.16
-Nodes (6): TreeNode, TreeOptions, SeasonalDecomposition, correlation(), mean(), std()
+Cohesion: 0.15
+Nodes (9): FEATURE_NAMES, MaturityLevel, RECOMMENDATIONS, TreeNode, TreeOptions, SeasonalDecomposition, correlation(), mean() (+1 more)
 
 ### Community 220 - "ResetPasswordUseCase"
 Cohesion: 0.27
 Nodes (4): BarbershopFinancialController, GetWeatherInsightsUseCase, inject, injectable
 
 ### Community 221 - "notifications.routes.ts"
-Cohesion: 0.29
-Nodes (10): createShowcaseEntrySchema, showcaseEventQuerySchema, showcaseListQuerySchema, showcaseOrderSchema, updateShowcaseEntrySchema, CreateInput, EventQuery, ListQuery (+2 more)
+Cohesion: 0.18
+Nodes (17): CreateInput, entrySelect, publicEntrySelect, UpdateInput, createShowcaseEntrySchema, imageAuthorizationMap, showcaseEventQuerySchema, showcaseListQuerySchema (+9 more)
 
-### Community 223 - "seed.ts"
-Cohesion: 0.24
-Nodes (4): GetQueueMetricsController, GetQueueMetricsUseCase, inject, injectable
+### Community 225 - "postAiService.spec.ts"
+Cohesion: 0.22
+Nodes (5): DailyLimitExceededError, GeneratePostInput, baseInput, mockRedisGet, mockRedisSet
 
-### Community 224 - "Auth"
-Cohesion: 0.20
-Nodes (5): walletRoutes(), authenticateClient(), extractBearerToken(), randomToken(), tokenDigest()
+### Community 227 - "CrmController.ts"
+Cohesion: 0.46
+Nodes (6): campaignSchema, crmCampaignsListSchema, crmClientsSchema, crmForecastSchema, crmPeriodSchema, mergeClientsSchema
 
 ### Community 228 - "ListSubscriptionsController"
 Cohesion: 0.25
 Nodes (7): A12 pricing + catalog, A13 purchasing ↔ InventoryEngine, A14 corporate, Contrato / WIP, Onda 3 (altos), P0 / dinheiro e takeover, Status da auditoria 15–16/09/2026
+
+### Community 230 - "emailWorker.ts"
+Cohesion: 0.39
+Nodes (7): categoryForTemplate(), createWorker(), emailWorker, ensureEmailWorker(), logDeliveryToPanel(), logger, resetIdleTimer()
 
 ### Community 237 - "GetWeatherForecastUseCase.ts"
 Cohesion: 0.36
@@ -1092,25 +1106,33 @@ Nodes (8): checkDatabase(), checkMigrations(), checkRedis(), healthRoutes(), get
 Cohesion: 0.33
 Nodes (5): Estrutura — Backend (`agendai-back-end`), Middlewares, Módulos (`src/modules/`), Providers / integrações (arquivos), Rotas HTTP (`shared/infra/http/routes/`)
 
-### Community 242 - "ChargeTrialEndedSubscriptionsUseCase"
-Cohesion: 0.19
-Nodes (15): productTypeWhere(), enrichExpiration(), ProductListItem, stripCost(), assertUniqueProductCode(), isProductUniqueViolation(), normalizeCode(), throwProductUniqueViolation() (+7 more)
+### Community 242 - "CancelSubscriptionController.ts"
+Cohesion: 0.29
+Nodes (4): issueProratedRefundMock, prismaMock, cancelReasonSchema, CancelSubscriptionController
+
+### Community 243 - "paymentProviderSnapshot.ts"
+Cohesion: 0.13
+Nodes (8): CashMovementFilters, CashMovementRepository, CreateCashMovementData, DailyCloseoutData, DailyCloseoutRepository, DailyCloseoutResponse, CloseoutPayload, DailyCloseoutUseCases
 
 ### Community 244 - "GetCrmForecastUseCase"
 Cohesion: 0.20
 Nodes (9): addonSelect, comboSelect, CreateAddon, CreateCombo, CreateVariation, UpdateAddon, UpdateCombo, UpdateVariation (+1 more)
 
-### Community 246 - "RecordActivationEventUseCase"
-Cohesion: 0.25
-Nodes (7): CreateInput, entrySelect, publicEntrySelect, UpdateInput, imageAuthorizationMap, showcaseModeMap, showcaseStatusMap
-
 ### Community 247 - "reconciliationService.ts"
-Cohesion: 0.16
-Nodes (9): GetWeatherForecastController, GetWeatherForecastUseCase, RequestingUser, inject, injectable, cache, Location, pending (+1 more)
+Cohesion: 0.33
+Nodes (4): GetWeatherForecastController, GetWeatherForecastUseCase, inject, injectable
 
-### Community 249 - "ExportFinancialDataUseCase"
-Cohesion: 0.22
-Nodes (5): DailyLimitExceededError, GeneratePostInput, baseInput, mockRedisGet, mockRedisSet
+### Community 248 - "@fastify/cors"
+Cohesion: 0.33
+Nodes (4): GetServiceController, GetServiceUseCase, inject, injectable
+
+### Community 250 - "ListSubscriptionsController"
+Cohesion: 0.40
+Nodes (5): blockSchema, calendarRoutes(), id, policySchema, shopId()
+
+### Community 254 - "verifyRecaptcha.ts"
+Cohesion: 0.40
+Nodes (5): logger, RECAPTCHA_MIN_SCORE, RecaptchaResponse, verifyRecaptcha(), verifyToken()
 
 ### Community 255 - "WhatsAppConnectionUseCase"
 Cohesion: 0.29
@@ -1128,29 +1150,25 @@ Nodes (5): 11.1 Configuração, 11.2 Padrão de teste, 11.3 Executar testes, 11.
 Cohesion: 0.31
 Nodes (6): onboardingRoutes(), GetOnboardingUseCase, injectable, injectable, UpdateOnboardingStepUseCase, OnboardingProgressController
 
-### Community 261 - "ReputationController"
-Cohesion: 0.16
-Nodes (8): GetPaymentStatusController, GetPaymentStatusUseCase, inject, injectable, ListPaymentsController, ListPaymentsUseCase, inject, injectable
+### Community 259 - "notifications.routes.ts"
+Cohesion: 0.40
+Nodes (5): listSchema, notificationsRoutes(), ownerShop(), preferencesSchema, whatsappBodySchema
+
+### Community 260 - "paymentProviderSnapshot.ts"
+Cohesion: 0.70
+Nodes (4): allowlist(), buildPaymentProviderSnapshot(), parsePayload(), SAFE_KEYS
 
 ### Community 262 - "formRepository.ts"
 Cohesion: 0.25
 Nodes (7): AddFieldInput, CreateFormInput, formSelect, responseSelect, SubmitResponseInput, UpdateFieldInput, UpdateFormInput
 
-### Community 263 - "productUseCases.ts"
-Cohesion: 0.29
-Nodes (4): ListServicesController, ListServicesUseCase, inject, injectable
-
 ### Community 264 - "resourceRepository.ts"
 Cohesion: 0.33
 Nodes (6): Apêndice B — Endpoints por Role, MASTER_ADMIN only, OWNER + EMPLOYEE + MASTER_ADMIN, OWNER + MASTER_ADMIN, OWNER only, Público (sem autenticação)
 
-### Community 265 - "Auth"
-Cohesion: 0.46
-Nodes (6): campaignSchema, crmCampaignsListSchema, crmClientsSchema, crmForecastSchema, crmPeriodSchema, mergeClientsSchema
-
 ### Community 266 - "Sistema de Assinaturas"
-Cohesion: 0.36
-Nodes (4): CancellationContextController, CancellationContextResult, CancellationContextUseCase, emptyContext()
+Cohesion: 0.09
+Nodes (17): AsaasBillingType, AsaasCustomer, AsaasPayment, AsaasPixQrCode, AsaasRefund, logger, computeProratedAmount(), findApprovedPayment() (+9 more)
 
 ### Community 267 - "staffRepository.ts"
 Cohesion: 0.29
@@ -1160,9 +1178,13 @@ Nodes (6): AssignServiceInput, RequestTimeOffInput, scheduleSelect, serviceSelec
 Cohesion: 0.43
 Nodes (5): AdminDashboardController, formatLabel(), generateTimeSlots(), getPeriodConfig(), Period
 
+### Community 270 - "busboy"
+Cohesion: 0.38
+Nodes (3): ExportUserDataController, ExportUserDataUseCase, injectable
+
 ### Community 273 - "blockedEntitySchemas.ts"
-Cohesion: 0.05
-Nodes (58): AdminUserController, logger, RegisterUseCase, injectable, IRegisterGoogleDTO, logger, RegisterGoogleUseCase, BASE_INPUT (+50 more)
+Cohesion: 0.09
+Nodes (22): logger, ResendVerificationEmailController, logger, ResendVerificationEmailUseCase, injectable, logger, logger, enqueuePostBroadcast() (+14 more)
 
 ### Community 276 - "enhancedDemandPredictor.ts"
 Cohesion: 0.40
@@ -1184,77 +1206,53 @@ Nodes (4): Auth, `GET /auth/me` 🔒, `POST /auth/login`, `POST /auth/refresh`
 Cohesion: 0.38
 Nodes (5): csvCell(), ExportFinancialDataUseCase, ExportRequest, maskName(), injectable
 
-### Community 290 - "TaskController"
-Cohesion: 0.29
-Nodes (4): abacateMock, asaasMock, mpMock, prismaMock
-
 ### Community 291 - "GetPaymentStatusUseCase"
 Cohesion: 0.50
 Nodes (4): Fluxo de assinatura, Sistema de Assinaturas, Status de assinatura, Trial
 
-### Community 292 - "payments.routes.ts"
-Cohesion: 0.33
-Nodes (5): abacateWebhookPreParsing(), ListRefundsController, checkoutRateLimit, paymentRoutes(), webhookRateLimit
-
-### Community 293 - "seed.ts"
-Cohesion: 0.20
-Nodes (7): createTicketCommentSchema, createTicketSchema, updateTicketSchema, CreateTicketUseCase, generateProtocol(), GetTicketUseCase, ListTicketsUseCase
-
 ### Community 294 - "calendar.routes.ts"
-Cohesion: 0.09
-Nodes (20): BlockedEntityAdminController, blockSchema, calendarRoutes(), id, policySchema, shopId(), blockOwnerCpfs(), unblockOwnerCpfs() (+12 more)
-
-### Community 295 - "catalogTemplates.ts"
 Cohesion: 0.33
-Nodes (4): GetServiceController, GetServiceUseCase, inject, injectable
-
-### Community 296 - "subscribe.spec.ts"
-Cohesion: 0.38
-Nodes (6): checkLock(), getLockDuration(), getRemainingTTL(), lockTimers, logger, recordFailure()
-
-### Community 297 - "notifications.routes.ts"
-Cohesion: 0.38
-Nodes (6): retryNotification(), listSchema, notificationsRoutes(), ownerShop(), preferencesSchema, whatsappBodySchema
+Nodes (7): errorMessage(), INVALID_IDENTIFIER_CODES, isPrismaInvalidUuidError(), isUniqueConstraintError(), mapUniqueConstraintError(), UNIQUE_FIELD_MESSAGES, uniqueConstraintTarget()
 
 ### Community 298 - "WorkSummaryController.ts"
-Cohesion: 0.10
-Nodes (13): AdminAuditLogController, AdminNotificationController, AdminReferralsController, verifyInternalAdmin(), auditLogController, barbershopController, blockedEntityController, dashboardController (+5 more)
-
-### Community 299 - "ResetPasswordUseCase"
-Cohesion: 0.83
-Nodes (3): ALLOWED_TABLES, cleanTable(), scheduleCleanOldLogs()
+Cohesion: 0.12
+Nodes (10): AdminAuditLogController, AdminNotificationController, AdminReferralsController, auditLogController, barbershopController, blockedEntityController, dashboardController, notificationController (+2 more)
 
 ### Community 300 - "productsInventory.ts"
 Cohesion: 0.40
 Nodes (3): listPostTemplates(), POST_TEMPLATES, TemplateGroup
 
 ### Community 301 - "cleanOldLogs.cron.ts"
-Cohesion: 0.40
-Nodes (3): insideRlsTx, rlsExtension, RequestContext
+Cohesion: 0.15
+Nodes (7): insideRlsTx, rlsExtension, DailyCloseoutController, RequestContext, barbershopFinancialRoutes(), financial, dailyCloseoutRoutes()
 
 ### Community 305 - "queue.routes.ts"
-Cohesion: 0.53
-Nodes (3): extractBearerToken(), authenticateOptional(), JwtPayload
+Cohesion: 0.24
+Nodes (9): reviewRoutes(), reviewSchema, readPublicAppointmentToken(), extractBearerToken(), JwtPayload, authenticateOptional(), JwtPayload, feedRoutes() (+1 more)
+
+### Community 307 - "plans.routes.ts"
+Cohesion: 0.20
+Nodes (10): AdminBarbershopController, adminCreateBarbershopSchema, adminCreateUserSchema, adminListBarbershopsQuerySchema, adminListSubscriptionsQuerySchema, adminListUsersQuerySchema, adminUpdateBarbershopStatusSchema, adminUpdateUserSchema (+2 more)
 
 ## Knowledge Gaps
-- **1210 isolated node(s):** `docker-entrypoint.sh script`, `args`, `base`, `token`, `shopId` (+1205 more)
+- **1121 isolated node(s):** `docker-entrypoint.sh script`, `args`, `base`, `token`, `shopId` (+1116 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **86 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **54 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AppError` connect `@types/node` to `api.ts`, `IServiceResponseDTO`, `PostsController.ts`, `IExpenseResponseDTO`, `AbacatePayService`, `index.ts`, `compilerOptions`, `IBarbershopRepository`, `AppError`, `💈 AgendAI — Backend API`, `IBarbershopResponseDTO`, `normalizeCpf`, `IStorageProvider`, `appointments.spec.ts`, `auth.routes.ts`, `MercadoPagoService`, `IUserResponseDTO`, `IPaymentDTO.ts`, `IPaymentResponseDTO`, `AgendAI Back‑end — Manual do Sistema`, `blockedEntityService.ts`, `AppointmentController.ts`, `BarbershopFinancialController.ts`, `queue.spec.ts`, `LogoController.ts`, `emailWorker.ts`, `monitor-routes.js`, `planEconomics.ts`, `index.ts`, `Referência Completa de Rotas`, `referralService.ts`, `index.ts`, `ContactController.ts`, `CreateBarbershopUseCase`, `server.ts`, `QueueRepository`, `Barbearias`, `12. Erros Comuns e Como Evitá-los`, `AdminDashboardController.ts`, `GetQueueMetricsUseCase`, `ListBarbershopsUseCase.ts`, `ListQueueController.ts`, `13. Regras de Negócio Críticas`, `Fiado`, `CheckInAppointmentController.ts`, `PlansController.ts`, `6. Sistema de Autenticação e Autorização`, `8. Banco de Dados e Prisma`, `Passo a passo`, `Pagamentos`, `Fila (Queue)`, `VerifyEmailController.ts`, `Admin — Entidades Bloqueadas`, `postgres.ts`, `Admin — Planos`, `Assinaturas`, `Auth`, `@fastify/multipart`, `@prisma/client`, `vitest.config.mts`, `Pentest local — inputs, upload, XSS e exposição pública`, `UpdateBarbershopUseCase`, `QueueRepository`, `cancelSubscription.spec.ts`, `@testcontainers/postgresql`, `AdminDashboardController.ts`, `ExportUserDataUseCase`, `AdminNotificationController`, `google-auth-library`, `JoinQueueController.ts`, `ForgotPasswordUseCase`, `AdminBarbershopController`, `bruteForceProtection.spec.ts`, `@fastify/rate-limit`, `pg`, `Runbook: Aplicar migrations do backend em Staging/Produção`, `assertOperationEnabled.ts`, `CancelSubscriptionController.ts`, `ProcessAsaasWebhookUseCase.ts`, `queueDuplicate.ts`, `Estrutura — Backend (`agendai-back-end`)`, `CheckInAppointmentUseCase.ts`, `notifications.routes.ts`, `Auth`, `ChargeTrialEndedSubscriptionsUseCase`, `GetCrmForecastUseCase`, `RecordActivationEventUseCase`, `reconciliationService.ts`, `AdminNotificationController`, `ReputationController`, `formRepository.ts`, `Auth`, `Sistema de Assinaturas`, `staffRepository.ts`, `blockedEntitySchemas.ts`, `auth-session.pentest.spec.ts`, `calendar.routes.ts`, `catalogTemplates.ts`, `notifications.routes.ts`?**
-  _High betweenness centrality (0.198) - this node is a cross-community bridge._
-- **Why does `prisma` connect `@types/node` to `api.ts`, `PostsController.ts`, `IExpenseResponseDTO`, `AbacatePayService`, `index.ts`, `compilerOptions`, `AppError`, `IBarbershopResponseDTO`, `normalizeCpf`, `IStorageProvider`, `appointments.spec.ts`, `IPlanResponseDTO`, `auth.routes.ts`, `MercadoPagoService`, `RegisterUseCase.ts`, `IPaymentDTO.ts`, `SubscribeUseCase.ts`, `AgendAI Back‑end — Manual do Sistema`, `blockedEntityService.ts`, `AppointmentController.ts`, `IQueueRepository`, `BarbershopFinancialController.ts`, `queue.spec.ts`, `LogoController.ts`, `emailWorker.ts`, `IPaymentRepository`, `monitor-routes.js`, `planEconomics.ts`, `Referência Completa de Rotas`, `referralService.ts`, `index.ts`, `.findById`, `devDependencies`, `CreateBarbershopUseCase`, `server.ts`, `QueueRepository`, `12. Erros Comuns e Como Evitá-los`, `AdminDashboardController.ts`, `ListBarbershopsUseCase.ts`, `ListQueueController.ts`, `13. Regras de Negócio Críticas`, `Fiado`, `6. Sistema de Autenticação e Autorização`, `8. Banco de Dados e Prisma`, `Passo a passo`, `Pagamentos`, `VerifyEmailController.ts`, `Admin — Usuários`, `postgres.ts`, `Admin — Planos`, `Assinaturas`, `Auth`, `@fastify/multipart`, `zod`, `tsup`, `sendWhatsAppMessage`, `cancelSubscription.spec.ts`, `AdminDashboardController.ts`, `ExportUserDataUseCase`, `google-auth-library`, `JoinQueueController.ts`, `pino`, `ForgotPasswordUseCase`, `Runbook: Aplicar migrations do backend em Staging/Produção`, `assertOperationEnabled.ts`, `index.ts`, `CancelSubscriptionController.ts`, `ExportFinancialDataUseCase.ts`, `IPaymentRepository`, `Estrutura — Backend (`agendai-back-end`)`, `Auth`, `GetWeatherForecastUseCase.ts`, `ChargeTrialEndedSubscriptionsUseCase`, `GetCrmForecastUseCase`, `RecordActivationEventUseCase`, `14. Integrações Externas`, `formRepository.ts`, `Auth`, `Sistema de Assinaturas`, `staffRepository.ts`, `.revokeSalonLink`, `blockedEntitySchemas.ts`, `auth-session.pentest.spec.ts`, `seed.ts`, `calendar.routes.ts`, `notifications.routes.ts`, `ResetPasswordUseCase`?**
-  _High betweenness centrality (0.103) - this node is a cross-community bridge._
-- **Why does `EquipmentController` connect `subscribe.spec.ts` to `QueueRepository`, `LogoController.ts`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
+- **Why does `AppError` connect `IUserResponseDTO` to `api.ts`, `IFiadoResponseDTO`, `IServiceResponseDTO`, `IExpenseResponseDTO`, `AbacatePayService`, `index.ts`, `compilerOptions`, `IBarbershopRepository`, `AppError`, `💈 AgendAI — Backend API`, `IBarbershopResponseDTO`, `IStorageProvider`, `appointments.spec.ts`, `auth.routes.ts`, `MercadoPagoService`, `RegisterUseCase.ts`, `IPaymentDTO.ts`, `IPaymentResponseDTO`, `AgendAI Back‑end — Manual do Sistema`, `AppointmentController.ts`, `IQueueRepository`, `BarbershopFinancialController.ts`, `queue.spec.ts`, `LogoController.ts`, `emailWorker.ts`, `monitor-routes.js`, `scripts`, `planEconomics.ts`, `index.ts`, `Referência Completa de Rotas`, `ContactController.ts`, `CreateBarbershopUseCase`, `server.ts`, `QueueRepository`, `9. Como Criar um Novo Módulo`, `Barbearias`, `12. Erros Comuns e Como Evitá-los`, `AdminDashboardController.ts`, `GetQueueMetricsUseCase`, `app.ts`, `ListBarbershopsUseCase.ts`, `13. Regras de Negócio Críticas`, `CheckInAppointmentController.ts`, `PlansController.ts`, `6. Sistema de Autenticação e Autorização`, `8. Banco de Dados e Prisma`, `Passo a passo`, `Pagamentos`, `Fila (Queue)`, `VerifyEmailController.ts`, `CrmController`, `Admin — Entidades Bloqueadas`, `postgres.ts`, `Admin — Planos`, `Assinaturas`, `Auth`, `Financeiro da Barbearia`, `@fastify/multipart`, `ProcessAbacateWebhookController.ts`, `disposable-email-domains.d.ts`, `vitest.config.mts`, `Pentest local — inputs, upload, XSS e exposição pública`, `UpdateBarbershopUseCase`, `QueueRepository`, `fastify`, `@testcontainers/postgresql`, `app.security.spec.ts`, `AsaasService.ts`, `ExportUserDataUseCase`, `AdminNotificationController`, `google-auth-library`, `JoinQueueController.ts`, `@opentelemetry/semantic-conventions`, `ListSubscriptionsController`, `ForgotPasswordUseCase`, `AdminBarbershopController`, `bruteForceProtection.spec.ts`, `@fastify/rate-limit`, `pg`, `Runbook: Aplicar migrations do backend em Staging/Produção`, `assertOperationEnabled.ts`, `ProcessAsaasWebhookUseCase.ts`, `ExportFinancialDataUseCase.ts`, `IPaymentRepository`, `queueDuplicate.ts`, `Estrutura — Backend (`agendai-back-end`)`, `CheckInAppointmentUseCase.ts`, `onboarding.routes.ts`, `notifications.routes.ts`, `CrmController.ts`, `DailyCloseoutController`, `.execute`, `CancelSubscriptionController.ts`, `paymentProviderSnapshot.ts`, `GetCrmForecastUseCase`, `@fastify/cors`, `ListSubscriptionsController`, `verifyRecaptcha.ts`, `notifications.routes.ts`, `formRepository.ts`, `Sistema de Assinaturas`, `staffRepository.ts`, `blockedEntitySchemas.ts`, `auth-session.pentest.spec.ts`, `calendar.routes.ts`, `queue.routes.ts`, `plans.routes.ts`?**
+  _High betweenness centrality (0.227) - this node is a cross-community bridge._
+- **Why does `prisma` connect `IUserResponseDTO` to `api.ts`, `IFiadoResponseDTO`, `PostsController.ts`, `IExpenseResponseDTO`, `AbacatePayService`, `index.ts`, `compilerOptions`, `AppError`, `IBarbershopResponseDTO`, `IStorageProvider`, `appointments.spec.ts`, `IPlanResponseDTO`, `auth.routes.ts`, `MercadoPagoService`, `RegisterUseCase.ts`, `IPaymentDTO.ts`, `AgendAI Back‑end — Manual do Sistema`, `blockedEntityService.ts`, `AppointmentController.ts`, `IQueueRepository`, `BarbershopFinancialController.ts`, `queue.spec.ts`, `LogoController.ts`, `emailWorker.ts`, `IPaymentRepository`, `paymentSchemas.ts`, `monitor-routes.js`, `scripts`, `planEconomics.ts`, `Referência Completa de Rotas`, `index.ts`, `.findById`, `devDependencies`, `CreateBarbershopUseCase`, `server.ts`, `QueueRepository`, `9. Como Criar um Novo Módulo`, `Barbearias`, `12. Erros Comuns e Como Evitá-los`, `AdminDashboardController.ts`, `app.ts`, `ListBarbershopsUseCase.ts`, `ListQueueController.ts`, `13. Regras de Negócio Críticas`, `GetBarbershopUseCase.ts`, `CheckInAppointmentController.ts`, `6. Sistema de Autenticação e Autorização`, `Passo a passo`, `Pagamentos`, `VerifyEmailController.ts`, `CrmController`, `Admin — Usuários`, `postgres.ts`, `Admin — Planos`, `Assinaturas`, `Financeiro da Barbearia`, `@fastify/multipart`, `@prisma/client`, `zod`, `tsup`, `disposable-email-domains.d.ts`, `sendWhatsAppMessage`, `cancelSubscription.spec.ts`, `fastify`, `ExportUserDataUseCase`, `google-auth-library`, `JoinQueueController.ts`, `@opentelemetry/resources`, `@opentelemetry/semantic-conventions`, `pino`, `ForgotPasswordUseCase`, `Runbook: Aplicar migrations do backend em Staging/Produção`, `assertOperationEnabled.ts`, `index.ts`, `IPaymentRepository`, `queueDuplicate.ts`, `Estrutura — Backend (`agendai-back-end`)`, `onboarding.routes.ts`, `notifications.routes.ts`, `CrmController.ts`, `emailWorker.ts`, `DailyCloseoutController`, `GetWeatherForecastUseCase.ts`, `CancelSubscriptionController.ts`, `paymentProviderSnapshot.ts`, `GetCrmForecastUseCase`, `ListSubscriptionsController`, `14. Integrações Externas`, `notifications.routes.ts`, `formRepository.ts`, `Sistema de Assinaturas`, `staffRepository.ts`, `.revokeSalonLink`, `blockedEntitySchemas.ts`, `auth-session.pentest.spec.ts`, `queue.routes.ts`, `plans.routes.ts`?**
+  _High betweenness centrality (0.099) - this node is a cross-community bridge._
+- **Why does `IBarbershopRepository` connect `JoinQueueController.ts` to `@types/node`, `notifications.routes.ts`, `IBarbershopRepository`, `vitest.config.mts`, `appointments.spec.ts`, `IUserResponseDTO`, `RegisterUseCase.ts`, `@testcontainers/postgresql`, `app.security.spec.ts`, `issueAuthSession.ts`, `monitor-routes.js`, `@opentelemetry/resources`, `ForgotPasswordUseCase`, `Barbearias`, `GetQueueMetricsUseCase`, `app.ts`, `13. Regras de Negócio Críticas`, `assertOperationEnabled.ts`, `index.ts`, `7. Sistema de Assinaturas e Bloqueio de CPF`, `queueDuplicate.ts`, `reconciliationService.ts`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
 - **Are the 58 inferred relationships involving `authenticate()` (e.g. with `activationRoutes()` and `analyticsRoutes()`) actually correct?**
   _`authenticate()` has 58 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 57 inferred relationships involving `setRlsContext()` (e.g. with `activationRoutes()` and `analyticsRoutes()`) actually correct?**
   _`setRlsContext()` has 57 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `docker-entrypoint.sh script`, `args`, `base` to the rest of the system?**
-  _1210 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1121 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `api.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.14553990610328638 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1480225988700565 - nodes in this community are weakly interconnected._

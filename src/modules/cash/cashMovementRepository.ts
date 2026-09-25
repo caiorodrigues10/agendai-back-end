@@ -81,7 +81,7 @@ export class CashMovementRepository {
         summary[m.paymentMethod] = { total: 0, count: 0 };
       }
       const amt = Number(m.amount);
-      const isIn = ["SERVICE_SALE", "PRODUCT_SALE", "PACKAGE_SALE", "FIADO_PAYMENT"].includes(m.type);
+      const isIn = ["SERVICE_SALE", "PRODUCT_SALE", "PACKAGE_SALE", "FIADO_PAYMENT", "TIP", "OTHER"].includes(m.type);
       summary[m.paymentMethod].total += isIn ? amt : -amt;
       summary[m.paymentMethod].count += 1;
     }

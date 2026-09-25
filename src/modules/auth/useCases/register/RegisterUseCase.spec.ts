@@ -5,7 +5,6 @@ const mockCreate = vi.fn();
 const mockFindUnique = vi.fn();
 const mockFindFirst = vi.fn();
 const mockTxBarbershopCreate = vi.fn();
-const mockTxServiceCreateMany = vi.fn();
 const mockTxScheduleCreateMany = vi.fn();
 const mockTxUserCreate = vi.fn();
 const mockTxVerificationTokenCreate = vi.fn();
@@ -86,9 +85,28 @@ function mockTransactionSuccess(schedule?: IRegisterDTO["schedule"]) {
 
   mockTransaction.mockImplementation(async (fn: any) => {
     const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
       barbershop: { create: mockTxBarbershopCreate },
-      service: { createMany: mockTxServiceCreateMany },
+      serviceCategory: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: "sc-1" }),
+      },
+      service: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+        update: vi.fn().mockResolvedValue({}),
+      },
       schedule: { createMany: mockTxScheduleCreateMany },
+      expenseCategory: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      productCategory: { createMany: vi.fn().mockResolvedValue({}) },
+      appointmentPolicy: { upsert: vi.fn().mockResolvedValue({}) },
+      barbershopEmailSettings: { upsert: vi.fn().mockResolvedValue({}) },
+      notificationPreference: { createMany: vi.fn().mockResolvedValue({}) },
+      profitSettings: { upsert: vi.fn().mockResolvedValue({}) },
+      loyaltyProgram: { upsert: vi.fn().mockResolvedValue({}) },
       user: { create: mockTxUserCreate },
       verificationToken: { create: mockTxVerificationTokenCreate },
     };

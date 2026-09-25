@@ -116,12 +116,24 @@ export class GetWeatherInsightsUseCase {
       ? predictions.reduce((s, p) => s + (Number.isFinite(p.dropPct) ? p.dropPct : 0), 0) / predictions.length
       : 0;
     const highRiskDays = predictions.filter(p => p.riskLevel === 'high' || p.riskLevel === 'critical');
-    const tomorrow = predictions[0] ?? null;
+    const firstPrediction = predictions[0] ?? null;
 
     const highlights: string[] = [];
-    if (tomorrow && tomorrow.dropPct <= -15) {
+    if (firstPrediction && firstPrediction.dropPct <= -15) {
+      // predictions[0] é o primeiro dia da previsão — pode ser hoje, amanhã ou além
+      const [py, pm, pd] = firstPrediction.date.split('-').map(Number);
+      const predictionDay = new Date(py, (pm ?? 1) - 1, pd ?? 1);
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const diffDays = Math.round((predictionDay.getTime() - todayStart.getTime()) / 86_400_000);
+      const when =
+        diffDays <= 0
+          ? 'Hoje'
+          : diffDays === 1
+            ? 'Amanhã'
+            : predictionDay.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
       highlights.push(
-        `Amanhã (${tomorrow.condition}): queda estimada de ${Math.abs(tomorrow.dropPct)}% nos atendimentos.`
+        `${when} (${firstPrediction.condition}): queda estimada de ${Math.abs(firstPrediction.dropPct)}% nos atendimentos.`
       );
     }
     if (highRiskDays.length > 0) {

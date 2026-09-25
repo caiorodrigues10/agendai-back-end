@@ -294,7 +294,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     expect(invoiceCreate.paymentMethod).toBe("pix");
   });
 
-  it("[ASAAS] cartão: cria cobrança hospedada sem PAN e devolve invoiceUrl", async () => {
+  it("[ASAAS] cartão: cobra na própria página, sem invoiceUrl e sem gravar o PAN", async () => {
     const asaasService = {
       ensureCustomer: vi.fn().mockResolvedValue("cus_1"),
       createPayment: vi.fn().mockResolvedValue({
@@ -304,6 +304,8 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
         billingType: "CREDIT_CARD",
         invoiceUrl: "https://www.asaas.com/i/pay_asaas_card",
         externalReference: "ag-sub-sub-1-inv-inv-1",
+        creditCard: { number: "4111111111111111", ccv: "123" },
+        creditCardToken: "tok_secret",
       }),
       getPixQrCode: vi.fn(),
     };
@@ -315,6 +317,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
       repo as any
     );
 
+    const createSpy = vi.spyOn(repo, "create");
     const result = await useCase.execute(
       {
         barbershopId: "shop-1",
@@ -326,6 +329,16 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
         payerFirstName: "Dono",
         payerLastName: "Teste",
         payerIdentification: { type: "CPF", number: "12345678901" },
+        asaasCreditCard: {
+          holderName: "Dono Teste",
+          number: "4111111111111111",
+          expiryMonth: "12",
+          expiryYear: "2030",
+          ccv: "123",
+          postalCode: "01310100",
+          addressNumber: "100",
+          phone: "11999999999",
+        },
       },
       { role: "OWNER", barbershopId: "shop-1" }
     );
@@ -334,13 +347,19 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
       expect.objectContaining({
         customer: "cus_1",
         billingType: "CREDIT_CARD",
+        remoteIp: "127.0.0.1",
+        creditCard: expect.objectContaining({ number: "4111111111111111", ccv: "123" }),
       })
     );
-    expect(asaasService.createPayment.mock.calls[0][0].creditCard).toBeUndefined();
+    const stored = JSON.parse(String(createSpy.mock.calls[0][0].rawResponse));
+    expect(stored.creditCard).toBeUndefined();
+    expect(stored.creditCardToken).toBeUndefined();
+    expect(JSON.stringify(stored)).not.toContain("4111111111111111");
+    expect(JSON.stringify(stored)).not.toContain("tok_secret");
     expect(result.payment?.provider).toBe("ASAAS");
     expect(result.payment?.providerPaymentId).toBe("pay_asaas_card");
     expect(result.payment?.paymentMethod).toBe("credit_card");
-    expect(result.payment?.checkoutUrl).toBe("https://www.asaas.com/i/pay_asaas_card");
+    expect(result.payment?.checkoutUrl).toBeNull();
     expect(result.payment?.pixQrCode).toBeNull();
     expect(result.payment?.status).toBe("pending");
 

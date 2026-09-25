@@ -966,7 +966,7 @@ model Subscription {
   /// Cliente Asaas (para cobrança pós-trial com cartão vaulted).
   asaasCustomerId      String?            @db.VarChar(64)
   /// Token do cartão Asaas (POST /v3/creditCard/tokenize) — sem cobrança no cadastro.
-  asaasCreditCardToken String?            @db.VarChar(128)
+  asaasCreditCardToken String?            @db.VarChar(512)
   cardLast4            String?            @db.VarChar(4)
   cardBrand            String?            @db.VarChar(32)
   createdAt            DateTime           @default(now())

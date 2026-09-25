@@ -18,7 +18,8 @@ export const createClientSchema = z.object({
 
 export const updateClientSchema = z.object({
   name: z.string().min(2).max(200).optional(),
-  whatsapp: phoneBR.optional(),
+  // "" é válido: limpa o WhatsApp (paridade com createClientSchema)
+  whatsapp: phoneBR.optional().or(z.literal("")),
   notes: z.string().max(2000).optional().nullable(),
   marketingOptIn: z.boolean().optional(),
   marketingOptInSource: z.string().max(80).optional().nullable(),
@@ -27,7 +28,8 @@ export const updateClientSchema = z.object({
 export const listClientsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  search: z.string().max(100).optional(),
+  // max generoso: busca longa não pode derrubar a listagem inteira com 400
+  search: z.string().max(300).optional(),
 });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;

@@ -24,6 +24,8 @@
     "db:validate-schema": "prisma validate && prisma migrate status",
     "prisma:generate": "prisma generate",
     "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed:demo": "tsx prisma/seed.ts --profile=demo",
+    "prisma:seed:tenant": "tsx prisma/seed.ts --tenant",
     "security:audit-logs": "tsx scripts/remediateSensitiveAuditLogs.ts",
     "prisma:studio": "prisma studio",
     "db:push": "prisma db push",

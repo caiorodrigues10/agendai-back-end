@@ -65,6 +65,23 @@ describe("cashMovementSchema", () => {
       expect(result.amount).toBe(100);
     });
 
+    it("accepts TIP and OTHER movement types", () => {
+      expect(
+        createCashMovementSchema.parse({
+          type: "TIP",
+          amount: 10,
+          paymentMethod: "CASH",
+        }).type,
+      ).toBe("TIP");
+      expect(
+        createCashMovementSchema.parse({
+          type: "OTHER",
+          amount: 5,
+          paymentMethod: "PIX",
+        }).type,
+      ).toBe("OTHER");
+    });
+
     it("rejects zero or negative amount", () => {
       expect(() =>
         createCashMovementSchema.parse({

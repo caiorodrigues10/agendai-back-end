@@ -17,6 +17,19 @@ vi.mock("./routes", () => ({
     app.get("/test/boom", async () => {
       throw new Error("secret internal stack");
     });
+    app.post(
+      "/test/schema",
+      {
+        schema: {
+          body: {
+            type: "object",
+            required: ["password"],
+            properties: { password: { type: "string" } },
+          },
+        },
+      },
+      async () => ({ ok: true }),
+    );
   },
 }));
 
@@ -98,5 +111,34 @@ describe("HTTP error handler", () => {
       message: "Erro interno do servidor",
     });
     expect(JSON.stringify(body)).not.toContain("secret internal stack");
+  });
+
+  it("maps Fastify schema validation errors to 400 with field errors", async () => {
+    const response = await app.inject({ method: "POST", url: "/test/schema", payload: {} });
+    expect(response.statusCode).toBe(400);
+    const body = response.json();
+    expect(body.success).toBe(false);
+    expect(body.message).toBe("Dados inválidos");
+    expect(body.errors).toEqual([
+      expect.objectContaining({ field: "password", message: expect.any(String) }),
+    ]);
+    expect(body.correlationId).toEqual(expect.any(String));
+    expect(JSON.stringify(body)).not.toContain("stack");
+  });
+
+  it("maps Fastify content-type errors (FST_*) to their 4xx status", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/test/schema",
+      headers: { "content-type": "application/json" },
+      payload: "",
+    });
+    expect(response.statusCode).toBe(400);
+    const body = response.json();
+    expect(body).toMatchObject({
+      success: false,
+      message: "Requisição inválida",
+    });
+    expect(body.correlationId).toEqual(expect.any(String));
   });
 });

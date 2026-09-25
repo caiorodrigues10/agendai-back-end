@@ -14,6 +14,16 @@ function finite(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+// America/Sao_Paulo está em UTC-3 desde 2019 (sem DST). Offset fixo evita
+// depender do TZ da máquina (Render roda em UTC) ao montar limites do dia.
+const SP_UTC_OFFSET_MS = -3 * 60 * 60 * 1000;
+
+function spDayBounds(ymd: string): { start: Date; end: Date } {
+  const start = new Date(Date.parse(`${ymd}T00:00:00.000Z`) - SP_UTC_OFFSET_MS);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { start, end };
+}
+
 async function fetchOpenMeteoLogDay(
   latitude: number,
   longitude: number,
@@ -96,8 +106,14 @@ export async function populateDailyWeatherLog(): Promise<void> {
 
   if (barbershops.length === 0) return;
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
+  // "Ontem" no calendário de São Paulo (o cron roda às 00:15 America/Sao_Paulo;
+  // derivar de new Date().setDate(-1) usa o TZ do servidor e desloca o dia
+  // quando a máquina está em UTC).
+  const now = new Date();
+  const spNow = new Date(now.getTime() + SP_UTC_OFFSET_MS);
+  const yesterday = new Date(
+    Date.UTC(spNow.getUTCFullYear(), spNow.getUTCMonth(), spNow.getUTCDate() - 1)
+  );
   const dateStr = yesterday.toISOString().slice(0, 10);
 
   console.log(`[dailyWeatherLog] Populating weather logs for ${dateStr}, ${barbershops.length} barbershops`);
@@ -123,10 +139,7 @@ export async function populateDailyWeatherLog(): Promise<void> {
           );
           if (!weatherData) console.warn(`[dailyWeatherLog] Weather fetch failed for ${shop.name}`);
 
-          const startOfDay = new Date(yesterday);
-          startOfDay.setHours(0, 0, 0, 0);
-          const endOfDay = new Date(yesterday);
-          endOfDay.setHours(23, 59, 59, 999);
+          const { start: startOfDay, end: endOfDay } = spDayBounds(dateStr);
 
           const [queueCount, appointmentCount, revenueAgg] = await Promise.all([
             prisma.queueItem.count({
@@ -221,15 +234,15 @@ export async function backfillDailyWeatherLog(days: number = 90): Promise<void> 
         if (existing) continue;
 
         const startOfDay = new Date(date);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(date);
-        endOfDay.setHours(23, 59, 59, 999);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const dayKey = startOfDay.toISOString().slice(0, 10);
+        const { start: dayStart, end: dayEnd } = spDayBounds(dayKey);
 
         const [queueCount, appointmentCount, revenueAgg] = await Promise.all([
           prisma.queueItem.count({
             where: {
               barbershopId: shop.id,
-              completedAt: { gte: startOfDay, lte: endOfDay },
+              completedAt: { gte: dayStart, lte: dayEnd },
               status: "COMPLETED",
             },
           }),
@@ -243,7 +256,7 @@ export async function backfillDailyWeatherLog(days: number = 90): Promise<void> 
           prisma.queueItem.aggregate({
             where: {
               barbershopId: shop.id,
-              completedAt: { gte: startOfDay, lte: endOfDay },
+              completedAt: { gte: dayStart, lte: dayEnd },
               status: "COMPLETED",
             },
             _sum: { finalPrice: true },

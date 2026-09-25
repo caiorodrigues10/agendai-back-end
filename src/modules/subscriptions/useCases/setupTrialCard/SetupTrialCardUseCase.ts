@@ -2,10 +2,11 @@ import { inject, injectable } from 'tsyringe'
 import { prisma } from '@/libs/prismaClient'
 import { AppError } from '@/shared/errors/AppError'
 import { AsaasService } from '@/modules/payments/services/AsaasService'
-import { IPaymentRepository } from '@/modules/payments/repositories/IPaymentRepository'
 import { TRIAL_DAYS } from '@/shared/constants/subscription'
 import { invalidateSubscriptionCache } from '@/shared/infra/http/middlewares/subscriptionAccessCache'
+import { encrypt } from '@/shared/utils/encryption'
 import { buildSubscriptionResponse } from '../../utils/subscriptionMapper'
+import type { AsaasCreditCardInput } from '../../schemas/subscriptionSchemas'
 
 export interface ISetupTrialCardDTO {
 	planId: string
@@ -13,34 +14,25 @@ export interface ISetupTrialCardDTO {
 	payerFirstName?: string
 	payerLastName?: string
 	payerIdentification: { type: 'CPF' | 'CNPJ'; number: string }
-	asaasCreditCard?: unknown
+	asaasCreditCard: AsaasCreditCardInput
 	remoteIp: string
 }
 
 /**
- * Inicia trial e gera cobrança CREDIT_CARD no Asaas **sem** PAN no Fastify.
- * O titular informa o cartão em `invoiceUrl` (checkout hospedado).
- * Tokens vaulted antigos continuam sendo cobrados pelo cron pós-trial.
+ * Inicia o trial e tokeniza o cartão na Asaas, na mesma página.
+ * O PAN segue só até a tokenização e não é gravado. O cron pós-trial cobra o token.
  */
 @injectable()
 export class SetupTrialCardUseCase {
 	constructor(
 		@inject('AsaasService')
 		private asaasService: AsaasService,
-		@inject('PaymentRepository')
-		private paymentRepo: IPaymentRepository,
 	) {}
 
 	async execute(
 		data: ISetupTrialCardDTO,
 		requestingUser: { id: string; role: string; barbershopId?: string | null },
 	) {
-		if (data.asaasCreditCard != null) {
-			throw new AppError(
-				'PAN/CVV não são aceitos no servidor. Use o checkout hospedado Asaas.',
-				400,
-			)
-		}
 		if (requestingUser.role === 'EMPLOYEE') {
 			throw new AppError('Apenas o dono pode cadastrar o cartão', 403)
 		}
@@ -75,7 +67,6 @@ export class SetupTrialCardUseCase {
 
 		const trialEnd = new Date(barbershop.createdAt)
 		trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS)
-		const dueDateStr = trialEnd.toISOString().slice(0, 10)
 
 		const existing = await prisma.subscription.findUnique({
 			where: { barbershopId },
@@ -113,36 +104,51 @@ export class SetupTrialCardUseCase {
 					include: { plan: true, invoices: { orderBy: { createdAt: 'desc' }, take: 1 } },
 				})
 
-		const payment = await this.asaasService.createPayment({
+		const card = data.asaasCreditCard
+		const holderName =
+			card.holderName ||
+			[data.payerFirstName, data.payerLastName].filter(Boolean).join(' ') ||
+			owner?.name ||
+			barbershop.name
+
+		const tokenized = await this.asaasService.tokenizeCreditCard({
 			customer: customerId,
-			billingType: 'CREDIT_CARD',
-			value: plan.price,
-			dueDate: dueDateStr,
-			description: `Assinatura ${plan.name} (após trial)`,
-			externalReference: `ag-trial-${barbershopId}`,
+			creditCard: {
+				holderName,
+				number: card.number,
+				expiryMonth: card.expiryMonth,
+				expiryYear: card.expiryYear,
+				ccv: card.ccv,
+			},
+			creditCardHolderInfo: {
+				name: holderName,
+				email: data.payerEmail,
+				cpfCnpj,
+				postalCode: card.postalCode,
+				addressNumber: card.addressNumber,
+				phone: card.phone,
+			},
+			remoteIp: data.remoteIp,
 		})
 
-		const paymentRecord = await this.paymentRepo.create({
-			mpPaymentId: null,
-			provider: 'ASAAS',
-			providerPaymentId: payment.id,
-			checkoutUrl: payment.invoiceUrl ?? null,
-			status: 'pending',
-			statusDetail: payment.status ?? 'PENDING',
-			paymentMethod: 'credit_card',
-			transactionAmount: plan.price,
-			currency: 'BRL',
-			description: `Assinatura ${plan.name} (após trial)`,
-			barbershopId,
-			externalReference: `ag-trial-${barbershopId}`,
-			rawResponse: JSON.stringify(payment),
+		const encryptedToken = encrypt(tokenized.creditCardToken)
+		if (encryptedToken.length > 512) {
+			throw new AppError('Token do cartão excedeu o tamanho permitido', 500)
+		}
+
+		const last4 = (tokenized.creditCardNumber || card.number).replace(/\D/g, '').slice(-4)
+		const saved = await prisma.subscription.update({
+			where: { id: subscription.id },
+			data: {
+				asaasCreditCardToken: encryptedToken,
+				cardLast4: last4,
+				cardBrand: tokenized.creditCardBrand ?? null,
+			},
+			include: { plan: true, invoices: { orderBy: { createdAt: 'desc' }, take: 1 } },
 		})
 
 		await invalidateSubscriptionCache(barbershopId)
 
-		return {
-			...buildSubscriptionResponse(subscription, barbershop.createdAt, TRIAL_DAYS),
-			payment: paymentRecord,
-		}
+		return buildSubscriptionResponse(saved, barbershop.createdAt, TRIAL_DAYS)
 	}
 }

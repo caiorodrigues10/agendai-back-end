@@ -38,6 +38,11 @@ export interface DailyCloseoutResponse {
 }
 
 export class DailyCloseoutRepository {
+  /**
+   * Upsert atômico (INSERT ... ON CONFLICT no Postgres). O padrão antigo
+   * findUnique → create/update corria com requisições concorrentes: dois
+   * POSTs simultâneos liam null e ambos tentavam create → P2002 (500).
+   */
   async upsert(
     barbershopId: string,
     date: Date,
@@ -46,50 +51,39 @@ export class DailyCloseoutRepository {
     const normalizedDate = new Date(date);
     normalizedDate.setHours(0, 0, 0, 0);
 
-    const existing = await prisma.dailyCloseout.findUnique({
-      where: { barbershopId_date: { barbershopId, date: normalizedDate } },
-    });
+    const fields = {
+      balanceOpen: data.balanceOpen,
+      cashReceived: data.cashReceived,
+      pixReceived: data.pixReceived,
+      cardReceived: data.cardReceived,
+      fiadoCreated: data.fiadoCreated,
+      fiadoPaid: data.fiadoPaid,
+      expenses: data.expenses,
+      commissions: data.commissions,
+      productSales: data.productSales,
+      discrepancy: data.discrepancy ?? null,
+      notes: data.notes ?? null,
+      closedBy: data.closedBy ?? null,
+      closedAt: data.closedAt ?? new Date(),
+    };
 
-    if (existing) {
+    try {
+      return await prisma.dailyCloseout.upsert({
+        where: { barbershopId_date: { barbershopId, date: normalizedDate } },
+        create: { barbershopId, date: normalizedDate, ...fields },
+        update: fields,
+      });
+    } catch (err) {
+      // Fallback defensivo: em cenários em que o Prisma não usa upsert nativo,
+      // P2002 significa que outra requisição criou a linha — vira update.
+      const isUniqueViolation =
+        typeof err === "object" && err !== null && (err as { code?: string }).code === "P2002";
+      if (!isUniqueViolation) throw err;
       return prisma.dailyCloseout.update({
-        where: { id: existing.id },
-        data: {
-          balanceOpen: data.balanceOpen,
-          cashReceived: data.cashReceived,
-          pixReceived: data.pixReceived,
-          cardReceived: data.cardReceived,
-          fiadoCreated: data.fiadoCreated,
-          fiadoPaid: data.fiadoPaid,
-          expenses: data.expenses,
-          commissions: data.commissions,
-          productSales: data.productSales,
-          discrepancy: data.discrepancy ?? null,
-          notes: data.notes ?? null,
-          closedBy: data.closedBy ?? null,
-          closedAt: data.closedAt ?? new Date(),
-        },
+        where: { barbershopId_date: { barbershopId, date: normalizedDate } },
+        data: fields,
       });
     }
-
-    return prisma.dailyCloseout.create({
-      data: {
-        barbershopId,
-        date: normalizedDate,
-        balanceOpen: data.balanceOpen,
-        cashReceived: data.cashReceived,
-        pixReceived: data.pixReceived,
-        cardReceived: data.cardReceived,
-        fiadoCreated: data.fiadoCreated,
-        fiadoPaid: data.fiadoPaid,
-        expenses: data.expenses,
-        commissions: data.commissions,
-        productSales: data.productSales,
-        discrepancy: data.discrepancy ?? null,
-        notes: data.notes ?? null,
-        closedBy: data.closedBy ?? null,
-        closedAt: data.closedAt ?? new Date(),
-      },
-    });
   }
 
   async findByDate(

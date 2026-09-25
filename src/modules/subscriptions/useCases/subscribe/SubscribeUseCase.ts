@@ -2,7 +2,7 @@ import { inject, injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
 import { MercadoPagoService } from "@/modules/payments/services/MercadoPagoService";
 import { AbacatePayService } from "@/modules/payments/services/AbacatePayService";
-import { AsaasService } from "@/modules/payments/services/AsaasService";
+import { AsaasPayment, AsaasService } from "@/modules/payments/services/AsaasService";
 import { IPaymentRepository } from "@/modules/payments/repositories/IPaymentRepository";
 import { AppError } from "@/shared/errors/AppError";
 import { IPaymentResponseDTO } from "@/modules/payments/dtos/IPaymentDTO";
@@ -15,6 +15,21 @@ import { getModuleLogger } from "@/shared/utils/logger";
 import { assertPaymentProviderEnabled } from "@/config/paymentProviders";
 
 const logger = getModuleLogger("subscriptions:subscribe");
+
+function asaasChargeStatus(
+  status: string | undefined
+): "pending" | "approved" | "cancelled" {
+  if (status === "RECEIVED" || status === "CONFIRMED") return "approved";
+  if (status === "OVERDUE" || status === "CANCELLED" || status === "DELETED") return "cancelled";
+  return "pending";
+}
+
+function asaasPaymentSnapshot(payment: AsaasPayment): Record<string, unknown> {
+  const snapshot: Record<string, unknown> = { ...payment };
+  delete snapshot.creditCard;
+  delete snapshot.creditCardToken;
+  return snapshot;
+}
 
 function frontendBaseUrl(): string {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
@@ -221,6 +236,29 @@ export class SubscribeUseCase {
           externalReference,
           description,
         });
+        if (data.asaasBillingType === "CREDIT_CARD" && paymentRecord.status === "approved") {
+          await prisma.$transaction([
+            prisma.invoice.update({
+              where: { id: invoice.id },
+              data: { status: "PAID", paidAt: new Date(), paymentMethod: "credit_card" },
+            }),
+            prisma.subscription.update({
+              where: { id: subscription.id },
+              data: {
+                status: "ACTIVE",
+                endDate: new Date(
+                  Date.now() + billingPeriodDays(plan.billingCycle) * 86400000
+                ),
+              },
+            }),
+          ]);
+          const { qualifyReferralOnPayment } = await import(
+            "@/modules/referrals/services/referralService"
+          );
+          await qualifyReferralOnPayment(data.barbershopId).catch((err) => {
+            logger.warn({ err, barbershopId: data.barbershopId }, "Falha ao qualificar indicação após pagamento");
+          });
+        }
       } else if (data.paymentMethod === "pix") {
         const mpResponse = await this.mpService.createPixPayment({
           transactionAmount: plan.price,
@@ -454,9 +492,8 @@ export class SubscribeUseCase {
   }
 
   /**
-   * Asaas: PIX embutido (QR no app). Cartão usa cobrança CREDIT_CARD **sem** PAN/CVV
-   * no Fastify — o cliente paga em `invoiceUrl` (checkout hospedado Asaas).
-   * Webhook ativa a assinatura.
+   * Asaas: PIX embutido (QR no app). Cartão é checkout transparente:
+   * o número segue só até a Asaas e não é gravado. Sem invoiceUrl.
    */
   private async createAsaasPayment(params: {
     plan: {
@@ -473,13 +510,6 @@ export class SubscribeUseCase {
     description: string;
   }): Promise<IPaymentResponseDTO> {
     const { plan, data, barbershopId, externalReference, description } = params;
-
-    if (data.asaasCreditCard) {
-      throw new AppError(
-        "Número de cartão não é aceito no servidor. Use o checkout hospedado Asaas.",
-        400
-      );
-    }
 
     const name = [data.payerFirstName, data.payerLastName]
       .filter(Boolean)
@@ -498,12 +528,16 @@ export class SubscribeUseCase {
     const dueDateStr = dueDate.toISOString().slice(0, 10);
 
     const isCard = data.asaasBillingType === "CREDIT_CARD";
+    const card = data.asaasCreditCard;
 
     if (isCard && !data.payerIdentification) {
       throw new AppError(
         "Identificação (CPF/CNPJ) é obrigatória para pagamento no cartão",
         400
       );
+    }
+    if (isCard && !card) {
+      throw new AppError("Informe os dados do cartão para pagar nesta página", 400);
     }
 
     const payment = await this.asaasService.createPayment({
@@ -513,6 +547,26 @@ export class SubscribeUseCase {
       dueDate: dueDateStr,
       description,
       externalReference,
+      creditCard: card
+        ? {
+            holderName: card.holderName,
+            number: card.number,
+            expiryMonth: card.expiryMonth,
+            expiryYear: card.expiryYear,
+            ccv: card.ccv,
+          }
+        : undefined,
+      creditCardHolderInfo: card
+        ? {
+            name: card.holderName,
+            email: data.payerEmail,
+            cpfCnpj: data.payerIdentification!.number,
+            postalCode: card.postalCode,
+            addressNumber: card.addressNumber,
+            phone: card.phone,
+          }
+        : undefined,
+      remoteIp: data.remoteIp,
     });
 
     let pixQrCode:
@@ -533,8 +587,8 @@ export class SubscribeUseCase {
       mpPaymentId: null,
       provider: "ASAAS",
       providerPaymentId: payment.id,
-      checkoutUrl: isCard ? payment.invoiceUrl ?? null : null,
-      status: "pending",
+      checkoutUrl: null,
+      status: asaasChargeStatus(payment.status),
       statusDetail: payment.status ?? "PENDING",
       paymentMethod: isCard ? "credit_card" : "pix",
       transactionAmount: plan.price,
@@ -547,7 +601,7 @@ export class SubscribeUseCase {
       pixExpirationDate: pixQrCode?.expirationDate
         ? new Date(pixQrCode.expirationDate)
         : null,
-      rawResponse: JSON.stringify(payment),
+      rawResponse: JSON.stringify(asaasPaymentSnapshot(payment)),
     });
   }
 }

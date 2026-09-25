@@ -236,6 +236,43 @@ async function handleAppError(error: FastifyError, request: FastifyRequest, repl
         return;
       }
 
+      // Erros de validação de schema do Fastify (FST_ERR_VALIDATION) — erro do cliente, nunca 500
+      const fastifyValidation = (error as {
+        validation?: Array<{ instancePath?: string; message?: string; params?: Record<string, unknown> }>;
+      }).validation;
+      if (Array.isArray(fastifyValidation)) {
+        reply.status(400).send({
+          success: false,
+          message: "Dados inválidos",
+          errors: fastifyValidation.map(issue => {
+            const missing = issue.params?.missingProperty;
+            const field =
+              issue.instancePath?.replace(/^\//, "") ||
+              (typeof missing === "string" ? missing : "body");
+            return { field, message: issue.message ?? "Valor inválido" };
+          }),
+          correlationId: request.correlationId,
+        });
+        return;
+      }
+
+      // Outros erros 4xx do Fastify (content-type inválido, body vazio, URL malformada…)
+      const fastifyCode = (error as { code?: string }).code;
+      if (
+        typeof fastifyCode === "string" &&
+        fastifyCode.startsWith("FST_") &&
+        typeof error.statusCode === "number" &&
+        error.statusCode >= 400 &&
+        error.statusCode < 500
+      ) {
+        reply.status(error.statusCode).send({
+          success: false,
+          message: "Requisição inválida",
+          correlationId: request.correlationId,
+        });
+        return;
+      }
+
       if (error instanceof AppError) {
         let extras: Record<string, unknown> | null = null;
         try {

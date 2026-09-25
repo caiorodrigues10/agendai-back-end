@@ -33,11 +33,6 @@ export class DailyCloseoutController {
         cashReceived: body.cashReceived,
         pixReceived: body.pixReceived,
         cardReceived: body.cardReceived,
-        fiadoCreated: body.fiadoCreated,
-        fiadoPaid: body.fiadoPaid,
-        expenses: body.expenses,
-        commissions: body.commissions,
-        productSales: body.productSales,
         discrepancy: body.discrepancy,
         notes: body.notes,
       }

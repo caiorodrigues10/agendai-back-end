@@ -25,8 +25,7 @@ export class SetupTrialCardController {
 
 		return reply.send({
 			success: true,
-			message:
-				'Trial iniciado. Informe o cartão no checkout hospedado Asaas — PAN não transita pelo AgendAI.',
+			message: 'Trial iniciado. O cartão foi cadastrado nesta página e só será cobrado no fim do período.',
 			data: execution.data,
 			replayed: execution.replayed,
 		})

@@ -30,15 +30,15 @@ agendai-back-end/
 
 ## Módulos (`src/modules/`)
 
-Há **56** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
+Há **55** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
 
-`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `memberships`, `monitoring`, `notifications`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `products`, `profit`, `purchasing`, `quality`, `queue`, `referrals`, `reputation`, `resources`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`.
+`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `monitoring`, `notifications`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `products`, `profit`, `purchasing`, `quality`, `queue`, `recurringPackages`, `referrals`, `reputation`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `support`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`.
 
 Módulos que escaparam a varredura A1–A11 e agora entram na matriz de STATUS: **pricing**, **catalog** (avançado), **purchasing** (receive → estoque), **corporate** (admin com `setRlsContext`).
 
 ## Rotas HTTP (`shared/infra/http/routes/`)
 
-Registradas via `api.ts` / `index.ts`. Inclui: auth, users, services, barbershops, queue, appointments, admin, adminFinancial, payments, webhooks, plans, fiado, expenses, barbershopFinancial, categories, feed, posts, notifications, contact, referrals, clients, packages, products, commissions, crm, ws.
+Registradas via `api.ts` / `index.ts`. Inclui: auth, users, services, barbershops, queue, appointments, admin, adminFinancial, payments, webhooks, plans, fiado, expenses, barbershopFinancial, categories, feed, posts, notifications, contact, referrals, clients, packages, products, commissions, crm, ws, support (módulo próprio, `modules/support/support.routes`).
 
 Prefixo da API: **`/api`** (exceto health/métricas conforme app).
 

@@ -29,7 +29,9 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `db:migrate:status` | `prisma migrate status` | leitura | Postgres | Status |
 | `db:validate-schema` | `prisma validate && migrate status` | leitura | Postgres | Valida schema + status |
 | `prisma:generate` | `prisma generate` | geração | — | Gera client |
-| `prisma:seed` | `tsx prisma/seed.ts` | **altera banco** | Postgres | Seed |
+| `prisma:seed` | `tsx prisma/seed.ts` | **altera banco** | Postgres | Seed base (system user, planos, admin via `SEED_MASTER_ADMIN_*`, dados globais). Perfil via `--profile=`/`SEED_PROFILE` (`base`|`demo`|`all`) |
+| `prisma:seed:demo` | `tsx prisma/seed.ts --profile=demo` | **altera banco** | Postgres, `SEED_DEMO=true` | Cria/atualiza o salão demo + defaults (guard: recusa produção) |
+| `prisma:seed:tenant` | `tsx prisma/seed.ts --tenant` | **altera banco** | Postgres, `--barbershopId=<uuid>` | Defaults de um salão existente (`npm run prisma:seed:tenant -- --barbershopId=<uuid>`) |
 | `security:audit-logs` | `tsx scripts/remediateSensitiveAuditLogs.ts` | **altera dados** | Postgres | Remediação de logs |
 | `prisma:studio` / `db:studio` | `prisma studio` | leitura | Postgres | UI Prisma |
 | `db:push` | `prisma db push` | **altera banco** | Postgres | Push sem migration (dev) |

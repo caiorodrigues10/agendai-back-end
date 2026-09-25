@@ -1,4 +1,5 @@
 import { IPaymentResponseDTO } from "@/modules/payments/dtos/IPaymentDTO";
+import type { AsaasCreditCardInput } from "../schemas/subscriptionSchemas";
 
 export type SubscriptionStatus =
   | "TRIALING"
@@ -17,8 +18,8 @@ export interface ISubscribeDTO {
   cardToken?: string;
   cardInstallments?: number;
   cardPaymentMethodId?: string;
-  /** Recusado: PAN não pode transitar pelo Fastify. */
-  asaasCreditCard?: unknown;
+  /** Repassado à Asaas no checkout transparente. Não persistir PAN/CVV. */
+  asaasCreditCard?: AsaasCreditCardInput;
   remoteIp?: string;
   payerEmail: string;
   payerFirstName?: string;
