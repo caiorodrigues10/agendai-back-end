@@ -7,6 +7,8 @@ import {
 } from "../useCases/getBarbershopInsights/GetBarbershopInsightsUseCase";
 import { GetWeatherInsightsUseCase } from "../useCases/getWeatherInsights/GetWeatherInsightsUseCase";
 import { summarizeRetailFinancials } from "@/modules/products/utils/retailSummary";
+import { resolveOrgAccessToBarbershop } from "@/shared/utils/organizationAccess";
+import { withShopContext } from "@/shared/utils/withShopContext";
 import { container } from "tsyringe";
 
 type ExpenseRow = { amount: number; paidAt: Date | null; type: string; inventoryReceiptId?: string | null };
@@ -21,36 +23,52 @@ type FiadoWithPayments = Prisma.FiadoGetPayload<{
 }>;
 
 export class BarbershopFinancialController {
-  private resolveBarbershopId(request: FastifyRequest): string {
+  /**
+   * Resolve qual salão a request vai ler.
+   * `?barbershopId=` de outro salão só é aceito com acesso FULL àquele salão
+   * (dono direto, MASTER_ADMIN ou OWNER/ADMIN da organização dona).
+   * MEMBER/VIEWER da org e completely outsiders recebem 403 — estes endpoints
+   * são todos financeiros.
+   */
+  private async resolveBarbershopId(request: FastifyRequest): Promise<string> {
     const user = request.user!;
-    if (user.role === "MASTER_ADMIN") {
-      const query = request.query as { barbershopId?: string };
-      const fromQuery = query.barbershopId;
-      if (fromQuery) return fromQuery;
+    const query = request.query as { barbershopId?: string };
+    const requested = query.barbershopId;
+
+    if (requested && requested !== user.barbershopId) {
+      const access = await resolveOrgAccessToBarbershop(user.id, user.role, requested);
+      if (access === "NONE") throw new AppError("Sem acesso a este salão", 403);
+      if (access === "OPERATIONAL") {
+        // Estes endpoints são todos financeiros — OPERATIONAL não pode ver.
+        throw new AppError("Sem acesso a dados financeiros deste salão", 403);
+      }
+      return requested; // FULL
     }
+
     if (!user.barbershopId) throw new AppError("Usuário não vinculado a nenhum salão", 400);
     return user.barbershopId;
   }
 
   // GET /barbershop/insights?period=7d|30d|90d
   async insights(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = this.resolveBarbershopId(request);
+    const barbershopId = await this.resolveBarbershopId(request);
 
     const { period: raw } = request.query as { period?: string };
     const period = (["7d", "30d", "90d", "1y"].includes(raw ?? "")
       ? raw
       : "30d") as InsightsPeriod;
 
-    const data = await new GetBarbershopInsightsUseCase().execute(
-      barbershopId,
-      period
+    // Toda a leitura do use case (queue, appointments, expenses, fiados, users, services)
+    // roda dentro do contexto do salão resolvido.
+    const data = await withShopContext(request.user?.barbershopId, barbershopId, () =>
+      new GetBarbershopInsightsUseCase().execute(barbershopId, period)
     );
     return reply.send({ success: true, data });
   }
 
   // GET /barbershop/financial/summary
   async summary(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = this.resolveBarbershopId(request);
+    const barbershopId = await this.resolveBarbershopId(request);
 
     const { from, to } = request.query as { from?: string; to?: string; barbershopId?: string };
     const fromDate = from ? new Date(from) : undefined;
@@ -63,43 +81,48 @@ export class BarbershopFinancialController {
       }
       : undefined;
 
-    const [expenses, fiados, overdueCount, packageSales, retailSummary, inventoryProducts] = await Promise.all([
-      prisma.expense.findMany({
-        where: {
-          barbershopId,
-          ...(dateFilter && { referenceDate: dateFilter }),
-        },
-        select: { amount: true, paidAt: true, type: true, inventoryReceiptId: true },
-      }),
-      prisma.fiado.findMany({
-        where: {
-          barbershopId,
-          status: { in: ["PENDING", "PARTIAL"] },
-        },
-        select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true, dueDate: true },
-      }),
-      prisma.fiado.count({
-        where: {
-          barbershopId,
-          status: { in: ["PENDING", "PARTIAL"] },
-          dueDate: { lt: new Date() },
-        },
-      }),
-      prisma.clientPackage.aggregate({
-        where: {
-          barbershopId,
-          status: { in: ["ACTIVE", "DEPLETED"] },
-          ...(dateFilter && { purchasedAt: dateFilter }),
-        },
-        _count: { id: true },
-        _sum: { pricePaid: true },
-      }),
-      summarizeRetailFinancials(barbershopId, dateFilter),
-      prisma.product.findMany({
-        where: { barbershopId, trackStock: true, active: true },
-        select: { stockQty: true, averageCost: true, minStock: true },
-      }),
-    ]);
+    // Bloco de leitura inteiro (expenses, fiados, packages, retail, products) no contexto
+    // do salão resolvido; a agregação abaixo é pura e roda depois, sem acesso a banco.
+    const [expenses, fiados, overdueCount, packageSales, retailSummary, inventoryProducts] =
+      await withShopContext(request.user?.barbershopId, barbershopId, () =>
+        Promise.all([
+          prisma.expense.findMany({
+            where: {
+              barbershopId,
+              ...(dateFilter && { referenceDate: dateFilter }),
+            },
+            select: { amount: true, paidAt: true, type: true, inventoryReceiptId: true },
+          }),
+          prisma.fiado.findMany({
+            where: {
+              barbershopId,
+              status: { in: ["PENDING", "PARTIAL"] },
+            },
+            select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true, dueDate: true },
+          }),
+          prisma.fiado.count({
+            where: {
+              barbershopId,
+              status: { in: ["PENDING", "PARTIAL"] },
+              dueDate: { lt: new Date() },
+            },
+          }),
+          prisma.clientPackage.aggregate({
+            where: {
+              barbershopId,
+              status: { in: ["ACTIVE", "DEPLETED"] },
+              ...(dateFilter && { purchasedAt: dateFilter }),
+            },
+            _count: { id: true },
+            _sum: { pricePaid: true },
+          }),
+          summarizeRetailFinancials(barbershopId, dateFilter),
+          prisma.product.findMany({
+            where: { barbershopId, trackStock: true, active: true },
+            select: { stockQty: true, averageCost: true, minStock: true },
+          }),
+        ])
+      );
 
     const operationalExpenses = expenses.filter((e: ExpenseRow) => !e.inventoryReceiptId);
     const stockPurchases = expenses.filter((e: ExpenseRow) => e.inventoryReceiptId);
@@ -171,7 +194,7 @@ export class BarbershopFinancialController {
 
   // GET /barbershop/financial/expenses
   async expenses(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = this.resolveBarbershopId(request);
+    const barbershopId = await this.resolveBarbershopId(request);
 
     const { from, to, page = "1", limit = "20" } = request.query as {
       from?: string; to?: string; page?: string; limit?: string; barbershopId?: string;
@@ -195,16 +218,19 @@ export class BarbershopFinancialController {
         : {}),
     };
 
-    const [records, total] = await Promise.all([
-      prisma.expense.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { referenceDate: "desc" },
-        include: { category: { select: { name: true } } },
-      }),
-      prisma.expense.count({ where }),
-    ]);
+    // findMany + count (e o include de category, tabela com RLS) no contexto do salão resolvido.
+    const [records, total] = await withShopContext(request.user?.barbershopId, barbershopId, () =>
+      Promise.all([
+        prisma.expense.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { referenceDate: "desc" },
+          include: { category: { select: { name: true } } },
+        }),
+        prisma.expense.count({ where }),
+      ])
+    );
 
     return reply.send({
       success: true,
@@ -229,7 +255,7 @@ export class BarbershopFinancialController {
 
   // GET /barbershop/financial/fiados
   async fiados(request: FastifyRequest, reply: FastifyReply) {
-    const barbershopId = this.resolveBarbershopId(request);
+    const barbershopId = await this.resolveBarbershopId(request);
 
     const { page = "1", limit = "20", status } = request.query as {
       page?: string; limit?: string; status?: string; barbershopId?: string;
@@ -245,23 +271,26 @@ export class BarbershopFinancialController {
 
     const now = new Date();
 
-    const [records, total, overdueCount] = await Promise.all([
-      prisma.fiado.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: "desc" },
-        include: { payments: { orderBy: { createdAt: "asc" } } },
-      }),
-      prisma.fiado.count({ where }),
-      prisma.fiado.count({
-        where: {
-          barbershopId,
-          status: { in: ["PENDING", "PARTIAL"] },
-          dueDate: { lt: now },
-        },
-      }),
-    ]);
+    // 3 queries (fiado + payments include, ambos com RLS) no contexto do salão resolvido.
+    const [records, total, overdueCount] = await withShopContext(request.user?.barbershopId, barbershopId, () =>
+      Promise.all([
+        prisma.fiado.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: "desc" },
+          include: { payments: { orderBy: { createdAt: "asc" } } },
+        }),
+        prisma.fiado.count({ where }),
+        prisma.fiado.count({
+          where: {
+            barbershopId,
+            status: { in: ["PENDING", "PARTIAL"] },
+            dueDate: { lt: now },
+          },
+        }),
+      ])
+    );
 
     return reply.send({
       success: true,
@@ -293,13 +322,16 @@ export class BarbershopFinancialController {
 
   async weatherInsights(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const user = request.user!;
-    const barbershopId = this.resolveBarbershopId(request);
+    const barbershopId = await this.resolveBarbershopId(request);
 
     const { days } = request.query as { days?: string };
     const parsedDays = days ? parseInt(days, 10) : 7;
 
     const useCase = container.resolve(GetWeatherInsightsUseCase);
-    const insights = await useCase.execute(barbershopId, user, Math.min(parsedDays, 16));
+    // Leituras do use case (barbershop, dailyWeatherLog) no contexto do salão resolvido.
+    const insights = await withShopContext(request.user?.barbershopId, barbershopId, () =>
+      useCase.execute(barbershopId, user, Math.min(parsedDays, 16))
+    );
     reply.send({ success: true, data: insights });
   }
 }

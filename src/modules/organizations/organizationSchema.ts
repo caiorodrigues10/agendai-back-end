@@ -29,3 +29,7 @@ export const inviteMemberSchema = z.object({
 export const updateMemberRoleSchema = z.object({
   role: z.enum(["ADMIN", "MEMBER", "VIEWER"]),
 });
+
+export const attachBarbershopSchema = z.object({
+  barbershopId: z.string().uuid("ID de barbearia inválido").optional(),
+});

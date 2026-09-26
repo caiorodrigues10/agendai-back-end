@@ -106,4 +106,77 @@ export class OrganizationUseCases {
 
     return this.repo.removeMember(memberId);
   }
+
+  private async assertCanManageBarbershops(orgId: string, userId: string, userRole: string) {
+    const org = await this.repo.findById(orgId);
+    if (!org) throw new AppError("Organização não encontrada", 404);
+
+    if (userRole === "MASTER_ADMIN") return org;
+
+    const member = await this.repo.getMember(orgId, userId);
+    if ((!member || !["OWNER", "ADMIN"].includes(member.role)) && org.ownerId !== userId) {
+      throw new AppError("Sem permissão para gerenciar salões", 403);
+    }
+
+    return org;
+  }
+
+  async attachBarbershop(
+    orgId: string,
+    userId: string,
+    userRole: string,
+    userBarbershopId: string | undefined,
+    requestedBarbershopId?: string
+  ) {
+    await this.assertCanManageBarbershops(orgId, userId, userRole);
+
+    let barbershopId: string;
+    if (userRole === "MASTER_ADMIN") {
+      if (!requestedBarbershopId) {
+        throw new AppError("Informe o barbershopId para vincular", 400);
+      }
+      barbershopId = requestedBarbershopId;
+    } else {
+      if (!userBarbershopId) {
+        throw new AppError("Sua conta não está vinculada a nenhum salão", 400);
+      }
+      // Dono comum só pode anexar o salão da própria sessão — nunca um id arbitrário do body.
+      if (requestedBarbershopId && requestedBarbershopId !== userBarbershopId) {
+        throw new AppError("Você só pode vincular o salão da sua própria conta", 403);
+      }
+      barbershopId = userBarbershopId;
+    }
+
+    const shop = await this.repo.findBarbershopById(barbershopId);
+    if (!shop) throw new AppError("Barbearia não encontrada", 404);
+
+    if (userRole !== "MASTER_ADMIN") {
+      // Confirma o papel de OWNER nessa conta (não é mais uma busca cross-conta).
+      const requester = await this.repo.getRequesterAsBarbershopOwner(userId, barbershopId);
+      if (!requester) throw new AppError("Apenas o OWNER do salão pode vinculá-lo", 403);
+    }
+
+    if (shop.organizationId) {
+      throw new AppError("Barbearia já está vinculada a uma organização", 409);
+    }
+
+    return this.repo.attachBarbershop(orgId, barbershopId);
+  }
+
+  async detachBarbershop(orgId: string, userId: string, userRole: string, barbershopId: string) {
+    await this.assertCanManageBarbershops(orgId, userId, userRole);
+
+    const shop = await this.repo.findBarbershopById(barbershopId);
+    if (!shop) throw new AppError("Barbearia não encontrada", 404);
+    if (shop.organizationId !== orgId) {
+      throw new AppError("Barbearia não está vinculada a esta organização", 404);
+    }
+
+    return this.repo.detachBarbershop(barbershopId);
+  }
+
+  async listAvailableBarbershops(orgId: string, userId: string, userRole: string) {
+    await this.assertCanManageBarbershops(orgId, userId, userRole);
+    return this.repo.listAvailableBarbershops(userRole === "MASTER_ADMIN" ? null : userId);
+  }
 }

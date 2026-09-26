@@ -17,6 +17,8 @@ export async function organizationRoutes(app: FastifyInstance) {
 
   app.get("/organizations/:id", { preHandler: guard }, controller.getById.bind(controller));
 
+  app.get("/organizations/:id/dashboard", { preHandler: guard }, controller.getDashboard.bind(controller));
+
   app.patch("/organizations/:id", { preHandler: guard }, controller.update.bind(controller));
 
   app.delete("/organizations/:id", { preHandler: guard }, controller.delete.bind(controller));
@@ -28,4 +30,10 @@ export async function organizationRoutes(app: FastifyInstance) {
   app.patch("/organizations/:id/members/:memberId", { preHandler: guard }, controller.updateMemberRole.bind(controller));
 
   app.delete("/organizations/:id/members/:memberId", { preHandler: guard }, controller.removeMember.bind(controller));
+
+  app.get("/organizations/:id/available-barbershops", { preHandler: guard }, controller.listAvailableBarbershops.bind(controller));
+
+  app.post("/organizations/:id/barbershops", { preHandler: guard }, controller.attachBarbershop.bind(controller));
+
+  app.delete("/organizations/:id/barbershops/:barbershopId", { preHandler: guard }, controller.detachBarbershop.bind(controller));
 }

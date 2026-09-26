@@ -85,4 +85,57 @@ export class OrganizationRepository {
   async removeMember(memberId: string) {
     return prisma.organizationMember.delete({ where: { id: memberId } });
   }
+
+  async findBarbershopById(barbershopId: string) {
+    return prisma.barbershop.findUnique({
+      where: { id: barbershopId },
+      select: { id: true, name: true, logoUrl: true, organizationId: true },
+    });
+  }
+
+  async getRequesterAsBarbershopOwner(userId: string, barbershopId: string) {
+    return prisma.user.findFirst({
+      where: {
+        id: userId,
+        barbershopId,
+        role: "OWNER",
+        active: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+  }
+
+  async listAvailableBarbershops(userId: string | null) {
+    return prisma.barbershop.findMany({
+      where: {
+        organizationId: null,
+        ...(userId
+          ? {
+              users: {
+                some: { id: userId, role: "OWNER", active: true, deletedAt: null },
+              },
+            }
+          : {}),
+      },
+      select: { id: true, name: true, logoUrl: true, city: true },
+      orderBy: { name: "asc" },
+    });
+  }
+
+  async attachBarbershop(organizationId: string, barbershopId: string) {
+    return prisma.barbershop.update({
+      where: { id: barbershopId },
+      data: { organizationId },
+      select: { id: true, name: true, organizationId: true },
+    });
+  }
+
+  async detachBarbershop(barbershopId: string) {
+    return prisma.barbershop.update({
+      where: { id: barbershopId },
+      data: { organizationId: null },
+      select: { id: true, name: true, organizationId: true },
+    });
+  }
 }

@@ -3,6 +3,7 @@ import { prisma } from '@/libs/prismaClient';
 import { AppError } from '@/shared/errors/AppError';
 import { IWeatherProvider } from '@/shared/container/providers/WeatherProvider/IWeatherProvider';
 import { resolveWeatherLocation } from '@/shared/services/resolveWeatherLocation';
+import { resolveOrgAccessToBarbershop } from '@/shared/utils/organizationAccess';
 import {
   DemandPredictor,
   WeatherDataPoint,
@@ -10,7 +11,7 @@ import {
   classifyMaturity,
 } from '@/shared/providers/ml/DemandPredictor';
 
-type RequestingUser = { role: string; barbershopId?: string };
+type RequestingUser = { id: string; role: string; barbershopId?: string };
 
 @injectable()
 export class GetWeatherInsightsUseCase {
@@ -21,7 +22,16 @@ export class GetWeatherInsightsUseCase {
 
   async execute(barbershopId: string, requestingUser: RequestingUser, days: number = 7) {
     if (requestingUser.role !== 'MASTER_ADMIN' && barbershopId !== requestingUser.barbershopId) {
-      throw new AppError('Acesso negado', 403);
+      // Cross-salão: weather insights expõe demanda/receita histórica do salão — exige FULL
+      // (dono direto ou OWNER/ADMIN da organização dona). MEMBER/VIEWER e outsiders: 403.
+      const access = await resolveOrgAccessToBarbershop(
+        requestingUser.id,
+        requestingUser.role,
+        barbershopId,
+      );
+      if (access !== 'FULL') {
+        throw new AppError('Acesso negado', 403);
+      }
     }
 
     const barbershop = await prisma.barbershop.findUnique({
