@@ -18,7 +18,15 @@ export interface OrgDashboardShopDTO {
   logoUrl: string | null;
   isOpen: boolean;
   accessLevel: "FULL" | "OPERATIONAL";
+  /** = waitingCount + inServiceCount (mantido por compatibilidade com quem já consome). */
   liveNow: number;
+  /** QueueItem.status === "WAITING" com joinedAt de hoje no fuso do salão. */
+  waitingCount: number;
+  /**
+   * QueueItem.status === "IN_CHAIR" (hoje, no fuso do salão) + Appointment
+   * CONFIRMED dentro da janela start <= agora < start + avgTimeMinutes.
+   */
+  inServiceCount: number;
   /** Ausente quando accessLevel = OPERATIONAL (faturamento é dado sensível). */
   revenue?: { today: number; week: number; month: number };
 }
@@ -97,19 +105,29 @@ export class GetOrganizationDashboardUseCase {
             status: { in: ["WAITING", "IN_CHAIR"] },
             joinedAt: { gte: utcDateFromYmd(todayYmd) },
           },
-          select: { joinedAt: true },
+          select: { joinedAt: true, status: true },
         }),
-        // Agenda de hoje (data calendário no fuso do salão); "já começou e ainda não
-        // passou do fim previsto" é filtrado em memória abaixo — DECISÃO EXPLÍCITA:
-        // o corte usa time + service.avgTimeMinutes (fallback 30min, mesma convenção
-        // do conflito de agenda em appointmentUseCases), então um CONFIRMED/CHECKED_IN
-        // esquecido há horas NÃO conta como ao vivo indefinidamente. liveNow é a
-        // "verdade ao vivo" dos cards; o sinal de "atendimento que deveria ter fechado
-        // e não fechou" fica na tela de fila/agenda (IN_CHAIR persistente), não aqui.
+        // Agenda de hoje (data calendário no fuso do salão), só CONFIRMED — duas
+        // DECISÕES EXPLÍCITAS registradas aqui:
+        // 1) CHECKED_IN saiu do filtro: o CheckInAppointmentUseCase SEMPRE cria um
+        //    QueueItem IN_CHAIR vinculado ao agendamento, então quem foi checkado já
+        //    está representado na fila — contá-lo também na agenda seria contar a
+        //    mesma pessoa DUAS vezes no card (bug corrigido).
+        //    INVARIANTE: CheckInAppointmentUseCase é o ÚNICO escritor de status
+        //    CHECKED_IN e roda inteiro em prisma.$transaction, criando o QueueItem
+        //    IN_CHAIR (com appointmentId) ANTES de marcar o Appointment; os branches
+        //    de duplicata/erro dão throw antes de qualquer escrita. Verificar esse
+        //    use case antes de alterar qualquer um dos dois arquivos.
+        // 2) "Já começou e ainda não passou do fim previsto" é filtrado em memória
+        //    abaixo, usando time + service.avgTimeMinutes (fallback 30min, mesma
+        //    convenção do conflito de agenda em appointmentUseCases): um CONFIRMED
+        //    esquecido há horas NÃO conta como ao vivo indefinidamente. liveNow é a
+        //    "verdade ao vivo" dos cards; o sinal de "atendimento que deveria ter
+        //    fechado e não fechou" fica na tela de fila/agenda, não aqui.
         prisma.appointment.findMany({
           where: {
             barbershopId: shop.id,
-            status: { in: ["CONFIRMED", "CHECKED_IN"] },
+            status: "CONFIRMED",
             date: utcDateFromYmd(todayYmd),
           },
           select: { time: true, service: { select: { avgTimeMinutes: true } } },
@@ -136,8 +154,12 @@ export class GetOrganizationDashboardUseCase {
       return { activeQueue, todayAppointments, openState, completedRows };
     });
 
-    const liveNow =
-      data.activeQueue.filter((q: { joinedAt: Date }) => ymdInTimeZone(q.joinedAt, tz) === todayYmd).length +
+    const queueToday = data.activeQueue.filter((q: { joinedAt: Date }) =>
+      ymdInTimeZone(q.joinedAt, tz) === todayYmd
+    );
+    const waitingCount = queueToday.filter((q: { status: string }) => q.status === "WAITING").length;
+    const inServiceCount =
+      queueToday.filter((q: { status: string }) => q.status === "IN_CHAIR").length +
       data.todayAppointments.filter(
         (a: { time: string; service: { avgTimeMinutes: number } | null }) => {
           const start = timeToMinutes(a.time);
@@ -145,6 +167,7 @@ export class GetOrganizationDashboardUseCase {
           return start <= nowMinutes && nowMinutes < end;
         }
       ).length;
+    const liveNow = waitingCount + inServiceCount;
 
     const entry: OrgDashboardShopDTO = {
       barbershopId: shop.id,
@@ -153,6 +176,8 @@ export class GetOrganizationDashboardUseCase {
       isOpen: data.openState.open,
       accessLevel: access === "FULL" ? "FULL" : "OPERATIONAL",
       liveNow,
+      waitingCount,
+      inServiceCount,
     };
 
     if (access === "FULL") {
