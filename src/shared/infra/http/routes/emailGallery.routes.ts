@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { FastifyInstance } from "fastify";
 
 /**
@@ -251,7 +252,7 @@ function wrapHtml(title: string, body: string, ctaLabel: string, ctaUrl: string)
       <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;border:1px solid #e5e5e5;overflow:hidden;">
         <tr><td style="height:4px;background:#1C7E61;"></td></tr>
         <tr><td style="padding:20px 28px 8px;">
-          <span style="display:inline-block;background:#2CB58A;color:#0F1E18;font-weight:900;font-size:20px;padding:2px 12px;border-radius:8px;">AgendAI</span>
+          <span style="display:inline-block;background:#2CB58A;color:#0F1E18;font-weight:900;font-size:20px;padding:2px 12px;border-radius:8px;">${BRAND_NAME}</span>
           <h1 style="margin:16px 0 0;font-size:22px;line-height:1.25;font-weight:800;">${title}</h1>
         </td></tr>
         <tr><td style="padding:8px 28px 28px;">
@@ -261,7 +262,7 @@ function wrapHtml(title: string, body: string, ctaLabel: string, ctaUrl: string)
           ${ctaLabel ? `<div style="margin-top:20px;text-align:center;"><a href="${ctaUrl}" style="display:inline-block;background:#1C7E61;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 24px;border-radius:12px;font-family:inherit;">${ctaLabel}</a></div>` : ""}
         </td></tr>
         <tr><td style="padding:0 28px 28px;font-size:12px;color:#a3a3a3;">
-          <p>Este é um e-mail transacional da plataforma AgendAI (agendai.app).</p>
+          <p>Este é um e-mail transacional da plataforma ${BRAND_NAME} (agendai.app).</p>
         </td></tr>
       </table>
     </td></tr>

@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { randomBytes } from 'crypto'
 import { prisma } from '@/libs/prismaClient'
 import {
@@ -275,7 +276,7 @@ export async function qualifyReferralOnPayment(
 			const msg = [
 				`*Indicação convertida!*`,
 				``,
-				`O salão *${referral.refereeBarbershop.name}* assinou o AGENDAI.`,
+				`O salão *${referral.refereeBarbershop.name}* assinou a ${BRAND_NAME}.`,
 				`+${totalDays} dias creditados na sua assinatura.`,
 			].join('\n')
 			await sendWhatsAppMessage(whatsapp, msg, { platform: true }).catch((err) => logger.error({ err }, 'Failed to send referral converted WhatsApp'))

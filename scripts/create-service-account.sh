@@ -35,7 +35,7 @@ if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" &>/d
 else
   info "Criando Service Account..."
   gcloud iam service-accounts create "$SA_NAME" \
-    --display-name="AgendAI API Service Account" \
+    --display-name="Agenda Já API Service Account" \
     --project="$PROJECT_ID"
   ok "Service Account criada"
 fi

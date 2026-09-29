@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { prisma } from "@/libs/prismaClient";
 import { unblockOwnerCpfs } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
@@ -124,7 +125,7 @@ export async function handleSubscriptionPaymentWebhook(
           kind: "payment_approved",
           ownerName: owner.name,
           email: owner.email,
-          planName: subscription.plan?.name ?? "Assinatura AgendAI",
+          planName: subscription.plan?.name ?? `Assinatura ${BRAND_NAME}`,
           amount: invoice.amount,
           nextBillingDate: newEndDate,
           deduplicationKey: `payment:${invoiceId}:approved`,
@@ -277,7 +278,7 @@ export async function handleSubscriptionPaymentWebhook(
           kind: "payment_failed",
           ownerName: owner.name,
           email: owner.email,
-          planName: subscription.plan?.name ?? "Assinatura AgendAI",
+          planName: subscription.plan?.name ?? `Assinatura ${BRAND_NAME}`,
           reason: "Pagamento não efetivado pela operadora",
           deduplicationKey: `payment:${invoiceId}:failed`,
         });

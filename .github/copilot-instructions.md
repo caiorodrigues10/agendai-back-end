@@ -1,4 +1,4 @@
-# GitHub Copilot — AgendAI Backend
+# GitHub Copilot — Agenda Já Backend
 
 Siga **AGENTS.md** na raiz de `agendai-back-end/`.
 

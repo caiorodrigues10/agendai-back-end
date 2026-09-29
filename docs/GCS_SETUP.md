@@ -1,4 +1,4 @@
-# Google Cloud Storage — setup AgendAI
+# Google Cloud Storage — setup Agenda Já
 
 Guia único para configurar bucket, Service Account e chave JSON usados no upload de logos.
 

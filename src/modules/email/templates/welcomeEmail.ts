@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { emailLayout, frontendUrl } from './emailLayout'
 import type { SendEmailInput } from '@/shared/container/providers/EmailProvider/IEmailProvider'
 
@@ -8,7 +9,7 @@ export function buildWelcomeEmail(input: {
 }): SendEmailInput {
 	const appUrl = frontendUrl('/app/queue')
 	const plansUrl = frontendUrl('/planos')
-	const title = `Bem-vindo(a) ao AGENDAI, ${input.ownerName.split(' ')[0]}!`
+	const title = `Bem-vindo(a) à ${BRAND_NAME}, ${input.ownerName.split(' ')[0]}!`
 	const bodyHtml = `
     <p>Seu salão <strong style="color:#171717;">${escapeHtml(input.barbershopName)}</strong> já está no ar.</p>
     <p>Você tem <strong style="color:#171717;">30 dias de Pro</strong> — em qualquer plano. Use o painel completo e veja se faz sentido para o seu salão.</p>
@@ -25,7 +26,7 @@ export function buildWelcomeEmail(input: {
 
 	return {
 		to: input.email,
-		subject: `Bem-vindo ao AGENDAI — ${input.barbershopName}`,
+		subject: `Bem-vindo à ${BRAND_NAME} — ${input.barbershopName}`,
 		html: emailLayout({
 			title,
 			bodyHtml,

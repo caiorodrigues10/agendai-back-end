@@ -1,3 +1,4 @@
+import { BRAND_NAME, BRAND_NAME_UPPER } from '@/config/brand';
 import { getFrontendUrl } from '@/shared/constants/env'
 
 const ACCENT = '#047857'
@@ -27,14 +28,14 @@ export function emailLayout(opts: {
       <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;border:1px solid #e5e5e5;overflow:hidden;">
         <tr><td style="height:4px;background:${ACCENT};"></td></tr>
         <tr><td style="padding:28px 28px 8px;">
-          <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:0.08em;color:${ACCENT};">AGENDAI</p>
+          <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:0.08em;color:${ACCENT};">${BRAND_NAME_UPPER}</p>
           <h1 style="margin:12px 0 0;font-size:22px;line-height:1.25;font-weight:800;">${opts.title}</h1>
         </td></tr>
         <tr><td style="padding:8px 28px 32px;font-size:15px;line-height:1.55;color:#525252;">
           ${opts.bodyHtml}
           ${cta}
           <p style="margin:32px 0 0;font-size:12px;color:#a3a3a3;">
-            Este é um e-mail transacional da plataforma AGENDAI.
+            Este é um e-mail transacional da plataforma ${BRAND_NAME}.
           </p>
         </td></tr>
       </table>

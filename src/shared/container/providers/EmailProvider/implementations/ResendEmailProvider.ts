@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { Resend } from 'resend'
 import { injectable } from 'tsyringe'
 import { prisma } from '@/libs/prismaClient'
@@ -27,7 +28,7 @@ export class ResendEmailProvider implements IEmailProvider {
 	private fromAddress(): string {
 		return (
 			process.env.EMAIL_FROM?.trim() ||
-			'AGENDAI <onboarding@resend.dev>'
+			`${BRAND_NAME} <onboarding@resend.dev>`
 		)
 	}
 

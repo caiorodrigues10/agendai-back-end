@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { randomBytes, createHash } from "node:crypto";
 import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/libs/prismaClient";
@@ -56,7 +57,7 @@ export class InviteTeamMemberUseCase {
     await enqueueEmail({
       kind: "welcome_staff",
       staffName: email.split("@")[0],
-      barbershopName: "AgendAI",
+      barbershopName: BRAND_NAME,
       email: email.toLowerCase(),
       inviteUrl,
       deduplicationKey: `internal-invite:${invitation.id}`,

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Monitor comportamental do AgendAI. Não cria cobranças nem altera dados. */
+/* Monitor comportamental da Agenda Já. Não cria cobranças nem altera dados. */
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
   const index = args.indexOf(name);

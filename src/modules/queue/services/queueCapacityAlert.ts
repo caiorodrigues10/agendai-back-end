@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { prisma } from "@/libs/prismaClient";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 
@@ -20,6 +21,6 @@ export async function notifyQueueCapacity(barbershopId: string, queueItemId: str
     sourceId: queueItemId,
     deduplicationKey: `queue-capacity:${barbershopId}:${queueItemId}`,
     notificationType: "QUEUE_CAPACITY_ALERT",
-    message: `⚠️ *Fila acima do limite*\n\n*${shop.name}* está com ${waiting} clientes aguardando.\nLimite configurado: ${shop.queueAlertThreshold} clientes.\nNovo cliente: ${customerName}.\nAbra o AgendAI para acompanhar a fila.`,
+    message: `⚠️ *Fila acima do limite*\n\n*${shop.name}* está com ${waiting} clientes aguardando.\nLimite configurado: ${shop.queueAlertThreshold} clientes.\nNovo cliente: ${customerName}.\nAbra ${BRAND_NAME} para acompanhar a fila.`,
   });
 }

@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 /**
  * Paletas visuais dos posts — famílias de cores completas e testadas.
  *
@@ -31,7 +32,7 @@ export interface PostPalette {
 export const POST_PALETTES: PostPalette[] = [
   {
     key: "brand",
-    label: "Marca AgendAI",
+    label: `Marca ${BRAND_NAME}`,
     accent: "#10B981",
     accentForeground: "#052E1F",
     background: "#0F0F0F",

@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import fs from "fs";
 import path from "path";
 import { Resvg } from "@resvg/resvg-js";
@@ -49,9 +50,9 @@ function wrapTitle(raw: string): string[] {
   return [t.slice(0, at).trim(), truncate(t.slice(at).trim(), 24)];
 }
 
-/** New wordmark: clean "agendai" text, no teal box. */
+/** New wordmark: clean "Agenda Já" text, no teal box. */
 function agendaiWordmark(cx: number, cy: number, textColor: string): string {
-  return `<text x="${cx}" y="${cy + 11}" font-family="${FONT_FAMILY}" font-size="32" font-weight="800" fill="${textColor}" text-anchor="middle" letter-spacing="-1">agendai</text>`;
+  return `<text x="${cx}" y="${cy + 11}" font-family="${FONT_FAMILY}" font-size="32" font-weight="800" fill="${textColor}" text-anchor="middle" letter-spacing="-1">${BRAND_NAME}</text>`;
 }
 
 function resolvePostFontFile(): string | null {
@@ -346,7 +347,7 @@ ${list}`;
 
 /**
  * SVG 1080 wide, format-dependent height.
- * New wordmark: "agendai" in foreground color (no teal box).
+ * New wordmark: "Agenda Já" in foreground color (no teal box).
  * Format-specific layouts. Focal point support. Template version tracking.
  */
 export function buildPostSvg(input: PostSvgInput): string {

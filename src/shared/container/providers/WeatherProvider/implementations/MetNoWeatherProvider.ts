@@ -97,7 +97,7 @@ export class MetNoWeatherProvider implements IWeatherProvider {
     });
     const response = await fetch(`${this.baseUrl}?${params}`, {
       headers: {
-        'User-Agent': process.env.WEATHER_USER_AGENT || 'AgendAI/1.4 (https://agendai-pcts.onrender.com/contato)',
+        'User-Agent': process.env.WEATHER_USER_AGENT || 'AgendaJa/1.4 (https://agendai-pcts.onrender.com/contato)',
       },
       signal: AbortSignal.timeout(10_000),
     });

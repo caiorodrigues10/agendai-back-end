@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
@@ -48,7 +49,7 @@ export class SubmitContactMessageUseCase {
         await enqueueWhatsApp({
           phone: alertPhone,
           message:
-            `*Novo contato — AgendAI*\n\n` +
+            `*Novo contato — ${BRAND_NAME}*\n\n` +
             `*${topicLabel}*\n` +
             `${input.name} · ${input.email}` +
             (input.phone ? `\nTel: ${input.phone}` : "") +

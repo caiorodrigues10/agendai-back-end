@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { randomBytes, createHash } from "node:crypto";
 import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/libs/prismaClient";
@@ -53,7 +54,7 @@ export class ResendInvitationUseCase {
     await enqueueEmail({
       kind: "welcome_staff",
       staffName: invitation.email.split("@")[0],
-      barbershopName: "AgendAI",
+      barbershopName: BRAND_NAME,
       email: invitation.email,
       inviteUrl,
       deduplicationKey: `internal-invite-resend:${newInvitation.id}`,

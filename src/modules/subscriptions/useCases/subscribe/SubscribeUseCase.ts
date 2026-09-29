@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { inject, injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
 import { MercadoPagoService } from "@/modules/payments/services/MercadoPagoService";
@@ -203,7 +204,7 @@ export class SubscribeUseCase {
 
     const { subscription, invoice } = result;
     const externalReference = `ag-sub-${subscription.id}-inv-${invoice.id}`;
-    const description = `Assinatura AgendAI — ${plan.name}`;
+    const description = `Assinatura ${BRAND_NAME} — ${plan.name}`;
 
     const previousPayment = await this.paymentRepo.findByExternalReference(externalReference);
     if (previousPayment) {

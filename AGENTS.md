@@ -1,4 +1,4 @@
-# AGENTS.md — AgendAI Backend
+# AGENTS.md — Agenda Já Backend
 
 > **Ponto de entrada obrigatório** para qualquer IA neste repositório (`agendai-back-end/`).
 > Autossuficiente sem a pasta externa do monorepo.

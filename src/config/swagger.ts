@@ -1,3 +1,4 @@
+import { BRAND_NAME } from './brand';
 import { FastifyInstance } from "fastify";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
@@ -6,7 +7,7 @@ export async function setupSwagger(app: FastifyInstance) {
   await app.register(fastifySwagger, {
     openapi: {
       info: {
-        title: "AgendAI API",
+        title: `${BRAND_NAME} API`,
         description: "API para gestão de filas e agendamentos de salões",
         version: "1.0.0"
       },

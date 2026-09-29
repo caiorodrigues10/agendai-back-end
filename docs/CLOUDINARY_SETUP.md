@@ -1,4 +1,4 @@
-# Cloudinary — Fallback de Storage AgendAI
+# Cloudinary — Fallback de Storage Agenda Já
 
 O Cloudinary é usado como **provedor reserva** (fallback) para uploads de imagem. Se o Google Cloud Storage falhar, o upload é automaticamente tentado no Cloudinary, sem interromper a experiência do usuário.
 

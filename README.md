@@ -1,4 +1,4 @@
-# 💈 AgendAI — Backend API
+# 💈 Agenda Já — Backend API
 
 API REST para gestão de salões/barbearias: fila digital, agendamentos, CRM, pacotes, produtos/estoque, fiado, despesas, comissões, assinaturas (Asaas / AbacatePay / Mercado Pago), WhatsApp (Evolution), e painel administrativo.
 
@@ -54,7 +54,7 @@ API REST para gestão de salões/barbearias: fila digital, agendamentos, CRM, pa
 
 ## Visão Geral
 
-O AgendAI é uma plataforma SaaS para salões, barbearias e studios que oferece:
+A Agenda Já é uma plataforma SaaS para salões, barbearias e studios que oferece:
 
 - **Fila digital** — clientes entram na fila sem precisar de conta
 - **Agendamentos** — marcação de horários com funcionários

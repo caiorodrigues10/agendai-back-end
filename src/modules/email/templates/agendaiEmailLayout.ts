@@ -1,5 +1,6 @@
+import { BRAND_NAME } from '@/config/brand';
 /**
- * Layout base dos e-mails transacionais do AgendAI.
+ * Layout base dos e-mails transacionais da Agenda Já.
  *
  * Decisões de design (feitas deliberadamente):
  * - Paleta verde e neutra alinhada ao painel, com estilos compatíveis com e-mail.
@@ -54,7 +55,7 @@ function safeUrl(value: string): string {
 export type EmailTheme = 'light' | 'dark'
 
 /**
- * Layout base AgendAI: barra colorida no topo, cartão com titulo+e corpo,
+ * Layout base Agenda Já: barra colorida no topo, cartão com titulo+e corpo,
  * CTA destacado, footer discreto com link para preferências quando especificado.
  */
 export function agendaiEmailBase(opts: {
@@ -123,7 +124,7 @@ export function agendaiEmailBase(opts: {
 	const logoHtml = logoUrl
 		? `<img
 			src="${safeUrl(logoUrl)}"
-			alt="AgendAI"
+			alt="${BRAND_NAME}"
 			width="120"
 			height="28"
 			style="display:block;height:28px;width:auto;max-width:120px;"
@@ -139,7 +140,7 @@ export function agendaiEmailBase(opts: {
 			padding:2px 12px;
 			border-radius:8px;
 			font-family:${FONT};
-		">AgendAI</span>`
+		">${BRAND_NAME}</span>`
 
 	const prefsHtml = preferencesUrl
 		? `<a href="${safeUrl(preferencesUrl)}" style="color:${muted};text-decoration:underline;">Preferências de e-mail</a>`
@@ -209,7 +210,7 @@ ${preheaderHtml}
 
 						<tr><td class="muted-text" style="padding:0 28px 28px;font-size:12px;line-height:1.6;color:${muted};">
 							${receivedBy ? `<p style="margin:0 0 12px 0;word-break:break-all;">Recebido por: ${escapeHtml(receivedBy)}</p>` : ''}
-							<p style="margin:0;">Este e-mail é transacional da plataforma AgendAI.</p>
+							<p style="margin:0;">Este e-mail é transacional da plataforma ${BRAND_NAME}.</p>
 							${prefsHtml ? `<p style="margin:8px 0 0 0;">${prefsHtml}</p>` : ''}
 						</td></tr>
 					</table>

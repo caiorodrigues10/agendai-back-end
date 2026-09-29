@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import type { SendEmailInput } from '@/shared/container/providers/EmailProvider/IEmailProvider'
 import { emailLayout } from './emailLayout'
 import { getFrontendUrl } from '@/shared/constants/env'
@@ -36,7 +37,7 @@ export function buildVerifyEmail(input: {
 
 	return {
 		to: input.email,
-		subject: 'Verifique seu e-mail — AGENDAI',
+		subject: `Verifique seu e-mail — ${BRAND_NAME}`,
 		html: emailLayout({
 			title,
 			bodyHtml,
@@ -56,7 +57,7 @@ export function buildForgotPasswordEmail(input: {
 	const resetUrl = `${getFrontendUrl()}/reset-password?token=${encodeURIComponent(input.token)}`
 	return {
 		to: input.email,
-		subject: 'Redefinir sua senha - AgendAI',
+		subject: `Redefinir sua senha - ${BRAND_NAME}`,
 		html: emailLayout({
 			title,
 			bodyHtml: '<p>Você solicitou a redefinição da sua senha. Este link expira em 1 hora.</p>',

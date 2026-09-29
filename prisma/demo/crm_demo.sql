@@ -17,15 +17,15 @@ BEGIN
   IF current_database() ILIKE '%prod%' THEN
     RAISE EXCEPTION 'Seed CRM Demo bloqueado em banco de produção';
   END IF;
-  IF EXISTS (SELECT 1 FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name <> 'AgendAI CRM Demo') THEN
+  IF EXISTS (SELECT 1 FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name <> 'Agenda Já CRM Demo') THEN
     RAISE EXCEPTION 'UUID de demo já pertence a outro salão; abortando';
   END IF;
 END $$;
 
-DELETE FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name = 'AgendAI CRM Demo';
+DELETE FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name = 'Agenda Já CRM Demo';
 
 INSERT INTO barbershops (id, name, whatsapp, address, city, latitude, longitude, active, "approvalStatus", "createdAt", "updatedAt")
-VALUES ('d0000000-0000-4000-8000-000000000001', 'AgendAI CRM Demo', '11999990000', 'Rua da Demonstração, 100', 'São Paulo', -23.5505, -46.6333, true, 'APPROVED', now() - interval '18 months', now());
+VALUES ('d0000000-0000-4000-8000-000000000001', 'Agenda Já CRM Demo', '11999990000', 'Rua da Demonstração, 100', 'São Paulo', -23.5505, -46.6333, true, 'APPROVED', now() - interval '18 months', now());
 
 INSERT INTO users (id, name, email, password, role, cpf, "barbershopId", active, permissions, "createdAt", "updatedAt") VALUES
 ('d1000000-0000-4000-8000-000000000001', 'Dona Demo', 'demo.owner@agendai.local', '$2a$10$7EqJtq98hPqEX7fNZaFWoOeXLh1aY9vvGZsY9X2gkPv.E.A7wwk6a', 'OWNER', '52998224725', 'd0000000-0000-4000-8000-000000000001', true, ARRAY['CRM_ANALYTICS_VIEW','CRM_CAMPAIGNS_MANAGE'], now() - interval '18 months', now()),
@@ -102,7 +102,7 @@ INSERT INTO client_packages (id, "barbershopId", "clientId", "packageId", "servi
 SELECT gen_random_uuid(),'d0000000-0000-4000-8000-000000000001',('d4000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,'d5000000-0000-4000-8000-000000000001','d3000000-0000-4000-8000-000000000001',5,(n%5),240,'pix','ACTIVE',current_date - ((n*11)%400 || ' days')::interval,current_date + interval '90 days','d1000000-0000-4000-8000-000000000002',now(),now() FROM generate_series(1,45) n;
 
 INSERT INTO fiados (id, "barbershopId", "clientId", "customerName", whatsapp, description, "originalAmount", "paidAmount", status, "dueDate", "createdById", notes, "createdAt", "updatedAt")
-SELECT ('d6000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,'d0000000-0000-4000-8000-000000000001',('d4000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,'Cliente Demo '||lpad(n::text,3,'0'),'1198'||lpad(n::text,7,'0'),'Atendimento fiado demo',85,CASE WHEN n%2=0 THEN 30 ELSE 0 END,CASE WHEN n%2=0 THEN 'PARTIAL' ELSE 'PENDING' END,current_date + interval '10 days','d1000000-0000-4000-8000-000000000001','Seed CRM Demo',current_date - ((n*12)%120 || ' days')::interval,now() FROM generate_series(1,24) n;
+SELECT ('d6000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,'d0000000-0000-4000-8000-000000000001',('d4000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,'Cliente Demo '||lpad(n::text,3,'0'),'1198'||lpad(n::text,7,'0'),'Atendimento fiado demo',85,CASE WHEN n%2=0 THEN 30 ELSE 0 END,CASE WHEN n%2=0 THEN 'PARTIAL' ELSE 'PENDING' END::"FiadoStatus",current_date + interval '10 days','d1000000-0000-4000-8000-000000000001','Seed CRM Demo',current_date - ((n*12)%120 || ' days')::interval,now() FROM generate_series(1,24) n;
 INSERT INTO fiado_payments (id, "fiadoId", amount, "registeredById", "createdAt") SELECT gen_random_uuid(),id,30,'d1000000-0000-4000-8000-000000000001',"createdAt" + interval '7 days' FROM fiados WHERE "barbershopId"='d0000000-0000-4000-8000-000000000001' AND "paidAmount">0;
 
 INSERT INTO expenses (id, "barbershopId", title, amount, type, recurrence, "referenceDate", "createdById", "createdAt", "updatedAt")

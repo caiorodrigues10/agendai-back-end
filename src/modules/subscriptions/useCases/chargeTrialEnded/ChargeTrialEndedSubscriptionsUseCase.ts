@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { inject, injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
 import { AsaasService } from "@/modules/payments/services/AsaasService";
@@ -99,7 +100,7 @@ export class ChargeTrialEndedSubscriptionsUseCase {
         });
 
         const externalReference = `ag-sub-${sub.id}-inv-${invoice.id}`;
-        const description = `Assinatura AgendAI — ${sub.plan.name} (pós-trial)`;
+        const description = `Assinatura ${BRAND_NAME} — ${sub.plan.name} (pós-trial)`;
 
         const payment = await this.asaasService.createPayment({
           customer: sub.asaasCustomerId,

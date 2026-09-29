@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import { REFERRAL_REWARD_DAYS } from '@/shared/constants/referral'
 import type { SendEmailInput } from '@/shared/container/providers/EmailProvider/IEmailProvider'
 import { emailLayout, frontendUrl } from './emailLayout'
@@ -30,7 +31,7 @@ export function buildReferralAppliedEmail(input: {
 
 	return {
 		to: input.email,
-		subject: 'Indicação aplicada na sua conta AGENDAI',
+		subject: `Indicação aplicada à sua conta na ${BRAND_NAME}`,
 		html: emailLayout({
 			title,
 			bodyHtml,
@@ -51,18 +52,18 @@ export function buildReferralConvertedEmail(input: {
 	const title = 'Sua indicação converteu!'
 	const bodyHtml = `
     <p>Olá, <strong style="color:#171717;">${escapeHtml(input.referrerName.split(' ')[0])}</strong>!</p>
-    <p>O salão <strong style="color:#171717;">${escapeHtml(input.refereeShopName)}</strong> assinou o AGENDAI.</p>
+    <p>O salão <strong style="color:#171717;">${escapeHtml(input.refereeShopName)}</strong> assinou a ${BRAND_NAME}.</p>
     <p>Creditamos <strong style="color:#171717;">${input.rewardDays} dias</strong> na sua assinatura. Obrigado por indicar!</p>
   `
 	const text = [
 		title,
-		`${input.refereeShopName} assinou o AGENDAI.`,
+		`${input.refereeShopName} assinou a ${BRAND_NAME}.`,
 		`+${input.rewardDays} dias creditados na sua assinatura.`,
 	].join('\n')
 
 	return {
 		to: input.referrerEmail,
-		subject: `Indicação convertida — +${input.rewardDays} dias no AGENDAI`,
+		subject: `Indicação convertida — +${input.rewardDays} dias na ${BRAND_NAME}`,
 		html: emailLayout({
 			title,
 			bodyHtml,
@@ -95,7 +96,7 @@ export function buildReferralRevokedEmail(input: {
 
 	return {
 		to: input.referrerEmail,
-		subject: `Indicação revertida — -${input.revokedDays} dias no AGENDAI`,
+		subject: `Indicação revertida — -${input.revokedDays} dias na ${BRAND_NAME}`,
 		html: emailLayout({
 			title,
 			bodyHtml,

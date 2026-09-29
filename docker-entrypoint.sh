@@ -46,5 +46,5 @@ if [ "$#" -eq 0 ]; then
   set -- node dist/shared/infra/http/server.js
 fi
 
-echo "Starting AgendAI process (PROCESS_ROLE=$PROCESS_ROLE)..."
+echo "Starting Agenda Já process (PROCESS_ROLE=$PROCESS_ROLE)..."
 exec "$@"

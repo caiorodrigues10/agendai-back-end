@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/config/brand';
 import type { SendEmailInput } from '@/shared/container/providers/EmailProvider/IEmailProvider'
 import { agendaiEmailBase } from './agendaiEmailLayout'
 import { getFrontendUrl } from '@/shared/constants/env'
@@ -47,11 +48,11 @@ export function buildPasswordChangedEmail(input: {
 	const title = 'Senha alterada com sucesso'
 	return {
 		to: input.email,
-		subject: 'Sua senha foi alterada — AgendAI',
+		subject: `Sua senha foi alterada — ${BRAND_NAME}`,
 		text: [
 			'Olá, ' + input.ownerName.split(' ')[0] + '!',
 			'',
-			'A senha da sua conta AgendAI foi alterada com sucesso.',
+			`A senha da sua conta ${BRAND_NAME} foi alterada com sucesso.`,
 			'',
 			'Se você não fez esta mudança, redefina sua senha imediatamente.',
 			'',
@@ -138,7 +139,7 @@ export function buildPaymentFailedEmail(input: {
 	const retryLink = input.retryUrl ?? frontend('/app/subscription')
 	return {
 		to: input.email,
-		subject: 'Pagamento não processado — AgendAI',
+		subject: `Pagamento não processado — ${BRAND_NAME}`,
 		text: [
 			'Olá, ' + input.ownerName.split(' ')[0] + '!',
 			'',
@@ -180,11 +181,11 @@ export function buildSubscriptionTrialEndingEmail(input: {
 	}).format(input.amount)
 	return {
 		to: input.email,
-		subject: `${input.daysLeft} dias restantes de teste — AgendAI`,
+		subject: `${input.daysLeft} dias restantes de teste — ${BRAND_NAME}`,
 		text: [
 			`Olá, ${input.ownerName.split(' ')[0]}!`,
 			'',
-			`Seu período gratuito do AgendAI termina em ${input.daysLeft} dias.`,
+			`Seu período gratuito da ${BRAND_NAME} termina em ${input.daysLeft} dias.`,
 			`Plano: ${input.planName} · ${price}/mês.`,
 			'',
 			'Continue usando: ' + frontend('/app/subscription'),
@@ -194,7 +195,7 @@ export function buildSubscriptionTrialEndingEmail(input: {
 			preheader: `Faltam ${input.daysLeft} dias para o fim do período grátis.`,
 			bodyHtml:
 				`<p>Olá, <strong>${esc(input.ownerName.split(' ')[0])}</strong>!</p>` +
-				`<p>Seu período de testes do AgendAI está se encerrando. Faltam <strong>${input.daysLeft} dias</strong>.</p>` +
+				`<p>Seu período de testes da ${BRAND_NAME} está se encerrando. Faltam <strong>${input.daysLeft} dias</strong>.</p>` +
 				`<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:12px 0;background:#F4F7F4;border-radius:8px;">` +
 				`<tr><td style="padding:12px 16px;">` +
 				`<p style="margin:0;font-size:13px;color:#4D5F55;">Plano selecionado</p>` +
@@ -226,7 +227,7 @@ export function buildSubscriptionCanceledEmail(input: {
 		: null
 	return {
 		to: input.email,
-		subject: 'Assinatura cancelada — AgendAI',
+		subject: `Assinatura cancelada — ${BRAND_NAME}`,
 		text: [
 			'Olá, ' + input.ownerName.split(' ')[0] + '.',
 			'',
@@ -309,11 +310,11 @@ export function buildWelcomeStaffEmail(input: {
 	const title = `Você foi adicionado ao ${input.barbershopName}`
 	return {
 		to: input.email,
-		subject: `Bem-vindo à equipe ${input.barbershopName} — AgendAI`,
+		subject: `Bem-vindo à equipe ${input.barbershopName} — ${BRAND_NAME}`,
 		text: [
 			`Olá, ${input.staffName.split(' ')[0]}!`,
 			'',
-			`Você foi convidado para a equipe de ${input.barbershopName} no AgendAI.`,
+			`Você foi convidado para a equipe de ${input.barbershopName} na ${BRAND_NAME}.`,
 			'',
 			'Aceite o convite: ' + input.inviteUrl,
 		].join('\n'),
@@ -322,7 +323,7 @@ export function buildWelcomeStaffEmail(input: {
 			preheader: `Convite para a equipe de ${input.barbershopName}.`,
 			bodyHtml:
 				`<p>Olá, <strong>${esc(input.staffName.split(' ')[0])}</strong>!</p>` +
-				`<p>Você foi convidado para fazer parte da equipe de <strong>${esc(input.barbershopName)}</strong> no AgendAI.</p>` +
+				`<p>Você foi convidado para fazer parte da equipe de <strong>${esc(input.barbershopName)}</strong> na ${BRAND_NAME}.</p>` +
 				`<p>Clique abaixo para configurar seu acesso e ver seus horários e comissões.</p>`,
 			ctaLabel: 'Aceitar convite',
 			ctaUrl: input.inviteUrl,
@@ -348,7 +349,7 @@ export function buildSubscriptionTrialEndedEmail(input: {
 	}).format(input.amount)
 	return {
 		to: input.email,
-		subject: 'Seu teste grátis acabou — AgendAI',
+		subject: `Seu teste grátis acabou — ${BRAND_NAME}`,
 		text: [
 			`Olá, ${input.ownerName.split(' ')[0]}.`,
 			'',
@@ -363,7 +364,7 @@ export function buildSubscriptionTrialEndedEmail(input: {
 			preheader: `O período grátis acabou — regularize em ${input.graceDays} dias.`,
 			bodyHtml:
 				`<p>Olá, <strong>${esc(input.ownerName.split(' ')[0])}</strong>.</p>` +
-				`<p>Seu período grátis do AgendAI acabou. O plano selecionado é <strong>${esc(input.planName)}</strong> (${price}/mês).</p>` +
+				`<p>Seu período grátis da ${BRAND_NAME} acabou. O plano selecionado é <strong>${esc(input.planName)}</strong> (${price}/mês).</p>` +
 				`<p style="margin-top:12px;padding:16px;border-radius:8px;background:#FEF3C7;color:#92400E;">` +
 				`<strong>Importante:</strong> você tem <strong>${input.graceDays} dia${input.graceDays === 1 ? '' : 's'}</strong> de carência antes do acesso ser suspenso.</p>` +
 				`<p>Para continuar com a fila, a agenda e todas as funções, regularize seu plano.</p>`,
@@ -388,7 +389,7 @@ export function buildSubscriptionRenewalFailedEmail(input: {
 	const retryLink = input.retryUrl ?? frontend('/app/subscription')
 	return {
 		to: input.email,
-		subject: 'Não conseguimos renovar sua assinatura — AgendAI',
+		subject: `Não conseguimos renovar sua assinatura — ${BRAND_NAME}`,
 		text: [
 			`Olá, ${input.ownerName.split(' ')[0]}.`,
 			'',
@@ -521,7 +522,7 @@ export function buildAppointmentUrgentCancelledEmail(input: {
 	const who = input.cancelledBy === 'CLIENTE' ? 'o cliente' : 'o salão'
 	return {
 		to: input.email,
-		subject: `Cancelamento urgente às ${input.originalTime} — AgendAI`,
+		subject: `Cancelamento urgente às ${input.originalTime} — ${BRAND_NAME}`,
 		text: [
 			'Cancelamento urgente:',
 			'',
@@ -561,7 +562,7 @@ export function buildAppointmentUrgentRescheduledEmail(input: {
 	const title = 'Agendamento remarcado'
 	return {
 		to: input.email,
-		subject: `Reagendado: ${input.originalTime} → ${input.newTime} — AgendAI`,
+		subject: `Reagendado: ${input.originalTime} → ${input.newTime} — ${BRAND_NAME}`,
 		text: [
 			'Agendamento reagendado:',
 			'',
