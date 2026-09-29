@@ -43,9 +43,6 @@ réplicas. Falhas de `prisma migrate deploy` devem bloquear o rollout.
    `GET /api/admin/operations/notifications`.
 4. Altere API, worker e scheduler para `NOTIFICATION_V2_MODE=active`. Nessa
    fase o outbox é a fonte de envio.
-5. Configure o webhook Resend em `POST /api/webhooks/resend` com os eventos de
-   envio, entrega, atraso, falha, bounce, reclamação, supressão, abertura e
-   clique. O `RESEND_WEBHOOK_SECRET` deve ser o signing secret desse endpoint.
 
 O payload criptografado é apagado após sete dias. Ao rotacionar, adicione a
 nova versão ao keyring, torne-a ativa e mantenha a chave anterior até expirar o
@@ -61,7 +58,7 @@ APP_ENV=staging
 PROCESS_ROLE=api
 RUN_MIGRATIONS=true
 PAYMENT_PROVIDERS_ENABLED=ASAAS
-ASAAS_API_URL=https://sandbox.asaas.com/api/v3
+ASAAS_API_URL=https://api-sandbox.asaas.com
 RECAPTCHA_SECRET_KEY=<staging>
 SENTRY_DSN=<staging>
 SENTRY_TRACES_SAMPLE_RATE=0.2

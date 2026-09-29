@@ -78,3 +78,9 @@ Smoke autenticado (6 etapas de `DELIVERY_CHECKS.md`) continua **OPEN em homologa
 | ID | Tema | Status | Notas |
 |---|---|---|---|
 | — | `prismaExtensions.ts` × `$transaction` | OPEN | `prismaExtensions.ts` reroteia operações de model dentro de `prisma.$transaction` → P2028 após `SELECT … FOR UPDATE` (afeta `InventoryEngine.adjustStock`). Reservas usam SQL cru na transação como contorno. |
+
+## Decisões novas (2026-09-26)
+
+| ID | Tema | Status | Notas |
+|---|---|---|---|
+| — | Remover rota `POST /api/webhooks/resend` | FIXED | Decisão do produto: **sem webhook Resend**. Controller, service, rota e registro removidos (26/09); `RESEND_WEBHOOK_SECRET` removido de `.env.example` e `docs/MVP_PUBLIC_OPERATIONS.md`. Envio de email continua normal com `RESEND_API_KEY` + `EMAIL_FROM`. |
