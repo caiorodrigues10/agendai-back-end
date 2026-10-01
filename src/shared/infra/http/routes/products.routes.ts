@@ -20,6 +20,7 @@ export async function productsRoutes(app: FastifyInstance) {
   app.get("/products/alerts", { preHandler: guard }, controller.stockAlerts.bind(controller));
   app.post("/products", { preHandler: guard }, controller.createProduct.bind(controller));
   app.patch("/products/:id", { preHandler: guard }, controller.updateProduct.bind(controller));
+  app.delete("/products/:id", { preHandler: guard }, controller.deleteProduct.bind(controller));
   app.get("/products/:id/image/upload-url", { preHandler: guard }, controller.getProductImageUploadUrl.bind(controller));
   app.post("/products/:id/image/upload", { preHandler: guard }, controller.uploadProductImage.bind(controller));
   app.post("/products/:id/image/confirm", { preHandler: guard }, controller.confirmProductImage.bind(controller));

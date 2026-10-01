@@ -56,6 +56,12 @@ export class ProductsController {
     reply.send({ success: true, data });
   }
 
+  async deleteProduct(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const data = await this.useCase().deleteProduct(id, shopId(request), request.user!);
+    reply.send({ success: true, data });
+  }
+
   async listCategories(request: FastifyRequest, reply: FastifyReply) {
     const data = await this.useCase().listCategories(shopId(request, (request.query as { barbershopId?: string }).barbershopId), request.user!);
     reply.send({ success: true, data });

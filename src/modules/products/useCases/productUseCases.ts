@@ -242,6 +242,52 @@ export class ProductCatalogUseCase {
     }
   }
 
+  /**
+   * Apaga o produto de vez. Só é permitido quando não há histórico
+   * (stock_movements, inventory_receipt_items, retail_sale_lines,
+   * retail_sale_refund_lines) nem reserva RESERVED vigente — nesse caso a
+   * recomendação é Inativar. Reservas finalizadas caem em cascata.
+   *
+   * Fora de `prisma.$transaction` de propósito: a extensão de RLS
+   * (`libs/prismaExtensions.ts`) roteia operações de model para outra conexão
+   * do pool e derruba a transação com P2028.
+   */
+  async deleteProduct(id: string, barbershopId: string, user: ProductActor) {
+    await assertProductPermission(user, barbershopId, "PRODUCTS_MANAGE");
+    const product = await prisma.product.findFirst({ where: { id, barbershopId } });
+    if (!product) throw new AppError("Produto não encontrado", 404);
+
+    const [movements, receiptItems, saleLines, refundLines] = await Promise.all([
+      prisma.stockMovement.count({ where: { productId: id, barbershopId } }),
+      prisma.inventoryReceiptItem.count({ where: { productId: id } }),
+      prisma.retailSaleLine.count({ where: { productId: id } }),
+      prisma.retailSaleRefundLine.count({ where: { productId: id } }),
+    ]);
+    if (movements + receiptItems + saleLines + refundLines > 0) {
+      throw new AppError(
+        "Este produto já tem histórico de estoque ou vendas. Use Inativar para mantê-lo fora das listas.",
+        409,
+        undefined,
+        "PRODUCT_HAS_HISTORY",
+      );
+    }
+
+    const openReservations = await prisma.productReservation.count({
+      where: { productId: id, barbershopId, status: "RESERVED", expiresAt: { gt: new Date() } },
+    });
+    if (openReservations > 0) {
+      throw new AppError(
+        "Este produto tem reservas em aberto. Aguarde a retirada ou peça o cancelamento antes de apagar.",
+        409,
+        undefined,
+        "PRODUCT_HAS_OPEN_RESERVATIONS",
+      );
+    }
+
+    await prisma.product.deleteMany({ where: { id, barbershopId } });
+    return { deleted: true };
+  }
+
   async uploadImage(
     id: string,
     barbershopId: string,
