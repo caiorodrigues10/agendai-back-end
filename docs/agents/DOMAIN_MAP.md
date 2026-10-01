@@ -17,8 +17,8 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Agenda | `/appointments` | `Appointment` |
 | Clientes / CRM | `/clients`, `/crm` | `SalonClient` + agregações CRM |
 | Pacotes | `/service-packages`, `/client-packages` | `ServicePackage`, `ClientPackage` |
-| Produtos / estoque / retail | `/products`, inventory, sales | `Product`, movimentos, `RetailSale*` |
-| Reservas de produto (vitrine pública) | `/barbershops/:id/public-products/*` (público) + `/product-reservations` (painel) | `ProductReservation` |
+| Produtos / estoque / retail | `/products` (CRUD, incl. `DELETE /products/:id`), inventory, sales | `Product`, movimentos, `RetailSale*` |
+| Reservas de produto (vitrine pública) | `/barbershops/:id/public-products/*` (público) + `/product-reservations` (painel) + aviso ao salão em `productReservations/reservationNotify.ts` (WhatsApp + e-mail `product_reservation_alert`) | `ProductReservation` |
 | Fiado / despesas | `/fiado`, `/expenses` | `Fiado`, `FiadoPayment`, `Expense*` |
 | Comissões | `/commissions` | modelos de comissão |
 | Assinaturas / planos / pagamentos | `/subscriptions`, `/plans`, `/payments`, webhooks | `Subscription`, `Plan`, `Invoice`, `Payment`, `BlockedEntity` |
