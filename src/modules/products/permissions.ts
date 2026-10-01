@@ -41,6 +41,24 @@ export function canSeeProductCosts(user: ProductActor, permissions: EmployeePerm
   return COST_PERMISSIONS.some((perm) => permissions.includes(perm));
 }
 
+/** Permissões que habilitam a aba Reservas (e o detalhe de cliente nela). */
+const RESERVATION_PERMISSIONS: EmployeePermission[] = [
+  "PRODUCTS_VIEW",
+  "PRODUCTS_MANAGE",
+  "RETAIL_SELL",
+];
+
+/**
+ * Nome/WhatsApp do cliente da reserva são dados pessoais: só saem para quem
+ * já pode abrir a aba Reservas (dono/mestre ou PRODUCTS_VIEW, PRODUCTS_MANAGE,
+ * RETAIL_SELL). Quem tem apenas INVENTORY_MANAGE vê a quantidade, nunca o
+ * contato.
+ */
+export function canSeeReservationCustomer(user: ProductActor, permissions: EmployeePermission[]): boolean {
+  if (isPrivilegedActor(user)) return true;
+  return RESERVATION_PERMISSIONS.some((perm) => permissions.includes(perm));
+}
+
 export function canOverrideProductPrice(user: ProductActor, permissions: EmployeePermission[]): boolean {
   if (isPrivilegedActor(user)) return true;
   return permissions.includes("PRODUCTS_MANAGE");

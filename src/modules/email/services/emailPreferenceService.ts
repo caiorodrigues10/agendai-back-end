@@ -44,6 +44,7 @@ export function categoryForTemplate(templateKey: string): EmailCategoryValue {
       "appointment_urgent_rescheduled",
       "subscription_trial_ending",
       "subscription_renewed",
+      "product_reservation_alert",
     ].includes(templateKey)
   ) {
     return "OPERATION";

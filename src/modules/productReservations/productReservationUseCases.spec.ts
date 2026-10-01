@@ -1,10 +1,14 @@
 /// <reference types="vitest/globals" />
 import { AppError } from "@/shared/errors/AppError";
 
-const { assertShop } = vi.hoisted(() => ({ assertShop: vi.fn() }));
+const { assertShop, notifyShop } = vi.hoisted(() => ({
+  assertShop: vi.fn(),
+  notifyShop: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("@/shared/utils/assertPublicShopOperationalAccess", () => ({
   assertPublicShopOperationalAccess: assertShop,
 }));
+vi.mock("./reservationNotify", () => ({ notifyShopAboutReservation: notifyShop }));
 
 import { ProductReservationUseCases } from "./productReservationUseCases";
 import { createProductReservationSchema } from "./productReservationSchemas";
@@ -281,6 +285,49 @@ describe("ProductReservationUseCases — reserva", () => {
         quantity: 1,
       }),
     ).rejects.toMatchObject({ code: "INSUFFICIENT_STOCK" } satisfies Partial<AppError>);
+  });
+
+  it("dispara o aviso ao salão sem await e mesmo se o aviso falhar", async () => {
+    notifyShop.mockRejectedValueOnce(new Error("fila de notificações fora do ar"));
+    const { repo, useCases } = useCasesWith({
+      findPublicProduct: vi.fn().mockResolvedValue(productRow({ salePrice: 40 })),
+      createReserved: vi.fn().mockResolvedValue(reservationRow({ quantity: 2 })),
+    });
+
+    const { reservation } = await useCases.reserve(SHOP_ID, PRODUCT_ID, {
+      customerName: "Ana Souza",
+      whatsapp: "11988887777",
+      quantity: 2,
+    });
+
+    expect(reservation.id).toBe(RESERVATION_ID);
+    expect(repo.createReserved).toHaveBeenCalledTimes(1);
+    expect(notifyShop).toHaveBeenCalledWith(
+      expect.objectContaining({
+        barbershopId: SHOP_ID,
+        reservationId: RESERVATION_ID,
+        shopName: shop.name,
+        shopTimezone: shop.timezone,
+        productName: "Pomada Modeladora",
+        quantity: 2,
+        customerName: "Ana Souza",
+        whatsapp: "11988887777",
+      }),
+    );
+  });
+
+  it("não avisa o salão quando a reserva não chega a ser criada", async () => {
+    const { useCases } = useCasesWith({
+      findPublicProduct: vi.fn().mockResolvedValue(productRow({ stockQty: 5 })),
+      sumReservedQuantity: vi.fn().mockResolvedValue({ [PRODUCT_ID]: 5 }),
+      createReserved: vi.fn(),
+    });
+
+    await expect(
+      useCases.reserve(SHOP_ID, PRODUCT_ID, { customerName: "Ana", whatsapp: "11988887777", quantity: 1 }),
+    ).rejects.toMatchObject({ code: "INSUFFICIENT_STOCK" } satisfies Partial<AppError>);
+
+    expect(notifyShop).not.toHaveBeenCalled();
   });
 });
 

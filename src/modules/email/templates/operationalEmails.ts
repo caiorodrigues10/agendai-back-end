@@ -16,6 +16,23 @@ function formatDate(value: Date | string): string {
  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
+function formatDateTime(value: Date | string): string {
+ const date = new Date(value);
+ if (!Number.isFinite(date.getTime())) throw new Error('Data inválida no e-mail');
+ return date.toLocaleString('pt-BR', {
+  timeZone: 'America/Sao_Paulo',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+ });
+}
+
+function brl(value: number): string {
+ return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
 function frontend(path = ''): string {
 	const base = getFrontendUrl().replace(/\/$/, '')
 	return `${base}${path.startsWith('/') ? path : `/${path}`}`
@@ -574,5 +591,84 @@ export function buildAppointmentUrgentRescheduledEmail(input: {
 		template: 'appointment_urgent_rescheduled',
 		metadata: { originalTime: input.originalTime, newTime: input.newTime },
 		tags: { module: 'appointments', kind: 'urgent_rescheduled' },
+	}
+}
+
+// ─── RESERVA DE PRODUTO (vitrine pública → aviso ao dono) ──────
+
+export function buildProductReservationAlertEmail(input: {
+	email: string
+	ownerName: string
+	barbershopName: string
+	productName: string
+	quantity: number
+	customerName: string
+	customerWhatsapp: string
+	total: number
+	expiresAt: Date | string
+	panelUrl?: string
+}): SendEmailInput {
+	const title = 'Nova reserva de produto'
+	const panelUrl = input.panelUrl || frontend('/app/products')
+	const until = formatDateTime(input.expiresAt)
+	// Nome, WhatsApp, produto e salão vêm de formulário público / cadastro:
+	// sempre escapados no HTML (risco de injeção) e sem quebras no assunto.
+	const shop = esc(input.barbershopName)
+	const product = esc(input.productName)
+	const customer = esc(input.customerName.trim() || 'Cliente')
+	const contact = esc(input.customerWhatsapp)
+	const rows: Array<[string, string]> = [
+		['Produto', `${input.quantity}× ${product}`],
+		['Cliente', customer],
+		['Contato', contact],
+		['Total', brl(Number(input.total) || 0)],
+		['Retirada até', esc(until)],
+	]
+	const table =
+		'<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:12px 0;background:#F4F7F4;border-radius:8px;">' +
+		rows
+			.map(
+				([label, value]) =>
+					`<tr><td style="padding:8px 16px;vertical-align:top;">` +
+					`<p style="margin:0;font-size:13px;color:#4D5F55;">${label}</p>` +
+					`<p style="margin:2px 0 0;font-weight:700;">${value}</p></td></tr>`
+			)
+			.join('') +
+		'</table>'
+
+	return {
+		to: input.email,
+		subject: `Nova reserva de produto — ${input.productName.replace(/[\r\n]+/g, ' ').trim()}`,
+		text: [
+			`Nova reserva de produto em ${input.barbershopName}.`,
+			'',
+			`Produto: ${input.quantity}× ${input.productName}`,
+			`Cliente: ${input.customerName}`,
+			`Contato: ${input.customerWhatsapp}`,
+			`Total: ${brl(Number(input.total) || 0)}`,
+			`Retirada até: ${until}`,
+			'',
+			'Acesse: ' + panelUrl,
+		].join('\n'),
+		html: agendaiEmailBase({
+			title,
+			preheader: `Reserva de ${input.quantity}× ${input.productName} em ${input.barbershopName}.`,
+			kicker: 'RESERVA',
+			bodyHtml:
+				`<p>Olá, <strong>${esc(input.ownerName.split(' ')[0])}</strong>!</p>` +
+				`<p>Uma nova reserva foi feita na <strong>${shop}</strong>. O produto continua no estoque até a retirada.</p>` +
+				table +
+				`<p style="font-size:13px;color:#4D5F55;">Confirme a retirada ou cancele pela aba Reservas do painel.</p>`,
+			ctaLabel: 'Ver reservas',
+			ctaUrl: panelUrl,
+			receivedBy: input.email,
+		}),
+		template: 'product_reservation_alert',
+		metadata: {
+			barbershopName: input.barbershopName,
+			productName: input.productName,
+			quantity: input.quantity,
+		},
+		tags: { module: 'products', kind: 'product_reservation_alert' },
 	}
 }

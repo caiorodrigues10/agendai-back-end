@@ -22,6 +22,7 @@ import {
   buildDailyDigestEmail,
   buildAppointmentUrgentCancelledEmail,
   buildAppointmentUrgentRescheduledEmail,
+  buildProductReservationAlertEmail,
   buildWelcomeStaffEmail,
 } from "@/modules/email/templates/operationalEmails";
 import { getModuleLogger } from "@/shared/utils/logger";
@@ -71,6 +72,8 @@ export function buildEmailPayload(data: EmailJobData) {
       return buildAppointmentUrgentCancelledEmail(data);
     case "appointment_urgent_rescheduled":
       return buildAppointmentUrgentRescheduledEmail(data);
+    case "product_reservation_alert":
+      return buildProductReservationAlertEmail(data);
     default: {
       const _exhaustive: never = data;
       throw new Error(

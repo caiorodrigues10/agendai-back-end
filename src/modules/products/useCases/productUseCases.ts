@@ -11,6 +11,7 @@ import {
   canOverrideProductPrice,
   canGiveDiscount,
   canSeeProductCosts,
+  canSeeReservationCustomer,
   ProductActor,
 } from "../permissions";
 import { CATALOG_TEMPLATE_VERSION, getCatalogTemplate } from "../catalogTemplates";
@@ -56,6 +57,18 @@ function enrichExpiration(row: ProductListItem, todayISO: string, days: number):
   return { ...rest, expirationStatus: status, daysToExpire };
 }
 
+/** Reserva vigente devolvida no card do catálogo (só com permissão de cliente). */
+type ReservationDetail = {
+  id: string;
+  customerName: string;
+  whatsapp: string;
+  quantity: number;
+  expiresAt: Date;
+};
+
+type ReservedEntry = { reservedQty: number; reservations: ReservationDetail[] };
+type ReservedMap = Map<string, ReservedEntry>;
+
 @injectable()
 export class ProductCatalogUseCase {
   constructor(
@@ -63,11 +76,96 @@ export class ProductCatalogUseCase {
     @inject("StorageProvider") private storage: IStorageProvider,
   ) {}
 
+  /**
+   * Reservas vigentes (RESERVED e não vencidas) dos produtos de UMA página —
+   * uma única consulta, nunca N+1. A soma alimenta `reservedQty`/`availableQty`
+   * e o array `reservations` só é montado quando o usuário pode ver o cliente.
+   *
+   * Fora de `prisma.$transaction` de propósito (P2028 da extensão de RLS).
+   * `status`/`expiresAt` são filtrados na query e conferidos de novo em
+   * memória: vencida ou finalizada nunca entra no card.
+   */
+  private async reservationsForPage(
+    barbershopId: string,
+    productIds: string[],
+    includeCustomer: boolean,
+  ): Promise<ReservedMap> {
+    const map: ReservedMap = new Map();
+    if (productIds.length === 0) return map;
+
+    const now = new Date();
+    const rows = await prisma.productReservation.findMany({
+      where: {
+        barbershopId,
+        productId: { in: productIds },
+        status: "RESERVED",
+        expiresAt: { gt: now },
+      },
+      select: {
+        id: true,
+        productId: true,
+        quantity: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
+        ...(includeCustomer ? { customerName: true, whatsapp: true } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    for (const row of rows as Array<{
+      id: string;
+      productId: string;
+      quantity: number;
+      status: string;
+      expiresAt: Date;
+      createdAt: Date;
+      customerName?: string;
+      whatsapp?: string;
+    }>) {
+      if (row.status !== "RESERVED" || row.expiresAt.getTime() <= now.getTime()) continue;
+      const entry = map.get(row.productId) ?? { reservedQty: 0, reservations: [] };
+      entry.reservedQty += Number(row.quantity);
+      if (includeCustomer) {
+        entry.reservations.push({
+          id: row.id,
+          customerName: row.customerName ?? "",
+          whatsapp: row.whatsapp ?? "",
+          quantity: Number(row.quantity),
+          expiresAt: row.expiresAt,
+        });
+      }
+      map.set(row.productId, entry);
+    }
+    return map;
+  }
+
+  /** Anexa `reservedQty`, `availableQty` e (se permitido) `reservations`. */
+  private withReservations(
+    row: ProductListItem,
+    map: ReservedMap,
+    includeCustomer: boolean,
+  ): ProductListItem {
+    const entry = map.get(String(row.id));
+    const reservedQty = entry?.reservedQty ?? 0;
+    const trackStock = (row as { trackStock?: boolean }).trackStock ?? true;
+    const availableQty = trackStock
+      ? Math.max(0, Number(row.stockQty ?? 0) - reservedQty)
+      : null;
+    return {
+      ...row,
+      reservedQty,
+      availableQty,
+      ...(includeCustomer ? { reservations: entry?.reservations ?? [] } : {}),
+    };
+  }
+
   async listProducts(barbershopId: string, user: ProductActor, query: {
     search?: string; categoryId?: string; active?: string; type?: string; purpose?: "sale" | "own"; lowStock?: string; forSale?: string; expiry?: "expired" | "expiring"; days?: number; page: number; limit: number;
   }) {
     const perms = await assertProductPermission(user, barbershopId, ["PRODUCTS_VIEW", "PRODUCTS_MANAGE", "RETAIL_SELL", "INVENTORY_MANAGE"]);
     const showCost = canSeeProductCosts(user, perms);
+    const showCustomer = canSeeReservationCustomer(user, perms);
     const shop = await prisma.barbershop.findUnique({ where: { id: barbershopId }, select: { timezone: true } });
     const shopTz = shop?.timezone ?? "America/Sao_Paulo";
     const todayISO = getShopToday(shopTz);
@@ -136,8 +234,11 @@ export class ProductCatalogUseCase {
       const order = new Map<string, number>(ids.map((id: string, index: number) => [id, index]));
       rows.sort((a: { id: string }, b: { id: string }) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
       const total = Number(countRows[0]?.count ?? 0);
+      const reserved = await this.reservationsForPage(barbershopId, ids, showCustomer);
       return {
-        data: rows.map((row: ProductListItem) => enrichExpiration(stripCost(row, showCost), todayISO, days)),
+        data: rows.map((row: ProductListItem) =>
+          this.withReservations(enrichExpiration(stripCost(row, showCost), todayISO, days), reserved, showCustomer),
+        ),
         total,
       };
     }
@@ -152,7 +253,14 @@ export class ProductCatalogUseCase {
       }),
       prisma.product.count({ where }),
     ]);
-    const data = rows.map((row: ProductListItem) => enrichExpiration(stripCost(row, showCost), todayISO, days));
+    const reserved = await this.reservationsForPage(
+      barbershopId,
+      rows.map((row: { id: string }) => row.id),
+      showCustomer,
+    );
+    const data = rows.map((row: ProductListItem) =>
+      this.withReservations(enrichExpiration(stripCost(row, showCost), todayISO, days), reserved, showCustomer),
+    );
     return { data, total };
   }
 

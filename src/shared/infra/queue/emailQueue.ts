@@ -168,6 +168,20 @@ export type EmailJobData =
       clientName?: string;
       serviceName?: string;
       deduplicationKey?: string;
+    }
+  | {
+      kind: "product_reservation_alert";
+      email: string;
+      ownerName: string;
+      barbershopName: string;
+      productName: string;
+      quantity: number;
+      customerName: string;
+      customerWhatsapp: string;
+      total: number;
+      expiresAt: Date | string;
+      panelUrl: string;
+      deduplicationKey?: string;
     };
 
 const QUEUE_NAME = "email";
@@ -240,6 +254,7 @@ function emailNotificationType(kind: EmailJobData["kind"]): NotificationType {
     case "daily_digest": return "DAILY_DIGEST";
     case "appointment_urgent_cancelled": return "APPOINTMENT_URGENT_CANCELLED";
     case "appointment_urgent_rescheduled": return "APPOINTMENT_URGENT_RESCHEDULED";
+    case "product_reservation_alert": return "PRODUCT_RESERVED_SHOP_ALERT";
   }
 }
 async function persistV2(data: EmailJobData): Promise<void> {
@@ -302,6 +317,7 @@ async function shouldSendEmail(data: EmailJobData): Promise<boolean> {
   const category = kind === "daily_digest" || kind.startsWith("appointment_urgent")
     ? "OPERATION" as const
     : kind === "subscription_trial_ending" || kind === "subscription_renewed"
+      || kind === "product_reservation_alert"
       ? "OPERATION" as const
       : "MARKETING" as const;
 

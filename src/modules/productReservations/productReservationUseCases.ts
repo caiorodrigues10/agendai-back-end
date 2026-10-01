@@ -13,6 +13,7 @@ import {
   getReservationRetentionMs,
   RESERVATION_MAX_OPEN_PER_WHATSAPP,
 } from "./reservationRules";
+import { notifyShopAboutReservation } from "./reservationNotify";
 import type { z } from "zod";
 import type {
   createProductReservationSchema,
@@ -156,6 +157,22 @@ export class ProductReservationUseCases {
       expiresAt: new Date(now.getTime() + getReservationRetentionMs()),
       now,
     });
+
+    // Aviso ao salão (WhatsApp + e-mail) é best-effort: dispara sem await para
+    // a resposta 201 não esperar o envio, e cada canal tem o próprio try/catch
+    // lá dentro — falha de um não afeta o outro nem a reserva já criada.
+    void notifyShopAboutReservation({
+      barbershopId,
+      reservationId: reservation.id,
+      shopName: shop.name,
+      shopTimezone: timezone,
+      productName: row.name,
+      quantity: reservation.quantity,
+      unitPrice: reservation.unitPrice,
+      customerName: reservation.customerName,
+      whatsapp: reservation.whatsapp,
+      expiresAt: reservation.expiresAt,
+    }).catch(() => undefined);
 
     const summary: ReservationSummary = {
       id: reservation.id,

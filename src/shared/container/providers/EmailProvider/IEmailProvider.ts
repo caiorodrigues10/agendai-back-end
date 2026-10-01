@@ -24,6 +24,7 @@ export type EmailTemplateId =
 	| 'daily_digest'
 	| 'appointment_urgent_cancelled'
 	| 'appointment_urgent_rescheduled'
+	| 'product_reservation_alert'
 
 /**
  * Classificação de erro do provider.

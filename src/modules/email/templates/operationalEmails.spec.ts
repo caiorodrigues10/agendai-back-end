@@ -3,6 +3,7 @@ import { agendaiEmailBase } from './agendaiEmailLayout'
 import {
  buildPaymentApprovedEmail, buildSubscriptionRenewedEmail, buildSubscriptionCanceledEmail,
  buildWelcomeStaffEmail, buildDailyDigestEmail, buildPasswordChangedEmail,
+ buildProductReservationAlertEmail,
 } from './operationalEmails'
 import { classifyResendError } from '@/shared/container/providers/EmailProvider/IEmailProvider'
 
@@ -62,5 +63,60 @@ describe('operational emails', () => {
   [{ name: 'bounced' }, 'PERMANENT'],
  ] as const)('classifies provider failure %j as %s', (input, expected) => {
   expect(classifyResendError(input)).toBe(expected)
+ })
+})
+
+describe('product reservation alert email', () => {
+ const base = {
+  email: 'owner@example.com',
+  ownerName: 'Maria Silva',
+  barbershopName: 'Barbearia <img src=x onerror=alert(1)> Central',
+  productName: 'Shampoo & condicionador',
+  quantity: 2,
+  customerName: 'Ana <script>alert(1)</script>',
+  customerWhatsapp: '11988887777',
+  total: 80,
+  expiresAt: new Date('2026-10-03T18:00:00.000Z'),
+ }
+
+ it('monta assunto, corpo e botão para o painel de produtos', () => {
+  const email = buildProductReservationAlertEmail({
+   ...base,
+   productName: 'Shampoo',
+   panelUrl: 'https://app.exemplo.com/app/products',
+  })
+
+  expect(email.subject).toBe('Nova reserva de produto — Shampoo')
+  expect(email.template).toBe('product_reservation_alert')
+  expect(email.text).toContain('https://app.exemplo.com/app/products')
+  expect(email.html).toContain('https://app.exemplo.com/app/products')
+  expect(email.html).toContain('Ver reservas')
+  expect(email.text).toContain('2× Shampoo')
+  expect(email.text).toContain('11988887777')
+  expect(email.html).toMatch(/R\$\s*80,00/)
+ })
+
+ it('usa a URL pública do painel quando panelUrl não vem na fila', () => {
+  const email = buildProductReservationAlertEmail(base)
+  expect(email.html).toContain('/app/products')
+  expect(email.text).toContain('/app/products')
+ })
+
+ it('escapa todo dado vindo do cliente e do salão', () => {
+  const email = buildProductReservationAlertEmail(base)
+
+  expect(email.html).not.toContain('<script>')
+  expect(email.html).not.toContain('<img src=x')
+  expect(email.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+  expect(email.html).toContain('Shampoo &amp; condicionador')
+ })
+
+ it('quebra de linha no nome não injeta assunto com múltiplas linhas', () => {
+  const email = buildProductReservationAlertEmail({ ...base, productName: 'Pomada\nBCC: hack@exemplo.com' })
+  expect(email.subject).toBe('Nova reserva de produto — Pomada BCC: hack@exemplo.com')
+ })
+
+ it('mostra o prazo de retirada no horário local', () => {
+  expect(buildProductReservationAlertEmail(base).html).toContain('03/10/2026')
  })
 })
