@@ -23,6 +23,7 @@ import { packagesRoutes } from './packages.routes'
 import { commissionsRoutes } from './commissions.routes'
 import { crmRoutes } from './crm.routes'
 import { productsRoutes } from './products.routes'
+import { productReservationRoutes } from '@/modules/productReservations/productReservationRoutes'
 import { onboardingRoutes } from '@/modules/barbershops/routes/onboarding.routes'
 import { calendarRoutes } from '@/modules/barbershops/routes/calendar.routes'
 import { reviewRoutes } from '@/modules/appointments/routes/review.routes'
@@ -89,6 +90,7 @@ export async function apiRoutes(app: FastifyInstance) {
 	await commissionsRoutes(app)
 	await crmRoutes(app)
 	await productsRoutes(app)
+	await productReservationRoutes(app)
 	await onboardingRoutes(app)
 	await calendarRoutes(app)
 	await reviewRoutes(app)

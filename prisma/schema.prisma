@@ -340,8 +340,9 @@ model Barbershop {
   waitlistOffers           AppointmentWaitlistOffer[]
    recurringPackagePlans     SalonRecurringPackagePlan[]
    clientRecurringPackages   ClientRecurringPackage[]
-  showcaseEntries          ShowcaseEntry[]
-  showcaseEvents           ShowcaseEvent[]
+   showcaseEntries          ShowcaseEntry[]
+   showcaseEvents           ShowcaseEvent[]
+   productReservations      ProductReservation[]
   combos                   ServiceCombo[]
   visits                   Visit[]
    visitTabs                VisitTab[]
@@ -1950,6 +1951,14 @@ enum ProductType {
   BOTH
 }
 
+/// Ciclo de vida de uma reserva de produto feita pelo cliente público.
+/// RESERVED é o único status "aberto"; PICKED_UP e CANCELED são finais.
+enum ProductReservationStatus {
+  RESERVED
+  PICKED_UP
+  CANCELED
+}
+
 enum StockMovementType {
   PURCHASE_RECEIPT
   SALE
@@ -2031,6 +2040,7 @@ model Product {
   receiptItems InventoryReceiptItem[]
   saleLines    RetailSaleLine[]
   refundLines  RetailSaleRefundLine[]
+  reservations ProductReservation[]
 
   /// SKU e barcode: unicidade por salão via índices parciais SQL (migration 20260904000000).
   @@index([barbershopId, active])
@@ -2039,6 +2049,34 @@ model Product {
   @@index([barbershopId, barcode])
   @@index([barbershopId, expirationDate])
   @@map("products")
+}
+
+/// Reserva de produto feita pelo cliente público (sem pagamento).
+/// A reserva NÃO baixa estoque: o disponível é derivado de
+/// stockQty - SUM(das reservas RESERVED ainda não vencidas), calculado a cada leitura.
+model ProductReservation {
+  id           String                   @id @default(uuid()) @db.Uuid
+  barbershopId String                   @db.Uuid
+  productId    String                   @db.Uuid
+  customerName String                   @db.VarChar(160)
+  /// Somente dígitos, 10-11 (DDD + número) — formato do phoneBR.
+  whatsapp     String                   @db.VarChar(20)
+  quantity     Int
+  /// Congelado no momento da reserva (promoções futuras não alteram reservas).
+  unitPrice    Float                    @db.Real
+  status       ProductReservationStatus @default(RESERVED)
+  /// now() + PRODUCT_RESERVATION_RETENTION_HOURS (padrão 48h).
+  expiresAt    DateTime
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId, status, createdAt])
+  @@index([productId, status])
+  @@index([status, expiresAt])
+  @@map("product_reservations")
 }
 
 model StockMovement {

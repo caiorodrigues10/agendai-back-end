@@ -60,6 +60,12 @@ import { CrmRepository } from '@/modules/crm/infra/repositories/CrmRepository'
 import { InventoryEngine } from '@/modules/products/infra/InventoryEngine'
 import { ProductCatalogUseCase } from '@/modules/products/useCases/productUseCases'
 
+import {
+	IProductReservationRepository,
+	ProductReservationRepository,
+} from '@/modules/productReservations/productReservationRepository'
+import { ProductReservationUseCases } from '@/modules/productReservations/productReservationUseCases'
+
 import { GetWeatherInsightsUseCase } from '@/modules/barbershops/useCases/getWeatherInsights/GetWeatherInsightsUseCase'
 
 container.registerSingleton<IUserRepository>('UserRepository', UserRepository)
@@ -129,4 +135,9 @@ container.registerSingleton<ICommissionRepository>('CommissionRepository', Commi
 container.registerSingleton<ICrmRepository>('CrmRepository', CrmRepository)
 container.registerSingleton(InventoryEngine)
 container.registerSingleton(ProductCatalogUseCase)
+container.registerSingleton<IProductReservationRepository>(
+	'ProductReservationRepository',
+	ProductReservationRepository,
+)
+container.registerSingleton(ProductReservationUseCases)
 container.registerSingleton('GetWeatherInsightsUseCase', GetWeatherInsightsUseCase)

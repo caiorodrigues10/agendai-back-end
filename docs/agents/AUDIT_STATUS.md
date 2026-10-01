@@ -72,3 +72,9 @@ Legenda: **OPEN** ainda bloqueia; **FIXED** conferido no código desta entrega; 
 | — | Loyalty/deposits sem tx | FIXED | `$transaction` + FOR UPDATE no depósito. |
 
 Smoke autenticado (6 etapas de `DELIVERY_CHECKS.md`) continua **OPEN em homologação** — este harness não afirma “sistema validado em produção”.
+
+## Pendência conhecida (não corrigida nesta entrega)
+
+| ID | Tema | Status | Notas |
+|---|---|---|---|
+| — | `prismaExtensions.ts` × `$transaction` | OPEN | `prismaExtensions.ts` reroteia operações de model dentro de `prisma.$transaction` → P2028 após `SELECT … FOR UPDATE` (afeta `InventoryEngine.adjustStock`). Reservas usam SQL cru na transação como contorno. |
