@@ -95,7 +95,8 @@ describe("ProductReservationUseCases — vitrine pública", () => {
 
     expect(products.map((p) => [p.id, p.available])).toEqual([
       ["p1", 3],
-      // 3 − 3 = 0 → fora da lista: nada para reservar
+      // 3 − 3 = 0 → segue na vitrine com available 0 (selo "Esgotado")
+      ["p2", 0],
       ["p3", null],
     ]);
     expect(repo.sumReservedQuantity).toHaveBeenCalledWith(
@@ -105,7 +106,7 @@ describe("ProductReservationUseCases — vitrine pública", () => {
     );
   });
 
-  it("nunca devolve disponível negativo nem lista produto sem estoque", async () => {
+  it("lista produto esgotado com available 0 (nunca negativo)", async () => {
     const { useCases } = useCasesWith({
       listPublicProducts: vi.fn().mockResolvedValue([
         productRow({ id: "p1", stockQty: 1 }),
@@ -116,7 +117,10 @@ describe("ProductReservationUseCases — vitrine pública", () => {
 
     const { products } = await useCases.listPublicProducts(SHOP_ID);
 
-    expect(products).toEqual([]);
+    expect(products.map((p) => [p.id, p.available])).toEqual([
+      ["p1", 0],
+      ["p2", 0],
+    ]);
   });
 
   it("expõe no DTO público apenas os campos autorizados (sem custo, SKU, código ou lote)", async () => {

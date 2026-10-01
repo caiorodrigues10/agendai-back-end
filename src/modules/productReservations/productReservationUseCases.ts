@@ -83,7 +83,12 @@ export class ProductReservationUseCases {
     };
   }
 
-  /** Vitrine pública: só o que ainda pode ser reservado (available >= 1 ou ilimitado). */
+  /**
+   * Vitrine pública: todo produto ativo, à venda (RETAIL/BOTH) e não vencido,
+   * mesmo com `available: 0` — o front exibe o selo "Esgotado" e trava a
+   * reserva. Continuam escondidos pelo repositório: inativos, tipo só
+   * CONSUMABLE e vencidos.
+   */
   async listPublicProducts(barbershopId: string) {
     const { shop, timezone } = await this.publicShop(barbershopId);
     const now = new Date();
@@ -93,9 +98,7 @@ export class ProductReservationUseCases {
       rows.map((row) => row.id),
       now,
     );
-    const products = rows
-      .map((row) => this.toPublicProduct(row, reserved[row.id] ?? 0))
-      .filter((product) => product.available === null || product.available >= 1);
+    const products = rows.map((row) => this.toPublicProduct(row, reserved[row.id] ?? 0));
     return { shop, products };
   }
 
