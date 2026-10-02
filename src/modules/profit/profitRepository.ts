@@ -22,6 +22,7 @@ const entrySelect = {
   overheadCosts: true,
   taxAmount: true,
   commissionAmt: true,
+  operationalCosts: true,
   netProfit: true,
   marginPercent: true,
   computedAt: true,
@@ -75,6 +76,7 @@ export class ProfitRepository {
       overheadCosts: number;
       taxAmount: number;
       commissionAmt: number;
+      operationalCosts?: number;
       netProfit: number;
       marginPercent: number;
     }
@@ -98,6 +100,7 @@ export class ProfitRepository {
         overheadCosts: data.overheadCosts,
         taxAmount: data.taxAmount,
         commissionAmt: data.commissionAmt,
+        operationalCosts: data.operationalCosts ?? 0,
         netProfit: data.netProfit,
         marginPercent: data.marginPercent,
       },
@@ -107,6 +110,7 @@ export class ProfitRepository {
         overheadCosts: data.overheadCosts,
         taxAmount: data.taxAmount,
         commissionAmt: data.commissionAmt,
+        operationalCosts: data.operationalCosts ?? 0,
         netProfit: data.netProfit,
         marginPercent: data.marginPercent,
         computedAt: new Date(),
@@ -182,58 +186,67 @@ export class ProfitRepository {
     });
   }
 
-  async getCompletedAppointments(barbershopId: string, period: Date) {
-    const year = period.getFullYear();
-    const month = period.getMonth();
-    const start = new Date(year, month, 1);
-    const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-
+  async getCompletedAppointments(barbershopId: string, range: { start: Date; end: Date }) {
     return prisma.appointment.findMany({
       where: {
         barbershopId,
         status: "COMPLETED",
-        date: { gte: start, lte: end },
+        OR: [
+          { completedAt: { gte: range.start, lte: range.end } },
+          { AND: [{ completedAt: null }, { date: { gte: range.start, lte: range.end } }] },
+        ],
       },
       select: {
         id: true,
         serviceId: true,
         staffId: true,
+        finalPrice: true,
+        clientPackageId: true,
         service: { select: { id: true, name: true, price: true, commissionPercent: true } },
         staff: { select: { id: true, name: true } },
       },
     });
   }
 
-  async getExpenses(barbershopId: string, period: Date) {
-    const year = period.getFullYear();
-    const month = period.getMonth();
-    const start = new Date(year, month, 1);
-    const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  /** Atendimentos concluídos pela FILA no período (mesma receita da agenda). */
+  async getQueueCompletions(barbershopId: string, range: { start: Date; end: Date }) {
+    return prisma.queueItem.findMany({
+      where: {
+        barbershopId,
+        status: "COMPLETED",
+        completedAt: { gte: range.start, lte: range.end },
+      },
+      select: {
+        id: true,
+        serviceId: true,
+        completedBy: true,
+        finalPrice: true,
+        service: { select: { id: true, name: true, price: true } },
+      },
+    });
+  }
 
+  async getExpenses(barbershopId: string, range: { start: Date; end: Date }) {
     return prisma.expense.findMany({
       where: {
         barbershopId,
-        referenceDate: { gte: start, lte: end },
+        referenceDate: { gte: range.start, lte: range.end },
       },
       select: {
         id: true,
         amount: true,
         type: true,
         categoryId: true,
+        inventoryReceiptId: true,
       },
     });
   }
 
-  async getCommissions(barbershopId: string, period: Date) {
-    const year = period.getFullYear();
-    const month = period.getMonth();
-    const start = new Date(year, month, 1);
-    const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-
+  async getCommissions(barbershopId: string, range: { start: Date; end: Date }) {
     return prisma.commissionEntry.findMany({
       where: {
         barbershopId,
-        createdAt: { gte: start, lte: end },
+        createdAt: { gte: range.start, lte: range.end },
       },
       select: {
         id: true,
