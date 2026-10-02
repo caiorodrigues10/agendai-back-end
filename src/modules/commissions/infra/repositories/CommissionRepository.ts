@@ -6,11 +6,13 @@ import {
   ICommissionSummary,
   IListCommissionsQuery,
 } from "../../dtos/ICommissionDTO";
+import { commissionAmount } from "@/modules/financial/ledger/commissionMath";
 
 const include = {
   service: { select: { name: true, price: true } },
   professional: { select: { name: true } },
   queueItem: { select: { finalPrice: true } },
+  appointment: { select: { finalPrice: true } },
 } as const;
 
 type CommissionWithRelations = Prisma.CommissionEntryGetPayload<{
@@ -22,6 +24,8 @@ function mapEntry(entry: CommissionWithRelations): ICommissionEntryDTO {
     id: entry.id,
     barbershopId: entry.barbershopId,
     queueItemId: entry.queueItemId,
+    appointmentId: entry.appointmentId,
+    origin: entry.appointmentId ? "APPOINTMENT" : "QUEUE",
     serviceId: entry.serviceId,
     serviceName: entry.service.name,
     professionalId: entry.professionalId,
@@ -60,7 +64,7 @@ export class CommissionRepository implements ICommissionRepository {
         serviceId: data.serviceId,
         professionalId: split.professionalId,
         percentage: split.percentage,
-        amount: Math.round((data.finalPrice * split.percentage) * 100) / 10000,
+        amount: commissionAmount(data.finalPrice, split.percentage),
       })),
       skipDuplicates: true,
     });
@@ -70,6 +74,8 @@ export class CommissionRepository implements ICommissionRepository {
     const where: Prisma.CommissionEntryWhereInput = {
       barbershopId,
       ...(query.professionalId ? { professionalId: query.professionalId } : {}),
+      ...(query.origin === "QUEUE" ? { queueItemId: { not: null } } : {}),
+      ...(query.origin === "APPOINTMENT" ? { appointmentId: { not: null } } : {}),
       ...(dateFilter(query) ? { createdAt: dateFilter(query) } : {}),
     };
     const [records, total] = await Promise.all([
@@ -92,6 +98,8 @@ export class CommissionRepository implements ICommissionRepository {
     const where: Prisma.CommissionEntryWhereInput = {
       barbershopId,
       ...(query.professionalId ? { professionalId: query.professionalId } : {}),
+      ...(query.origin === "QUEUE" ? { queueItemId: { not: null } } : {}),
+      ...(query.origin === "APPOINTMENT" ? { appointmentId: { not: null } } : {}),
       ...(dateFilter(query) ? { createdAt: dateFilter(query) } : {}),
     };
     const entries = await prisma.commissionEntry.findMany({ where, include });
@@ -108,12 +116,20 @@ export class CommissionRepository implements ICommissionRepository {
       byProfessional.set(entry.professionalId, current);
     }
     const commissionTotal = entries.reduce((total: number, entry: CommissionWithRelations) => total + entry.amount, 0);
-    const grossByQueueItem = new Map<string, number>();
+    const grossBySource = new Map<string, number>();
     for (const entry of entries) {
-      grossByQueueItem.set(entry.queueItemId, entry.queueItem.finalPrice ?? 0);
+      const key = entry.appointmentId
+        ? `appt:${entry.appointmentId}`
+        : entry.queueItemId
+          ? `queue:${entry.queueItemId}`
+          : `entry:${entry.id}`;
+      const amount = entry.appointmentId
+        ? entry.appointment?.finalPrice ?? 0
+        : entry.queueItem?.finalPrice ?? 0;
+      grossBySource.set(key, amount);
     }
     return {
-      grossTotal: [...grossByQueueItem.values()].reduce((total, amount) => total + amount, 0),
+      grossTotal: [...grossBySource.values()].reduce((total, amount) => total + amount, 0),
       commissionTotal,
       byProfessional: [...byProfessional.values()].map((entry) => ({
         ...entry,
