@@ -1,6 +1,7 @@
 import { VoucherRepository } from "./voucherRepository";
 import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import type { z } from "zod";
 import type {
   createVoucherSchema,
@@ -107,7 +108,7 @@ export class VoucherUseCases {
   }
 
   async applyVoucher(barbershopId: string, input: ApplyInput): Promise<ApplyResult> {
-    return prisma.$transaction(async (tx: typeof prisma) => {
+    return rlsTransaction(async (tx: typeof prisma) => {
       await tx.$queryRaw`SELECT id FROM vouchers WHERE id = ${input.voucherId}::uuid FOR UPDATE`;
       const voucher = await tx.voucher.findUnique({
         where: { id: input.voucherId },

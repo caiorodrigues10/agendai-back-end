@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
 import { DepositRepository, UpdatePolicyData, ConfirmDepositData } from "./depositRepository";
 
@@ -35,7 +36,7 @@ export class DepositUseCases {
       throw new AppError("Deposit has expired", 400);
     }
 
-    const confirmed = await prisma.$transaction(async (tx: any) => {
+    const confirmed = await rlsTransaction(async (tx: any) => {
       await tx.$queryRaw`SELECT id FROM appointment_deposits WHERE id = ${deposit.id}::uuid FOR UPDATE`;
       const locked = await tx.appointmentDeposit.findUnique({ where: { id: deposit.id } });
       if (!locked || locked.status !== "PENDING") {

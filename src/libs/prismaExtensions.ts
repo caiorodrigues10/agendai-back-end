@@ -51,3 +51,33 @@ export const rlsExtension: any = Prisma.defineExtension({
     },
   },
 });
+
+/**
+ * Transação de negócio com RLS habilitado na MESMA conexão.
+ *
+ * A extensão acima roteia cada operação de modelo para um `prisma.$transaction`
+ * próprio (outra conexão do pool). Isso é seguro para operações isoladas, mas
+ * dentro de uma transação interativa que segura `SELECT ... FOR UPDATE` causa
+ * deadlock: a escrita roteada espera pela trava desta transação, o timeout de 5s
+ * estoura e o commit vira P2028 "Transaction already closed" (verificado em
+ * 2026-10-01: adjust/sale/receipt retornando 500; mesmo motivo documentado em
+ * `productReservationRepository.createReserved`).
+ *
+ * Usa `insideRlsTx` para a extensão NÃO rerotear as operações do `tx` e seta o
+ * GUC de RLS uma única vez no início da transação (escopo local ao tx).
+ * Uso: `rlsTransaction(async (tx) => { ... })` — sempre com `tx.*` por dentro;
+ * qualquer uso do `prisma` global dentro do callback escapa da transação.
+ */
+export async function rlsTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+  const barbershopId = requestContext.getStore()?.barbershopId ?? "";
+  const { prisma } = await import("./prismaClient");
+
+  return insideRlsTx.run(true, () =>
+    prisma.$transaction(async (tx: any) => {
+      await tx.$executeRaw`
+        SELECT set_config('app.current_barbershop_id', ${barbershopId}, TRUE)
+      `;
+      return fn(tx);
+    })
+  );
+}
