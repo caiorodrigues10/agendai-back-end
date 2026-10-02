@@ -589,23 +589,27 @@ model QueueItem {
   @@map("queue")
 }
 
-/// Lançamento imutável de comissão gerado ao concluir um atendimento da fila.
+/// Lançamento imutável de comissão gerado ao concluir um atendimento (fila ou agenda).
+/// `queueItemId` ou `appointmentId` define a origem — exatamente um dos dois.
 model CommissionEntry {
   id             String   @id @default(uuid()) @db.Uuid
   barbershopId   String   @db.Uuid
-  queueItemId    String   @db.Uuid
+  queueItemId    String?  @db.Uuid
+  appointmentId  String?  @db.Uuid
   serviceId      String   @db.Uuid
   professionalId String   @db.Uuid
   percentage     Float    @db.Real
   amount         Float    @db.Real
   createdAt      DateTime @default(now())
 
-  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  queueItem    QueueItem  @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
-  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  professional User       @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  barbershop   Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  queueItem    QueueItem?   @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  professional User         @relation(fields: [professionalId], references: [id], onDelete: Restrict)
 
   @@unique([queueItemId, professionalId])
+  @@unique([appointmentId, professionalId])
   @@index([barbershopId, createdAt])
   @@index([professionalId, createdAt])
   @@map("commission_entries")
@@ -646,6 +650,13 @@ model Appointment {
   noShowMarkedAt      DateTime?
   noShowMarkedById    String?                        @db.Uuid
   visitId             String?                        @db.Uuid
+  /// Valor efetivamente cobrado na conclusão (com desconto). Null = não concluído ou legado.
+  finalPrice          Float?                         @db.Real
+  /// Forma de pagamento informada na conclusão (cash, pix, credit_card, debit_card, fiado).
+  paymentMethod       String?                        @db.VarChar(50)
+  /// Momento da conclusão — fonte de verdade para receita/caixa por dia (fuso do salão).
+  completedAt         DateTime?
+  completedBy         String?                        @db.Uuid
 
   barbershop             Barbershop                      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service                Service                         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
@@ -658,6 +669,7 @@ model Appointment {
   review                 ClientReview?
   reviewInvitation       ReviewInvitation?
   queueItems             QueueItem[]
+  commissionEntries      CommissionEntry[]
   retailSales            RetailSale[]
   productReservations    AppointmentProductReservation[]
   deposit                AppointmentDeposit?
@@ -668,6 +680,7 @@ model Appointment {
   careInstructions       ClientCareInstruction[]
 
   @@index([barbershopId, staffId, date, status])
+  @@index([barbershopId, completedAt])
   @@index([clientId])
   @@index([clientPackageId])
   @@index([seriesId, occurrenceIndex])
@@ -1332,6 +1345,8 @@ model FiadoPayment {
   id             String   @id @default(uuid()) @db.Uuid
   fiadoId        String   @db.Uuid
   amount         Float    @db.Real
+  /// Forma de pagamento usada no recebimento (cash, pix, credit_card, debit_card).
+  paymentMethod  String?  @db.VarChar(50)
   notes          String?  @db.Text
   registeredById String   @db.Uuid
   createdAt      DateTime @default(now())
@@ -1536,16 +1551,16 @@ enum ReferralCreditLedgerType {
 }
 
 model ReferralCreditLedger {
-  id                    String                   @id @default(uuid()) @db.Uuid
-  referralId            String                   @db.Uuid
-  referrerBarbershopId  String                   @db.Uuid
-  subscriptionId        String?                  @db.Uuid
-  type                  ReferralCreditLedgerType
-  days                  Int
-  idempotencyKey        String                   @unique @db.VarChar(120)
-  reason                String?                  @db.VarChar(200)
-  metadata              String?                  @db.Text
-  createdAt             DateTime                 @default(now())
+  id                   String                   @id @default(uuid()) @db.Uuid
+  referralId           String                   @db.Uuid
+  referrerBarbershopId String                   @db.Uuid
+  subscriptionId       String?                  @db.Uuid
+  type                 ReferralCreditLedgerType
+  days                 Int
+  idempotencyKey       String                   @unique @db.VarChar(120)
+  reason               String?                  @db.VarChar(200)
+  metadata             String?                  @db.Text
+  createdAt            DateTime                 @default(now())
 
   @@index([referralId])
   @@index([referrerBarbershopId, createdAt])
@@ -1887,12 +1902,12 @@ model ClientReview {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  barbershop     Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  appointment    Appointment?    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  queueItem      QueueItem?      @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  barbershop     Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointment    Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  queueItem      QueueItem?        @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
   invitation     ReviewInvitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
-  client         SalonClient?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  staff          User?           @relation("ClientReviewStaff", fields: [staffId], references: [id], onDelete: SetNull)
+  client         SalonClient?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  staff          User?             @relation("ClientReviewStaff", fields: [staffId], references: [id], onDelete: SetNull)
   reviewResponse ReviewResponse?
 
   @@index([barbershopId, status, createdAt])
@@ -1923,10 +1938,10 @@ model ReviewInvitation {
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
-  barbershop  Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  queueItem   QueueItem?   @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
-  client      SalonClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  barbershop  Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointment Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  queueItem   QueueItem?    @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  client      SalonClient?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
   review      ClientReview?
 
   @@index([barbershopId, status, createdAt])
@@ -2389,21 +2404,35 @@ model ActivationMetric {
   @@map("activation_metrics")
 }
 
+/// Livro-caixa: fonte única de entradas e saídas do salão.
+/// Lançamentos automáticos (conclusão, vendas, fiado, despesas) gravam aqui na MESMA
+/// transação da operação de origem, com unicidade por (barbershopId, sourceType, sourceId, type).
 model CashMovement {
-  id             String   @id @default(uuid()) @db.Uuid
-  barbershopId   String   @db.Uuid
-  type           String   @db.VarChar(30)
-  amount         Decimal  @db.Decimal(12, 2)
-  paymentMethod  String   @db.VarChar(20)
-  description    String?  @db.VarChar(300)
-  sourceType     String?  @db.VarChar(30)
-  sourceId       String?  @db.VarChar(100)
-  idempotencyKey String?  @unique @db.VarChar(100)
-  createdBy      String   @db.Uuid
-  createdAt      DateTime @default(now())
+  id              String   @id @default(uuid()) @db.Uuid
+  barbershopId    String   @db.Uuid
+  /// Tipo do lançamento (SERVICE_SALE, PRODUCT_SALE, PACKAGE_SALE, FIADO_PAYMENT, REFUND, EXPENSE, TIP, OTHER, ...)
+  type            String   @db.VarChar(30)
+  amount          Decimal  @db.Decimal(12, 2)
+  /// Forma de pagamento normalizada: CASH, PIX, CREDIT_CARD, DEBIT_CARD, FIADO, OTHER.
+  paymentMethod   String   @db.VarChar(20)
+  description     String?  @db.VarChar(300)
+  sourceType      String?  @db.VarChar(30)
+  sourceId        String?  @db.VarChar(100)
+  /// Lançamento original vinculado (ex.: venda estornada, fiado pago).
+  relatedSourceId String?  @db.VarChar(100)
+  /// Quando o evento aconteceu de fato (fuso do salão para limites de dia/mês).
+  occurredAt      DateTime @default(now())
+  /// Profissional responsável quando houver (comissão/venda de serviço).
+  professionalId  String?  @db.Uuid
+  clientId        String?  @db.Uuid
+  idempotencyKey  String?  @unique @db.VarChar(160)
+  createdBy       String   @db.Uuid
+  createdAt       DateTime @default(now())
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
+  @@unique([barbershopId, sourceType, sourceId, type])
+  @@index([barbershopId, occurredAt])
   @@index([barbershopId, createdAt])
   @@index([barbershopId, paymentMethod])
   @@index([barbershopId, sourceType, sourceId])
@@ -3157,19 +3186,21 @@ enum SalonLinkStatus {
 // ─── Profit Engine ──────────────────────────────────────────────
 
 model ProfitEntry {
-  id            String   @id @default(uuid()) @db.Uuid
-  barbershopId  String   @db.Uuid
-  period        DateTime @db.Date
-  serviceId     String?  @db.Uuid
-  staffId       String?  @db.Uuid
-  revenue       Decimal  @default(0) @db.Decimal(12, 2)
-  directCosts   Decimal  @default(0) @db.Decimal(12, 2)
-  overheadCosts Decimal  @default(0) @db.Decimal(12, 2)
-  taxAmount     Decimal  @default(0) @db.Decimal(12, 2)
-  commissionAmt Decimal  @default(0) @db.Decimal(12, 2)
-  netProfit     Decimal  @default(0) @db.Decimal(12, 2)
-  marginPercent Float    @default(0) @db.Real
-  computedAt    DateTime @default(now())
+  id               String   @id @default(uuid()) @db.Uuid
+  barbershopId     String   @db.Uuid
+  period           DateTime @db.Date
+  serviceId        String?  @db.Uuid
+  staffId          String?  @db.Uuid
+  revenue          Decimal  @default(0) @db.Decimal(12, 2)
+  directCosts      Decimal  @default(0) @db.Decimal(12, 2)
+  overheadCosts    Decimal  @default(0) @db.Decimal(12, 2)
+  /// Despesas fora de `overheadCategories` (custo operacional separado do rateio).
+  operationalCosts Decimal  @default(0) @db.Decimal(12, 2)
+  taxAmount        Decimal  @default(0) @db.Decimal(12, 2)
+  commissionAmt    Decimal  @default(0) @db.Decimal(12, 2)
+  netProfit        Decimal  @default(0) @db.Decimal(12, 2)
+  marginPercent    Float    @default(0) @db.Real
+  computedAt       DateTime @default(now())
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
