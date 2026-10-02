@@ -22,7 +22,7 @@ export async function verifyInternalAdmin(
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true, active: true, deletedAt: true },
+    select: { id: true, role: true, active: true, deletedAt: true, permissions: true },
   });
 
   if (!user || user.deletedAt) {
@@ -36,6 +36,11 @@ export async function verifyInternalAdmin(
   if (user.role !== "MASTER_ADMIN") {
     throw new AppError("Acesso restrito a administradores internos", 403);
   }
+
+  request.user = {
+    ...request.user!,
+    permissions: user.permissions,
+  };
 }
 
 /**

@@ -4,14 +4,15 @@ import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/libs/prismaClient";
 import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
 import { getFrontendUrl } from "@/shared/constants/env";
+import { INTERNAL_PROFILE_PERMISSIONS } from "../../internalPermissions";
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
 export class InviteTeamMemberUseCase {
-  async execute(data: { email: string; role?: string; invitedById: string }) {
-    const { email, role = "MASTER_ADMIN", invitedById } = data;
+  async execute(data: { email: string; role?: string; profile?: keyof typeof INTERNAL_PROFILE_PERMISSIONS; invitedById: string }) {
+    const { email, role = "MASTER_ADMIN", profile = "ADMIN", invitedById } = data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -41,10 +42,11 @@ export class InviteTeamMemberUseCase {
         email: email.toLowerCase(),
         invitedById,
         role: role as any,
+        permissions: [...INTERNAL_PROFILE_PERMISSIONS[profile]],
         tokenHash,
         expiresAt,
       },
-      select: { id: true, email: true, expiresAt: true, createdAt: true },
+      select: { id: true, email: true, permissions: true, expiresAt: true, createdAt: true },
     });
 
     // Send invitation email

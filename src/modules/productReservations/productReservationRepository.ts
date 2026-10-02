@@ -3,7 +3,8 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { requestContext } from "@/shared/infra/http/requestContext";
 import { computeAvailableQuantity } from "./reservationRules";
-import type { ProductReservationStatus } from "@prisma/client";
+import { ProductType } from "@prisma/client";
+import type { Prisma, ProductReservationStatus } from "@prisma/client";
 
 export type PublicShop = {
   id: string;
@@ -30,6 +31,10 @@ export type PublicProductRow = {
   categoryName: string | null;
   stockQty: number;
   trackStock: boolean;
+};
+
+type PublicProductSelectedRow = Omit<PublicProductRow, "categoryName"> & {
+  category: { name: string } | null;
 };
 
 export type ProductReservationRow = {
@@ -94,11 +99,11 @@ export class ProductReservationRepository implements IProductReservationReposito
    * `expirationDate` é `@db.Date` (meia-noite UTC) e só existe em
    * CONSUMABLE/BOTH; a comparação usa a "hoje" do fuso do salão.
    */
-  private publicProductWhere(barbershopId: string, shopTodayISO: string) {
+  private publicProductWhere(barbershopId: string, shopTodayISO: string): Prisma.ProductWhereInput {
     return {
       barbershopId,
       active: true,
-      type: { in: ["RETAIL", "BOTH"] },
+      type: { in: [ProductType.RETAIL, ProductType.BOTH] },
       OR: [
         { expirationDate: null },
         { expirationDate: { gte: new Date(`${shopTodayISO}T00:00:00.000Z`) } },
@@ -125,7 +130,7 @@ export class ProductReservationRepository implements IProductReservationReposito
       select: this.productSelect,
       orderBy: { name: "asc" },
     });
-    return (rows as Array<Omit<PublicProductRow, "categoryName"> & { category: { name: string } | null }>).map(
+    return (rows as PublicProductSelectedRow[]).map(
       ({ category, ...row }) => ({ ...row, categoryName: category?.name ?? null }),
     );
   }
@@ -136,9 +141,7 @@ export class ProductReservationRepository implements IProductReservationReposito
       select: this.productSelect,
     });
     if (!row) return null;
-    const { category, ...rest } = row as Omit<PublicProductRow, "categoryName"> & {
-      category: { name: string } | null;
-    };
+    const { category, ...rest } = row as PublicProductSelectedRow;
     return { ...rest, categoryName: category?.name ?? null };
   }
 

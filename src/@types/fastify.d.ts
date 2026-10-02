@@ -9,6 +9,7 @@ declare module "fastify" {
       role: string;
       barbershopId?: string;
       cpf?: string;
+      permissions?: string[];
     };
   }
 }

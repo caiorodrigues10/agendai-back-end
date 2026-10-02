@@ -3,7 +3,9 @@ import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
 import { authorize } from "@/shared/infra/http/middlewares/authorize";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 import { verifyInternalAdmin, protectLastAdmin } from "@/shared/infra/http/middlewares/verifyInternalAdmin";
+import { requireInternalPermission } from "@/shared/infra/http/middlewares/requireInternalPermission";
 import { validateSchema } from "@/shared/infra/http/middlewares/validateSchema";
+import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
 import { TeamController } from "@/modules/admin/controllers/TeamController";
 import { TicketController } from "@/modules/admin/controllers/TicketController";
 import { TaskController } from "@/modules/admin/controllers/TaskController";
@@ -15,6 +17,8 @@ import {
 } from "@/modules/admin/schemas/internalSchemas";
 
 const internalGuards = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
+const teamGuards = [...internalGuards, requireInternalPermission(INTERNAL_PERMISSIONS.TEAM_MANAGE)];
+const supportGuards = [...internalGuards, requireInternalPermission(INTERNAL_PERMISSIONS.SUPPORT_MANAGE)];
 
 export async function adminInternalRoutes(app: FastifyInstance) {
   const team = new TeamController();
@@ -30,31 +34,31 @@ export async function adminInternalRoutes(app: FastifyInstance) {
   app.get("/admin/work/summary", { preHandler: internalGuards }, work.get.bind(work));
 
   // ── Team ───────────────────────────────────────────────────────────────────
-  app.get("/admin/team", { preHandler: internalGuards }, team.list.bind(team));
-  app.post("/admin/team/invitations", { preHandler: internalGuards }, team.invite.bind(team));
-  app.post("/admin/team/invitations/:id/resend", { preHandler: internalGuards }, team.resendInvitation.bind(team));
-  app.delete("/admin/team/invitations/:id", { preHandler: internalGuards }, team.revokeInvitation.bind(team));
+  app.get("/admin/team", { preHandler: teamGuards }, team.list.bind(team));
+  app.post("/admin/team/invitations", { preHandler: teamGuards }, team.invite.bind(team));
+  app.post("/admin/team/invitations/:id/resend", { preHandler: teamGuards }, team.resendInvitation.bind(team));
+  app.delete("/admin/team/invitations/:id", { preHandler: teamGuards }, team.revokeInvitation.bind(team));
   app.patch("/admin/team/:id/status", {
-    preHandler: [...internalGuards, protectLastAdmin],
+    preHandler: [...teamGuards, protectLastAdmin],
   }, team.deactivate.bind(team));
 
   // ── Tickets ────────────────────────────────────────────────────────────────
   app.get("/admin/tickets", {
-    preHandler: [...internalGuards, validateSchema(listTicketsQuerySchema, "query")],
+    preHandler: [...supportGuards, validateSchema(listTicketsQuerySchema, "query")],
   }, ticket.list.bind(ticket));
-  app.post("/admin/tickets", { preHandler: internalGuards }, ticket.create.bind(ticket));
-  app.get("/admin/tickets/:id", { preHandler: internalGuards }, ticket.get.bind(ticket));
-  app.patch("/admin/tickets/:id", { preHandler: internalGuards }, ticket.update.bind(ticket));
-  app.post("/admin/tickets/:id/comments", { preHandler: internalGuards }, ticket.addComment.bind(ticket));
+  app.post("/admin/tickets", { preHandler: supportGuards }, ticket.create.bind(ticket));
+  app.get("/admin/tickets/:id", { preHandler: supportGuards }, ticket.get.bind(ticket));
+  app.patch("/admin/tickets/:id", { preHandler: supportGuards }, ticket.update.bind(ticket));
+  app.post("/admin/tickets/:id/comments", { preHandler: supportGuards }, ticket.addComment.bind(ticket));
 
   // ── Tasks ──────────────────────────────────────────────────────────────────
   app.get("/admin/tasks", {
-    preHandler: [...internalGuards, validateSchema(listTasksQuerySchema, "query")],
+    preHandler: [...supportGuards, validateSchema(listTasksQuerySchema, "query")],
   }, task.list.bind(task));
-  app.post("/admin/tasks", { preHandler: internalGuards }, task.create.bind(task));
-  app.get("/admin/tasks/:id", { preHandler: internalGuards }, task.get.bind(task));
-  app.patch("/admin/tasks/:id", { preHandler: internalGuards }, task.update.bind(task));
-  app.post("/admin/tasks/:id/comments", { preHandler: internalGuards }, task.addComment.bind(task));
+  app.post("/admin/tasks", { preHandler: supportGuards }, task.create.bind(task));
+  app.get("/admin/tasks/:id", { preHandler: supportGuards }, task.get.bind(task));
+  app.patch("/admin/tasks/:id", { preHandler: supportGuards }, task.update.bind(task));
+  app.post("/admin/tasks/:id/comments", { preHandler: supportGuards }, task.addComment.bind(task));
 
   // ── Audit Logs (extended filters) ──────────────────────────────────────────
   // Reuse existing AdminAuditLogController — no extra import needed since

@@ -15,7 +15,7 @@ export class ResendInvitationUseCase {
 
     const invitation = await prisma.internalInvitation.findUnique({
       where: { id: invitationId },
-      select: { id: true, email: true, status: true, invitedById: true },
+      select: { id: true, email: true, status: true, invitedById: true, role: true, permissions: true },
     });
 
     if (!invitation) {
@@ -42,11 +42,12 @@ export class ResendInvitationUseCase {
       data: {
         email: invitation.email,
         invitedById: invitation.invitedById,
-        role: "MASTER_ADMIN",
+        role: invitation.role,
+        permissions: invitation.permissions,
         tokenHash,
         expiresAt,
       },
-      select: { id: true, email: true, expiresAt: true },
+      select: { id: true, email: true, permissions: true, expiresAt: true },
     });
 
     const inviteUrl = `${getFrontendUrl()}/master/accept-invitation?token=${rawToken}`;

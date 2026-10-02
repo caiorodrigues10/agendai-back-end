@@ -227,9 +227,14 @@ export async function qualifyReferralOnPayment(
 		where: { barbershopId: referral.referrerBarbershopId },
 	})
 
-	await prisma.$transaction(async (tx: any) => {
-		await tx.referral.update({
-			where: { id: referral.id },
+	if (!referrerSub) {
+		logger.warn({ referralId: referral.id, referrerBarbershopId: referral.referrerBarbershopId }, 'Referral reward postponed because referrer has no subscription')
+		return
+	}
+
+	const rewarded = await prisma.$transaction(async (tx: any) => {
+		const updated = await tx.referral.updateMany({
+			where: { id: referral.id, status: 'PENDING' },
 			data: {
 				status: 'REWARDED',
 				rewardDays: totalDays,
@@ -237,52 +242,71 @@ export async function qualifyReferralOnPayment(
 				rewardedAt: now,
 			},
 		})
+		if (updated.count !== 1) return false
 
 		await tx.referralCode.update({
 			where: { id: referral.referralCodeId },
 			data: { tier: newTier },
 		})
 
-		if (referrerSub) {
-			const base =
-				referrerSub.endDate && referrerSub.endDate > now
-					? new Date(referrerSub.endDate)
-					: now
-			base.setDate(base.getDate() + totalDays)
-			await tx.subscription.update({
-				where: { id: referrerSub.id },
-				data: {
-					endDate: base,
-					referralCreditDays: { increment: totalDays },
-				},
-			})
-		}
+		const base =
+			referrerSub.endDate && referrerSub.endDate > now
+				? new Date(referrerSub.endDate)
+				: now
+		base.setDate(base.getDate() + totalDays)
+		await tx.subscription.update({
+			where: { id: referrerSub.id },
+			data: {
+				endDate: base,
+				referralCreditDays: { increment: totalDays },
+			},
+		})
+
+		await tx.referralCreditLedger.create({
+			data: {
+				referralId: referral.id,
+				referrerBarbershopId: referral.referrerBarbershopId,
+				subscriptionId: referrerSub.id,
+				type: 'CREDIT',
+				days: totalDays,
+				idempotencyKey: `referral-credit:${referral.id}`,
+				reason: 'Indicação convertida',
+				metadata: JSON.stringify({
+					refereeBarbershopId,
+					refereeShopName: referral.refereeBarbershop.name,
+					tier: newTier,
+					previousTier,
+					baseRewardDays: tierConfig.rewardDays,
+					bonusDays: bonus,
+				}),
+			},
+		})
+
+		return true
 	})
 
-	if (referrerSub) {
-		await invalidateSubscriptionCache(referral.referrerBarbershopId);
+	if (!rewarded) return
 
-		await enqueueEmail({
-			kind: 'referral_converted',
-			referrerName: referral.referrerUser.name,
-			referrerEmail: referral.referrerUser.email,
-			refereeShopName: referral.refereeBarbershop.name,
-			rewardDays: totalDays,
-			deduplicationKey: `referral-converted:${referral.id}`,
-		}).catch((err) => logger.error({ err }, 'Failed to send referral converted email'))
+	await invalidateSubscriptionCache(referral.referrerBarbershopId);
 
-		const whatsapp = referral.referrerBarbershop.whatsapp
-		if (whatsapp) {
-			const msg = [
-				`*Indicação convertida!*`,
-				``,
-				`O salão *${referral.refereeBarbershop.name}* assinou a ${BRAND_NAME}.`,
-				`+${totalDays} dias creditados na sua assinatura.`,
-			].join('\n')
-			await sendWhatsAppMessage(whatsapp, msg, { platform: true }).catch((err) => logger.error({ err }, 'Failed to send referral converted WhatsApp'))
-		}
-	} else {
-		logger.warn({ referralId: referral.id, referrerBarbershopId: referral.referrerBarbershopId }, 'Referral marked REWARDED without referrer subscription')
+	await enqueueEmail({
+		kind: 'referral_converted',
+		referrerName: referral.referrerUser.name,
+		referrerEmail: referral.referrerUser.email,
+		refereeShopName: referral.refereeBarbershop.name,
+		rewardDays: totalDays,
+		deduplicationKey: `referral-converted:${referral.id}`,
+	}).catch((err) => logger.error({ err }, 'Failed to send referral converted email'))
+
+	const whatsapp = referral.referrerBarbershop.whatsapp
+	if (whatsapp) {
+		const msg = [
+			`*Indicação convertida!*`,
+			``,
+			`O salão *${referral.refereeBarbershop.name}* assinou a ${BRAND_NAME}.`,
+			`+${totalDays} dias creditados na sua assinatura.`,
+		].join('\n')
+		await sendWhatsAppMessage(whatsapp, msg, { platform: true }).catch((err) => logger.error({ err }, 'Failed to send referral converted WhatsApp'))
 	}
 }
 
@@ -308,11 +332,12 @@ export async function revokeReferralOnCancellation(
 
 	let daysActuallyRevoked = 0
 
-	await prisma.$transaction(async (tx: any) => {
-		await tx.referral.update({
-			where: { id: referral.id },
+	const revoked = await prisma.$transaction(async (tx: any) => {
+		const updated = await tx.referral.updateMany({
+			where: { id: referral.id, status: 'REWARDED' },
 			data: { status: 'REJECTED' },
 		})
+		if (updated.count !== 1) return false
 
 		if (referrerSub && referrerSub.referralCreditDays > 0) {
 			daysActuallyRevoked = Math.min(revokedDays, referrerSub.referralCreditDays)
@@ -336,6 +361,23 @@ export async function revokeReferralOnCancellation(
 					),
 				},
 			})
+
+			await tx.referralCreditLedger.create({
+				data: {
+					referralId: referral.id,
+					referrerBarbershopId: referral.referrerBarbershopId,
+					subscriptionId: referrerSub.id,
+					type: 'REVERSAL',
+					days: daysActuallyRevoked,
+					idempotencyKey: `referral-reversal:${referral.id}`,
+					reason: 'Indicação cancelada ou estornada',
+					metadata: JSON.stringify({
+						refereeBarbershopId,
+						refereeShopName: referral.refereeBarbershop.name,
+						originalRewardDays: revokedDays,
+					}),
+				},
+			})
 		}
 
 		// Recalcula tier do código após perda da conversão
@@ -349,7 +391,11 @@ export async function revokeReferralOnCancellation(
 			where: { id: referral.referralCodeId },
 			data: { tier: getReferralTier(remainingConverted) },
 		})
+
+		return true
 	})
+
+	if (!revoked) return
 
 	if (referrerSub) {
 		await invalidateSubscriptionCache(referral.referrerBarbershopId);

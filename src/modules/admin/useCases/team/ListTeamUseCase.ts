@@ -11,21 +11,27 @@ export class ListTeamUseCase {
     const skip = (page - 1) * limit;
 
     const where: any = {};
+    const and: any[] = [];
 
     if (search) {
-      where.OR = [
+      and.push({
+        OR: [
         { name: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
-      ];
+        ],
+      });
     }
 
     if (status === "active") {
-      where.active = true;
-      where.deletedAt = null;
+      and.push({ active: true, deletedAt: null });
     } else if (status === "inactive") {
-      where.OR = [{ active: false }, { deletedAt: { not: null } }];
+      and.push({ OR: [{ active: false }, { deletedAt: { not: null } }] });
     } else {
-      where.deletedAt = null;
+      and.push({ deletedAt: null });
+    }
+
+    if (and.length > 0) {
+      where.AND = and;
     }
 
     const [users, total] = await Promise.all([
@@ -66,6 +72,7 @@ export class ListTeamUseCase {
         id: true,
         email: true,
         status: true,
+        permissions: true,
         expiresAt: true,
         createdAt: true,
         invitedBy: { select: { name: true } },

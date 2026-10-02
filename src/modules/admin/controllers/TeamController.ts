@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { InviteTeamMemberUseCase } from "../useCases/team/InviteTeamMemberUseCase";
 import { ListTeamUseCase } from "../useCases/team/ListTeamUseCase";
 import { DeactivateMemberUseCase } from "../useCases/team/DeactivateMemberUseCase";
+import { ReactivateMemberUseCase } from "../useCases/team/ReactivateMemberUseCase";
 import { ResendInvitationUseCase } from "../useCases/team/ResendInvitationUseCase";
 import { RevokeInvitationUseCase } from "../useCases/team/RevokeInvitationUseCase";
 import { AcceptInvitationUseCase } from "../useCases/team/AcceptInvitationUseCase";
@@ -28,6 +29,7 @@ export class TeamController {
     const result = await useCase.execute({
       email: body.email,
       role: body.role,
+      profile: body.profile,
       invitedById: userId,
     });
     return reply.status(201).send({ success: true, data: result.invitation });
@@ -37,7 +39,12 @@ export class TeamController {
     const { id } = request.params as { id: string };
     const body = updateMemberStatusSchema.parse(request.body);
     if (body.active) {
-      return reply.send({ success: true, data: { alreadyActive: true } });
+      const useCase = new ReactivateMemberUseCase();
+      const result = await useCase.execute({
+        targetId: id,
+        performedBy: request.user!.id,
+      });
+      return reply.send({ success: true, data: result });
     }
     const useCase = new DeactivateMemberUseCase();
     const result = await useCase.execute({

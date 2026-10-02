@@ -11,6 +11,7 @@ const paginationSchema = z.object({
 export const inviteTeamMemberSchema = z.object({
   email: z.string().email(),
   role: z.enum(["MASTER_ADMIN"]).optional().default("MASTER_ADMIN"),
+  profile: z.enum(["ADMIN", "SUPPORT", "FINANCE", "COMMERCIAL", "READ_ONLY"]).optional().default("ADMIN"),
 }).strict();
 
 export const updateMemberStatusSchema = z.object({

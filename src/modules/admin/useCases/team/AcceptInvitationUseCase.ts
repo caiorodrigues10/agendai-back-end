@@ -16,7 +16,7 @@ export class AcceptInvitationUseCase {
 
     const invitation = await prisma.internalInvitation.findFirst({
       where: { tokenHash, status: "PENDING" },
-      select: { id: true, email: true, expiresAt: true, role: true },
+      select: { id: true, email: true, expiresAt: true, role: true, permissions: true },
     });
 
     if (!invitation) {
@@ -44,26 +44,31 @@ export class AcceptInvitationUseCase {
       );
     }
 
-    // Create user
     const hashProvider = container.resolve<IHashProvider>("HashProvider");
     const hashedPassword = await hashProvider.hash(password);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email: invitation.email,
-        password: hashedPassword,
-        role: invitation.role,
-        active: true,
-        emailVerified: true,
-      },
-      select: { id: true, name: true, email: true, role: true },
-    });
+    const user = await prisma.$transaction(async (tx) => {
+      const accepted = await tx.internalInvitation.updateMany({
+        where: { id: invitation.id, status: "PENDING" },
+        data: { status: "ACCEPTED", acceptedAt: new Date() },
+      });
 
-    // Mark invitation as accepted
-    await prisma.internalInvitation.update({
-      where: { id: invitation.id },
-      data: { status: "ACCEPTED", acceptedAt: new Date() },
+      if (accepted.count !== 1) {
+        throw new AppError("Convite não encontrado ou já utilizado", 404);
+      }
+
+      return tx.user.create({
+        data: {
+          name,
+          email: invitation.email,
+          password: hashedPassword,
+          role: invitation.role,
+          permissions: invitation.permissions,
+          active: true,
+          emailVerified: true,
+        },
+        select: { id: true, name: true, email: true, role: true, permissions: true },
+      });
     });
 
     return user;

@@ -1530,6 +1530,29 @@ enum ReferralStatus {
   REJECTED
 }
 
+enum ReferralCreditLedgerType {
+  CREDIT
+  REVERSAL
+}
+
+model ReferralCreditLedger {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  referralId            String                   @db.Uuid
+  referrerBarbershopId  String                   @db.Uuid
+  subscriptionId        String?                  @db.Uuid
+  type                  ReferralCreditLedgerType
+  days                  Int
+  idempotencyKey        String                   @unique @db.VarChar(120)
+  reason                String?                  @db.VarChar(200)
+  metadata              String?                  @db.Text
+  createdAt             DateTime                 @default(now())
+
+  @@index([referralId])
+  @@index([referrerBarbershopId, createdAt])
+  @@index([subscriptionId])
+  @@map("referral_credit_ledger")
+}
+
 model EmailDelivery {
   id         String              @id @default(uuid()) @db.Uuid
   to         String              @db.VarChar(200)
@@ -4103,6 +4126,7 @@ model InternalInvitation {
   email       String           @db.VarChar(100)
   invitedById String           @db.Uuid
   role        Role             @default(MASTER_ADMIN)
+  permissions String[]         @default([])
   tokenHash   String           @db.VarChar(128)
   status      InvitationStatus @default(PENDING)
   expiresAt   DateTime
