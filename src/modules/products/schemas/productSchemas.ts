@@ -58,17 +58,26 @@ const productBaseSchema = z.object({
 
 /**
  * Create product schema: all fields required where appropriate.
+ * extend: `initialStock` (estoque inicial) existe apenas na criação.
  * superRefine: if unit === OTHER, unitLabel is required.
  */
-export const createProductSchema = productBaseSchema.superRefine((data, ctx) => {
-  if (data.unit === "OTHER" && !data.unitLabel) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Quando a unidade é 'Outra', o nome da unidade é obrigatório",
-      path: ["unitLabel"],
-    });
-  }
-});
+export const createProductSchema = productBaseSchema
+  .extend({
+    initialStock: z
+      .number()
+      .min(0, "Estoque inicial não pode ser negativo")
+      .max(1_000_000, "Estoque inicial muito alto")
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.unit === "OTHER" && !data.unitLabel) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Quando a unidade é 'Outra', o nome da unidade é obrigatório",
+        path: ["unitLabel"],
+      });
+    }
+  });
 
 /**
  * Update product schema: all fields optional (partial).

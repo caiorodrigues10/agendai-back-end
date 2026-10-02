@@ -281,20 +281,50 @@ export class ProductCatalogUseCase {
     // Normalize: if type is RETAIL, clear expirationDate and lotNumber
     const effectiveType = (data.type as string) ?? "RETAIL";
     const isRetail = effectiveType === "RETAIL";
+    // Estoque inicial no cadastro: quem não controla estoque nasce com saldo 0.
+    const { initialStock, ...rest } = data as Prisma.ProductUncheckedCreateInput & {
+      initialStock?: number;
+    };
+    const requestedQty = Number(initialStock);
+    const openingQty =
+      rest.trackStock !== false && Number.isFinite(requestedQty) && requestedQty > 0
+        ? requestedQty
+        : 0;
     try {
-      return await prisma.product.create({
-        data: {
-          ...data,
-          barbershopId,
-          sku,
-          barcode,
-          stockQty: 0,
-          averageCost: 0,
-          ...(unitFields?.unit !== undefined ? { unit: unitFields.unit } : {}),
-          ...(unitFields?.unitLabel != null ? { unitLabel: unitFields.unitLabel } : {}),
-          expirationDate: isRetail ? null : (data.expirationDate as Date | null | undefined) ?? null,
-          lotNumber: isRetail ? null : (data.lotNumber as string | null | undefined) ?? null,
-        },
+      return await prisma.$transaction(async (tx: any) => {
+        const product = await tx.product.create({
+          data: {
+            ...rest,
+            barbershopId,
+            sku,
+            barcode,
+            stockQty: openingQty,
+            averageCost: 0,
+            ...(unitFields?.unit !== undefined ? { unit: unitFields.unit } : {}),
+            ...(unitFields?.unitLabel != null ? { unitLabel: unitFields.unitLabel } : {}),
+            expirationDate: isRetail ? null : (data.expirationDate as Date | null | undefined) ?? null,
+            lotNumber: isRetail ? null : (data.lotNumber as string | null | undefined) ?? null,
+          },
+        });
+        // Toda entrada de saldo com origem precisa de movimentação de estoque.
+        if (openingQty > 0) {
+          await tx.stockMovement.create({
+            data: {
+              barbershopId,
+              productId: product.id,
+              type: "MANUAL_ADJUSTMENT",
+              quantity: openingQty,
+              unitCost: 0,
+              stockBefore: 0,
+              stockAfter: openingQty,
+              sourceType: "initial_stock",
+              sourceId: product.id,
+              reason: "Estoque inicial no cadastro",
+              createdById: user.id,
+            },
+          });
+        }
+        return product;
       });
     } catch (error) {
       if (isProductUniqueViolation(error)) throwProductUniqueViolation();
