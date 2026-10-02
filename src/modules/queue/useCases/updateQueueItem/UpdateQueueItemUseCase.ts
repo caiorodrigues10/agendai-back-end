@@ -18,6 +18,7 @@ import { recordFiadoCreated, recordQueueCompletion } from "@/modules/crm/service
 import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCases";
 import type { z } from "zod";
 import type { retailSalePayloadSchema } from "@/modules/products/schemas/productSchemas";
+import { ReviewInvitationService } from "@/modules/reputation/reviewInvitationService";
 
 type CommissionSplit = { professionalId: string; percentage: number };
 type RetailSalePayload = z.infer<typeof retailSalePayloadSchema>;
@@ -144,6 +145,11 @@ export class UpdateQueueItemUseCase {
     }
     if (nextStatus === "completed" && details?.retailSale) {
       await this.attachRetailSale(updated, requestingUser, details.retailSale);
+    }
+    if (nextStatus === "completed") {
+      try {
+        await new ReviewInvitationService().createForQueueItem(updated.id);
+      } catch { /* avaliacao nao bloqueia conclusao */ }
     }
     const shouldNotifyCustomer = !isPlaceholderWhatsApp(item.whatsapp) && ((item.status === "waiting" && nextStatus === "in_chair") || nextStatus === "cancelled");
     if (shouldNotifyCustomer) {

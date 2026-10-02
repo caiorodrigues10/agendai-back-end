@@ -22,6 +22,7 @@ export interface IBarbershopResponseDTO {
   name: string;
   whatsapp: string;
   logoUrl?: string | null;
+  googleReviewUrl?: string | null;
   cnpj?: string | null;
   address?: string | null;
   city?: string | null;

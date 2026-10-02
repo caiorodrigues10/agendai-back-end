@@ -9,6 +9,7 @@ const shopSelect = {
   name: true,
   whatsapp: true,
   logoUrl: true,
+  googleReviewUrl: true,
   cnpj: true,
   address: true,
   city: true,

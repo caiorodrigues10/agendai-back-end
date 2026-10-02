@@ -7,6 +7,7 @@ import { ProductCatalogUseCase } from "@/modules/products/useCases/productUseCas
 import { IProcedureRecordRepository } from "@/modules/clients/repositories/ProcedureRecordRepository";
 import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
 import { publishRealtime } from "@/shared/services/realtimeService";
+import { ReviewInvitationService } from "@/modules/reputation/reviewInvitationService";
 
 interface ProcedureInput {
   title: string;
@@ -132,6 +133,10 @@ export class CompleteAppointmentUseCase {
         },
       );
     }
+
+    try {
+      await new ReviewInvitationService().createForAppointment(appointment.id);
+    } catch { /* avaliacao nao bloqueia a conclusao */ }
 
     publishRealtime(request.barbershopId, "appointments:changed");
     return { ...appointment, status: "COMPLETED" as const };

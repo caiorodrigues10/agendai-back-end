@@ -12,6 +12,7 @@ export const createBarbershopSchema = z.object({
   name: z.string().min(2).max(200),
   whatsapp: phoneBR,
   logoUrl: z.string().url().max(500).optional(),
+  googleReviewUrl: z.string().url().max(500).optional(),
   cnpj: z
     .string()
     .optional()
@@ -27,6 +28,7 @@ export const updateBarbershopSchema = z.object({
   name: z.string().min(2).max(200).optional(),
   whatsapp: phoneBR.optional(),
   logoUrl: z.string().url().max(500).nullable().optional(),
+  googleReviewUrl: z.string().url().max(500).nullable().optional(),
   active: z.boolean().optional(),
   cnpj: z
     .string()

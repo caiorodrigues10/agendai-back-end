@@ -8,6 +8,7 @@ export interface IUpdateBarbershopDTO {
   latitude?: number | null;
   longitude?: number | null;
   logoUrl?: string | null;
+  googleReviewUrl?: string | null;
   active?: boolean;
   operationMode?: OperationMode;
   openingMode?: OpeningMode;
