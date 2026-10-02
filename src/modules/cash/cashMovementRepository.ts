@@ -1,5 +1,7 @@
 import { prisma } from "@/libs/prismaClient";
 import { Prisma } from "@prisma/client";
+import { isLedgerInflow } from "@/modules/financial/ledger/financialLedger";
+import { calendarDateKey, getShopTimezone, shopDayRange } from "@/modules/financial/ledger/shopTime";
 
 export interface CreateCashMovementData {
   barbershopId: string;
@@ -47,31 +49,27 @@ export class CashMovementRepository {
     const where: Prisma.CashMovementWhereInput = { barbershopId };
 
     if (filters.date) {
-      const start = new Date(filters.date);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(filters.date);
-      end.setHours(23, 59, 59, 999);
-      where.createdAt = { gte: start, lte: end };
+      const timezone = await getShopTimezone(barbershopId);
+      const { start, end } = shopDayRange(calendarDateKey(filters.date), timezone);
+      where.occurredAt = { gte: start, lte: end };
     }
     if (filters.paymentMethod) where.paymentMethod = filters.paymentMethod;
     if (filters.type) where.type = filters.type;
 
     return prisma.cashMovement.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { occurredAt: "desc" },
     });
   }
 
   async getSummary(barbershopId: string, date: Date) {
-    const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(date);
-    end.setHours(23, 59, 59, 999);
+    const timezone = await getShopTimezone(barbershopId);
+    const { start, end } = shopDayRange(calendarDateKey(date), timezone);
 
     const movements = await prisma.cashMovement.findMany({
       where: {
         barbershopId,
-        createdAt: { gte: start, lte: end },
+        occurredAt: { gte: start, lte: end },
       },
     });
 
@@ -81,8 +79,8 @@ export class CashMovementRepository {
         summary[m.paymentMethod] = { total: 0, count: 0 };
       }
       const amt = Number(m.amount);
-      const isIn = ["SERVICE_SALE", "PRODUCT_SALE", "PACKAGE_SALE", "FIADO_PAYMENT", "TIP", "OTHER"].includes(m.type);
-      summary[m.paymentMethod].total += isIn ? amt : -amt;
+      const signed = isLedgerInflow(m.type) ? amt : -amt;
+      summary[m.paymentMethod].total = Math.round((summary[m.paymentMethod].total + signed) * 100) / 100;
       summary[m.paymentMethod].count += 1;
     }
 
@@ -90,15 +88,13 @@ export class CashMovementRepository {
   }
 
   async countByDate(barbershopId: string, date: Date): Promise<number> {
-    const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(date);
-    end.setHours(23, 59, 59, 999);
+    const timezone = await getShopTimezone(barbershopId);
+    const { start, end } = shopDayRange(calendarDateKey(date), timezone);
 
     return prisma.cashMovement.count({
       where: {
         barbershopId,
-        createdAt: { gte: start, lte: end },
+        occurredAt: { gte: start, lte: end },
       },
     });
   }

@@ -9,6 +9,7 @@ import { GetWeatherInsightsUseCase } from "../useCases/getWeatherInsights/GetWea
 import { summarizeRetailFinancials } from "@/modules/products/utils/retailSummary";
 import { resolveOrgAccessToBarbershop } from "@/shared/utils/organizationAccess";
 import { withShopContext } from "@/shared/utils/withShopContext";
+import { calendarDateKey, getShopTimezone, shopDayRange } from "@/modules/financial/ledger/shopTime";
 import { container } from "tsyringe";
 
 type ExpenseRow = { amount: number; paidAt: Date | null; type: string; inventoryReceiptId?: string | null };
@@ -21,6 +22,23 @@ type ExpenseWithCategory = Prisma.ExpenseGetPayload<{
 type FiadoWithPayments = Prisma.FiadoGetPayload<{
   include: { payments: { orderBy: { createdAt: "asc" } } };
 }>;
+
+
+/**
+ * Limites [start, end] de um filtro `from`/`to` vindo do front, no FUSO DO SALÃO.
+ * "YYYY-MM-DD" é data de calendário (00:00 → 23:59:59.999 no fuso do salão);
+ * valores completos (ISO) são usados como instante.
+ */
+function shopDateBounds(
+  from: string | undefined,
+  to: string | undefined,
+  timezone: string,
+): { gte?: Date; lte?: Date } {
+  const isDateOnly = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const gte = from ? (isDateOnly(from) ? shopDayRange(calendarDateKey(new Date(from)), timezone).start : new Date(from)) : undefined;
+  const lte = to ? (isDateOnly(to) ? shopDayRange(calendarDateKey(new Date(to)), timezone).end : new Date(to)) : undefined;
+  return { ...(gte && { gte }), ...(lte && { lte }) };
+}
 
 export class BarbershopFinancialController {
   /**
@@ -71,15 +89,9 @@ export class BarbershopFinancialController {
     const barbershopId = await this.resolveBarbershopId(request);
 
     const { from, to } = request.query as { from?: string; to?: string; barbershopId?: string };
-    const fromDate = from ? new Date(from) : undefined;
-    const toDate = to ? new Date(to) : undefined;
-
-    const dateFilter = fromDate || toDate
-      ? {
-        ...(fromDate && { gte: fromDate }),
-        ...(toDate && { lte: toDate }),
-      }
-      : undefined;
+    const timezone = await getShopTimezone(barbershopId);
+    const bounds = shopDateBounds(from, to, timezone);
+    const dateFilter = bounds.gte || bounds.lte ? bounds : undefined;
 
     // Bloco de leitura inteiro (expenses, fiados, packages, retail, products) no contexto
     // do salão resolvido; a agregação abaixo é pura e roda depois, sem acesso a banco.
@@ -203,18 +215,13 @@ export class BarbershopFinancialController {
     const skip = (Number(page) - 1) * Number(limit);
     const take = Math.min(Number(limit), 100);
 
-    const fromDate = from ? new Date(from) : undefined;
-    const toDate = to ? new Date(to) : undefined;
+    const timezone = await getShopTimezone(barbershopId);
+    const bounds = shopDateBounds(from, to, timezone);
 
     const where = {
       barbershopId,
-      ...(fromDate || toDate
-        ? {
-          referenceDate: {
-            ...(fromDate && { gte: fromDate }),
-            ...(toDate && { lte: toDate }),
-          },
-        }
+      ...(bounds.gte || bounds.lte
+        ? { referenceDate: bounds }
         : {}),
     };
 

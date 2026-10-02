@@ -3,11 +3,12 @@ import {
   CashMovementRepository,
   CreateCashMovementData,
 } from "./cashMovementRepository";
-import { DailyCloseoutRepository } from "@/modules/financial/dailyCloseoutRepository";
+import { DailyCloseoutUseCases, computeDay } from "@/modules/financial/dailyCloseoutUseCases";
+import { calendarDateKey } from "@/modules/financial/ledger/shopTime";
 
 export class CashMovementUseCases {
   private repo = new CashMovementRepository();
-  private closeoutRepo = new DailyCloseoutRepository();
+  private closeoutUseCases = new DailyCloseoutUseCases();
 
   async registerMovement(
     barbershopId: string,
@@ -39,56 +40,27 @@ export class CashMovementUseCases {
   }) {
     const normalizedDate = new Date(date);
     normalizedDate.setHours(0, 0, 0, 0);
-    const startOfDay = new Date(normalizedDate);
-    const endOfDay = new Date(normalizedDate);
-    endOfDay.setHours(23, 59, 59, 999);
 
-    const movements = await this.repo.list(barbershopId, { date: normalizedDate });
-
-    let cashTotal = 0;
-    let pixTotal = 0;
-    let cardTotal = 0;
-    let fiadoTotal = 0;
-
-    for (const m of movements) {
-      const amt = Number(m.amount);
-      const isIn = ["SERVICE_SALE", "PRODUCT_SALE", "PACKAGE_SALE", "FIADO_PAYMENT", "TIP", "OTHER"].includes(m.type);
-      const signed = isIn ? amt : -amt;
-
-      switch (m.paymentMethod) {
-        case "CASH":
-          cashTotal += signed;
-          break;
-        case "PIX":
-          pixTotal += signed;
-          break;
-        case "CREDIT_CARD":
-        case "DEBIT_CARD":
-          cardTotal += signed;
-          break;
-        case "FIADO":
-          fiadoTotal += signed;
-          break;
-      }
-    }
-
-    const cashDiscrepancy = declared.cashReceived - cashTotal;
-
-    const closeout = await this.closeoutRepo.upsert(barbershopId, normalizedDate, {
+    // Mesmo cálculo do fechamento oficial (fonte única = ledger no fuso do salão).
+    const figures = await computeDay(barbershopId, calendarDateKey(normalizedDate));
+    const closeout = await this.closeoutUseCases.closeDay(barbershopId, normalizedDate, userId, {
       balanceOpen: declared.balanceOpen,
       cashReceived: declared.cashReceived,
       pixReceived: declared.pixReceived,
       cardReceived: declared.cardReceived,
-      fiadoCreated: fiadoTotal > 0 ? fiadoTotal : 0,
-      fiadoPaid: fiadoTotal < 0 ? Math.abs(fiadoTotal) : 0,
-      expenses: 0,
-      commissions: 0,
-      productSales: 0,
-      discrepancy: cashDiscrepancy !== 0 ? cashDiscrepancy : null,
-      closedBy: userId,
-      closedAt: new Date(),
     });
 
-    return { closeout, cashTotal, pixTotal, cardTotal, fiadoTotal, cashDiscrepancy };
+    const cashDiscrepancy = Math.round(
+      (declared.cashReceived - (declared.balanceOpen + figures.cashReceived)) * 100,
+    ) / 100;
+
+    return {
+      closeout,
+      cashTotal: figures.cashReceived,
+      pixTotal: figures.pixReceived,
+      cardTotal: figures.cardReceived,
+      fiadoTotal: figures.fiadoPaid,
+      cashDiscrepancy,
+    };
   }
 }
