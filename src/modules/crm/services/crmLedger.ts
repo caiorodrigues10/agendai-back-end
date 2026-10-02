@@ -67,10 +67,20 @@ export async function recordAppointmentCompletion(appointmentId: string): Promis
   if (process.env.VITEST) return;
   const appt = await prisma.appointment.findUnique({
     where: { id: appointmentId },
-    select: { barbershopId: true, clientId: true, serviceId: true, status: true, servicePrice: true, paymentMethod: true, clientPackageId: true },
+    select: {
+      barbershopId: true,
+      clientId: true,
+      serviceId: true,
+      status: true,
+      paymentMethod: true,
+      completedAt: true,
+      clientPackageId: true,
+      finalPrice: true,
+      service: { select: { price: true } },
+    },
   });
   if (!appt || appt.status !== "COMPLETED" || !appt.clientId || appt.clientPackageId) return;
-  const amount = appt.servicePrice ?? 0;
+  const amount = appt.finalPrice ?? appt.service?.price ?? 0;
   const fiado = appt.paymentMethod === "fiado";
   await recordCrmFinancialEvent({
     barbershopId: appt.barbershopId,
@@ -81,7 +91,7 @@ export async function recordAppointmentCompletion(appointmentId: string): Promis
     grossAmount: amount,
     receivedAmount: fiado ? 0 : amount,
     outstandingDelta: fiado ? amount : 0,
-    occurredAt: new Date(),
+    occurredAt: appt.completedAt ?? new Date(),
     metadata: { paymentMethod: appt.paymentMethod ?? null, serviceId: appt.serviceId },
   });
 }

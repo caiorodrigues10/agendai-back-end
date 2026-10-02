@@ -28,6 +28,9 @@ export interface CompleteServiceInput {
   sourceType: "QUEUE_ITEM" | "APPOINTMENT";
   sourceId: string;
   skipRecordCompletion?: boolean;
+  /** Valida e resolve preço/comissões sem efeitos colaterais (fiado, CRM).
+   *  Usado pela conclusão de agenda, que grava tudo na própria transação. */
+  skipSideEffects?: boolean;
 }
 
 @injectable()
@@ -81,6 +84,10 @@ export class CompleteServiceUseCase {
         const client = await this.salonClients.upsertFromVisit(input.barbershopId, input.customerName, input.whatsapp);
         clientId = client?.id ?? clientId;
       } catch (err) { logger.warn({ err, barbershopId: input.barbershopId }, "CRM client upsert failed — continuing without clientId"); }
+    }
+
+    if (input.skipSideEffects) {
+      return { completionPrice, resolvedSplits, clientId };
     }
 
     if (isFiado && input.customerName && input.whatsapp) {
