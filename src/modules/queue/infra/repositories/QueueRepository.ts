@@ -4,6 +4,8 @@ import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO, QueueStatus } from "../../dtos/IQueueItemResponseDTO";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
 import { isActiveQueueDuplicate } from "../../utils/queueDuplicate";
+import { commissionAmount } from "@/modules/financial/ledger/commissionMath";
+import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 
 type PrismaQueueStatus = "WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED";
 
@@ -126,14 +128,21 @@ export class QueueRepository implements IQueueRepository {
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const queueItem = await tx.queueItem.findUnique({
         where: { id },
-        select: { barbershopId: true, serviceId: true },
+        select: {
+          barbershopId: true,
+          serviceId: true,
+          clientId: true,
+          customerName: true,
+          appointment: { select: { clientPackageId: true } },
+        },
       });
       if (!queueItem) throw new Error("QUEUE_ITEM_NOT_FOUND");
+      const completedAt = new Date();
       const updated = await tx.queueItem.updateMany({
         where: { id, status: "IN_CHAIR" },
         data: {
           status: "COMPLETED",
-          completedAt: new Date(),
+          completedAt,
           ...(details.completedBy ? { completedBy: details.completedBy } : {}),
           finalPrice: details.finalPrice,
           ...(details.paymentMethod ? { paymentMethod: details.paymentMethod } : {}),
@@ -142,16 +151,39 @@ export class QueueRepository implements IQueueRepository {
       if (updated.count !== 1) {
         throw new Error("QUEUE_ITEM_ALREADY_COMPLETED");
       }
-      await tx.commissionEntry.createMany({
-        data: details.splits.map((split) => ({
+      if (details.splits.length > 0) {
+        await tx.commissionEntry.createMany({
+          data: details.splits.map((split) => ({
+            barbershopId: queueItem.barbershopId,
+            queueItemId: id,
+            serviceId: queueItem.serviceId,
+            professionalId: split.professionalId,
+            percentage: split.percentage,
+            amount: commissionAmount(details.finalPrice, split.percentage),
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      // Sessão paga por pacote não gera receita nova (já contada na compra).
+      const packageSession = Boolean(queueItem.appointment?.clientPackageId);
+      if (!packageSession && details.finalPrice > 0) {
+        await recordLedgerEntry(tx, {
           barbershopId: queueItem.barbershopId,
-          queueItemId: id,
-          serviceId: queueItem.serviceId,
-          professionalId: split.professionalId,
-          percentage: split.percentage,
-          amount: Math.round(details.finalPrice * split.percentage) / 100,
-        })),
-      });
+          kind: "SERVICE_SALE",
+          amount: details.finalPrice,
+          paymentMethod: details.paymentMethod,
+          sourceType: "QUEUE_ITEM",
+          sourceId: id,
+          occurredAt: completedAt,
+          professionalId: details.splits[0]?.professionalId ?? details.completedBy ?? null,
+          clientId: queueItem.clientId ?? null,
+          description: queueItem.customerName
+            ? `Atendimento na fila: ${queueItem.customerName}`
+            : "Atendimento na fila",
+          createdBy: details.completedBy ?? details.splits[0]?.professionalId ?? queueItem.barbershopId,
+        });
+      }
     }).catch((error: unknown) => {
       if (error instanceof Error && error.message === "QUEUE_ITEM_ALREADY_COMPLETED") {
         throw new Error("QUEUE_ITEM_ALREADY_COMPLETED");

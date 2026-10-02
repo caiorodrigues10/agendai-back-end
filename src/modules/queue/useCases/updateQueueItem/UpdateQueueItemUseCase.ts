@@ -85,11 +85,13 @@ export class UpdateQueueItemUseCase {
     }
 
     let updated;
-    if (nextStatus === "completed" && commissionSplits?.length) {
+    if (nextStatus === "completed") {
+      // Toda conclusão passa por aqui: status + comissão + ledger (SERVICE_SALE)
+      // na MESMA transação — mesmo quando o serviço não tem comissão (splits vazios).
       try {
         updated = await this.queueRepository.completeWithCommissions(id, {
-          completedBy: requestingUser.id, finalPrice: completionPrice,
-          paymentMethod: details?.paymentMethod, splits: commissionSplits,
+          completedBy: details?.completedBy ?? requestingUser.id, finalPrice: completionPrice,
+          paymentMethod: details?.paymentMethod, splits: commissionSplits ?? [],
         });
       } catch (error) {
         if (error instanceof Error && error.message === "QUEUE_ITEM_ALREADY_COMPLETED") throw new AppError("Este atendimento ja foi finalizado", 409);
@@ -98,7 +100,6 @@ export class UpdateQueueItemUseCase {
     } else {
       updated = await this.queueRepository.updateStatus(id, nextStatus, {
         ...details,
-        ...(nextStatus === "completed" ? { finalPrice: completionPrice } : {}),
         joinedAt,
       });
     }
