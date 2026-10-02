@@ -1,6 +1,8 @@
 import { injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
+import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 import { recordCrmFinancialEvent } from "@/modules/crm/services/crmLedger";
 import {
   CatalogProductSnapshot,
@@ -97,7 +99,7 @@ export class InventoryEngine {
       throw new AppError("Você não possui permissão para conceder descontos", 403);
     }
 
-    return prisma.$transaction(async (tx: any) => {
+    return rlsTransaction(async (tx: any) => {
       const locked = [];
       for (const item of input.items) locked.push(await lockProduct(tx, item.productId));
       const lines = planRetailSaleLines(locked, input.items, {
@@ -135,6 +137,21 @@ export class InventoryEngine {
           },
         },
         include: { lines: true, refunds: true, fiado: true },
+      });
+
+      // Venda de produto reconhecida no ledger (mesma transação, idempotente).
+      await recordLedgerEntry(tx, {
+        barbershopId: input.barbershopId,
+        kind: "PRODUCT_SALE",
+        amount: total,
+        paymentMethod: input.paymentMethod,
+        sourceType: "RETAIL_SALE",
+        sourceId: sale.id,
+        occurredAt: sale.soldAt,
+        professionalId: input.soldById,
+        clientId: input.clientId ?? null,
+        createdBy: input.soldById,
+        description: "Venda de produtos",
       });
 
       for (const line of lines) {
@@ -208,7 +225,7 @@ export class InventoryEngine {
     refundMethod: string;
     items: Array<{ productId: string; quantity: number }>;
   }) {
-    return prisma.$transaction(async (tx: any) => {
+    return rlsTransaction(async (tx: any) => {
       const sale = await tx.retailSale.findFirst({
         where: { id: input.saleId, barbershopId: input.barbershopId },
         include: { lines: true, fiado: true },
@@ -320,6 +337,37 @@ export class InventoryEngine {
         }
       }
 
+      // Estorno: a parte devolta em dinheiro sai do caixa; a parte convertida em
+      // crédito de fiado reduz a receita sem movimentar caixa (método FIADO).
+      if (financialRefund > 0) {
+        await recordLedgerEntry(tx, {
+          barbershopId: input.barbershopId,
+          kind: "REFUND",
+          amount: financialRefund,
+          paymentMethod: input.refundMethod,
+          sourceType: "RETAIL_REFUND",
+          sourceId: refund.id,
+          relatedSourceId: sale.id,
+          professionalId: input.createdById,
+          createdBy: input.createdById,
+          description: input.reason,
+        });
+      }
+      if (outstandingCredit > 0) {
+        await recordLedgerEntry(tx, {
+          barbershopId: input.barbershopId,
+          kind: "REFUND",
+          amount: outstandingCredit,
+          paymentMethod: "fiado",
+          sourceType: "RETAIL_REFUND_CREDIT",
+          sourceId: refund.id,
+          relatedSourceId: sale.id,
+          professionalId: input.createdById,
+          createdBy: input.createdById,
+          description: input.reason,
+        });
+      }
+
       const updatedLines = await tx.retailSaleLine.findMany({ where: { saleId: sale.id } });
       const fullyRefunded = updatedLines.every((line: { refundedQty: number; quantity: number }) => line.refundedQty + 0.0001 >= line.quantity);
       await tx.retailSale.update({
@@ -376,7 +424,7 @@ export class InventoryEngine {
       supplierName = supplier.name;
     }
 
-    return prisma.$transaction(async (tx: any) => {
+    return rlsTransaction(async (tx: any) => {
       const locked = [];
       for (const item of input.items) locked.push(await lockProduct(tx, item.productId));
       const lines = planPurchaseLines(locked, input.items, input.barbershopId);
@@ -459,7 +507,7 @@ export class InventoryEngine {
   }
 
   async reverseReceipt(input: { barbershopId: string; receiptId: string; createdById: string; reason: string }) {
-    return prisma.$transaction(async (tx: any) => {
+    return rlsTransaction(async (tx: any) => {
       await tx.$queryRaw`SELECT id FROM inventory_receipts WHERE id = ${input.receiptId}::uuid FOR UPDATE`;
       const receipt = await tx.inventoryReceipt.findFirst({
         where: { id: input.receiptId, barbershopId: input.barbershopId },
@@ -527,7 +575,7 @@ export class InventoryEngine {
     createdById: string;
     type?: "MANUAL_ADJUSTMENT" | "INTERNAL_CONSUMPTION";
   }) {
-    return prisma.$transaction(async (tx: any) => {
+    return rlsTransaction(async (tx: any) => {
       const product = await lockProduct(tx, input.productId);
       if (product.barbershopId !== input.barbershopId) throw new AppError("Produto não encontrado neste salão", 404);
       const type = input.quantity < 0 && input.type === "INTERNAL_CONSUMPTION" ? "INTERNAL_CONSUMPTION" : "MANUAL_ADJUSTMENT";

@@ -27,6 +27,7 @@ export interface ICreateFiadoPaymentDTO {
   fiadoId: string;           // ID do fiado que está sendo pago
   barbershopId: string;      // barbearia dona do fiado (usado na autorização)
   amount: number;            // valor pago agora (pode ser menor que o total)
+  paymentMethod?: string | null; // forma usada no recebimento (cash, pix, ...)
   notes?: string | null;     // observação sobre o pagamento (opcional)
   registeredById: string;    // ID do funcionário que registrou o pagamento
 }
@@ -48,6 +49,7 @@ export interface IFiadoPaymentResponseDTO {
   id: string;                // ID único do pagamento
   fiadoId: string;           // fiado ao qual este pagamento pertence
   amount: number;            // valor pago nesta entrada
+  paymentMethod: string | null; // forma de pagamento informada no recebimento
   notes: string | null;      // observação do pagamento
   registeredById: string;    // quem registrou o pagamento
   createdAt: Date;           // quando o pagamento foi registrado

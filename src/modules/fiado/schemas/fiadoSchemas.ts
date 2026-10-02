@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** Formas de pagamento aceitas no recebimento de fiado (mesmo vocabulário do caixa). */
+const paymentMethodEnum = z.enum(["cash", "pix", "credit_card", "debit_card", "card", "other"]);
+
 export const createFiadoSchema = z.object({
   barbershopId: z.string().uuid().optional(),
   customerName: z.string().min(2, "Nome obrigatório").max(200),
@@ -19,6 +22,7 @@ export const createFiadoSchema = z.object({
 export const createFiadoPaymentSchema = z.object({
   barbershopId: z.string().uuid().optional(),
   amount: z.number().positive("Valor deve ser positivo"),
+  paymentMethod: paymentMethodEnum.optional(),
   notes: z.string().max(1000).optional().nullable(),
 });
 
@@ -32,6 +36,7 @@ export const updateFiadoSchema = z.object({
 
 export const addFiadoPaymentSchema = z.object({
   amount: z.number().positive("Valor deve ser positivo"),
+  paymentMethod: paymentMethodEnum.optional(),
   notes: z.string().max(1000).optional().nullable(),
 });
 

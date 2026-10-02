@@ -1,4 +1,5 @@
-import { prisma } from "@/libs/prismaClient";
+import { prisma, Prisma } from "@/libs/prismaClient";
+import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 import { AppError } from "@/shared/errors/AppError";
 import { IClientPackageRepository, ICreateClientPackageRecord } from "../../repositories/IClientPackageRepository";
 import {
@@ -59,22 +60,38 @@ function map(record: {
 
 export class ClientPackageRepository implements IClientPackageRepository {
   async create(data: ICreateClientPackageRecord): Promise<IClientPackageResponseDTO> {
-    const record = await prisma.clientPackage.create({
-      data: {
+    // Venda do pacote e receita no ledger na MESMA transação (idempotente).
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const record = await tx.clientPackage.create({
+        data: {
+          barbershopId: data.barbershopId,
+          clientId: data.clientId,
+          packageId: data.packageId,
+          serviceId: data.serviceId,
+          totalSessions: data.totalSessions,
+          remainingSessions: data.remainingSessions,
+          pricePaid: data.pricePaid,
+          paymentMethod: data.paymentMethod,
+          expiresAt: data.expiresAt ?? null,
+          soldById: data.soldById ?? null,
+        },
+        include,
+      });
+      await recordLedgerEntry(tx, {
         barbershopId: data.barbershopId,
-        clientId: data.clientId,
-        packageId: data.packageId,
-        serviceId: data.serviceId,
-        totalSessions: data.totalSessions,
-        remainingSessions: data.remainingSessions,
-        pricePaid: data.pricePaid,
+        kind: "PACKAGE_SALE",
+        amount: data.pricePaid,
         paymentMethod: data.paymentMethod,
-        expiresAt: data.expiresAt ?? null,
-        soldById: data.soldById ?? null,
-      },
-      include,
+        sourceType: "PACKAGE_SALE",
+        sourceId: record.id,
+        occurredAt: record.purchasedAt,
+        professionalId: data.soldById ?? null,
+        clientId: data.clientId,
+        createdBy: data.soldById ?? data.barbershopId,
+        description: "Venda de pacote",
+      });
+      return map(record);
     });
-    return map(record);
   }
 
   async findById(id: string): Promise<IClientPackageResponseDTO | null> {

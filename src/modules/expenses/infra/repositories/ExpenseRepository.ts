@@ -9,6 +9,7 @@ import {
   ExpenseType,
 } from "../../dtos/IExpenseDTO";
 import { mapExpenseToDTO, ExpenseWithCategory } from "./expenseMapper";
+import { deleteLedgerEntries, recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 
 const include = {
   category: { select: { name: true } },
@@ -16,7 +17,9 @@ const include = {
 
 export class ExpenseRepository implements IExpenseRepository {
   async create(data: ICreateExpenseDTO): Promise<IExpenseResponseDTO> {
-    const record = await prisma.expense.create({
+    // Despesa paga entra no ledger no MESMO instante do pagamento (paidAt).
+    const record = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const created = await tx.expense.create({
       data: {
         barbershopId: data.barbershopId,
         categoryId: data.categoryId ?? null,
@@ -33,8 +36,24 @@ export class ExpenseRepository implements IExpenseRepository {
         receiptUrl: data.receiptUrl ?? null,
         notes: data.notes ?? null,
         createdById: data.createdById,
-      },
-      include,
+        },
+        include,
+      });
+      if (created.paidAt) {
+        await recordLedgerEntry(tx, {
+          barbershopId: created.barbershopId,
+          kind: "EXPENSE",
+          amount: created.amount,
+          paymentMethod: created.paymentMethod,
+          sourceType: "EXPENSE",
+          sourceId: created.id,
+          occurredAt: created.paidAt,
+          professionalId: null,
+          createdBy: created.createdById,
+          description: created.title,
+        });
+      }
+      return created;
     });
     return mapExpenseToDTO(record);
   }
@@ -88,9 +107,12 @@ export class ExpenseRepository implements IExpenseRepository {
   }
 
   async update(id: string, data: IUpdateExpenseDTO): Promise<IExpenseResponseDTO> {
-    const record = await prisma.expense.update({
-      where: { id },
-      data: {
+    // Mudança de valor/forma/pagamento regrava o lançamento de forma idempotente.
+    const record = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const previous = await tx.expense.findUnique({ where: { id }, select: { barbershopId: true } });
+      const updated = await tx.expense.update({
+        where: { id },
+        data: {
         ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
         ...(data.title !== undefined && { title: data.title }),
         ...(data.description !== undefined && { description: data.description }),
@@ -105,14 +127,44 @@ export class ExpenseRepository implements IExpenseRepository {
         ...(data.receiptUrl !== undefined && { receiptUrl: data.receiptUrl }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.updatedById !== undefined && { updatedById: data.updatedById }),
-      },
-      include,
+        },
+        include,
+      });
+      if (previous) {
+        await deleteLedgerEntries(tx, {
+          barbershopId: previous.barbershopId,
+          sourceType: "EXPENSE",
+          sourceId: updated.id,
+          kind: "EXPENSE",
+        });
+        if (updated.paidAt) {
+          await recordLedgerEntry(tx, {
+            barbershopId: updated.barbershopId,
+            kind: "EXPENSE",
+            amount: updated.amount,
+            paymentMethod: updated.paymentMethod,
+            sourceType: "EXPENSE",
+            sourceId: updated.id,
+            occurredAt: updated.paidAt,
+            professionalId: null,
+            createdBy: updated.createdById,
+            description: updated.title,
+          });
+        }
+      }
+      return updated;
     });
     return mapExpenseToDTO(record);
   }
 
   async delete(id: string): Promise<void> {
-    await prisma.expense.delete({ where: { id } });
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existing = await tx.expense.findUnique({ where: { id }, select: { barbershopId: true } });
+      await tx.expense.delete({ where: { id } });
+      if (existing) {
+        await deleteLedgerEntries(tx, { barbershopId: existing.barbershopId, sourceType: "EXPENSE", sourceId: id });
+      }
+    });
   }
 
   async getSummary(barbershopId: string, from?: Date, to?: Date): Promise<IExpenseSummary> {

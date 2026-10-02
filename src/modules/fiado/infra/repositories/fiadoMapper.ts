@@ -12,6 +12,7 @@ export function mapPaymentToDTO(record: FiadoPaymentRecord): IFiadoPaymentRespon
     id: record.id,
     fiadoId: record.fiadoId,
     amount: record.amount,
+    paymentMethod: record.paymentMethod ?? null,
     notes: record.notes ?? null,
     registeredById: record.registeredById,
     createdAt: record.createdAt,

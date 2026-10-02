@@ -12,6 +12,7 @@ import {
   FiadoStatus,
 } from "../../dtos/IFiadoDTO"
 import { mapFiadoToDTO } from "./fiadoMapper";
+import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 
 export class FiadoRepository implements IFiadoRepository {
   async create(data: ICreateFiadoDTO): Promise<IFiadoResponseDTO> {
@@ -165,8 +166,8 @@ export class FiadoRepository implements IFiadoRepository {
       const createdAt = new Date();
 
       await tx.$executeRaw`
-        INSERT INTO fiado_payments (id, "fiadoId", amount, notes, "registeredById", "createdAt")
-        VALUES (${paymentId}::uuid, ${data.fiadoId}::uuid, ${data.amount}, ${data.notes ?? null}, ${data.registeredById}::uuid, ${createdAt})
+        INSERT INTO fiado_payments (id, "fiadoId", amount, "paymentMethod", notes, "registeredById", "createdAt")
+        VALUES (${paymentId}::uuid, ${data.fiadoId}::uuid, ${data.amount}, ${data.paymentMethod ?? null}, ${data.notes ?? null}, ${data.registeredById}::uuid, ${createdAt})
       `;
       await tx.$executeRaw`
         UPDATE fiados
@@ -174,10 +175,26 @@ export class FiadoRepository implements IFiadoRepository {
         WHERE id = ${data.fiadoId}::uuid
       `;
 
+      // Recebimento de fiado entra no caixa no MESMO instante do pagamento.
+      await recordLedgerEntry(tx, {
+        barbershopId: data.barbershopId,
+        kind: "FIADO_PAYMENT",
+        amount: data.amount,
+        paymentMethod: data.paymentMethod ?? "CASH",
+        sourceType: "FIADO_PAYMENT",
+        sourceId: paymentId,
+        relatedSourceId: data.fiadoId,
+        occurredAt: createdAt,
+        professionalId: data.registeredById,
+        createdBy: data.registeredById,
+        description: "Recebimento de fiado",
+      });
+
       return {
         id: paymentId,
         fiadoId: data.fiadoId,
         amount: data.amount,
+        paymentMethod: data.paymentMethod ?? null,
         notes: data.notes ?? null,
         registeredById: data.registeredById,
         createdAt,

@@ -129,6 +129,7 @@ export class MockFiadoRepository implements IFiadoRepository {
       id: `payment-${this.paymentSeq++}`,
       fiadoId: data.fiadoId,
       amount: data.amount,
+      paymentMethod: data.paymentMethod ?? null,
       notes: data.notes ?? null,
       registeredById: data.registeredById,
       createdAt: new Date(),
