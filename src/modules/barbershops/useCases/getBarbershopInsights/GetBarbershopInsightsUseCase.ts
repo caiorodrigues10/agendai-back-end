@@ -1,4 +1,6 @@
+import dayjs from "dayjs";
 import { prisma } from "@/libs/prismaClient";
+import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 
 export type InsightsPeriod = "7d" | "30d" | "90d" | "1y";
 
@@ -78,13 +80,11 @@ export class GetBarbershopInsightsUseCase {
     period: InsightsPeriod = "30d"
   ): Promise<BarbershopInsightsDTO> {
     const days = periodDays(period);
+    const timezone = await getShopTimezone(barbershopId);
     const to = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - days);
-    from.setHours(0, 0, 0, 0);
-
-    const inactiveCutoff = new Date();
-    inactiveCutoff.setDate(inactiveCutoff.getDate() - 30);
+    // Limites no FUSO DO SALÃO — "últimos N dias" começa na meia-noite local do salão.
+    const from = dayjs(to).tz(timezone).subtract(days, "day").startOf("day").toDate();
+    const inactiveCutoff = dayjs(to).tz(timezone).subtract(30, "day").toDate();
 
     const [
       queueItems,
@@ -118,9 +118,19 @@ export class GetBarbershopInsightsUseCase {
       prisma.appointment.findMany({
         where: {
           barbershopId,
-          date: { gte: from, lte: to },
+          OR: [
+            { completedAt: { gte: from, lte: to } },
+            { AND: [{ completedAt: null }, { date: { gte: from, lte: to } }] },
+          ],
         },
-        select: { status: true, staffId: true, serviceId: true },
+        select: {
+          status: true,
+          staffId: true,
+          serviceId: true,
+          date: true,
+          completedAt: true,
+          finalPrice: true,
+        },
       }),
       prisma.expense.findMany({
         where: {
@@ -166,10 +176,39 @@ export class GetBarbershopInsightsUseCase {
       (q: { joinedAt: Date }) => q.joinedAt >= from && q.joinedAt <= to
     );
 
-    const revenue = completed.reduce((s: number, q: { serviceId: string; finalPrice: number | null }) => {
-      const fallback = serviceMap.get(q.serviceId)?.price ?? 0;
-      return s + (q.finalPrice ?? fallback);
-    }, 0);
+    // Atendimentos concluídos na FILA e na AGENDA entram juntos no faturamento.
+    const completedAppts = appointments.filter(
+      (a: { status: string; completedAt: Date | null }) =>
+        a.status === "COMPLETED" && a.completedAt && a.completedAt >= from && a.completedAt <= to
+    );
+    type Visit = {
+      serviceId: string;
+      price: number;
+      at: Date;
+      staffId: string | null;
+      whatsapp: string;
+      customerName: string;
+    };
+    const visits: Visit[] = [
+      ...completed.map((q: any) => ({
+        serviceId: q.serviceId,
+        price: q.finalPrice ?? serviceMap.get(q.serviceId)?.price ?? 0,
+        at: q.completedAt as Date,
+        staffId: q.completedBy ?? null,
+        whatsapp: q.whatsapp ?? "",
+        customerName: q.customerName ?? "",
+      })),
+      ...completedAppts.map((a: any) => ({
+        serviceId: a.serviceId,
+        price: a.finalPrice ?? serviceMap.get(a.serviceId)?.price ?? 0,
+        at: a.completedAt as Date,
+        staffId: a.staffId ?? null,
+        whatsapp: "",
+        customerName: "",
+      })),
+    ];
+
+    const revenue = visits.reduce((s: number, v: Visit) => s + v.price, 0);
 
     const waitSamples = completed
       .filter((q: { calledAt?: Date | null; joinedAt: Date }) => q.calledAt && q.joinedAt)
@@ -247,26 +286,24 @@ export class GetBarbershopInsightsUseCase {
     const serviceAgg = new Map<string, { count: number; revenue: number }>();
     const staffAgg = new Map<string, { count: number; revenue: number }>();
 
-    for (const q of completed) {
-      const doneAt = q.completedAt;
-      if (!doneAt) continue;
-      const price = q.finalPrice ?? serviceMap.get(q.serviceId)?.price ?? 0;
-      const d = doneAt.getDay();
-      const h = doneAt.getHours();
+    for (const visit of visits) {
+      const at = dayjs(visit.at).tz(timezone);
+      const d = at.day();
+      const h = at.hour();
       byWeekday[d].volume += 1;
-      byWeekday[d].revenue = round2(byWeekday[d].revenue + price);
+      byWeekday[d].revenue = round2(byWeekday[d].revenue + visit.price);
       byHour[h].volume += 1;
 
-      const sCur = serviceAgg.get(q.serviceId) ?? { count: 0, revenue: 0 };
+      const sCur = serviceAgg.get(visit.serviceId) ?? { count: 0, revenue: 0 };
       sCur.count += 1;
-      sCur.revenue = round2(sCur.revenue + price);
-      serviceAgg.set(q.serviceId, sCur);
+      sCur.revenue = round2(sCur.revenue + visit.price);
+      serviceAgg.set(visit.serviceId, sCur);
 
-      if (q.completedBy) {
-        const st = staffAgg.get(q.completedBy) ?? { count: 0, revenue: 0 };
+      if (visit.staffId) {
+        const st = staffAgg.get(visit.staffId) ?? { count: 0, revenue: 0 };
         st.count += 1;
-        st.revenue = round2(st.revenue + price);
-        staffAgg.set(q.completedBy, st);
+        st.revenue = round2(st.revenue + visit.price);
+        staffAgg.set(visit.staffId, st);
       }
     }
 
@@ -308,14 +345,11 @@ export class GetBarbershopInsightsUseCase {
     const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     const monthMap = new Map<string, { volume: number; revenue: number }>();
 
-    for (const q of completed) {
-      const doneAt = q.completedAt;
-      if (!doneAt) continue;
-      const key = `${doneAt.getFullYear()}-${String(doneAt.getMonth() + 1).padStart(2, "0")}`;
+    for (const visit of visits) {
+      const key = dayjs(visit.at).tz(timezone).format("YYYY-MM");
       const cur = monthMap.get(key) ?? { volume: 0, revenue: 0 };
-      const price = q.finalPrice ?? serviceMap.get(q.serviceId)?.price ?? 0;
       cur.volume += 1;
-      cur.revenue = round2(cur.revenue + price);
+      cur.revenue = round2(cur.revenue + visit.price);
       monthMap.set(key, cur);
     }
 
@@ -337,18 +371,18 @@ export class GetBarbershopInsightsUseCase {
     const topService = topServices[0];
 
     const highlights: string[] = [];
-    if (completed.length === 0) {
+    if (visits.length === 0) {
       highlights.push(
         "Ainda há poucos atendimentos concluídos neste período — use a fila e a agenda para gerar histórico."
       );
     } else {
       // Peak recommendations are only meaningful with a minimally representative sample.
-      if (completed.length >= MIN_WAIT_SAMPLES_FOR_INSIGHTS && peakHour && peakHour.volume > 0) {
+      if (visits.length >= MIN_WAIT_SAMPLES_FOR_INSIGHTS && peakHour && peakHour.volume > 0) {
         highlights.push(
           `Horário de pico: ${peakHour.label} (${peakHour.volume} atendimentos). Reforce a equipe nesse intervalo.`
         );
       }
-      if (completed.length >= MIN_WAIT_SAMPLES_FOR_INSIGHTS && peakDay && peakDay.volume > 0) {
+      if (visits.length >= MIN_WAIT_SAMPLES_FOR_INSIGHTS && peakDay && peakDay.volume > 0) {
         highlights.push(
           `Dia mais forte: ${peakDay.label} com ${peakDay.volume} atendimentos e R$ ${peakDay.revenue.toFixed(0)}.`
         );
@@ -411,9 +445,8 @@ export class GetBarbershopInsightsUseCase {
       to: to.toISOString(),
       kpis: {
         revenue: round2(revenue),
-        completedServices: completed.length,
-        avgTicket:
-          completed.length > 0 ? round2(revenue / completed.length) : 0,
+        completedServices: visits.length,
+        avgTicket: visits.length > 0 ? round2(revenue / visits.length) : 0,
         avgWaitMinutes,
         queueCancelRate,
         appointmentCancelRate,
