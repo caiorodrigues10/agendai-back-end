@@ -27,6 +27,7 @@
     "prisma:seed:demo": "tsx prisma/seed.ts --profile=demo",
     "prisma:seed:tenant": "tsx prisma/seed.ts --tenant",
     "security:audit-logs": "tsx scripts/remediateSensitiveAuditLogs.ts",
+    "ledger:backfill": "tsx scripts/backfillFinancialLedger.ts",
     "prisma:studio": "prisma studio",
     "db:push": "prisma db push",
     "db:push:prod": "node -e \"console.error('Blocked: production schema changes must use prisma migrate deploy'); process.exit(1)\"",
