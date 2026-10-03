@@ -1,8 +1,8 @@
 import { prisma } from "@/libs/prismaClient";
 import { rlsTransaction } from "@/libs/prismaExtensions";
 import type { OverviewPeriod } from "../../schemas/adminOverviewSchemas";
+import { overviewCache, readThrough } from "./overviewCache";
 
-const CACHE_TTL_MS = 60_000;
 const SP_TIMEZONE = "America/Sao_Paulo";
 
 const PERIOD_LABELS: Record<OverviewPeriod, string> = {
@@ -139,8 +139,6 @@ interface PeriodWindow {
   prevFrom: Date;
   prevTo: Date;
 }
-
-const cache = new Map<string, { at: number; payload: AdminOverviewPayload }>();
 
 type PlanInfo = { id: string; name: string; price: number; billingCycle: string };
 type SubPlanRow = { planId: string; status: string; _count: { _all: number } };
@@ -832,22 +830,9 @@ async function buildSeries(
 }
 
 export async function getAdminOverview(period: OverviewPeriod): Promise<AdminOverviewPayload> {
-  const cached = cache.get(period);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-    return cached.payload;
-  }
-
-  const payload = await buildOverview(period);
-  cache.set(period, { at: Date.now(), payload });
-
-  if (cache.size > 10) {
-    const oldest = cache.keys().next().value;
-    if (oldest) cache.delete(oldest);
-  }
-
-  return payload;
+  return readThrough(`admin:overview:${period}`, () => buildOverview(period));
 }
 
 export function clearOverviewCache(): void {
-  cache.clear();
+  overviewCache.clear();
 }
