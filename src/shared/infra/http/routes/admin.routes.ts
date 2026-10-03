@@ -8,6 +8,7 @@ import { AdminNotificationController } from "@/modules/admin/controllers/AdminNo
 import { AdminReferralsController } from "@/modules/admin/controllers/AdminReferralsController";
 import { AdminOverviewController } from "@/modules/admin/controllers/AdminOverviewController";
 import { AdminAccountsController } from "@/modules/admin/controllers/AdminAccountsController";
+import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
@@ -25,6 +26,7 @@ const notificationController = new AdminNotificationController();
 const referralsController = new AdminReferralsController();
 const overviewController = new AdminOverviewController();
 const accountsController = new AdminAccountsController();
+const operationsController = new AdminOperationsController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -62,6 +64,9 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/blocked-entities/:id", { preHandler: operationsRead }, blockedEntityController.get.bind(blockedEntityController));
   app.post("/admin/blocked-entities", { preHandler: operationsRead }, blockedEntityController.block.bind(blockedEntityController));
   app.delete("/admin/blocked-entities/:id", { preHandler: operationsRead }, blockedEntityController.unblock.bind(blockedEntityController));
+
+  // ─── Operação ─────────────────────────────────────────────────────────────
+  app.get("/admin/operations/health", { preHandler: operationsRead }, operationsController.health.bind(operationsController));
 
   // ─── Notificações ─────────────────────────────────────────────────────────
   app.get("/admin/notifications", { preHandler: operationsRead }, notificationController.list.bind(notificationController));
