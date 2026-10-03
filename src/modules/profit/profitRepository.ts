@@ -81,40 +81,36 @@ export class ProfitRepository {
       marginPercent: number;
     }
   ) {
-    return prisma.profitEntry.upsert({
-      where: {
-        barbershopId_period_serviceId_staffId: {
-          barbershopId,
-          period,
-          serviceId: serviceId ?? "",
-          staffId: staffId ?? "",
-        },
-      },
-      create: {
-        barbershopId,
-        period,
-        serviceId: serviceId ?? null,
-        staffId: staffId ?? null,
-        revenue: data.revenue,
-        directCosts: data.directCosts,
-        overheadCosts: data.overheadCosts,
-        taxAmount: data.taxAmount,
-        commissionAmt: data.commissionAmt,
-        operationalCosts: data.operationalCosts ?? 0,
-        netProfit: data.netProfit,
-        marginPercent: data.marginPercent,
-      },
-      update: {
-        revenue: data.revenue,
-        directCosts: data.directCosts,
-        overheadCosts: data.overheadCosts,
-        taxAmount: data.taxAmount,
-        commissionAmt: data.commissionAmt,
-        operationalCosts: data.operationalCosts ?? 0,
-        netProfit: data.netProfit,
-        marginPercent: data.marginPercent,
-        computedAt: new Date(),
-      },
+    // O input do compound unique do Prisma exige string (não aceita null) e a
+    // coluna é uuid — passar "" quebrava o upsert com 22P02. Como serviceId e
+    // staffId são anuláveis, o lookup é feito com findFirst + update/create.
+    const key = {
+      barbershopId,
+      period,
+      serviceId: serviceId ?? null,
+      staffId: staffId ?? null,
+    };
+    const values = {
+      revenue: data.revenue,
+      directCosts: data.directCosts,
+      overheadCosts: data.overheadCosts,
+      taxAmount: data.taxAmount,
+      commissionAmt: data.commissionAmt,
+      operationalCosts: data.operationalCosts ?? 0,
+      netProfit: data.netProfit,
+      marginPercent: data.marginPercent,
+    };
+
+    const existing = await prisma.profitEntry.findFirst({ where: key, select: { id: true } });
+    if (existing) {
+      return prisma.profitEntry.update({
+        where: { id: existing.id },
+        data: { ...values, computedAt: new Date() },
+        select: entrySelect,
+      });
+    }
+    return prisma.profitEntry.create({
+      data: { ...key, ...values },
       select: entrySelect,
     });
   }
