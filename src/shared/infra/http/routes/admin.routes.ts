@@ -7,6 +7,7 @@ import { BlockedEntityAdminController } from "@/modules/admin/controllers/Blocke
 import { AdminNotificationController } from "@/modules/admin/controllers/AdminNotificationController";
 import { AdminReferralsController } from "@/modules/admin/controllers/AdminReferralsController";
 import { AdminOverviewController } from "@/modules/admin/controllers/AdminOverviewController";
+import { AdminAccountsController } from "@/modules/admin/controllers/AdminAccountsController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
@@ -23,6 +24,7 @@ const blockedEntityController = new BlockedEntityAdminController();
 const notificationController = new AdminNotificationController();
 const referralsController = new AdminReferralsController();
 const overviewController = new AdminOverviewController();
+const accountsController = new AdminAccountsController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -41,6 +43,10 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.list.bind(barbershopController));
   app.post("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.create.bind(barbershopController));
   app.patch("/admin/barbershops/:id/status", { preHandler: barbershopsManage }, barbershopController.updateStatus.bind(barbershopController));
+
+  // ─── Contas ───────────────────────────────────────────────────────────────
+  app.get("/admin/accounts", { preHandler: barbershopsManage }, accountsController.list.bind(accountsController));
+  app.get("/admin/accounts/:id", { preHandler: barbershopsManage }, accountsController.getAccount.bind(accountsController));
 
   // ─── Usuários ────────────────────────────────────────────────────────────
   app.get("/admin/users", { preHandler: usersManage }, userController.list.bind(userController));
