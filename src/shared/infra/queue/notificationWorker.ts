@@ -1,7 +1,6 @@
 import { Job, Worker, UnrecoverableError } from "bullmq";
-import type { Prisma } from "@prisma/client";
 import { container } from "tsyringe";
-import { prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { refreshCrmCampaignStatus } from "@/modules/crm/services/campaignStatusService";
 import {
   getNotificationV2Mode,
@@ -16,6 +15,7 @@ import { buildEmailPayload } from "./emailWorker";
 import type { NotificationJobData } from "./notificationQueue";
 import { NOTIFICATION_QUEUE_NAME } from "./notificationQueue";
 import { getRedisConnection } from "./redisConnection";
+import { jobCorrelationId, runWithCorrelationId } from "@/shared/utils/correlationContext";
 
 const logger = getModuleLogger("queue:notification-worker");
 const PAYLOAD_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -52,7 +52,7 @@ async function claimAttempt(deliveryId: string): Promise<{
   type: string;
   sourceId: string | null;
 }> {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  return prisma.$transaction(async (tx: AppTx) => {
     const delivery = await tx.notificationDelivery.findUnique({
       where: { id: deliveryId },
       select: {
@@ -270,7 +270,11 @@ async function processNotification(job: Job<NotificationJobData>): Promise<{ sen
 function createWorker(): Worker<NotificationJobData> {
   const instance = new Worker<NotificationJobData>(
     NOTIFICATION_QUEUE_NAME,
-    processNotification,
+    (job) =>
+      runWithCorrelationId(
+        jobCorrelationId(NOTIFICATION_QUEUE_NAME, job.id, job.data.correlationId),
+        () => processNotification(job),
+      ),
     {
       connection: getRedisConnection(),
       concurrency: 5,
@@ -279,7 +283,12 @@ function createWorker(): Worker<NotificationJobData> {
   );
   instance.on("failed", (job, error) => {
     logger.warn(
-      { jobId: job?.id, attempt: job?.attemptsMade, code: sanitizeNotificationError(error).code },
+      {
+        jobId: job?.id,
+        attempt: job?.attemptsMade,
+        correlationId: job?.data?.correlationId,
+        code: sanitizeNotificationError(error).code,
+      },
       "Tentativa da notificação falhou",
     );
   });

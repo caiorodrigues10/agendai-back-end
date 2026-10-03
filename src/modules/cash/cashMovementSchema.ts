@@ -49,7 +49,7 @@ export const createCashMovementSchema = z.object({
   description: z.string().max(300).optional().nullable(),
   sourceType: z.enum(["APPOINTMENT", "RETAIL_SALE", "FIADO", "MANUAL"]).optional().nullable(),
   sourceId: z.string().optional().nullable(),
-  idempotencyKey: z.string().max(100).optional().nullable(),
+  idempotencyKey: z.string().max(160).optional().nullable(),
 });
 
 export const cashMovementQuerySchema = z.object({

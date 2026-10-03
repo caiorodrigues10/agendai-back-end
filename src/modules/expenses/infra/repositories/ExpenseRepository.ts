@@ -1,4 +1,4 @@
-import { prisma, Prisma } from "@/libs/prismaClient"; 
+import { prisma, Prisma, type AppTx } from "@/libs/prismaClient"; 
 import { IExpenseRepository } from "../../repositories/IExpenseRepository";
 import {
   ICreateExpenseDTO,
@@ -15,10 +15,16 @@ const include = {
   category: { select: { name: true } },
 } as const;
 
+type AmountAggregate = { _sum: { amount: number | null } };
+type ExpenseTypeGroup = { type: ExpenseType; _sum: { amount: number | null }; _count: { _all: number } };
+type ExpenseCategoryGroup = { categoryId: string | null; _sum: { amount: number | null }; _count: { _all: number } };
+type ExpenseMonthGroup = { month: string; total: number; count: number };
+type ExpenseCategoryName = { id: string; name: string };
+
 export class ExpenseRepository implements IExpenseRepository {
   async create(data: ICreateExpenseDTO): Promise<IExpenseResponseDTO> {
     // Despesa paga entra no ledger no MESMO instante do pagamento (paidAt).
-    const record = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const record = await prisma.$transaction(async (tx: AppTx) => {
       const created = await tx.expense.create({
       data: {
         barbershopId: data.barbershopId,
@@ -97,7 +103,7 @@ export class ExpenseRepository implements IExpenseRepository {
         where,
         skip,
         take: query.limit,
-        orderBy: { referenceDate: "desc" },
+        orderBy: [{ referenceDate: "desc" }, { id: "desc" }],
         include,
       }),
       prisma.expense.count({ where }),
@@ -108,7 +114,7 @@ export class ExpenseRepository implements IExpenseRepository {
 
   async update(id: string, data: IUpdateExpenseDTO): Promise<IExpenseResponseDTO> {
     // Mudança de valor/forma/pagamento regrava o lançamento de forma idempotente.
-    const record = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const record = await prisma.$transaction(async (tx: AppTx) => {
       const previous = await tx.expense.findUnique({ where: { id }, select: { barbershopId: true } });
       const updated = await tx.expense.update({
         where: { id },
@@ -158,7 +164,7 @@ export class ExpenseRepository implements IExpenseRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: AppTx) => {
       const existing = await tx.expense.findUnique({ where: { id }, select: { barbershopId: true } });
       await tx.expense.delete({ where: { id } });
       if (existing) {
@@ -177,53 +183,64 @@ export class ExpenseRepository implements IExpenseRepository {
       };
     }
 
-    const expenses: ExpenseWithCategory[] = await prisma.expense.findMany({
-      where,
-      include,
-    });
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const monthConditions: Prisma.Sql[] = [Prisma.sql`"barbershopId" = ${barbershopId}::uuid`];
+    if (from) monthConditions.push(Prisma.sql`"referenceDate" >= ${from}`);
+    if (to) monthConditions.push(Prisma.sql`"referenceDate" <= ${to}`);
 
-    const totalAmount = expenses.reduce((s: number, e: ExpenseWithCategory) => s + e.amount, 0);
-    const totalPaid = expenses.filter((e: ExpenseWithCategory) => e.paidAt).reduce((s: number, e: ExpenseWithCategory) => s + e.amount, 0);
+    const [totalAggregate, paidAggregate, typeGroups, categoryGroups, monthGroups]: [
+      AmountAggregate,
+      AmountAggregate,
+      ExpenseTypeGroup[],
+      ExpenseCategoryGroup[],
+      ExpenseMonthGroup[],
+    ] = await Promise.all([
+      prisma.expense.aggregate({ where, _sum: { amount: true } }),
+      prisma.expense.aggregate({ where: { ...where, paidAt: { not: null } }, _sum: { amount: true } }),
+      prisma.expense.groupBy({ by: ["type"], where, _sum: { amount: true }, _count: { _all: true } }),
+      prisma.expense.groupBy({ by: ["categoryId"], where, _sum: { amount: true }, _count: { _all: true } }),
+      prisma.$queryRaw<ExpenseMonthGroup[]>(Prisma.sql`
+        SELECT
+          to_char(("referenceDate" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}::text, 'YYYY-MM') AS month,
+          COALESCE(SUM(amount::float8), 0) AS total,
+          COUNT(*)::int AS count
+        FROM expenses
+        WHERE ${Prisma.join(monthConditions, " AND ")}
+        GROUP BY month
+        ORDER BY month ASC
+      `),
+    ]);
+
+    const categoryIds = categoryGroups
+      .map((group: ExpenseCategoryGroup) => group.categoryId)
+      .filter((categoryId: string | null): categoryId is string => categoryId !== null);
+    const categories: ExpenseCategoryName[] = categoryIds.length
+      ? await prisma.expenseCategory.findMany({ where: { id: { in: categoryIds } }, select: { id: true, name: true } })
+      : [];
+    const categoryNames = new Map<string, string>(categories.map((category) => [category.id, category.name]));
+
+    const totalAmount = totalAggregate._sum.amount ?? 0;
+    const totalPaid = paidAggregate._sum.amount ?? 0;
     const totalPending = totalAmount - totalPaid;
 
-    // Por categoria
-    const catMap = new Map<string, { name: string | null; total: number; count: number }>();
-    for (const e of expenses) {
-      const key = e.categoryId ?? "uncategorized";
-      const cur = catMap.get(key) ?? { name: e.category?.name ?? null, total: 0, count: 0 };
-      catMap.set(key, { ...cur, total: cur.total + e.amount, count: cur.count + 1 });
-    }
-    const byCategory = Array.from(catMap.entries()).map(([key, v]) => ({
-      categoryId: key === "uncategorized" ? null : key,
-      categoryName: v.name,
-      total: v.total,
-      count: v.count,
+    const byCategory = categoryGroups.map((group: ExpenseCategoryGroup) => ({
+      categoryId: group.categoryId,
+      categoryName: group.categoryId === null ? null : categoryNames.get(group.categoryId) ?? null,
+      total: group._sum.amount ?? 0,
+      count: group._count._all,
     }));
 
-    // Por tipo
-    const typeMap = new Map<ExpenseType, { total: number; count: number }>();
-    for (const e of expenses) {
-      const type = e.type as ExpenseType;
-      const cur = typeMap.get(type) ?? { total: 0, count: 0 };
-      typeMap.set(type, { total: cur.total + e.amount, count: cur.count + 1 });
-    }
-    const byType = Array.from(typeMap.entries()).map(([type, v]) => ({
-      type,
-      total: v.total,
-      count: v.count,
+    const byType = typeGroups.map((group: ExpenseTypeGroup) => ({
+      type: group.type,
+      total: group._sum.amount ?? 0,
+      count: group._count._all,
     }));
 
-    // Por mês
-    const monthMap = new Map<string, { total: number; count: number }>();
-    for (const e of expenses) {
-      const d = new Date(e.referenceDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const cur = monthMap.get(key) ?? { total: 0, count: 0 };
-      monthMap.set(key, { total: cur.total + e.amount, count: cur.count + 1 });
-    }
-    const byMonth = Array.from(monthMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, v]) => ({ month, total: v.total, count: v.count }));
+    const byMonth = monthGroups.map((group: ExpenseMonthGroup) => ({
+      month: group.month,
+      total: group.total,
+      count: group.count,
+    }));
 
     return { totalAmount, totalPaid, totalPending, byCategory, byType, byMonth };
   }

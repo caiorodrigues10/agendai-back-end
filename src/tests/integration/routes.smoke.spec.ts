@@ -157,7 +157,9 @@ describe("HTTP routes smoke (inject)", () => {
       },
     });
     if (res.statusCode === 401) {
-      expect(res.json()).toMatchObject({ statusCode: 401 });
+      const body = res.json() as { success?: boolean; message?: string };
+      expect(body.success).toBe(false);
+      expect(String(body.message ?? "")).toMatch(/credenciais/i);
       return;
     }
     expect(res.statusCode).toBe(200);

@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { SendAppointmentRemindersUseCase } from "@/modules/appointments/useCases/appointmentUseCases";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { withCronLock } from "@/shared/infra/redis/cronLock";
+import { withCronCorrelation } from "@/shared/utils/correlationContext";
 
 type CronLogger = {
   info: (obj: object | string, msg?: string) => void;
@@ -20,7 +21,7 @@ export function scheduleAppointmentReminders(log: CronLogger): void {
   try {
     cron.schedule(
       "0 8 * * *",
-      async () => {
+      withCronCorrelation("appointment-reminders", async () => {
         try {
           const scheduledKey = new Intl.DateTimeFormat("en-CA", {
             timeZone: "America/Sao_Paulo",
@@ -40,7 +41,7 @@ export function scheduleAppointmentReminders(log: CronLogger): void {
             "Falha ao rodar cron de lembretes de agendamento"
           );
         }
-      },
+      }),
       { timezone: "America/Sao_Paulo" }
     );
     log.info(

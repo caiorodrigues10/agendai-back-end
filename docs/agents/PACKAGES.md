@@ -23,6 +23,7 @@
 | `@opentelemetry/instrumentation-dns` | `^0.64.0` | Observabilidade | Instr. DNS | OTEL |
 | `@opentelemetry/instrumentation-fastify` | `^0.57.0` | Observabilidade | Instr. Fastify | OTEL |
 | `@opentelemetry/instrumentation-http` | `^0.221.0` | Observabilidade | Instr. HTTP | OTEL |
+| `@opentelemetry/instrumentation-ioredis` | `^0.70.0` | Observabilidade | Instr. ioredis (repo usa ioredis 6; a instr. `redis-4` não pega) | OTEL |
 | `@opentelemetry/instrumentation-pg` | `^0.73.0` | Observabilidade | Instr. PG | OTEL |
 | `@opentelemetry/instrumentation-redis-4` | `^0.49.0` | Observabilidade | Instr. Redis | OTEL |
 | `@opentelemetry/resources` | `^1.30.0` | Observabilidade | Resources OTEL | OTEL |

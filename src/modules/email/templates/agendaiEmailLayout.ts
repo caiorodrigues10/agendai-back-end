@@ -1,6 +1,6 @@
 import { BRAND_NAME } from '@/config/brand';
 /**
- * Layout base dos e-mails transacionais da Agenda Já.
+ * Layout base dos e-mails transacionais do Agende Já.
  *
  * Decisões de design (feitas deliberadamente):
  * - Paleta verde e neutra alinhada ao painel, com estilos compatíveis com e-mail.
@@ -55,7 +55,7 @@ function safeUrl(value: string): string {
 export type EmailTheme = 'light' | 'dark'
 
 /**
- * Layout base Agenda Já: barra colorida no topo, cartão com titulo+e corpo,
+ * Layout base Agende Já: barra colorida no topo, cartão com titulo+e corpo,
  * CTA destacado, footer discreto com link para preferências quando especificado.
  */
 export function agendaiEmailBase(opts: {

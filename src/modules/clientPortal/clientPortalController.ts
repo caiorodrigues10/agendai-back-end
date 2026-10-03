@@ -15,6 +15,7 @@ import {
 } from "./clientPortalSchema";
 import { ClientPortalRepositoryInstance } from "./clientPortalUseCases";
 import { AppError } from "@/shared/errors/AppError";
+import { deliverClientOtp } from "./clientOtpDelivery";
 
 export class ClientPortalController {
   private useCases = new ClientPortalRepositoryInstance();
@@ -24,6 +25,7 @@ export class ClientPortalController {
     const body = requestOtpSchema.parse(request.body);
     const ip = request.ip;
     const result = await this.useCases.requestOtp(body.phone, body.name ?? "Cliente", ip);
+    await deliverClientOtp(body.phone, result.code, body.barbershopId);
 
     reply.send({
       success: true,

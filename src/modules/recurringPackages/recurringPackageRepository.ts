@@ -1,5 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
-import { Prisma } from "@prisma/client";
+import { Prisma, type BenefitType } from "@prisma/client";
 
 export interface CreatePlanData {
   barbershopId?: string;
@@ -61,7 +61,7 @@ export class RecurringPackageRepository {
   async createPlan(data: CreatePlanData) {
     return prisma.salonRecurringPackagePlan.create({
       data: {
-        barbershopId: data.barbershopId,
+        barbershopId: data.barbershopId as string,
         name: data.name,
         description: data.description ?? null,
         price: new Prisma.Decimal(data.price),
@@ -71,7 +71,9 @@ export class RecurringPackageRepository {
         benefits: data.benefits
           ? {
               create: data.benefits.map((b) => ({
-                type: b.type,
+                // drift B18: o schema exige enum `BenefitType`; o cast estreito
+                // mantém o valor enviado igual ao de sempre.
+                type: b.type as BenefitType,
                 quantity: b.maxUsesPerCycle ?? 1,
                 discountPercent: b.type === "DISCOUNT_PERCENT" ? b.value : null,
                 discountAmount: b.type === "DISCOUNT_AMOUNT" ? new Prisma.Decimal(b.value) : null,
@@ -179,7 +181,7 @@ export class RecurringPackageRepository {
 
     return prisma.clientRecurringPackage.create({
       data: {
-        barbershopId: data.barbershopId,
+        barbershopId: data.barbershopId as string,
         planId: data.planId,
         clientId: data.clientId,
         status: "PENDING",

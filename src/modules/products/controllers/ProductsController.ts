@@ -42,6 +42,12 @@ export class ProductsController {
     reply.send({ success: true, data: result.data, meta: { total: result.total, page: query.page, limit: query.limit } });
   }
 
+  async listPublicSaleProducts(request: FastifyRequest, reply: FastifyReply) {
+    const params = z.object({ id: z.string().uuid("barbershopId invÃ¡lido") }).parse(request.params);
+    const data = await this.useCase().listPublicSaleProducts(params.id);
+    reply.send({ success: true, data });
+  }
+
   async createProduct(request: FastifyRequest, reply: FastifyReply) {
     const body = createProductSchema.parse(request.body);
     const barbershopId = shopId(request);

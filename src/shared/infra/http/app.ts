@@ -10,6 +10,7 @@ import { apiRoutes } from "./routes/api";
 import { realtimeHub } from "@/shared/services/realtimeService";
 import { healthRoutes } from "./health";
 import { correlationIdMiddleware } from "./middlewares/correlationId";
+import { resolveCorrelationId } from "@/shared/utils/correlationContext";
 import { setupSwagger } from "@/config/swagger";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
@@ -17,11 +18,42 @@ import { RedisRateLimitStore } from "./redisRateLimitStore";
 import { buildSafeAuditDetails, sanitizeSensitiveText } from "@/shared/utils/securitySanitization";
 import { formatZodIssues, isZodError } from "@/shared/utils/zodValidation";
 import { isPrismaInvalidUuidError } from "@/shared/utils/prismaErrors";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("http-app");
+
+const RATE_LIMIT_ALLOWED_PATHS = new Set([
+  "/api/ws",
+  "/health",
+  "/live",
+  "/ready",
+  "/internal/health",
+]);
+
+export function resolveTrustProxy(): boolean | number | string {
+  const raw = process.env.TRUST_PROXY?.trim();
+  if (!raw) return false;
+
+  const normalized = raw.toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  if (/^\d+$/.test(raw)) return Math.max(1, Number.parseInt(raw, 10));
+  if (/^[0-9a-fA-F:./,\s]+$/.test(raw)) return raw;
+
+  logger.warn({ value: raw }, "TRUST_PROXY inválido — trustProxy desativado");
+  return false;
+}
 
 export async function buildApp() {
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test)
     logger: process.env.NODE_ENV !== "test",
+    trustProxy: resolveTrustProxy(),
+    // reqId == correlationId: os logs nativos do Fastify ("incoming
+    // request", "request completed") saem já correlacionados (B21).
+    requestIdHeader: false,
+    genReqId: (req) =>
+      resolveCorrelationId(req.headers["x-correlation-id"]),
   });
 
   // Fastify snapshots context.errorHandler when routes are registered.
@@ -120,7 +152,8 @@ export async function buildApp() {
     global: true,
     max: 400,
     timeWindow: rateLimitWindowMs,
-    allowList: (req: { url?: string }) => (req.url ?? "").split("?")[0] === "/api/ws",
+    allowList: (req: { url?: string }) =>
+      RATE_LIMIT_ALLOWED_PATHS.has((req.url ?? "").split("?")[0]),
     errorResponseBuilder: () => ({
       statusCode: 429,
       success: false,
@@ -128,7 +161,9 @@ export async function buildApp() {
     }),
   };
   if (!process.env.VITEST) {
-    rateLimitConfig.store = RedisRateLimitStore;
+    rateLimitConfig.store = RedisRateLimitStore.withDefaults({
+      onFailure: "reject",
+    });
   }
   await app.register(rateLimit, rateLimitConfig);
 

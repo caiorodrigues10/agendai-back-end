@@ -12,8 +12,20 @@ import { withShopContext } from "@/shared/utils/withShopContext";
 import { calendarDateKey, getShopTimezone, shopDayRange } from "@/modules/financial/ledger/shopTime";
 import { container } from "tsyringe";
 
-type ExpenseRow = { amount: number; paidAt: Date | null; type: string; inventoryReceiptId?: string | null };
-type FiadoRow = { originalAmount: number; paidAmount: number; creditAdjustedAmount?: number; dueDate: Date | null };
+type ExpenseAmountAggregate = { _sum: { amount: number | null } };
+type ExpenseCountAggregate = { _sum: { amount: number | null }; _count: { _all: number } };
+type ExpenseTypeGroup = { type: string; _sum: { amount: number | null }; _count: { _all: number } };
+type PackageAggregate = { _count: { id: number }; _sum: { pricePaid: number | null } };
+type RetailSummaryResult = Awaited<ReturnType<typeof summarizeRetailFinancials>>;
+type FiadoTotalsRow = {
+  totalDebtors: number;
+  totalOriginal: number;
+  totalPaid: number;
+  totalPending: number;
+  overdueCount: number;
+  overdueAmount: number;
+};
+type InventoryTotalsRow = { inventoryValue: number; lowStockCount: number };
 
 type ExpenseWithCategory = Prisma.ExpenseGetPayload<{
   include: { category: { select: { name: true } } };
@@ -93,70 +105,100 @@ export class BarbershopFinancialController {
     const bounds = shopDateBounds(from, to, timezone);
     const dateFilter = bounds.gte || bounds.lte ? bounds : undefined;
 
-    // Bloco de leitura inteiro (expenses, fiados, packages, retail, products) no contexto
-    // do salão resolvido; a agregação abaixo é pura e roda depois, sem acesso a banco.
-    const [expenses, fiados, overdueCount, packageSales, retailSummary, inventoryProducts] =
-      await withShopContext(request.user?.barbershopId, barbershopId, () =>
-        Promise.all([
-          prisma.expense.findMany({
-            where: {
-              barbershopId,
-              ...(dateFilter && { referenceDate: dateFilter }),
-            },
-            select: { amount: true, paidAt: true, type: true, inventoryReceiptId: true },
-          }),
-          prisma.fiado.findMany({
-            where: {
-              barbershopId,
-              status: { in: ["PENDING", "PARTIAL"] },
-            },
-            select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true, dueDate: true },
-          }),
-          prisma.fiado.count({
-            where: {
-              barbershopId,
-              status: { in: ["PENDING", "PARTIAL"] },
-              dueDate: { lt: new Date() },
-            },
-          }),
-          prisma.clientPackage.aggregate({
-            where: {
-              barbershopId,
-              status: { in: ["ACTIVE", "DEPLETED"] },
-              ...(dateFilter && { purchasedAt: dateFilter }),
-            },
-            _count: { id: true },
-            _sum: { pricePaid: true },
-          }),
-          summarizeRetailFinancials(barbershopId, dateFilter),
-          prisma.product.findMany({
-            where: { barbershopId, trackStock: true, active: true },
-            select: { stockQty: true, averageCost: true, minStock: true },
-          }),
-        ])
-      );
-
-    const operationalExpenses = expenses.filter((e: ExpenseRow) => !e.inventoryReceiptId);
-    const stockPurchases = expenses.filter((e: ExpenseRow) => e.inventoryReceiptId);
-    const totalExpenses = operationalExpenses.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
-    const totalPaidExp = operationalExpenses.filter((e: ExpenseRow) => e.paidAt).reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
-    const totalPendingExp = totalExpenses - totalPaidExp;
-    const stockPurchaseTotal = stockPurchases.reduce((s: number, e: ExpenseRow) => s + e.amount, 0);
-
-    const expenseByType: Record<string, { total: number; count: number }> = {};
-    for (const e of operationalExpenses) {
-      const cur = expenseByType[e.type] ?? { total: 0, count: 0 };
-      expenseByType[e.type] = { total: cur.total + e.amount, count: cur.count + 1 };
-    }
-
     const now = new Date();
-    const remainingOf = (f: FiadoRow) => Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0));
-    const totalFiadoDebt = fiados.reduce((s: number, f: FiadoRow) => s + remainingOf(f), 0);
-    const totalFiadoPaid = fiados.reduce((s: number, f: FiadoRow) => s + f.paidAmount, 0);
-    const totalFiadoOrig = fiados.reduce((s: number, f: FiadoRow) => s + f.originalAmount, 0);
-    const overdueAmount = fiados
-      .filter((f: FiadoRow) => f.dueDate && f.dueDate < now)
-      .reduce((s: number, f: FiadoRow) => s + remainingOf(f), 0);
+    const operationalExpenseWhere = {
+      barbershopId,
+      inventoryReceiptId: null,
+      ...(dateFilter && { referenceDate: dateFilter }),
+    };
+    const stockExpenseWhere = {
+      barbershopId,
+      inventoryReceiptId: { not: null },
+      ...(dateFilter && { referenceDate: dateFilter }),
+    };
+
+    // Bloco de leitura único (expenses, fiados, packages, retail, products) no contexto
+    // do salão resolvido; somas, contagens e agrupamentos rodam no banco.
+    const [expenseTotals, paidExpenseTotals, stockExpenseTotals, expenseTypeGroups, fiadoTotalsRows, packageSales, retailSummary, inventoryTotalsRows]: [
+      ExpenseCountAggregate,
+      ExpenseAmountAggregate,
+      ExpenseAmountAggregate,
+      ExpenseTypeGroup[],
+      FiadoTotalsRow[],
+      PackageAggregate,
+      RetailSummaryResult,
+      InventoryTotalsRow[],
+    ] = await withShopContext(request.user?.barbershopId, barbershopId, () =>
+      Promise.all([
+        prisma.expense.aggregate({ where: operationalExpenseWhere, _sum: { amount: true }, _count: { _all: true } }),
+        prisma.expense.aggregate({
+          where: { ...operationalExpenseWhere, paidAt: { not: null } },
+          _sum: { amount: true },
+        }),
+        prisma.expense.aggregate({ where: stockExpenseWhere, _sum: { amount: true } }),
+        prisma.expense.groupBy({
+          by: ["type"],
+          where: operationalExpenseWhere,
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.$queryRaw<FiadoTotalsRow[]>`
+          SELECT
+            COUNT(*)::int AS "totalDebtors",
+            COALESCE(SUM("originalAmount"::float8), 0) AS "totalOriginal",
+            COALESCE(SUM("paidAmount"::float8), 0) AS "totalPaid",
+            COALESCE(
+              SUM(GREATEST(0::float8, "originalAmount"::float8 - "paidAmount"::float8 - COALESCE("creditAdjustedAmount"::float8, 0))),
+              0
+            ) AS "totalPending",
+            (COUNT(*) FILTER (WHERE "dueDate" < ${now}))::int AS "overdueCount",
+            COALESCE(
+              SUM(
+                CASE WHEN "dueDate" < ${now} THEN
+                  GREATEST(0::float8, "originalAmount"::float8 - "paidAmount"::float8 - COALESCE("creditAdjustedAmount"::float8, 0))
+                END
+              ),
+              0
+            ) AS "overdueAmount"
+          FROM fiados
+          WHERE "barbershopId" = ${barbershopId}::uuid
+            AND status IN ('PENDING', 'PARTIAL')
+        `,
+        prisma.clientPackage.aggregate({
+          where: {
+            barbershopId,
+            status: { in: ["ACTIVE", "DEPLETED"] },
+            ...(dateFilter && { purchasedAt: dateFilter }),
+          },
+          _count: { id: true },
+          _sum: { pricePaid: true },
+        }),
+        summarizeRetailFinancials(barbershopId, dateFilter),
+        prisma.$queryRaw<InventoryTotalsRow[]>`
+          SELECT
+            COALESCE(SUM("stockQty"::float8 * "averageCost"::float8), 0) AS "inventoryValue",
+            (COUNT(*) FILTER (WHERE "minStock" > 0 AND "stockQty" <= "minStock"))::int AS "lowStockCount"
+          FROM products
+          WHERE "barbershopId" = ${barbershopId}::uuid
+            AND "trackStock" = true
+            AND "active" = true
+        `,
+      ])
+    );
+
+    const fiadoTotals = fiadoTotalsRows[0] ?? { totalDebtors: 0, totalOriginal: 0, totalPaid: 0, totalPending: 0, overdueCount: 0, overdueAmount: 0 };
+    const inventoryTotals = inventoryTotalsRows[0] ?? { inventoryValue: 0, lowStockCount: 0 };
+
+    const totalExpenses = expenseTotals._sum.amount ?? 0;
+    const totalPaidExp = paidExpenseTotals._sum.amount ?? 0;
+    const totalPendingExp = totalExpenses - totalPaidExp;
+    const stockPurchaseTotal = stockExpenseTotals._sum.amount ?? 0;
+
+    const expenseByType = expenseTypeGroups.map((group: ExpenseTypeGroup) => ({
+      type: group.type,
+      total: group._sum.amount ?? 0,
+      count: group._count._all,
+    }));
 
     const productRevenue = retailSummary.revenue;
     const productRefunded = retailSummary.refunded;
@@ -164,8 +206,8 @@ export class BarbershopFinancialController {
     const productCogs = retailSummary.cogs;
     const productMargin = retailSummary.margin;
     const productSaleCount = retailSummary.saleCount;
-    const inventoryValue = inventoryProducts.reduce((s: number, p: { stockQty: number; averageCost: number }) => s + p.stockQty * p.averageCost, 0);
-    const lowStockCount = inventoryProducts.filter((p: { stockQty: number; minStock: number }) => p.minStock > 0 && p.stockQty <= p.minStock).length;
+    const inventoryValue = inventoryTotals.inventoryValue;
+    const lowStockCount = inventoryTotals.lowStockCount;
 
     return reply.send({
       success: true,
@@ -174,16 +216,16 @@ export class BarbershopFinancialController {
           total: totalExpenses,
           totalPaid: totalPaidExp,
           totalPending: totalPendingExp,
-          count: operationalExpenses.length,
-          byType: Object.entries(expenseByType).map(([type, v]) => ({ type, ...v })),
+          count: expenseTotals._count._all,
+          byType: expenseByType,
         },
         fiados: {
-          activeDebtors: fiados.length,
-          totalOriginal: totalFiadoOrig,
-          totalPaid: totalFiadoPaid,
-          totalPending: totalFiadoDebt,
-          overdueCount,
-          overdueAmount,
+          activeDebtors: fiadoTotals.totalDebtors,
+          totalOriginal: fiadoTotals.totalOriginal,
+          totalPaid: fiadoTotals.totalPaid,
+          totalPending: fiadoTotals.totalPending,
+          overdueCount: fiadoTotals.overdueCount,
+          overdueAmount: fiadoTotals.overdueAmount,
         },
         packages: {
           count: packageSales._count.id,

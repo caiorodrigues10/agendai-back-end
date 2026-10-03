@@ -1,5 +1,5 @@
 /** Nome de marca exibido pelo backend (e-mails, cobranças, posts e API). */
-export const BRAND_NAME = 'Agenda Já';
+export const BRAND_NAME = 'Agende Já';
 
 /** Versão em caixa alta para contextos visuais (marca de e-mail). */
-export const BRAND_NAME_UPPER = 'AGENDA JÁ';
+export const BRAND_NAME_UPPER = 'AGENDE JÁ';

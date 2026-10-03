@@ -6,8 +6,10 @@ import { checkSubscription } from "../middlewares/checkSubscription";
 import { setRlsContext } from "../middlewares/setRlsContext";
 import { FeedController } from "@/modules/feed/controllers/FeedController";
 import { UploadVideoController } from "@/modules/feed/useCases/uploadVideo";
+import { socialRoutes } from "@/modules/feed/social/social.routes";
 
 export async function feedRoutes(app: FastifyInstance) {
+  await socialRoutes(app);
   const feed = new FeedController();
   const uploadVideoController = new UploadVideoController();
 

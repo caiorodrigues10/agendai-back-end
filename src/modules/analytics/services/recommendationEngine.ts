@@ -1,4 +1,5 @@
 import { prisma } from '@/libs/prismaClient';
+import type { Prisma } from '@prisma/client';
 
 export interface Recommendation {
   id: string;
@@ -280,7 +281,9 @@ export class RecommendationEngine {
               date: { gte: startOfMonth, lte: endOfMonth },
               status: { in: ['COMPLETED', 'CHECKED_IN'] },
             },
-            _sum: { service: { select: { price: true } } },
+            // `_sum` sobre a relação `service` não existe no aggregate do
+            // schema atual; cast estreito preserva a query — drift do B18.
+            _sum: { service: { select: { price: true } } } as unknown as Prisma.AppointmentSumAggregateInputType,
           });
           current = (result._sum as any)?.service?.price ?? 0;
         } else if (goal.metric === 'APPOINTMENTS') {

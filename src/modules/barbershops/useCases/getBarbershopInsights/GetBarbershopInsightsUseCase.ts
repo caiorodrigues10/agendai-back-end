@@ -212,7 +212,7 @@ export class GetBarbershopInsightsUseCase {
 
     const waitSamples = completed
       .filter((q: { calledAt?: Date | null; joinedAt: Date }) => q.calledAt && q.joinedAt)
-      .map((q: { calledAt: Date; joinedAt: Date }) => (q.calledAt.getTime() - q.joinedAt.getTime()) / 60000)
+      .map((q: { calledAt: Date | null; joinedAt: Date }) => ((q.calledAt as Date).getTime() - q.joinedAt.getTime()) / 60000)
       .filter((m: number) => m >= 0 && m < 24 * 60);
 
     const avgWaitMinutes =

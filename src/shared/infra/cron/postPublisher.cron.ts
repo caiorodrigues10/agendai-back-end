@@ -5,6 +5,9 @@ import {
   pngToDataUrl,
   renderPostSvgToPng,
 } from "@/modules/posts/services/postImageService";
+import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { withCronLock, spMinuteKey, type CronLockContext } from "@/shared/infra/redis/cronLock";
+import { withCronCorrelation } from "@/shared/utils/correlationContext";
 
 type CronLogger = {
   info: (obj: object | string, msg?: string) => void;
@@ -63,7 +66,7 @@ function dateKeyInSaoPaulo(date: Date): string {
 }
 
 /** Publica posts agendados vencidos e gera auto-posts no horário de abertura. */
-async function runPostPublisherTick(log: CronLogger) {
+async function runPostPublisherTick(log: CronLogger, ctx: CronLockContext) {
   const scheduledPosts = await prisma.feedPost.findMany({
     where: { status: "SCHEDULED", scheduledFor: { lte: new Date() } },
     select: { id: true, barbershopId: true, title: true, ctaText: true },
@@ -71,7 +74,15 @@ async function runPostPublisherTick(log: CronLogger) {
 
   let publishedCount = 0;
 
-  for (const post of scheduledPosts) {
+  for (let i = 0; i < scheduledPosts.length; i++) {
+    if (!ctx.isLockHeld()) {
+      log.warn?.(
+        { remaining: scheduledPosts.length - i },
+        "Lock de cron perdido — publicação de posts interrompida"
+      );
+      break;
+    }
+    const post = scheduledPosts[i];
     try {
       // Atômico: só publica se ainda estiver SCHEDULED (evita corrida com
       // publicação manual ou cancelamento de agendamento).
@@ -103,7 +114,15 @@ async function runPostPublisherTick(log: CronLogger) {
     },
   });
 
-  for (const shop of shops) {
+  for (let i = 0; i < shops.length; i++) {
+    if (!ctx.isLockHeld()) {
+      log.warn?.(
+        { remaining: shops.length - i },
+        "Lock de cron perdido — auto-post de abertura interrompido"
+      );
+      return;
+    }
+    const shop = shops[i];
     try {
       const schedule = await prisma.schedule.findFirst({
         where: { barbershopId: shop.id, dayOfWeek: now.dayOfWeek },
@@ -145,7 +164,7 @@ async function runPostPublisherTick(log: CronLogger) {
         ctaText,
         title,
       });
-      const imageUrl = pngToDataUrl(renderPostSvgToPng(svg));
+      const imageUrl = pngToDataUrl(await renderPostSvgToPng(svg));
 
       const createdPost = await prisma.feedPost.create({
         data: {
@@ -186,19 +205,27 @@ async function runPostPublisherTick(log: CronLogger) {
  * Agenda a publicação automática de posts a cada minuto (America/Sao_Paulo).
  * - Publica posts SCHEDULED com scheduledFor vencido;
  * - Gera auto-post no horário de abertura do salão (1x por dia);
+ * - Lock Redis evita auto-post duplicado entre réplicas;
  * - Erros só são logados; nunca derrubam o processo.
  */
 export function schedulePostPublisher(log: CronLogger): void {
   try {
     cron.schedule(
       "*/1 * * * *",
-      async () => {
+      withCronCorrelation("post-publisher", async () => {
         try {
-          await runPostPublisherTick(log);
+          const scheduledKey = spMinuteKey();
+          await withCronLock(
+            getRedisConnection(),
+            { jobName: "post-publisher", scheduledKey },
+            async (ctx) => {
+              await runPostPublisherTick(log, ctx);
+            }
+          );
         } catch (err) {
           log.error({ err }, "Falha ao rodar cron de publicação de posts");
         }
-      },
+      }),
       { timezone: SAO_PAULO_TZ }
     );
     log.info(

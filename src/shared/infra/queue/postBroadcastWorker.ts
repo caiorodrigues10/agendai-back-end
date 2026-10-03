@@ -7,6 +7,7 @@ import { getRedisConnection } from "./redisConnection";
 import { PostBroadcastJobData } from "./postBroadcastQueue";
 import { sendWhatsAppMedia } from "@/shared/services/evolutionApiService";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { jobCorrelationId, runWithCorrelationId } from "@/shared/utils/correlationContext";
 
 const logger = getModuleLogger("queue:postBroadcast");
 
@@ -26,35 +27,39 @@ function resetIdleTimer(): void {
 function createWorker(): Worker<PostBroadcastJobData> {
   const worker = new Worker<PostBroadcastJobData>(
     QUEUE_NAME,
-    async (job: Job<PostBroadcastJobData>) => {
-      if (_idleTimer) clearTimeout(_idleTimer);
+    (job: Job<PostBroadcastJobData>) =>
+      runWithCorrelationId(
+        jobCorrelationId(QUEUE_NAME, job.id, job.data.correlationId),
+        async () => {
+          if (_idleTimer) clearTimeout(_idleTimer);
 
-      const { clientPhone, imageBase64, caption, instanceName } = job.data;
+          const { clientPhone, imageBase64, caption, instanceName } = job.data;
 
-      logger.debug(
-        {
-          jobId: job.id,
-          postId: job.data.postId,
-          attempt: job.attemptsMade + 1,
-          maxAttempts: job.opts.attempts,
+          logger.debug(
+            {
+              jobId: job.id,
+              postId: job.data.postId,
+              attempt: job.attemptsMade + 1,
+              maxAttempts: job.opts.attempts,
+            },
+            "Processing post broadcast job"
+          );
+
+          const sent = await sendWhatsAppMedia(
+            clientPhone,
+            imageBase64,
+            caption,
+            { instanceName: instanceName || undefined }
+          );
+
+          if (!sent) {
+            throw new Error("Falha ao enviar mídia via WhatsApp");
+          }
+
+          resetIdleTimer();
+          return { sent: true };
         },
-        "Processing post broadcast job"
-      );
-
-      const sent = await sendWhatsAppMedia(
-        clientPhone,
-        imageBase64,
-        caption,
-        { instanceName: instanceName || undefined }
-      );
-
-      if (!sent) {
-        throw new Error("Falha ao enviar mídia via WhatsApp");
-      }
-
-      resetIdleTimer();
-      return { sent: true };
-    },
+      ),
     {
       connection: getRedisConnection(),
       concurrency: 1,
@@ -63,7 +68,10 @@ function createWorker(): Worker<PostBroadcastJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    logger.error({ err, jobId: job?.id }, "Post broadcast job failed");
+    logger.error(
+      { err, jobId: job?.id, correlationId: job?.data?.correlationId },
+      "Post broadcast job failed",
+    );
     resetIdleTimer();
   });
 

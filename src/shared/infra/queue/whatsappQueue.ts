@@ -10,6 +10,7 @@ import {
   scheduleNotification,
 } from "@/modules/notifications/services/notificationDeliveryService";
 import type { NotificationType } from "@/modules/notifications/services/notificationRegistry";
+import { getCorrelationId } from "@/shared/utils/correlationContext";
 
 export interface WhatsAppJobData {
   phone: string;
@@ -26,6 +27,8 @@ export interface WhatsAppJobData {
   clientId?: string;
   sourceType?: string;
   sourceId?: string;
+  /** correlationId do request/cron que enfileirou o job (B21). */
+  correlationId?: string;
 }
 
 const QUEUE_NAME = "whatsapp";
@@ -122,7 +125,11 @@ async function enqueueLegacy(data: WhatsAppJobData): Promise<void> {
   const { ensureWhatsAppWorker } = await import("./whatsappWorker");
   await ensureWhatsAppWorker();
   const jobId = data.deduplicationKey || undefined;
-  await getQueue().add("send", data, { jobId });
+  await getQueue().add(
+    "send",
+    { ...data, correlationId: data.correlationId ?? getCorrelationId() },
+    { jobId },
+  );
 }
 
 export async function enqueueWhatsApp(data: WhatsAppJobData): Promise<{

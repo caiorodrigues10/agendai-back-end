@@ -138,6 +138,11 @@ describe("FallbackStorageProvider", () => {
   });
 
   describe("extractObjectName", () => {
+    it("reconhece mídia do fallback quando o primário não está configurado", () => {
+      vi.mocked(primary.extractObjectName).mockImplementation(() => { throw new Error("GCS not configured"); });
+      vi.mocked(fallback.extractObjectName).mockReturnValue("posts/video-test.mp4");
+      expect(provider.extractObjectName("https://res.cloudinary.com/cloud/video/upload/posts/video-test.mp4")).toBe("posts/video-test.mp4");
+    });
     it("extrai do GCS se a URL pertence ao GCS", () => {
       vi.mocked(primary.extractObjectName).mockReturnValue("products/test.jpg");
 

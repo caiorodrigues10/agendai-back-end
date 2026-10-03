@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { container } from "tsyringe";
 import { CreateBarbershopUseCase } from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopUseCase";
 import { adminUpdateBarbershopStatusSchema, adminCreateBarbershopSchema, adminListBarbershopsQuerySchema } from "../schemas/adminSchemas";
@@ -81,7 +81,7 @@ export class AdminBarbershopController {
     const useCase = container.resolve(CreateBarbershopUseCase);
     const barbershopData = await useCase.execute({ name, whatsapp, cnpj: cnpj ?? undefined });
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: AppTx) => {
       await seedBarbershopDefaults(tx, barbershopData.id);
       await tx.barbershop.update({
         where: { id: barbershopData.id },

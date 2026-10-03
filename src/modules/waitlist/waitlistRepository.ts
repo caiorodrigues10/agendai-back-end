@@ -1,6 +1,64 @@
 import { prisma } from "@/libs/prismaClient";
-import { Prisma } from "@prisma/client";
+import { Prisma, type WaitlistStatus } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+
+// --- Contrato legado de waitlist (drift do schema, B18) ---
+// Os modelos atuais são `AppointmentWaitlistEntry`/`AppointmentWaitlistOffer`
+// (delegates `appointmentWaitlistEntry`/`appointmentWaitlistOffer`), mas o
+// código usa `waitlistEntry`/`waitlistOffer`, que não existem no cliente
+// gerado. As interfaces abaixo descrevem apenas o que este módulo lê; o alias
+// `prismaWaitlistLegado` mantém cada acesso em runtime exatamente como está
+// (nenhuma query é trocada). Detalhamento no relatório de B18.
+export interface EntradaWaitlistLegada {
+  id: string;
+  barbershopId: string;
+  customerName: string;
+  whatsapp: string | null;
+  serviceId: string;
+  preferredStaffId: string | null;
+  dateFrom: Date;
+  dateTo: Date;
+  preferredPeriods: string[];
+  flexibilityMinutes: number;
+  priority: number;
+  status: string;
+  createdAt: Date;
+  barbershop?: { id: string } | null;
+  service?: { id: string; name: string; price?: unknown; avgTimeMinutes?: unknown } | null;
+  offers?: OfertaWaitlistLegada[];
+}
+
+export interface OfertaWaitlistLegada {
+  id: string;
+  entryId: string;
+  staffId: string;
+  offeredDate: Date;
+  offeredTime: string;
+  status: string;
+  token: string;
+  expiresAt: Date | null;
+  respondedAt: Date | null;
+  createdAt: Date;
+  entry: EntradaWaitlistLegada;
+  staff?: { id: string; name: string } | null;
+}
+
+type DelegateWaitlist<T> = {
+  create(args?: unknown): Promise<T>;
+  update(args?: unknown): Promise<T>;
+  updateMany(args?: unknown): Promise<{ count: number }>;
+  findUnique(args?: unknown): Promise<T | null>;
+  findMany(args?: unknown): Promise<T[]>;
+  count(args?: unknown): Promise<number>;
+};
+
+interface ClienteWaitlistLegado {
+  waitlistEntry: DelegateWaitlist<EntradaWaitlistLegada>;
+  waitlistOffer: DelegateWaitlist<OfertaWaitlistLegada>;
+}
+
+export const prismaWaitlistLegado = prisma as unknown as ClienteWaitlistLegado;
+// --- Fim do contrato legado de waitlist ---
 
 export interface CreateEntryData {
   barbershopId: string;
@@ -36,7 +94,7 @@ export interface CreateOfferData {
 
 export class WaitlistRepository {
   async createEntry(data: CreateEntryData) {
-    return prisma.waitlistEntry.create({
+    return prismaWaitlistLegado.waitlistEntry.create({
       data: {
         barbershopId: data.barbershopId,
         customerName: data.customerName,
@@ -54,21 +112,21 @@ export class WaitlistRepository {
   }
 
   async updateEntry(id: string, data: UpdateEntryData) {
-    return prisma.waitlistEntry.update({
+    return prismaWaitlistLegado.waitlistEntry.update({
       where: { id },
       data,
     });
   }
 
   async deleteEntry(id: string) {
-    return prisma.waitlistEntry.update({
+    return prismaWaitlistLegado.waitlistEntry.update({
       where: { id },
       data: { status: "CANCELLED" },
     });
   }
 
   async getEntry(id: string) {
-    return prisma.waitlistEntry.findUnique({
+    return prismaWaitlistLegado.waitlistEntry.findUnique({
       where: { id },
       include: {
         service: { select: { id: true, name: true, price: true, avgTimeMinutes: true } },
@@ -78,14 +136,14 @@ export class WaitlistRepository {
   }
 
   async listEntries(barbershopId: string, filters: ListEntriesFilters) {
-    if (!(prisma as any).waitlistEntry?.findMany) {
+    if (!prismaWaitlistLegado.waitlistEntry?.findMany) {
       return { items: [], total: 0, page: filters.page ?? 1, limit: filters.limit ?? 20 };
     }
 
     const where: Prisma.AppointmentWaitlistEntryWhereInput = { barbershopId };
 
     if (filters.status) {
-      where.status = filters.status as any;
+      where.status = filters.status as WaitlistStatus;
     }
     if (filters.serviceId) {
       where.serviceId = filters.serviceId;
@@ -96,7 +154,7 @@ export class WaitlistRepository {
     const skip = (page - 1) * limit;
 
     const [items, total] = await Promise.all([
-      prisma.waitlistEntry.findMany({
+      prismaWaitlistLegado.waitlistEntry.findMany({
         where,
         include: {
           service: { select: { id: true, name: true } },
@@ -105,7 +163,7 @@ export class WaitlistRepository {
         skip,
         take: limit,
       }),
-      prisma.waitlistEntry.count({ where }),
+      prismaWaitlistLegado.waitlistEntry.count({ where }),
     ]);
 
     return { items, total, page, limit };
@@ -117,7 +175,7 @@ export class WaitlistRepository {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    return prisma.waitlistEntry.findMany({
+    return prismaWaitlistLegado.waitlistEntry.findMany({
       where: {
         barbershopId,
         serviceId,
@@ -132,12 +190,12 @@ export class WaitlistRepository {
   async createOffer(data: CreateOfferData) {
     const token = randomUUID();
 
-    await prisma.waitlistEntry.update({
+    await prismaWaitlistLegado.waitlistEntry.update({
       where: { id: data.entryId },
       data: { status: "OFFERED" },
     });
 
-    return prisma.waitlistOffer.create({
+    return prismaWaitlistLegado.waitlistOffer.create({
       data: {
         entryId: data.entryId,
         offeredDate: data.offeredDate,
@@ -151,7 +209,7 @@ export class WaitlistRepository {
   }
 
   async getOfferByToken(token: string) {
-    return prisma.waitlistOffer.findUnique({
+    return prismaWaitlistLegado.waitlistOffer.findUnique({
       where: { token },
       include: {
         entry: {
@@ -165,7 +223,7 @@ export class WaitlistRepository {
   }
 
   async respondToOffer(offerId: string, response: "ACCEPTED" | "DECLINED") {
-    return prisma.waitlistOffer.update({
+    return prismaWaitlistLegado.waitlistOffer.update({
       where: { id: offerId },
       data: {
         status: response,
@@ -176,7 +234,7 @@ export class WaitlistRepository {
 
   async expireOffers() {
     const now = new Date();
-    const expired = await prisma.waitlistOffer.updateMany({
+    const expired = await prismaWaitlistLegado.waitlistOffer.updateMany({
       where: {
         status: "PENDING",
         expiresAt: { lt: now },
@@ -186,7 +244,7 @@ export class WaitlistRepository {
       },
     });
 
-    const expiredOffers = await prisma.waitlistOffer.findMany({
+    const expiredOffers = await prismaWaitlistLegado.waitlistOffer.findMany({
       where: {
         status: "EXPIRED",
         expiresAt: { lt: now },
@@ -195,12 +253,12 @@ export class WaitlistRepository {
     });
 
     for (const offer of expiredOffers) {
-      const activeOffers = await prisma.waitlistOffer.count({
+      const activeOffers = await prismaWaitlistLegado.waitlistOffer.count({
         where: { entryId: offer.entryId, status: "PENDING" },
       });
 
       if (activeOffers === 0) {
-        await prisma.waitlistEntry.update({
+        await prismaWaitlistLegado.waitlistEntry.update({
           where: { id: offer.entryId },
           data: { status: "ACTIVE" },
         });

@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { withCronLock } from "@/shared/infra/redis/cronLock";
+import { withCronCorrelation } from "@/shared/utils/correlationContext";
 import { WaitlistUseCases } from "../waitlistUseCases";
 
 type CronLogger = {
@@ -12,7 +13,7 @@ export function scheduleWaitlistExpiration(log: CronLogger): void {
   try {
     cron.schedule(
       "*/5 * * * *",
-      async () => {
+      withCronCorrelation("waitlist-expiration", async () => {
         try {
           const now = new Date();
           const scheduledKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}-${String(Math.floor(now.getMinutes() / 5)).padStart(2, "0")}`;
@@ -31,7 +32,7 @@ export function scheduleWaitlistExpiration(log: CronLogger): void {
         } catch (err) {
           log.error({ err }, "Failed to run waitlist expiration job");
         }
-      },
+      }),
       { timezone: "America/Sao_Paulo" }
     );
     log.info("Waitlist expiration cron scheduled (every 5 minutes)");

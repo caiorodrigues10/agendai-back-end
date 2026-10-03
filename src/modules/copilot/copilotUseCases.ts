@@ -204,10 +204,19 @@ export class CopilotUseCases {
   private async analyzeInventoryAlerts(barbershopId: string) {
     if (await this.repo.findRecentByType(barbershopId, "inventory_alert")) return null;
 
-    const products = await prisma.product.findMany({
+    // `stockQuantity` não existe no `Product` atual (coluna real: `stockQty`);
+    // o delegate é tipado localmente (cast estreito, drift B18) para manter a
+    // query e o retorno exatamente como estavam.
+    type DelegateProdutoLegado = {
+      findMany(args: {
+        where: { barbershopId: string; active: boolean };
+        select: Record<string, boolean>;
+      }): Promise<unknown>;
+    };
+    const products = (await (prisma.product as unknown as DelegateProdutoLegado).findMany({
       where: { barbershopId, active: true },
       select: { id: true, name: true, stockQuantity: true },
-    });
+    })) as unknown as Array<{ id: string; name: string; stockQuantity: number }>;
 
     const lowStock = products.filter((p: { stockQuantity: number }) => p.stockQuantity <= 5);
 

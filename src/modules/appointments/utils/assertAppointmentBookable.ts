@@ -1,10 +1,9 @@
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { assertPublicShopOperationalAccess } from "@/shared/utils/assertPublicShopOperationalAccess";
 import type { ICreateAppointmentDTO } from "../dtos/IAppointmentDTO";
 
-type DbClient = Prisma.TransactionClient | typeof prisma;
+type DbClient = AppTx;
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);

@@ -125,10 +125,11 @@ export class FallbackStorageProvider implements IStorageProvider {
   }
 
   extractObjectName(publicUrl: string): string | null {
-    // Tenta extrair do primário primeiro
-    const primaryResult = this.primary.extractObjectName(publicUrl)
-    if (primaryResult) return primaryResult
-    // Tenta extrair do fallback
-    return this.fallback.extractObjectName(publicUrl)
+    // Um provedor não configurado não pode impedir o reconhecimento do outro.
+    try {
+      const primaryResult = this.primary.extractObjectName(publicUrl)
+      if (primaryResult) return primaryResult
+    } catch { /* primary unavailable */ }
+    try { return this.fallback.extractObjectName(publicUrl) } catch { return null }
   }
 }

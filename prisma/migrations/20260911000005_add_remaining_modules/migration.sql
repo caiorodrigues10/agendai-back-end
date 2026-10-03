@@ -349,10 +349,18 @@ ALTER TABLE "corporate_subscriptions" ADD CONSTRAINT "corporate_subscriptions_pl
 ALTER TABLE "corporate_subscriptions" ADD CONSTRAINT "corporate_subscriptions_barbershopId_fkey" FOREIGN KEY ("barbershopId") REFERENCES "barbershops"("id") ON DELETE CASCADE;
 
 -- Add organizationId to barbershop if not exists
+-- "organizations" só é criada em 20260912000001; em bancos novos a FK é criada
+-- adiante, por 20260925000000_fix_schema_drift_v2.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='barbershops' AND column_name='organizationId') THEN
     ALTER TABLE "barbershops" ADD COLUMN "organizationId" UUID;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'organizations')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint
+       WHERE conname = 'barbershops_organizationId_fkey' AND conrelid = '"barbershops"'::regclass
+     ) THEN
     ALTER TABLE "barbershops" ADD CONSTRAINT "barbershops_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE SET NULL;
   END IF;
 END $$;

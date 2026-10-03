@@ -1,6 +1,9 @@
 import cron from "node-cron";
 import { container } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
+import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { spDateKey, withCronLock, type CronLockContext } from "@/shared/infra/redis/cronLock";
+import { withCronCorrelation } from "@/shared/utils/correlationContext";
 import type { DailyForecast, IWeatherProvider } from "@/shared/container/providers/WeatherProvider/IWeatherProvider";
 
 type CronLogger = {
@@ -93,7 +96,7 @@ async function getForecastForDate(
   }
 }
 
-export async function populateDailyWeatherLog(): Promise<void> {
+export async function populateDailyWeatherLog(ctx?: CronLockContext): Promise<void> {
   const barbershops: Array<{ id: string; name: string; latitude: number | null; longitude: number | null }> =
     await prisma.barbershop.findMany({
       where: {
@@ -121,6 +124,10 @@ export async function populateDailyWeatherLog(): Promise<void> {
   const weatherProvider = container.resolve<IWeatherProvider>("WeatherProvider");
   const batchSize = 5;
   for (let i = 0; i < barbershops.length; i += batchSize) {
+    if (ctx && !ctx.isLockHeld()) {
+      console.warn(`[dailyWeatherLog] Lock de cron perdido — interrompendo após ${i} barbershops`);
+      return;
+    }
     const batch = barbershops.slice(i, i + batchSize);
 
     await Promise.all(
@@ -299,14 +306,21 @@ export async function backfillDailyWeatherLog(days: number = 90): Promise<void> 
 export function scheduleDailyWeatherLog(log: CronLogger): void {
   cron.schedule(
     "15 0 * * *",
-    async () => {
+    withCronCorrelation("daily-weather-log", async () => {
       try {
-        await populateDailyWeatherLog();
-        log.info("[DailyWeatherLog] Weather logs populated successfully");
+        const scheduledKey = spDateKey();
+        await withCronLock(
+          getRedisConnection(),
+          { jobName: "daily-weather-log", scheduledKey },
+          async (ctx) => {
+            await populateDailyWeatherLog(ctx);
+            log.info("[DailyWeatherLog] Weather logs populated successfully");
+          }
+        );
       } catch (err) {
         log.error({ err }, "[DailyWeatherLog] Failed to populate weather logs");
       }
-    },
+    }),
     { timezone: "America/Sao_Paulo" }
   );
   log.info(

@@ -25,11 +25,11 @@ const RESPONSE_TEMPLATES: Record<string, (entities: Record<string, unknown>) => 
   hours: () =>
     "Nosso horário de funcionamento é:\n\n📅 Segunda a Sexta: 9h às 20h\n📅 Sábado: 9h às 18h\n📅 Domingo: Fechado\n\nPode agendar tranquilo! 😄",
   location: () =>
-    "Estamos localizados na Rua Principal, 123 - Centro. Pode encontrar no Google Maps buscando 'Agenda Já Barbershop'. 📍\n\nTem estacionamento na rua e próximo ao metrô!",
+    "Estamos localizados na Rua Principal, 123 - Centro. Pode encontrar no Google Maps buscando 'Agende Já Barbershop'. 📍\n\nTem estacionamento na rua e próximo ao metrô!",
   human_transfer: () =>
     "Entendi! Vou transferir você para um de nossos atendentes. Por favor, aguarde um momento... 🙋‍♂️",
   greeting: () =>
-    "Olá! 👋 Bem-vindo à Agenda Já! Como posso te ajudar hoje? Posso auxiliar com:\n\n📅 Agendamento\n💰 Preços\n🕐 Horários\n📍 Localização",
+    "Olá! 👋 Bem-vindo ao Agende Já! Como posso te ajudar hoje? Posso auxiliar com:\n\n📅 Agendamento\n💰 Preços\n🕐 Horários\n📍 Localização",
   farewell: () =>
     "Obrigado pelo contato! 😊 Foi ótimo te atender. Qualquer coisa, é só chamar! Até mais! 👋",
   unknown: () =>

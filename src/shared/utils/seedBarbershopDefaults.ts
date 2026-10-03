@@ -1,7 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import type { AppTx } from "@/libs/prismaClient";
 import { listNotificationPreferences } from "@/modules/notifications/services/notificationRegistry";
 
-type SeedTx = Prisma.TransactionClient;
+type SeedTx = AppTx;
 
 const DEFAULT_SCHEDULE = [0, 1, 2, 3, 4, 5, 6].map(dayOfWeek => ({
   dayOfWeek,

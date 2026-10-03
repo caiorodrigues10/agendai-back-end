@@ -40,16 +40,25 @@ describe("Monitoring routes smoke (inject)", () => {
     expect(["healthy", "degraded"]).toContain(body.checks.storage.status);
   });
 
-  it("GET /ready → 200 or 503 with checks.migrations", async () => {
+  it("GET /ready → 200 or 503 com checagens essenciais", async () => {
     const res = await app.inject({ method: "GET", url: "/ready" });
     expect([200, 503]).toContain(res.statusCode);
     const body = res.json() as {
       status: string;
-      checks: { migrations: { status: string } };
+      checks: {
+        postgres: { status: string };
+        redis: { status: string };
+      };
     };
     expect(["ready", "not_ready"]).toContain(body.status);
-    expect(body.checks.migrations).toBeDefined();
-    expect(["ok", "error"]).toContain(body.checks.migrations.status);
+    expect(["ok", "error"]).toContain(body.checks.postgres.status);
+    expect(["ok", "error"]).toContain(body.checks.redis.status);
+  });
+
+  it("GET /live → 200 sem dependências", async () => {
+    const res = await app.inject({ method: "GET", url: "/live" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ status: "live" });
   });
 
   it("GET /api/monitoring/dashboard → 401 without auth", async () => {

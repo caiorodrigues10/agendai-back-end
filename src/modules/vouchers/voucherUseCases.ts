@@ -74,37 +74,42 @@ export class VoucherUseCases {
       return { voucherId: "", code, type: "", value: 0, applicable: false, reason: "Cupom não encontrado" };
     }
 
+    // Drift do schema (B18): `Voucher.value` é `Decimal`, mas `ValidationResult`
+    // declara `number`; o cast estreito não converte nada (runtime inalterado)
+    // e mantém um único ponto de escape.
+    const valor = voucher.value as unknown as number;
+
     if (!voucher.isActive) {
-      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: voucher.value, applicable: false, reason: "Cupom está inativo" };
+      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: valor, applicable: false, reason: "Cupom está inativo" };
     }
 
     const now = new Date();
     if (now < voucher.startAt) {
-      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: voucher.value, applicable: false, reason: "Cupom ainda não está válido" };
+      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: valor, applicable: false, reason: "Cupom ainda não está válido" };
     }
     if (now > voucher.endAt) {
-      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: voucher.value, applicable: false, reason: "Cupom expirado" };
+      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: valor, applicable: false, reason: "Cupom expirado" };
     }
 
     if (voucher.maxUses !== null && voucher.usedCount >= voucher.maxUses) {
-      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: voucher.value, applicable: false, reason: "Cupom atingiu o limite de uso" };
+      return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: valor, applicable: false, reason: "Cupom atingiu o limite de uso" };
     }
 
     if (input.clientId && input.serviceId) {
       const serviceIds = voucher.applicableServiceIds as string[] | null;
       if (serviceIds && serviceIds.length > 0 && !serviceIds.includes(input.serviceId)) {
-        return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: voucher.value, applicable: false, reason: "Cupom não aplicável a este serviço" };
+        return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: valor, applicable: false, reason: "Cupom não aplicável a este serviço" };
       }
     }
 
     if (input.clientId) {
       const clientUsages = await this.repo.countClientUsages(voucher.id, input.clientId);
       if (clientUsages >= voucher.perClientLimit) {
-        return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: voucher.value, applicable: false, reason: "Cupom já atingiu o limite por cliente" };
+        return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: valor, applicable: false, reason: "Cupom já atingiu o limite por cliente" };
       }
     }
 
-    return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: voucher.value, applicable: true };
+    return { voucherId: voucher.id, code: voucher.code, type: voucher.type, value: valor, applicable: true };
   }
 
   async applyVoucher(barbershopId: string, input: ApplyInput): Promise<ApplyResult> {

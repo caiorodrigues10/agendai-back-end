@@ -129,7 +129,7 @@ export class CloudinaryStorageProvider implements IStorageProvider {
           {
             folder,
             public_id: fileName.replace(/\.[^.]+$/, ''),
-            resource_type: 'image',
+            resource_type: mimeType.startsWith('video/') ? 'video' : 'image',
             type: 'upload',
             cache_control: 'public, max-age=31536000',
           },
@@ -170,8 +170,14 @@ export class CloudinaryStorageProvider implements IStorageProvider {
   }
 
   extractObjectName(publicUrl: string): string | null {
-    const pattern = new RegExp(`https://res\\.cloudinary\\.com/${this.cloudName}/image/upload/(.+)`)
-    const match = publicUrl.match(pattern)
-    return match ? decodeURIComponent(match[1]) : null
+    try {
+      const url = new URL(publicUrl)
+      const segments = url.pathname.split('/').filter(Boolean)
+      if (url.protocol !== 'https:' || url.hostname !== 'res.cloudinary.com' || segments[0] !== this.cloudName || !['image', 'video'].includes(segments[1]) || segments[2] !== 'upload') return null
+      const objectName = segments.slice(3).join('/').replace(/^v\d+\//, '')
+      return objectName ? decodeURIComponent(objectName) : null
+    } catch {
+      return null
+    }
   }
 }

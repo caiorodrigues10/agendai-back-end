@@ -14,6 +14,15 @@ import {
 import { mapFiadoToDTO } from "./fiadoMapper";
 import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 
+type FiadoSummaryRow = {
+  totalDebtors: number;
+  totalOriginal: number;
+  totalPaid: number;
+  totalPending: number;
+  overdueCount: number;
+  overdueAmount: number;
+};
+
 export class FiadoRepository implements IFiadoRepository {
   async create(data: ICreateFiadoDTO): Promise<IFiadoResponseDTO> {
     const record = await prisma.fiado.create({
@@ -78,8 +87,8 @@ export class FiadoRepository implements IFiadoRepository {
         where,
         skip,
         take: query.limit,
-        orderBy: { createdAt: "desc" },
-        include: { payments: { orderBy: { createdAt: "asc" } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        include: { payments: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
       }),
       prisma.fiado.count({ where }),
     ]);
@@ -205,47 +214,38 @@ export class FiadoRepository implements IFiadoRepository {
   async getSummary(barbershopId: string): Promise<IFiadoSummary> {
     const now = new Date();
 
-    const [fiados, overdueCount]: [
-      Array<{ originalAmount: number; paidAmount: number; creditAdjustedAmount: number; dueDate: Date | null }>,
-      number
-    ] = await Promise.all([
-      prisma.fiado.findMany({
-        where: {
-          barbershopId,
-          status: { in: ["PENDING", "PARTIAL"] },
-        },
-        select: {
-          originalAmount: true,
-          paidAmount: true,
-          creditAdjustedAmount: true,
-          dueDate: true,
-        },
-      }),
-      prisma.fiado.count({
-        where: {
-          barbershopId,
-          status: { in: ["PENDING", "PARTIAL"] },
-          dueDate: { lt: now },
-        },
-      }),
-    ]);
+    const rows = await prisma.$queryRaw<FiadoSummaryRow[]>`
+      SELECT
+        COUNT(*)::int AS "totalDebtors",
+        COALESCE(SUM("originalAmount"::float8), 0) AS "totalOriginal",
+        COALESCE(SUM("paidAmount"::float8), 0) AS "totalPaid",
+        COALESCE(
+          SUM(GREATEST(0::float8, "originalAmount"::float8 - "paidAmount"::float8 - COALESCE("creditAdjustedAmount"::float8, 0))),
+          0
+        ) AS "totalPending",
+        (COUNT(*) FILTER (WHERE "dueDate" < ${now}))::int AS "overdueCount",
+        COALESCE(
+          SUM(
+            CASE WHEN "dueDate" < ${now} THEN
+              GREATEST(0::float8, "originalAmount"::float8 - "paidAmount"::float8 - COALESCE("creditAdjustedAmount"::float8, 0))
+            END
+          ),
+          0
+        ) AS "overdueAmount"
+      FROM fiados
+      WHERE "barbershopId" = ${barbershopId}::uuid
+        AND status IN ('PENDING', 'PARTIAL')
+    `;
 
-    const totalDebtors = fiados.length;
-    const totalOriginal = fiados.reduce((s: number, f) => s + f.originalAmount, 0);
-    const totalPaid = fiados.reduce((s: number, f) => s + f.paidAmount, 0);
-    const totalPending = fiados.reduce((s: number, f) => s + Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0)), 0);
-
-    const overdueAmount = fiados
-      .filter((f) => f.dueDate && f.dueDate < now)
-      .reduce((s: number, f) => s + Math.max(0, f.originalAmount - f.paidAmount - (f.creditAdjustedAmount ?? 0)), 0);
+    const summary = rows[0];
 
     return {
-      totalDebtors,
-      totalPending,
-      totalOriginal,
-      totalPaid,
-      overdueCount,
-      overdueAmount,
+      totalDebtors: summary?.totalDebtors ?? 0,
+      totalPending: summary?.totalPending ?? 0,
+      totalOriginal: summary?.totalOriginal ?? 0,
+      totalPaid: summary?.totalPaid ?? 0,
+      overdueCount: summary?.overdueCount ?? 0,
+      overdueAmount: summary?.overdueAmount ?? 0,
     };
   }
 }

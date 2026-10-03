@@ -194,29 +194,56 @@ export class AdminFinancialController {
 
     type BarbershopRow = typeof barbershops[number];
 
-    const enriched: EnrichedBarbershop[] = await Promise.all(
-      barbershops.map(async (shop: BarbershopRow): Promise<EnrichedBarbershop> => {
-        const [expenseAgg, fiadoAgg, overdueCount] = await Promise.all([
-          prisma.expense.aggregate({
-            where: { barbershopId: shop.id, inventoryReceiptId: null },
-            _sum: { amount: true },
-            _count: { id: true },
-          }),
-          prisma.fiado.findMany({
-            where: {
-              barbershopId: shop.id,
-              status: { in: ["PENDING", "PARTIAL"] },
-            },
-            select: { originalAmount: true, paidAmount: true, creditAdjustedAmount: true, dueDate: true },
-          }),
-          prisma.fiado.count({
-            where: {
-              barbershopId: shop.id,
-              status: { in: ["PENDING", "PARTIAL"] },
-              dueDate: { lt: new Date() },
-            },
-          }),
-        ]);
+    // 2 consultas para a página inteira — antes eram 3 POR salão (aggregate + findMany +
+    // count), ou seja, ~62 queries numa página de 20. Os três números por salão saem do
+    // groupBy de despesas e do findMany de fiados agrupado em memória, reaplicando por
+    // salão exatamente os filtros que iam para o WHERE individual (mesmo status, mesmo
+    // `inventoryReceiptId: null` e o mesmo `dueDate < agora` do count de vencidos).
+    const gastoPorSalao = new Map<
+      string,
+      { total: number; count: number }
+    >();
+    const fiadosPorSalao = new Map<string, FiadoSummaryRow[]>();
+
+    if (barbershops.length > 0) {
+      const ids = barbershops.map((shop: BarbershopRow) => shop.id);
+      const [expenseAggs, fiadoRows] = await Promise.all([
+        prisma.expense.groupBy({
+          by: ["barbershopId"],
+          where: { barbershopId: { in: ids }, inventoryReceiptId: null },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.fiado.findMany({
+          where: { barbershopId: { in: ids }, status: { in: ["PENDING", "PARTIAL"] } },
+          select: {
+            barbershopId: true,
+            originalAmount: true,
+            paidAmount: true,
+            creditAdjustedAmount: true,
+            dueDate: true,
+          },
+        }),
+      ]);
+
+      for (const row of expenseAggs) {
+        gastoPorSalao.set(row.barbershopId, {
+          total: row._sum.amount ?? 0,
+          count: row._count._all,
+        });
+      }
+      for (const row of fiadoRows) {
+        const lista = fiadosPorSalao.get(row.barbershopId);
+        if (lista) lista.push(row);
+        else fiadosPorSalao.set(row.barbershopId, [row]);
+      }
+    }
+
+    const enriched: EnrichedBarbershop[] = barbershops.map((shop: BarbershopRow): EnrichedBarbershop => {
+        const expenses = gastoPorSalao.get(shop.id) ?? { total: 0, count: 0 };
+        const fiadoAgg = fiadosPorSalao.get(shop.id) ?? [];
+        const agora = new Date();
+        const overdueCount = fiadoAgg.filter((f: FiadoSummaryRow) => f.dueDate && f.dueDate < agora).length;
 
         const totalDebt = fiadoAgg.reduce(
           (s: number, f: FiadoSummaryRow) => s + remainingFiado(f),
@@ -231,8 +258,8 @@ export class AdminFinancialController {
           approvalStatus: shop.approvalStatus,
           createdAt: shop.createdAt,
           expenses: {
-            total: expenseAgg._sum.amount ?? 0,
-            count: expenseAgg._count.id ?? 0,
+            total: expenses.total,
+            count: expenses.count,
           },
           fiados: {
             activeCount: fiadoAgg.length,
@@ -240,7 +267,7 @@ export class AdminFinancialController {
             overdueCount,
           },
         };
-      })
+      }
     );
 
       if (sort === "debt") {

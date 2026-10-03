@@ -30,12 +30,21 @@ export default defineConfig({
     };
   },
   async onSuccess() {
-    const { copyFileSync, mkdirSync, existsSync } = await import("fs");
+    const { copyFileSync, mkdirSync, existsSync, readdirSync } = await import("fs");
     const { join } = await import("path");
     const src = join("src", "modules", "posts", "fonts", "OpenSans-Bold.ttf");
     const destDir = join("dist", "modules", "posts", "fonts");
-    if (!existsSync(src)) return;
-    mkdirSync(destDir, { recursive: true });
-    copyFileSync(src, join(destDir, "OpenSans-Bold.ttf"));
+    if (existsSync(src)) {
+      mkdirSync(destDir, { recursive: true });
+      copyFileSync(src, join(destDir, "OpenSans-Bold.ttf"));
+    }
+    const assetsDir = join("dist", "modules", "posts", "assets");
+    mkdirSync(assetsDir, { recursive: true });
+    const sourceAssetsDir = join("src", "modules", "posts", "assets");
+    if (existsSync(sourceAssetsDir)) {
+      for (const asset of readdirSync(sourceAssetsDir).filter((name) => name.endsWith(".png"))) {
+        copyFileSync(join(sourceAssetsDir, asset), join(assetsDir, asset));
+      }
+    }
   },
 });

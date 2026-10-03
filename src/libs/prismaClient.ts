@@ -26,8 +26,33 @@ const pool = new Pool({
     ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === "true" }
     : undefined,
 });
-const adapter = new PrismaPg(pool as any);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const prisma: any = new PrismaClient({ adapter: adapter as any } as any).$extends(rlsExtension);
+/** `PrismaPg` 6.x aceita `pg.Pool` no construtor — nenhum cast é necessário. */
+const adapter = new PrismaPg(pool);
+
+const clienteBase = new PrismaClient({ adapter });
+
+/**
+ * Aplica a extensão RLS no cliente base. Função nomeada (e não `as any`)
+ * porque o tipo do cliente estendido é derivado por `ReturnType`, garantindo
+ * que `prisma` e `AppPrisma` nunca fiquem dessincronizados.
+ */
+function createPrisma(cliente: PrismaClient) {
+  return cliente.$extends(rlsExtension);
+}
+
+/** Tipo do cliente Prisma com a extensão RLS — use para injeção/mocks. */
+export type AppPrisma = ReturnType<typeof createPrisma>;
+
+/**
+ * Cliente dentro de `prisma.$transaction(async tx => …)`: mesmo `Omit` que o
+ * Prisma aplica (`ITXClientDenyList`). Use para anotar `tx` e para parâmetros
+ * que aceitam tanto o cliente completo quanto o transacional.
+ */
+export type AppTx = Omit<
+  AppPrisma,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
+export const prisma: AppPrisma = createPrisma(clienteBase);
 export { Prisma };

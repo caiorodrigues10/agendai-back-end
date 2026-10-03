@@ -65,7 +65,16 @@ export async function recordQueueCompletion(queueItemId: string): Promise<void> 
 
 export async function recordAppointmentCompletion(appointmentId: string): Promise<void> {
   if (process.env.VITEST) return;
-  const appt = await prisma.appointment.findUnique({
+  // `servicePrice`/`paymentMethod` não existem no `Appointment` do schema
+  // atual; o delegate é tipado localmente (cast estreito) para manter a query
+  // e a leitura idênticas — drift listado no relatório de B18.
+  type DelegateAppointmentLegado = {
+    findUnique(args: {
+      where: { id: string };
+      select: Record<string, unknown>;
+    }): Promise<unknown>;
+  };
+  const appt = (await (prisma.appointment as unknown as DelegateAppointmentLegado).findUnique({
     where: { id: appointmentId },
     select: {
       barbershopId: true,
@@ -78,7 +87,17 @@ export async function recordAppointmentCompletion(appointmentId: string): Promis
       finalPrice: true,
       service: { select: { price: true } },
     },
-  });
+  })) as unknown as {
+    barbershopId: string;
+    clientId: string | null;
+    clientPackageId: string | null;
+    serviceId: string;
+    status: string;
+    finalPrice: number | null;
+    paymentMethod: string | null;
+    completedAt: Date | null;
+    service: { price: number } | null;
+  } | null;
   if (!appt || appt.status !== "COMPLETED" || !appt.clientId || appt.clientPackageId) return;
   const amount = appt.finalPrice ?? appt.service?.price ?? 0;
   const fiado = appt.paymentMethod === "fiado";

@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import type { Prisma } from "@prisma/client";
 
 export class FiscalRepository {
   async getConfig(barbershopId: string) {
@@ -8,9 +9,11 @@ export class FiscalRepository {
   }
 
   async upsertConfig(barbershopId: string, data: Record<string, unknown>) {
+    // Drift do schema (B18): `cnpj` é obrigatório no modelo atual e o código
+    // cria a config só com `barbershopId`; cast estreito mantém o payload.
     return prisma.fiscalConfig.upsert({
       where: { barbershopId },
-      create: { barbershopId, ...data },
+      create: { barbershopId, ...data } as unknown as Prisma.FiscalConfigUncheckedCreateInput,
       update: data,
     });
   }

@@ -43,7 +43,7 @@ function makePayment(overrides: Record<string, unknown> = {}) {
     paymentMethod: "payment_link",
     transactionAmount: 99,
     currency: "BRL",
-    description: "Assinatura Agenda Já — Pro",
+    description: "Assinatura Agende Já — Pro",
     barbershopId: "shop-1",
     externalReference:
       "ag-sub-3fa85f64-5717-4562-b3fc-2c963f66afa6-inv-7ba0f7d2-0b91-4f4c-b3ac-1c5f3a0e6c11",

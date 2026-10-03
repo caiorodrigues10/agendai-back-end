@@ -8,7 +8,7 @@ import { seedBarbershopDefaults } from "../src/shared/utils/seedBarbershopDefaul
 export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 export const SYSTEM_USER_EMAIL = "system@agendai.internal";
 export const DEMO_BARBERSHOP_ID = "d0000000-0000-4000-8000-000000000001";
-export const DEMO_BARBERSHOP_NAME = "Agenda Já CRM Demo";
+export const DEMO_BARBERSHOP_NAME = "Agende Já CRM Demo";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

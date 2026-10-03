@@ -1,5 +1,4 @@
-import { prisma } from "@/libs/prismaClient";
-import { Prisma } from "@prisma/client";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO, QueueStatus } from "../../dtos/IQueueItemResponseDTO";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
@@ -8,6 +7,9 @@ import { commissionAmount } from "@/modules/financial/ledger/commissionMath";
 import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 
 type PrismaQueueStatus = "WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED";
+
+/** Teto da listagem: a rota aceita status=all (histórico COMPLETED + CANCELLED) sem paginação. */
+const LIST_LIMIT = 500;
 
 function toDTO(s: PrismaQueueStatus): QueueStatus {
   return s.toLowerCase() as QueueStatus;
@@ -67,10 +69,12 @@ export class QueueRepository implements IQueueRepository {
         ...(barbershopId ? { barbershopId } : {}),
         status: { in: [...statuses] },
       },
-      orderBy: { joinedAt: "asc" },
+      // Busca na ordem desc para capturar os mais recentes e devolve asc (contrato do frontend).
+      orderBy: [{ joinedAt: "desc" }, { id: "desc" }],
+      take: LIST_LIMIT,
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
     });
-    return items.map((i: any) => this.mapToDTO(i));
+    return items.reverse().map((i: any) => this.mapToDTO(i));
   }
 
   async findById(id: string): Promise<IQueueItemResponseDTO | null> {
@@ -125,7 +129,7 @@ export class QueueRepository implements IQueueRepository {
       splits: Array<{ professionalId: string; percentage: number }>;
     },
   ): Promise<IQueueItemResponseDTO> {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: AppTx) => {
       const queueItem = await tx.queueItem.findUnique({
         where: { id },
         select: {
@@ -209,7 +213,7 @@ export class QueueRepository implements IQueueRepository {
   async findActiveInLine(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
     const items = await prisma.queueItem.findMany({
       where: { barbershopId, status: { in: ["WAITING", "IN_CHAIR"] } },
-      orderBy: { joinedAt: "asc" },
+      orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } },
     });
     return items.map((i: any) => this.mapToDTO(i));
@@ -218,7 +222,7 @@ export class QueueRepository implements IQueueRepository {
   async findWaitingByBarbershop(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
     const items = await prisma.queueItem.findMany({
       where: { barbershopId, status: "WAITING" },
-      orderBy: { joinedAt: "asc" },
+      orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } },
     });
     return items.map((i: any) => this.mapToDTO(i));

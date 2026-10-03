@@ -124,9 +124,28 @@ CREATE TABLE "organizations" (
 CREATE UNIQUE INDEX "organizations_slug_key" ON "organizations"("slug");
 CREATE INDEX "organizations_ownerId_idx" ON "organizations"("ownerId");
 ALTER TABLE "organizations" ADD CONSTRAINT "organizations_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE;
-ALTER TABLE "barbershops" ADD COLUMN "organizationId" UUID;
-CREATE INDEX "barbershops_organizationId_idx" ON "barbershops"("organizationId");
-ALTER TABLE "barbershops" ADD CONSTRAINT "barbershops_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE SET NULL;
+-- A coluna organizationId já é criada em 20260911000005 em bancos novos;
+-- os guards abaixo deixam este passo idempotente nos dois caminhos.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'barbershops' AND column_name = 'organizationId'
+  ) THEN
+    ALTER TABLE "barbershops" ADD COLUMN "organizationId" UUID;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'barbershops_organizationId_idx'
+  ) THEN
+    CREATE INDEX "barbershops_organizationId_idx" ON "barbershops"("organizationId");
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'barbershops_organizationId_fkey' AND conrelid = '"barbershops"'::regclass
+  ) THEN
+    ALTER TABLE "barbershops" ADD CONSTRAINT "barbershops_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE SET NULL;
+  END IF;
+END $$;
 
 CREATE TYPE "OrgMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER');
 CREATE TABLE "organization_members" (

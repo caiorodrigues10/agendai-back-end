@@ -3,6 +3,8 @@ import { getRedisConnection } from "./redisConnection";
 
 export interface NotificationJobData {
   deliveryId: string;
+  /** correlationId do request/cron que originou a notificação (B21). */
+  correlationId?: string;
 }
 
 export const NOTIFICATION_QUEUE_NAME = "notifications-v2";

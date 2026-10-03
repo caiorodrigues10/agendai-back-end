@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { withCronLock } from "@/shared/infra/redis/cronLock";
+import { withCronCorrelation } from "@/shared/utils/correlationContext";
 import { DepositUseCases } from "../depositUseCases";
 
 type CronLogger = {
@@ -12,7 +13,7 @@ export function scheduleDepositExpiration(log: CronLogger): void {
   try {
     cron.schedule(
       "* * * * *",
-      async () => {
+      withCronCorrelation("deposit-expiration", async () => {
         try {
           const now = new Date();
           const scheduledKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
@@ -31,7 +32,7 @@ export function scheduleDepositExpiration(log: CronLogger): void {
         } catch (err) {
           log.error({ err }, "Failed to run deposit expiration job");
         }
-      },
+      }),
       { timezone: "America/Sao_Paulo" }
     );
     log.info("Deposit expiration cron scheduled (every minute)");

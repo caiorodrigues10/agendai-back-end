@@ -1,5 +1,4 @@
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { assertAppointmentBookable } from "../../utils/assertAppointmentBookable";
 import { createPublicAppointmentToken, readPublicAppointmentToken } from "../../services/publicAppointmentToken";
@@ -108,7 +107,7 @@ export class PublicAppointmentManagementUseCase {
       throw new AppError("O prazo para remarcar este agendamento foi encerrado", 409, undefined, "APPOINTMENT_CHANGE_DEADLINE");
     }
 
-    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const updated = await prisma.$transaction(async (tx: AppTx) => {
       await assertAppointmentBookable({ barbershopId: appointment.barbershopId, serviceId: appointment.serviceId, staffId: appointment.staffId, customerName: appointment.customerName, whatsapp: appointment.whatsapp, date, time }, tx, { excludeAppointmentId: appointment.id });
       return tx.appointment.update({
         where: { id: appointment.id },

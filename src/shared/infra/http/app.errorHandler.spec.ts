@@ -2,11 +2,20 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { AppError } from "@/shared/errors/AppError";
 
 vi.mock("./routes", () => ({
   registerRoutes: async (app: FastifyInstance) => {
     app.get("/test/zod", async () => {
       z.object({ barbershopId: z.string().uuid() }).parse({ barbershopId: "bad" });
+    });
+    app.get("/test/unavailable", async () => {
+      throw new AppError(
+        "Serviço temporariamente indisponível",
+        503,
+        undefined,
+        "RATE_LIMIT_UNAVAILABLE",
+      );
     });
     app.get("/test/prisma-uuid", async () => {
       throw new Prisma.PrismaClientKnownRequestError(
@@ -111,6 +120,18 @@ describe("HTTP error handler", () => {
       message: "Erro interno do servidor",
     });
     expect(JSON.stringify(body)).not.toContain("secret internal stack");
+  });
+
+  it("maps AppError 503 (fail-closed do rate limit) to 503", async () => {
+    const response = await app.inject({ method: "GET", url: "/test/unavailable" });
+    expect(response.statusCode).toBe(503);
+    const body = response.json();
+    expect(body).toMatchObject({
+      success: false,
+      code: "RATE_LIMIT_UNAVAILABLE",
+      message: "Serviço temporariamente indisponível",
+    });
+    expect(body.correlationId).toEqual(expect.any(String));
   });
 
   it("maps Fastify schema validation errors to 400 with field errors", async () => {
