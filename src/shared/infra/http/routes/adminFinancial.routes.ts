@@ -6,8 +6,10 @@ import { verifyInternalAdmin } from "../middlewares/verifyInternalAdmin";
 import { requireInternalPermission } from "../middlewares/requireInternalPermission";
 import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
 import { AdminFinancialController } from "@/modules/admin/controllers/AdminFinancialController";
+import { AdminBillingController } from "@/modules/admin/controllers/AdminBillingController";
 
 const financial = new AdminFinancialController();
+const billing = new AdminBillingController();
 
 export async function adminFinancialRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -35,5 +37,11 @@ export async function adminFinancialRoutes(app: FastifyInstance) {
     "/admin/financial/barbershops/:barbershopId",
     { preHandler: financeRead },
     financial.barbershopDetail.bind(financial)
+  );
+
+  app.get(
+    "/admin/billing/summary",
+    { preHandler: financeRead },
+    billing.summary.bind(billing)
   );
 }
