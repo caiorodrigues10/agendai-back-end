@@ -11,6 +11,7 @@ import { AdminAccountsController } from "@/modules/admin/controllers/AdminAccoun
 import { AdminAccountActionsController } from "@/modules/admin/controllers/AdminAccountActionsController";
 import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
 import { AdminProductController } from "@/modules/admin/controllers/AdminProductController";
+import { AdminEngagementController } from "@/modules/admin/controllers/AdminEngagementController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
@@ -38,6 +39,7 @@ const accountsController = new AdminAccountsController();
 const accountActionsController = new AdminAccountActionsController();
 const operationsController = new AdminOperationsController();
 const productController = new AdminProductController();
+const engagementController = new AdminEngagementController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -54,6 +56,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/dashboard", { preHandler: dashboardRead }, dashboardController.getDashboard.bind(dashboardController));
   app.get("/admin/overview", { preHandler: dashboardRead }, overviewController.getOverview.bind(overviewController));
   app.get("/admin/product/adoption", { preHandler: dashboardRead }, productController.adoption.bind(productController));
+  app.get("/admin/engagement/summary", { preHandler: dashboardRead }, engagementController.summary.bind(engagementController));
 
   // ─── Barbearias ──────────────────────────────────────────────────────────
   app.get("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.list.bind(barbershopController));
