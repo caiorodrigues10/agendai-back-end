@@ -12,12 +12,13 @@ import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { findUsableRefreshToken } from "../../services/refreshTokenUtils";
+import { resolveActiveSession } from "../../services/activeShopSession";
 
 const log = getModuleLogger("auth-refresh");
 
 export const validateRefresh = validateSchema(refreshSchema);
 
-type RefreshJwt = { sub: string; persistent?: boolean; purpose?: string };
+type RefreshJwt = { sub: string; persistent?: boolean; purpose?: string; activeBarbershopId?: string };
 
 export class RefreshController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -41,14 +42,27 @@ export class RefreshController {
       const userRepo = container.resolve<IUserRepository>("UserRepository");
       const user = await userRepo.findById(decoded.sub);
       if (!user) return reply.status(401).send({ message: "Usuário inválido" });
+
+      // Salão ativo vem do claim do refresh token e é revalidado aqui: se o
+      // acesso acabou, a sessão cai para o salão original do usuário.
+      const session = await resolveActiveSession(user, decoded.activeBarbershopId);
       const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
-      const accessToken = sign({ role: user.role, barbershopId: user.barbershopId ?? undefined }, auth.secret as Secret, accessOpts);
+      const accessToken = sign({ role: session.role, barbershopId: session.barbershopId ?? undefined }, auth.secret as Secret, accessOpts);
 
       let cookieToken = tokenRecord.token;
       if (!concurrentReuse) {
         const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
+        const keepActiveShop = Boolean(
+          session.barbershopId && session.barbershopId !== user.barbershopId,
+        );
         const newRefreshToken = sign(
-          { sub: user.id, jti: randomUUID(), persistent: rememberMe, purpose: "session" },
+          {
+            sub: user.id,
+            jti: randomUUID(),
+            persistent: rememberMe,
+            purpose: "session",
+            ...(keepActiveShop ? { activeBarbershopId: session.barbershopId } : {}),
+          },
           auth.refreshSecret as Secret,
           refreshOpts
         );
@@ -85,8 +99,8 @@ export class RefreshController {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: mapRole(user.role),
-          barbershopId: user.barbershopId ?? undefined,
+          role: mapRole(session.role),
+          barbershopId: session.barbershopId ?? undefined,
           emailVerified: user.emailVerified ?? false,
         },
         accessToken,

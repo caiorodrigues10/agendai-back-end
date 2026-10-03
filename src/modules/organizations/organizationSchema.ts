@@ -33,3 +33,9 @@ export const updateMemberRoleSchema = z.object({
 export const attachBarbershopSchema = z.object({
   barbershopId: z.string().uuid("ID de barbearia inválido").optional(),
 });
+
+export const switchShopSchema = z
+  .object({
+    barbershopId: z.string().uuid("ID de salão inválido"),
+  })
+  .strict();

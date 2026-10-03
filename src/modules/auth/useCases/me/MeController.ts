@@ -12,7 +12,14 @@ export class MeController {
     const user = await userRepo.findById(request.user!.id);
     if (!user) return reply.status(404).send({ message: "Usuário não encontrado" });
 
-    const mappedRole = mapRole(user.role);
+    // A sessão ativa (claims do access token) é a fonte de verdade do salão e do
+    // papel efetivo: o switch-shop emite token com outro barbershopId/papel sem
+    // alterar `users`, então devolver os campos do banco faria o app reverter
+    // para o salão original no boot após um reload.
+    const sessionRole = request.user?.role ?? user.role;
+    const sessionBarbershopId = request.user?.barbershopId ?? user.barbershopId;
+
+    const mappedRole = mapRole(sessionRole);
     const permissions =
       mappedRole === "owner" || mappedRole === "admin"
         ? undefined
@@ -24,7 +31,7 @@ export class MeController {
         name: user.name,
         email: user.email,
         role: mappedRole,
-        barbershopId: user.barbershopId ?? undefined,
+        barbershopId: sessionBarbershopId ?? undefined,
         avatarUrl: user.avatarUrl ?? undefined,
         emailVerified: user.emailVerified ?? false,
         permissions,
