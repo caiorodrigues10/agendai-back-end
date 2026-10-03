@@ -108,6 +108,7 @@ export const workSummaryQuerySchema = z.object({}).strict();
 
 export const adminAuditLogQuerySchema = paginationSchema.extend({
   userId: z.string().uuid().optional(),
+  shopId: z.string().uuid().optional(),
   action: z.string().max(100).optional(),
   resource: z.string().max(100).optional(),
   from: z.string().datetime().optional(),

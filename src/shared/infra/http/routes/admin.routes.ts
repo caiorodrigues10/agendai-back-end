@@ -100,6 +100,9 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/audit-logs", {
     preHandler: [...auditRead, validateSchema(adminAuditLogQuerySchema, "query")],
   }, auditLogController.list.bind(auditLogController));
+  app.get("/admin/audit-logs/facets", { preHandler: auditRead }, auditLogController.facets.bind(auditLogController));
+  app.get("/admin/audit-logs/alerts", { preHandler: auditRead }, auditLogController.alerts.bind(auditLogController));
+  app.get("/admin/audit-logs/sessions", { preHandler: auditRead }, auditLogController.sessions.bind(auditLogController));
   app.get("/admin/audit-logs/export", {
     preHandler: [...auditRead, validateSchema(adminAuditLogQuerySchema, "query")],
   }, auditLogController.export.bind(auditLogController));
