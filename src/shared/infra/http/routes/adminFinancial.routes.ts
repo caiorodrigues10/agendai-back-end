@@ -7,9 +7,13 @@ import { requireInternalPermission } from "../middlewares/requireInternalPermiss
 import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
 import { AdminFinancialController } from "@/modules/admin/controllers/AdminFinancialController";
 import { AdminBillingController } from "@/modules/admin/controllers/AdminBillingController";
+import { AdminBillingInsightsController } from "@/modules/admin/controllers/AdminBillingInsightsController";
+import { billingStatementQuerySchema } from "@/modules/admin/schemas/adminBillingSchemas";
+import { validateSchema } from "../middlewares/validateSchema";
 
 const financial = new AdminFinancialController();
 const billing = new AdminBillingController();
+const billingInsights = new AdminBillingInsightsController();
 
 export async function adminFinancialRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -43,5 +47,17 @@ export async function adminFinancialRoutes(app: FastifyInstance) {
     "/admin/billing/summary",
     { preHandler: financeRead },
     billing.summary.bind(billing)
+  );
+
+  app.get(
+    "/admin/billing/insights",
+    { preHandler: financeRead },
+    billingInsights.insights.bind(billingInsights)
+  );
+
+  app.get(
+    "/admin/billing/statement.csv",
+    { preHandler: [...financeRead, validateSchema(billingStatementQuerySchema, "query")] },
+    billingInsights.statement.bind(billingInsights)
   );
 }

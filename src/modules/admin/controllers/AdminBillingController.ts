@@ -1,27 +1,15 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
-
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
-const SP_OFFSET_MS = -3 * HOUR_MS;
-
-/** Início (UTC) do mês corrente em America/Sao_Paulo (UTC-3 fixo). */
-function spMonthStart(now: Date): Date {
-  const sp = new Date(now.getTime() + SP_OFFSET_MS);
-  return new Date(Date.UTC(sp.getUTCFullYear(), sp.getUTCMonth(), 1) - SP_OFFSET_MS);
-}
-
-function spMonthStartOffset(now: Date, monthDelta: number): Date {
-  const sp = new Date(now.getTime() + SP_OFFSET_MS);
-  return new Date(
-    Date.UTC(sp.getUTCFullYear(), sp.getUTCMonth() + monthDelta, 1) - SP_OFFSET_MS,
-  );
-}
-
-function spYearStart(now: Date): Date {
-  const sp = new Date(now.getTime() + SP_OFFSET_MS);
-  return new Date(Date.UTC(sp.getUTCFullYear(), 0, 1) - SP_OFFSET_MS);
-}
+import {
+  DAY_MS,
+  spMonthStart,
+  spMonthStartOffset,
+  spYearStart,
+  round2,
+  monthlyValue,
+  sumMonthly,
+  SubscriptionWithPlan,
+} from "../utils/billingPeriod";
 
 type PlanRow = {
   id: string;
@@ -31,28 +19,6 @@ type PlanRow = {
   active: boolean;
 };
 
-type SubscriptionWithPlan = {
-  status: string;
-  plan: { price: number; billingCycle: string };
-};
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function monthlyValue(price: number, billingCycle: string): number {
-  return billingCycle === "YEARLY" ? price / 12 : price;
-}
-
-function sumMonthly(values: SubscriptionWithPlan[]): number {
-  return round2(
-    values.reduce(
-      (total: number, sub: SubscriptionWithPlan) =>
-        total + monthlyValue(sub.plan.price, sub.plan.billingCycle),
-      0,
-    ),
-  );
-}
 
 export class AdminBillingController {
   async summary(_request: FastifyRequest, reply: FastifyReply) {
