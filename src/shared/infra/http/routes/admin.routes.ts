@@ -6,6 +6,7 @@ import { AdminAuditLogController } from "@/modules/admin/controllers/AdminAuditL
 import { BlockedEntityAdminController } from "@/modules/admin/controllers/BlockedEntityController"
 import { AdminNotificationController } from "@/modules/admin/controllers/AdminNotificationController";
 import { AdminReferralsController } from "@/modules/admin/controllers/AdminReferralsController";
+import { AdminOverviewController } from "@/modules/admin/controllers/AdminOverviewController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
@@ -21,6 +22,7 @@ const auditLogController = new AdminAuditLogController();
 const blockedEntityController = new BlockedEntityAdminController();
 const notificationController = new AdminNotificationController();
 const referralsController = new AdminReferralsController();
+const overviewController = new AdminOverviewController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -33,6 +35,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // ─── Dashboard ───────────────────────────────────────────────────────────
   app.get("/admin/dashboard", { preHandler: dashboardRead }, dashboardController.getDashboard.bind(dashboardController));
+  app.get("/admin/overview", { preHandler: dashboardRead }, overviewController.getOverview.bind(overviewController));
 
   // ─── Barbearias ──────────────────────────────────────────────────────────
   app.get("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.list.bind(barbershopController));
