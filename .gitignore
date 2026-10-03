@@ -16,3 +16,6 @@ graphify-out/202*
 # Snapshots locais de produção — nunca versionar
 *.dump
 agendai-render-*
+
+# Diagnóstico local (gera JWT a partir do JWT_SECRET) — nunca versionar
+scripts/diag*.ts
