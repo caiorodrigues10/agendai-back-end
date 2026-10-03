@@ -9,6 +9,7 @@ import { AdminReferralsController } from "@/modules/admin/controllers/AdminRefer
 import { AdminOverviewController } from "@/modules/admin/controllers/AdminOverviewController";
 import { AdminAccountsController } from "@/modules/admin/controllers/AdminAccountsController";
 import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
+import { AdminProductController } from "@/modules/admin/controllers/AdminProductController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
@@ -27,6 +28,7 @@ const referralsController = new AdminReferralsController();
 const overviewController = new AdminOverviewController();
 const accountsController = new AdminAccountsController();
 const operationsController = new AdminOperationsController();
+const productController = new AdminProductController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -40,6 +42,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // ─── Dashboard ───────────────────────────────────────────────────────────
   app.get("/admin/dashboard", { preHandler: dashboardRead }, dashboardController.getDashboard.bind(dashboardController));
   app.get("/admin/overview", { preHandler: dashboardRead }, overviewController.getOverview.bind(overviewController));
+  app.get("/admin/product/adoption", { preHandler: dashboardRead }, productController.adoption.bind(productController));
 
   // ─── Barbearias ──────────────────────────────────────────────────────────
   app.get("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.list.bind(barbershopController));
