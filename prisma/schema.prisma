@@ -688,7 +688,6 @@ model Appointment {
   @@index([clientPackageId])
   @@index([seriesId, occurrenceIndex])
   @@index([visitId])
-  @@index([barbershopId, completedAt])
   @@index([date])
   @@map("appointments")
 }
@@ -1392,7 +1391,6 @@ model FiadoPayment {
   notes          String?  @db.Text
   registeredById String   @db.Uuid
   createdAt      DateTime @default(now())
-  paymentMethod  String?  @db.VarChar(50)
 
   fiado Fiado @relation(fields: [fiadoId], references: [id], onDelete: Cascade)
 
