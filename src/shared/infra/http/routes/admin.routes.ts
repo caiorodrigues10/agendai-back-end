@@ -8,6 +8,7 @@ import { AdminNotificationController } from "@/modules/admin/controllers/AdminNo
 import { AdminReferralsController } from "@/modules/admin/controllers/AdminReferralsController";
 import { AdminOverviewController } from "@/modules/admin/controllers/AdminOverviewController";
 import { AdminAccountsController } from "@/modules/admin/controllers/AdminAccountsController";
+import { AdminAccountActionsController } from "@/modules/admin/controllers/AdminAccountActionsController";
 import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
 import { AdminProductController } from "@/modules/admin/controllers/AdminProductController";
 import { authenticate } from "../middlewares/authenticate";
@@ -17,6 +18,11 @@ import { verifyInternalAdmin } from "../middlewares/verifyInternalAdmin";
 import { requireInternalPermission } from "../middlewares/requireInternalPermission";
 import { validateSchema } from "../middlewares/validateSchema";
 import { adminAuditLogQuerySchema } from "@/modules/admin/schemas/internalSchemas";
+import {
+  adminAccountReasonSchema,
+  adminAccountExtendTrialSchema,
+  adminAccountChangePlanSchema,
+} from "@/modules/admin/schemas/adminAccountsSchemas";
 import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
 import { getNotificationOperationsHealth } from "@/modules/notifications/services/notificationOperationsService";
 
@@ -29,6 +35,7 @@ const notificationController = new AdminNotificationController();
 const referralsController = new AdminReferralsController();
 const overviewController = new AdminOverviewController();
 const accountsController = new AdminAccountsController();
+const accountActionsController = new AdminAccountActionsController();
 const operationsController = new AdminOperationsController();
 const productController = new AdminProductController();
 
@@ -40,6 +47,8 @@ export async function adminRoutes(app: FastifyInstance) {
   const auditRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.AUDIT_READ)];
   const operationsRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.OPERATIONS_READ)];
   const referralsRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.REFERRALS_READ)];
+  const accountsManage = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.ACCOUNTS_MANAGE)];
+  const accountsImpersonate = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.ACCOUNTS_IMPERSONATE)];
 
   // ─── Dashboard ───────────────────────────────────────────────────────────
   app.get("/admin/dashboard", { preHandler: dashboardRead }, dashboardController.getDashboard.bind(dashboardController));
@@ -54,6 +63,29 @@ export async function adminRoutes(app: FastifyInstance) {
   // ─── Contas ───────────────────────────────────────────────────────────────
   app.get("/admin/accounts", { preHandler: barbershopsManage }, accountsController.list.bind(accountsController));
   app.get("/admin/accounts/:id", { preHandler: barbershopsManage }, accountsController.getAccount.bind(accountsController));
+
+  // ─── Contas: ações de controle (todas com motivo ≥10 + auditoria) ────────
+  const accountActionRate = { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } };
+  const reasonAction = [...accountsManage, validateSchema(adminAccountReasonSchema, "body")];
+
+  app.post("/admin/accounts/:id/suspend", { preHandler: reasonAction, ...accountActionRate }, accountActionsController.suspend.bind(accountActionsController));
+  app.post("/admin/accounts/:id/reactivate", { preHandler: reasonAction, ...accountActionRate }, accountActionsController.reactivate.bind(accountActionsController));
+  app.post("/admin/accounts/:id/approve", { preHandler: reasonAction, ...accountActionRate }, accountActionsController.approve.bind(accountActionsController));
+  app.post("/admin/accounts/:id/reject", { preHandler: reasonAction, ...accountActionRate }, accountActionsController.reject.bind(accountActionsController));
+  app.post("/admin/accounts/:id/block", { preHandler: reasonAction, ...accountActionRate }, accountActionsController.block.bind(accountActionsController));
+  app.post("/admin/accounts/:id/notify", { preHandler: reasonAction, ...accountActionRate }, accountActionsController.notifyOwner.bind(accountActionsController));
+  app.post("/admin/accounts/:id/extend-trial", {
+    preHandler: [...accountsManage, validateSchema(adminAccountExtendTrialSchema, "body")],
+    ...accountActionRate,
+  }, accountActionsController.extendTrial.bind(accountActionsController));
+  app.post("/admin/accounts/:id/change-plan", {
+    preHandler: [...accountsManage, validateSchema(adminAccountChangePlanSchema, "body")],
+    ...accountActionRate,
+  }, accountActionsController.changePlan.bind(accountActionsController));
+  app.post("/admin/accounts/:id/impersonate", {
+    preHandler: [...accountsImpersonate, validateSchema(adminAccountReasonSchema, "body")],
+    config: { rateLimit: { max: 5, timeWindow: "5 minutes" } },
+  }, accountActionsController.impersonate.bind(accountActionsController));
 
   // ─── Usuários ────────────────────────────────────────────────────────────
   app.get("/admin/users", { preHandler: usersManage }, userController.list.bind(userController));

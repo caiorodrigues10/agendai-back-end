@@ -1136,6 +1136,7 @@ enum AdminNotificationType {
   PAYMENT_REFUNDED
   CONTACT_MESSAGE
   REFERRAL_REVOKED
+  ACCOUNT_ACTION
 }
 
 model AuditLog {

@@ -7,6 +7,10 @@ interface JwtPayload {
   sub: string;
   role: string;
   barbershopId?: string;
+  /** Presença = sessão de impersonation emitida pelo master (somente leitura). */
+  imp?: boolean;
+  /** id do master que iniciou o impersonation (auditoria). */
+  impBy?: string;
 }
 
 /** Aceita somente `Bearer <JWT>` (scheme case-insensitive). */
@@ -37,12 +41,22 @@ export async function authenticate(
 
   try {
     const decoded = verify(token, auth.secret) as JwtPayload;
+
+    if (decoded.imp === true) {
+      const mutating = !["GET", "HEAD", "OPTIONS"].includes(request.method);
+      if (mutating) {
+        throw new AppError("Sessão temporária é somente leitura", 403);
+      }
+    }
+
     request.user = {
       id: decoded.sub,
       role: decoded.role,
       barbershopId: decoded.barbershopId,
     };
-  } catch {
+    request.impersonated = decoded.imp === true;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
     throw new AppError("Token inválido", 401);
   }
 }
