@@ -15,6 +15,8 @@ import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
 import { verifyInternalAdmin } from "../middlewares/verifyInternalAdmin";
 import { requireInternalPermission } from "../middlewares/requireInternalPermission";
+import { validateSchema } from "../middlewares/validateSchema";
+import { adminAuditLogQuerySchema } from "@/modules/admin/schemas/internalSchemas";
 import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
 import { getNotificationOperationsHealth } from "@/modules/notifications/services/notificationOperationsService";
 
@@ -60,7 +62,12 @@ export async function adminRoutes(app: FastifyInstance) {
   app.delete("/admin/users/:id", { preHandler: usersManage }, userController.delete.bind(userController));
 
   // ─── Auditoria ───────────────────────────────────────────────────────────
-  app.get("/admin/audit-logs", { preHandler: auditRead }, auditLogController.list.bind(auditLogController));
+  app.get("/admin/audit-logs", {
+    preHandler: [...auditRead, validateSchema(adminAuditLogQuerySchema, "query")],
+  }, auditLogController.list.bind(auditLogController));
+  app.get("/admin/audit-logs/export", {
+    preHandler: [...auditRead, validateSchema(adminAuditLogQuerySchema, "query")],
+  }, auditLogController.export.bind(auditLogController));
 
   // ─── Entidades Bloqueadas ─────────────────────────────────────────────────
   app.get("/admin/blocked-entities", { preHandler: operationsRead }, blockedEntityController.list.bind(blockedEntityController));
