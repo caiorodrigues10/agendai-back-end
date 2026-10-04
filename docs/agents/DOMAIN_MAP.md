@@ -25,6 +25,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Feed / posts | `/feed`, `/posts` | `FeedPost` / posts |
 | Admin | `/admin/*` | agregações + audit/notifications |
 | Notificações | `/notifications` + filas | deliveries / Evolution |
+| NPS | `/admin/nps/*` (master) + `/nps/:surveyId` (público, com rate limit) | `NpsSurvey`, `NpsResponse`; gating via `NotificationPreference` (`NPS_SURVEY`) e `NotificationSuppression` |
 | Referrals | `/referrals` | `ReferralCode`, `Referral` |
 | Contact | `/contact` | formulário / notificação |
 

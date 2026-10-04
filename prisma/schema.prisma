@@ -413,6 +413,7 @@ model Barbershop {
   emailDeliveryLogs              EmailDeliveryLog[]
   tickets                        Ticket[]
   tasks                          Task[]
+  npsSurveys                     NpsSurvey[]
 
   @@index([approvalStatus])
   @@index([active])
@@ -791,6 +792,7 @@ model SalonClient {
   voucherUsages           VoucherUsage[]
   formResponses           FormResponse[]
   procedureRecords        ClientProcedureRecord[]
+  npsSurveys              NpsSurvey[]
 
   @@unique([barbershopId, normalizedWhatsapp])
   @@index([barbershopId])
@@ -4342,4 +4344,52 @@ model TaskHistory {
   @@index([taskId])
   @@index([actorId])
   @@map("task_history")
+}
+
+enum NpsSurveyStatus {
+  PENDING
+  ANSWERED
+  EXPIRED
+}
+
+/// Pesquisa NPS enviada a um respondente. `respondentKey`/`destinationMasked`
+/// são hash + máscara do contato (LGPD: nenhum contato cru é persistido).
+/// Máx1 pesquisa ativa por respondente e máx1 resposta a cada 90 dias.
+model NpsSurvey {
+  id                String          @id @default(uuid()) @db.Uuid
+  barbershopId      String          @db.Uuid
+  clientId          String?         @db.Uuid
+  respondentKey     String          @db.VarChar(64)
+  destinationMasked String          @db.VarChar(200)
+  channel           NotificationChannel
+  status            NpsSurveyStatus @default(PENDING)
+  sentAt            DateTime        @default(now())
+  expiresAt         DateTime
+  answeredAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client     SalonClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  response   NpsResponse?
+
+  @@index([barbershopId, status])
+  @@index([barbershopId, respondentKey])
+  @@index([expiresAt])
+  @@map("nps_surveys")
+}
+
+/// Resposta de NPS (0–10) de uma pesquisa; uma por pesquisa (surveyId único).
+model NpsResponse {
+  id           String   @id @default(uuid()) @db.Uuid
+  surveyId     String   @unique @db.Uuid
+  barbershopId String   @db.Uuid
+  score        Int
+  comment      String?  @db.VarChar(500)
+  createdAt    DateTime @default(now())
+
+  survey NpsSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId, createdAt])
+  @@map("nps_responses")
 }

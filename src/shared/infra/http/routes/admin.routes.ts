@@ -12,6 +12,7 @@ import { AdminAccountActionsController } from "@/modules/admin/controllers/Admin
 import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
 import { AdminProductController } from "@/modules/admin/controllers/AdminProductController";
 import { AdminEngagementController } from "@/modules/admin/controllers/AdminEngagementController";
+import { AdminNpsController } from "@/modules/nps/controllers/AdminNpsController";
 import { AdminSessionController } from "@/modules/admin/controllers/AdminSessionController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
@@ -20,6 +21,11 @@ import { verifyInternalAdmin } from "../middlewares/verifyInternalAdmin";
 import { requireInternalPermission } from "../middlewares/requireInternalPermission";
 import { validateSchema } from "../middlewares/validateSchema";
 import { adminAuditLogQuerySchema } from "@/modules/admin/schemas/internalSchemas";
+import {
+  npsCreateSurveysSchema,
+  npsListQuerySchema,
+  npsSummaryQuerySchema,
+} from "@/modules/nps/npsSchemas";
 import {
   adminAccountReasonSchema,
   adminAccountExtendTrialSchema,
@@ -45,6 +51,7 @@ const accountActionsController = new AdminAccountActionsController();
 const operationsController = new AdminOperationsController();
 const productController = new AdminProductController();
 const engagementController = new AdminEngagementController();
+const npsController = new AdminNpsController();
 const sessionController = new AdminSessionController();
 
 export async function adminRoutes(app: FastifyInstance) {
@@ -63,6 +70,17 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/overview", { preHandler: dashboardRead }, overviewController.getOverview.bind(overviewController));
   app.get("/admin/product/adoption", { preHandler: dashboardRead }, productController.adoption.bind(productController));
   app.get("/admin/engagement/summary", { preHandler: dashboardRead }, engagementController.summary.bind(engagementController));
+
+  // ─── NPS (pesquisas reais) ──────────────────────────────────────────────
+  app.post("/admin/nps/surveys", {
+    preHandler: [...barbershopsManage, validateSchema(npsCreateSurveysSchema, "body")],
+  }, npsController.createSurveys.bind(npsController));
+  app.get("/admin/nps/summary", {
+    preHandler: [...dashboardRead, validateSchema(npsSummaryQuerySchema, "query")],
+  }, npsController.summary.bind(npsController));
+  app.get("/admin/nps/surveys", {
+    preHandler: [...dashboardRead, validateSchema(npsListQuerySchema, "query")],
+  }, npsController.list.bind(npsController));
 
   // ─── Barbearias ──────────────────────────────────────────────────────────
   app.get("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.list.bind(barbershopController));

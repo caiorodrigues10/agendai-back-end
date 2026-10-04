@@ -1,5 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { prisma } from "@/libs/prismaClient";
+import { npsSummary, NpsSummary } from "@/modules/nps/services/npsService";
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -8,7 +9,6 @@ const OPEN_TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "WAITING_SHOP"];
 const RISK_SUBSCRIPTION_STATUSES = ["PAST_DUE", "UNPAID"];
 
 type GroupRow = { barbershopId: string };
-type RatingRow = { rating: number; _count: { _all: number } };
 type TicketRow = { id: string; createdAt: Date; resolvedAt: Date | null };
 type FirstCommentRow = { ticketId: string; _min: { createdAt: Date | null } };
 type ShopRow = { id: string; name: string; createdAt: Date };
@@ -51,16 +51,15 @@ const avgHours = (diffsMs: number[]): number | null => {
  * GET /admin/engagement/summary — engajamento, adoção, NPS, suporte e churn.
  *
  * Funil de ativação por etapa, adoção de features (janela de 30 dias para
- * features dinâmicas), NPS global a partir das avaliações publicadas (90 dias),
- * métricas de SLA de suporte (backlog, tempo de primeira resposta e resolução)
- * e top 10 de risco de churn com motivos por salão.
+ * features dinâmicas), NPS real de `NpsResponse` (janela de 90 dias, com
+ * flag de dados insuficientes), métricas de SLA de suporte (backlog, tempo
+ * de primeira resposta e resolução) e top 10 de risco de churn com motivos.
  */
 export class AdminEngagementController {
   async summary(_request: FastifyRequest, reply: FastifyReply) {
     const now = new Date();
     const since7d = new Date(now.getTime() - 7 * DAY_MS);
     const since30d = new Date(now.getTime() - 30 * DAY_MS);
-    const since90d = new Date(now.getTime() - 90 * DAY_MS);
     const overdue24h = new Date(now.getTime() - 24 * HOUR_MS);
     const trialEndsAt = new Date(now.getTime() + 7 * DAY_MS);
     const shopWhere = { active: true };
@@ -77,7 +76,6 @@ export class AdminEngagementController {
       queue7d,
       retail30d,
       fiado30d,
-      reviewRatings,
       ticketsWindow,
       firstComments,
       openBacklog,
@@ -116,11 +114,6 @@ export class AdminEngagementController {
       prisma.fiado.groupBy({
         by: ["barbershopId"],
         where: { createdAt: { gte: since30d } },
-      }),
-      prisma.clientReview.groupBy({
-        by: ["rating"],
-        where: { createdAt: { gte: since90d }, status: "PUBLISHED" },
-        _count: { _all: true },
       }),
       prisma.ticket.findMany({
         where: {
@@ -180,18 +173,7 @@ export class AdminEngagementController {
       return { key: spec.key, label: spec.label, shops, pct: pctOf(shops, shopsTotal) };
     });
 
-    let promoters = 0;
-    let passives = 0;
-    let detractors = 0;
-    reviewRatings.forEach((row: RatingRow) => {
-      const count = row._count._all;
-      if (row.rating >= 4) promoters += count;
-      else if (row.rating === 3) passives += count;
-      else detractors += count;
-    });
-    const responses = promoters + passives + detractors;
-    const npsScore =
-      responses > 0 ? Math.round(((promoters - detractors) / responses) * 100) : null;
+    const nps: NpsSummary = await npsSummary();
 
     const resolvedInWindow = ticketsWindow.filter(
       (ticket: TicketRow) => ticket.resolvedAt !== null && ticket.resolvedAt >= since30d,
@@ -239,13 +221,7 @@ export class AdminEngagementController {
         generatedAt: now.toISOString(),
         funnel,
         features,
-        nps: {
-          responses,
-          promoters,
-          passives,
-          detractors,
-          score: npsScore,
-        },
+        nps,
         support: {
           open: openBacklog,
           openOver24h,

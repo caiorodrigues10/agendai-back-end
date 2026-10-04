@@ -62,6 +62,7 @@ import { emailPreferenceRoutes } from './emailPreferences.routes'
 import { emailGalleryRoutes } from './emailGallery.routes'
 import { adminInternalRoutes } from './adminInternal.routes'
 import { supportRoutes } from '@/modules/support/support.routes'
+import { npsRoutes } from '@/modules/nps/routes/nps.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	await realtimeWsRoutes(app)
@@ -127,4 +128,5 @@ export async function apiRoutes(app: FastifyInstance) {
 	await emailGalleryRoutes(app)
 	await adminInternalRoutes(app)
 	await supportRoutes(app)
+	await npsRoutes(app)
 }

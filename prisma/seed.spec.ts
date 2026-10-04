@@ -299,7 +299,7 @@ describe("prisma/seed", () => {
       expect(db.schedule.rows).toHaveLength(7);
       expect(db.service.rows).toHaveLength(3);
       expect(db.loyaltyProgram.rows).toHaveLength(1);
-      expect(db.notificationPreference.rows).toHaveLength(8);
+      expect(db.notificationPreference.rows).toHaveLength(9);
       expect(db.appointmentPolicy.rows).toHaveLength(1);
       expect(db.barbershopEmailSettings.rows).toHaveLength(1);
       expect(db.profitSettings.rows).toHaveLength(1);
@@ -338,7 +338,7 @@ describe("prisma/seed", () => {
 
       expect(db.schedule.rows).toHaveLength(7);
       expect(db.service.rows).toHaveLength(3);
-      expect(db.notificationPreference.rows).toHaveLength(8);
+      expect(db.notificationPreference.rows).toHaveLength(9);
       expect(rawValues[0][0]).toBe(VALID_UUID);
     });
   });

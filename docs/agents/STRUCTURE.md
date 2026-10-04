@@ -30,9 +30,9 @@ agendai-back-end/
 
 ## Módulos (`src/modules/`)
 
-Há **56** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
+Há **57** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
 
-`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `monitoring`, `notifications`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `productReservations`, `products`, `profit`, `purchasing`, `quality`, `queue`, `recurringPackages`, `referrals`, `reputation`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `support`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`.
+`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `monitoring`, `notifications`, `nps`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `productReservations`, `products`, `profit`, `purchasing`, `quality`, `queue`, `recurringPackages`, `referrals`, `reputation`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `support`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`.
 
 Módulos que escaparam a varredura A1–A11 e agora entram na matriz de STATUS: **pricing**, **catalog** (avançado), **purchasing** (receive → estoque), **corporate** (admin com `setRlsContext`).
 

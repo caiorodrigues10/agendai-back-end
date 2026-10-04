@@ -21,6 +21,7 @@ export const NOTIFICATION_TYPES = [
   "APPOINTMENT_URGENT_CANCELLED",
   "APPOINTMENT_URGENT_RESCHEDULED",
   "REVIEW_REQUESTED",
+  "NPS_SURVEY",
   "CRM_CAMPAIGN",
   "FIADO_CHARGE",
   "PRODUCT_RESERVED_SHOP_ALERT",
@@ -62,6 +63,7 @@ const LABELS: Record<NotificationType, string> = {
   APPOINTMENT_URGENT_CANCELLED: "Cancelamento urgente (24h)",
   APPOINTMENT_URGENT_RESCHEDULED: "Reagendamento urgente (24h)",
   REVIEW_REQUESTED: "Pedido de avaliação",
+  NPS_SURVEY: "Pesquisa NPS",
   CRM_CAMPAIGN: "Campanha do CRM",
   FIADO_CHARGE: "Cobrança de fiado",
   PRODUCT_RESERVED_SHOP_ALERT: "Reserva de produto — aviso ao salão",
@@ -86,6 +88,7 @@ const OWNER_CONFIGURABLE = new Set<NotificationType>([
   "APPOINTMENT_REMINDER",
   "APPOINTMENT_QUEUE_UPDATE",
   "APPOINTMENT_CANCELED",
+  "NPS_SURVEY",
 ]);
 
 export function isNotificationType(value: string): value is NotificationType {

@@ -74,8 +74,8 @@ describe("seedBarbershopDefaults", () => {
       cashbackPercent: 0,
     });
 
-    // Preferências de notificação WHATSAPP (8 tipos configuráveis pelo dono)
-    expect(db.notificationPreference.rows).toHaveLength(8);
+    // Preferências de notificação WHATSAPP (9 tipos configuráveis pelo dono)
+    expect(db.notificationPreference.rows).toHaveLength(9);
     expect(
       db.notificationPreference.rows.every(
         (r: any) => r.channel === "WHATSAPP" && r.enabled === true,
@@ -203,7 +203,7 @@ describe("seedBarbershopDefaults", () => {
     expect(db.loyaltyProgram.rows[0].config.visitsRequired).toBe(5);
     expect(db.appointmentPolicy.rows).toHaveLength(1);
     expect(db.appointmentPolicy.rows[0].bookingNoticeMinutes).toBe(30);
-    expect(db.notificationPreference.rows).toHaveLength(8);
+    expect(db.notificationPreference.rows).toHaveLength(9);
     const pref = db.notificationPreference.rows.find(
       (r: any) => r.type === "QUEUE_JOINED_CLIENT",
     );

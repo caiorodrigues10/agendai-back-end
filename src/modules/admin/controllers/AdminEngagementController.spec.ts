@@ -9,7 +9,7 @@ const prismaMock = vi.hoisted(() => ({
   queueItem: { groupBy: vi.fn() },
   retailSale: { groupBy: vi.fn() },
   fiado: { groupBy: vi.fn() },
-  clientReview: { groupBy: vi.fn() },
+  npsResponse: { groupBy: vi.fn() },
   ticket: { findMany: vi.fn(), count: vi.fn() },
   ticketComment: { groupBy: vi.fn() },
   subscription: { findMany: vi.fn() },
@@ -37,7 +37,15 @@ type SummarySent = {
   data: {
     funnel: Array<{ key: string; count: number; pct: number }>;
     features: Array<{ key: string; shops: number; pct: number }>;
-    nps: { responses: number; promoters: number; score: number | null };
+    nps: {
+      windowDays: number;
+      responses: number;
+      promoters: number;
+      passives: number;
+      detractors: number;
+      score: number | null;
+      insufficient: boolean;
+    };
     support: {
       open: number;
       openOver24h: number;
@@ -63,7 +71,7 @@ function mockAll(
     queue7d: Array<{ barbershopId: string }>;
     retail30d: Array<{ barbershopId: string }>;
     fiado30d: Array<{ barbershopId: string }>;
-    reviews: Array<{ rating: number; _count: { _all: number } }>;
+    npsScores: Array<{ score: number; _count: { _all: number } }>;
     tickets: Array<{ id: string; createdAt: Date; resolvedAt: Date | null }>;
     comments: Array<{ ticketId: string; _min: { createdAt: Date | null } }>;
     openBacklog: number;
@@ -90,7 +98,7 @@ function mockAll(
     .mockResolvedValueOnce(overrides.queue7d ?? []);
   prismaMock.retailSale.groupBy.mockResolvedValueOnce(overrides.retail30d ?? []);
   prismaMock.fiado.groupBy.mockResolvedValueOnce(overrides.fiado30d ?? []);
-  prismaMock.clientReview.groupBy.mockResolvedValueOnce(overrides.reviews ?? []);
+  prismaMock.npsResponse.groupBy.mockResolvedValueOnce(overrides.npsScores ?? []);
   prismaMock.ticket.findMany.mockResolvedValueOnce(overrides.tickets ?? []);
   prismaMock.ticketComment.groupBy.mockResolvedValueOnce(overrides.comments ?? []);
   prismaMock.ticket.count
@@ -120,10 +128,10 @@ describe("AdminEngagementController.summary", () => {
       queue7d: [],
       retail30d: [{ barbershopId: "b2" }],
       fiado30d: [],
-      reviews: [
-        { rating: 5, _count: { _all: 6 } },
-        { rating: 3, _count: { _all: 2 } },
-        { rating: 1, _count: { _all: 2 } },
+      npsScores: [
+        { score: 10, _count: { _all: 6 } },
+        { score: 7, _count: { _all: 2 } },
+        { score: 2, _count: { _all: 2 } },
       ],
       openBacklog: 12,
       openOver24h: 3,
@@ -150,7 +158,15 @@ describe("AdminEngagementController.summary", () => {
       shops: 1,
       pct: 1,
     });
-    expect(sent.data.nps).toMatchObject({ responses: 10, promoters: 6, score: 40 });
+    expect(sent.data.nps).toMatchObject({
+      windowDays: 90,
+      responses: 10,
+      promoters: 6,
+      passives: 2,
+      detractors: 2,
+      score: 40,
+      insufficient: false,
+    });
     expect(sent.data.support).toMatchObject({
       open: 12,
       openOver24h: 3,
@@ -203,7 +219,7 @@ describe("AdminEngagementController.summary", () => {
     await controller.summary(makeRequest(), reply as never);
 
     const sent = vi.mocked(reply.send).mock.calls[0][0] as SummarySent;
-    expect(sent.data.nps).toMatchObject({ responses: 0, score: null });
+    expect(sent.data.nps).toMatchObject({ responses: 0, score: null, insufficient: true });
     expect(sent.data.support).toMatchObject({
       open: 0,
       avgResolutionH: null,
