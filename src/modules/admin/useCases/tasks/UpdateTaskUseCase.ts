@@ -35,6 +35,7 @@ export class UpdateTaskUseCase {
         description: true,
         dueDate: true,
         version: true,
+        barbershopId: true,
       },
     });
 
@@ -189,6 +190,7 @@ export class UpdateTaskUseCase {
           resource: "Task",
           resourceId: taskId,
           details: JSON.stringify({ changes: historyEntries }),
+          barbershopId: task.barbershopId
         },
       });
 

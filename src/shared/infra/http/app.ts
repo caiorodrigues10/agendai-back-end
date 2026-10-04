@@ -18,6 +18,25 @@ import { buildSafeAuditDetails, sanitizeSensitiveText } from "@/shared/utils/sec
 import { formatZodIssues, isZodError } from "@/shared/utils/zodValidation";
 import { isPrismaInvalidUuidError } from "@/shared/utils/prismaErrors";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHOP_PATH_RE = /\/barbershops?\/([0-9a-f-]{36})/i;
+
+/**
+ * Salão para a linha global de auditoria: uuid em `/barbershops/:id` na URL,
+ * senão `barbershopId` do body (quando é uuid), senão o salão do usuário
+ * logado no token. Null em ações globais (planos, admin sem salão etc.).
+ */
+function shopIdFromRequest(request: FastifyRequest): string | null {
+  const fromUrl = request.url.match(SHOP_PATH_RE)?.[1];
+  if (fromUrl && UUID_RE.test(fromUrl)) return fromUrl;
+
+  const body = request.body as { barbershopId?: unknown } | undefined;
+  if (body && typeof body.barbershopId === "string" && UUID_RE.test(body.barbershopId)) {
+    return body.barbershopId;
+  }
+  return request.user?.barbershopId ?? null;
+}
+
 export async function buildApp() {
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test)
@@ -181,6 +200,7 @@ export async function buildApp() {
           resourceId: (request.params as any)?.id || null,
           details: buildSafeAuditDetails(request.body),
           ipAddress: request.ip,
+          barbershopId: shopIdFromRequest(request),
         },
       });
     } catch (err) {

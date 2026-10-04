@@ -36,13 +36,14 @@ const baseLog = {
   resourceId: null,
   details: null,
   ipAddress: "1.2.3.4",
+  barbershopId: null as string | null,
   createdAt: new Date("2026-10-03T10:00:00.000Z"),
 };
 
 describe("AdminAuditLogController.list", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("filtra por shopId via resourceId ou uuid na action", async () => {
+  it("filtra por shopId na coluna barbershopId real", async () => {
     prismaMock.auditLog.findMany.mockResolvedValue([]);
     prismaMock.auditLog.count.mockResolvedValue(0);
 
@@ -50,18 +51,13 @@ describe("AdminAuditLogController.list", () => {
     await controller.list(makeRequest({ shopId: "11111111-1111-4111-8111-111111111111" }), reply as never);
 
     const args = prismaMock.auditLog.findMany.mock.calls[0][0] as {
-      where: { OR: Array<Record<string, unknown>> };
+      where: { barbershopId?: string; OR?: Array<Record<string, unknown>> };
     };
-    expect(args.where.OR).toHaveLength(2);
-    expect(args.where.OR[0]).toEqual({
-      resourceId: "11111111-1111-4111-8111-111111111111",
-    });
-    expect(args.where.OR[1]).toEqual({
-      action: { contains: "11111111-1111-4111-8111-111111111111" },
-    });
+    expect(args.where.barbershopId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(args.where.OR).toBeUndefined();
   });
 
-  it("combina busca e shopId no mesmo OR", async () => {
+  it("combina busca (OR) com o filtro de shopId", async () => {
     prismaMock.auditLog.findMany.mockResolvedValue([]);
     prismaMock.auditLog.count.mockResolvedValue(0);
 
@@ -72,9 +68,10 @@ describe("AdminAuditLogController.list", () => {
     );
 
     const args = prismaMock.auditLog.findMany.mock.calls[0][0] as {
-      where: { OR: Array<Record<string, unknown>> };
+      where: { barbershopId?: string; OR: Array<Record<string, unknown>> };
     };
-    expect(args.where.OR).toHaveLength(5);
+    expect(args.where.barbershopId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(args.where.OR).toHaveLength(3);
   });
 });
 
@@ -94,11 +91,30 @@ describe("AdminAuditLogController.export", () => {
     let csv = "";
     for await (const chunk of stream) csv += String(chunk);
     expect(csv.split("\r\n")[0]).toBe(
-      "createdAt,action,resource,resourceId,userId,ipAddress,details",
+      "createdAt,action,resource,resourceId,userId,ipAddress,barbershopId,barbershopName,details",
     );
-    expect(csv).toContain("2026-10-03T10:00:00.000Z,PATCH,products,,u1,1.2.3.4,");
-    // Uma chamada só (lote < 1000 encerra o gerador).
+    expect(csv).toContain("2026-10-03T10:00:00.000Z,PATCH,products,,u1,1.2.3.4,,,");
+    // Uma chamada só (lote < 1000 encerra o gerador); sem salão na linha,
+    // nenhuma consulta de nome é disparada.
     expect(prismaMock.auditLog.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.barbershop.findMany).not.toHaveBeenCalled();
+  });
+
+  it("inclui o nome do salão quando a linha tem barbershopId", async () => {
+    prismaMock.auditLog.findMany.mockResolvedValueOnce([
+      { ...baseLog, barbershopId: "b1", resourceId: "b1" },
+    ]);
+    prismaMock.barbershop.findMany.mockResolvedValue([{ id: "b1", name: "Barbearia Central" }]);
+
+    const reply = makeReply();
+    await controller.export(makeRequest(), reply as never);
+
+    const stream = vi.mocked(reply.send).mock.calls[0][0] as Readable;
+    let csv = "";
+    for await (const chunk of stream) csv += String(chunk);
+
+    expect(csv).toContain("b1,Barbearia Central,");
+    expect(prismaMock.barbershop.findMany).toHaveBeenCalledTimes(1);
   });
 
   it("pagina por cursor até esgotar os registros", async () => {
@@ -173,10 +189,11 @@ describe("AdminAuditLogController.alerts", () => {
 describe("AdminAuditLogController.facets", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("retorna recursos distintos, usuários com logs e salões ativos", async () => {
+  it("retorna recursos distintos, usuários com logs e salões com logs", async () => {
     prismaMock.auditLog.groupBy
       .mockResolvedValueOnce([{ resource: "products" }, { resource: "users" }])
-      .mockResolvedValueOnce([{ userId: "u1" }, { userId: "u2" }]);
+      .mockResolvedValueOnce([{ userId: "u1" }, { userId: "u2" }])
+      .mockResolvedValueOnce([{ barbershopId: "b1" }, { barbershopId: null }]);
     prismaMock.barbershop.findMany.mockResolvedValue([
       { id: "b1", name: "Barbearia Central" },
     ]);
@@ -187,6 +204,14 @@ describe("AdminAuditLogController.facets", () => {
 
     const reply = makeReply();
     await controller.facets(makeRequest(), reply as never);
+
+    // A facet de salões deriva dos logs reais (coluna barbershopId), não da
+    // tabela de salões ativos — inclui salões inativos com histórico.
+    const groupByCalls = prismaMock.auditLog.groupBy.mock.calls;
+    expect(groupByCalls[2][0]).toMatchObject({ by: ["barbershopId"] });
+    expect(prismaMock.barbershop.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["b1"] } } }),
+    );
 
     const sent = vi.mocked(reply.send).mock.calls[0][0] as {
       data: {

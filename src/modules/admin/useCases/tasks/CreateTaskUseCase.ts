@@ -44,6 +44,7 @@ export class CreateTaskUseCase {
         resource: "Task",
         resourceId: task.id,
         details: JSON.stringify({ title: data.title }),
+        barbershopId: task.barbershopId
       },
     });
 

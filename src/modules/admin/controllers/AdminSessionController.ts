@@ -151,6 +151,7 @@ export class AdminSessionController {
           resourceId: row.id,
           details: JSON.stringify({ targetUserId: row.userId, reason }),
           ipAddress: request.ip,
+          barbershopId: row.barbershopId,
         },
       })
       .catch(() => undefined);
@@ -174,7 +175,7 @@ export class AdminSessionController {
 
     const target = await prisma.user.findUnique({
       where: { id: targetId },
-      select: { id: true, role: true, name: true },
+      select: { id: true, role: true, name: true, barbershopId: true },
     });
     if (!target) throw new AppError("Usuário não encontrado", 404);
 
@@ -208,6 +209,7 @@ export class AdminSessionController {
           resourceId: targetId,
           details: JSON.stringify({ reason, sessions: result.sessions, tokens: result.tokens }),
           ipAddress: request.ip,
+          barbershopId: target.barbershopId,
         },
       })
       .catch(() => undefined);

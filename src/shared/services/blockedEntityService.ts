@@ -50,7 +50,8 @@ async function createAuditLog(
   action: string,
   resource: string,
   resourceId: string,
-  details: Record<string, unknown>
+  details: Record<string, unknown>,
+  barbershopId?: string | null
 ) {
   try {
     await prisma.auditLog.create({
@@ -59,7 +60,8 @@ async function createAuditLog(
         action,
         resource,
         resourceId,
-        details: JSON.stringify(details)
+        details: JSON.stringify(details),
+        barbershopId: barbershopId ?? null
       }
     });
   } catch (err) {
@@ -125,7 +127,7 @@ export async function blockEntity(opts: BlockOptions) {
     value,
     reason: opts.reason,
     barbershopId: opts.barbershopId
-  });
+  }, opts.barbershopId);
 
   await createAdminNotification(
     "BLOCK_AUTO",
@@ -184,7 +186,8 @@ export async function unblockEntity(opts: UnblockOptions) {
       value,
       unblockedBy: opts.unblockedBy,
       externalRef: opts.externalRef
-    }
+    },
+    existing.barbershopId
   );
 
   const notifType = isSystem ? "UNBLOCK_AUTO" : "UNBLOCK_MANUAL";

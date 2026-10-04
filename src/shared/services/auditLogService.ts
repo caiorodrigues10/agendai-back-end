@@ -7,6 +7,8 @@ export interface ICreateAuditLogDTO {
   resourceId?: string;
   details?: string;
   ipAddress?: string;
+  /** Salão dono do recurso auditado (null em ações globais). */
+  barbershopId?: string;
 }
 
 export async function createAuditLog(data: ICreateAuditLogDTO) {
@@ -18,6 +20,7 @@ export async function createAuditLog(data: ICreateAuditLogDTO) {
       resourceId: data.resourceId,
       details: data.details,
       ipAddress: data.ipAddress,
+      barbershopId: data.barbershopId ?? null,
     },
   });
 }

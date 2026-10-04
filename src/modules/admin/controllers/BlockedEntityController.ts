@@ -79,7 +79,8 @@ export class BlockedEntityAdminController {
         resource: "BlockedEntity",
         resourceId: result.id,
         details: JSON.stringify({ type: body.type, value: body.value, reason: body.reason }),
-        ipAddress: request.ip
+        ipAddress: request.ip,
+        barbershopId: body.barbershopId ?? null
       }
     });
 
@@ -108,7 +109,8 @@ export class BlockedEntityAdminController {
         resource: "BlockedEntity",
         resourceId: id,
         details: JSON.stringify({ type: entity.type, value: entity.value }),
-        ipAddress: request.ip
+        ipAddress: request.ip,
+        barbershopId: entity.barbershopId
       }
     });
 

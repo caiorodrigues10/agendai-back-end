@@ -32,6 +32,7 @@ export class UpdateTicketUseCase {
         assignedToId: true,
         category: true,
         version: true,
+        barbershopId: true,
       },
     });
 
@@ -187,6 +188,7 @@ export class UpdateTicketUseCase {
           resource: "Ticket",
           resourceId: ticketId,
           details: JSON.stringify({ changes: historyEntries }),
+          barbershopId: ticket.barbershopId
         },
       });
 

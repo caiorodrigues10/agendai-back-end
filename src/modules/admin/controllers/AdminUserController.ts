@@ -78,6 +78,7 @@ export class AdminUserController {
           resourceId: user.id,
           details: JSON.stringify({ name, email, role, barbershopId, hasCpf: !!cpf }),
           ipAddress: request.ip,
+          barbershopId: user.barbershopId,
         },
       });
     }
@@ -113,7 +114,7 @@ export class AdminUserController {
         ...(barbershopId !== undefined && { barbershopId: sanitizedBarbershopId }),
         ...(normalizedCpf !== undefined && { cpf: normalizedCpf })
       },
-      select: { id: true, name: true, email: true, role: true, active: true, cpf: true }
+      select: { id: true, name: true, email: true, role: true, active: true, cpf: true, barbershopId: true }
     });
 
     if (request.user) {
@@ -125,6 +126,7 @@ export class AdminUserController {
           resourceId: id,
           details: JSON.stringify({ name, email, role, active, hasCpf: !!cpf }),
           ipAddress: request.ip,
+          barbershopId: user.barbershopId,
         },
       });
     }
@@ -135,7 +137,7 @@ export class AdminUserController {
   async delete(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
 
-    await prisma.user.delete({ where: { id } });
+    const deleted = await prisma.user.delete({ where: { id } });
 
     if (request.user) {
       await prisma.auditLog.create({
@@ -145,6 +147,7 @@ export class AdminUserController {
           resource: 'User',
           resourceId: id,
           ipAddress: request.ip,
+          barbershopId: deleted.barbershopId,
         },
       });
     }

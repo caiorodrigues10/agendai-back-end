@@ -34,6 +34,7 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `prisma:seed:tenant` | `tsx prisma/seed.ts --tenant` | **altera banco** | Postgres, `--barbershopId=<uuid>` | Defaults de um salão existente (`npm run prisma:seed:tenant -- --barbershopId=<uuid>`) |
 | `security:audit-logs` | `tsx scripts/remediateSensitiveAuditLogs.ts` | **altera dados** | Postgres | Remediação de logs |
 | `ledger:backfill` | `tsx scripts/backfillFinancialLedger.ts` | **altera banco** (dry-run por padrão) | Postgres | Backfill idempotente do livro financeiro: agendamentos/conclusões de fila sem `SERVICE_SALE` e pagamentos de fiado sem `FIADO_PAYMENT` (+ comissão padrão do serviço). `npm run ledger:backfill` só reporta; aplicar com `npm run ledger:backfill -- --apply [--barbershop=<uuid>] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD] [--no-commissions]` |
+| `audit:backfill-shop` | `tsx scripts/backfillAuditLogBarbershop.ts` | **altera banco** (dry-run por padrão) | Postgres | Backfill idempotente de `audit_logs.barbershop_id` (inferência por `resourceId`/`details`/uuid na `action` contra `barbershops`). `npm run audit:backfill-shop` só reporta; aplicar com `npm run audit:backfill-shop -- --apply` |
 | `prisma:studio` / `db:studio` | `prisma studio` | leitura | Postgres | UI Prisma |
 | `db:push` | `prisma db push` | **altera banco** | Postgres | Push sem migration (dev) |
 | `db:push:prod` | `node -e "… process.exit(1)"` | bloqueio | — | **Bloqueado** de propósito |

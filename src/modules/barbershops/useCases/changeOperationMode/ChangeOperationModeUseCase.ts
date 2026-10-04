@@ -71,6 +71,7 @@ export class ChangeOperationModeUseCase {
           from: shop.operationMode,
           to: operationMode,
         }),
+        barbershopId,
       },
     }).catch(() => {});
 

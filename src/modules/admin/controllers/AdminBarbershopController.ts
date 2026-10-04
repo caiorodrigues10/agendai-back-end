@@ -66,6 +66,7 @@ export class AdminBarbershopController {
           resourceId: id,
           details: JSON.stringify({ active, approvalStatus, rejectionReason }),
           ipAddress: request.ip,
+          barbershopId: id,
         },
       });
     }
@@ -100,6 +101,7 @@ export class AdminBarbershopController {
           resourceId: barbershop.id,
           details: JSON.stringify({ name, whatsapp, cnpj }),
           ipAddress: request.ip,
+          barbershopId: barbershop.id,
         },
       });
     }

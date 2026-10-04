@@ -44,6 +44,7 @@ export class AdminAccountActionsController {
         resourceId: shopId,
         details: JSON.stringify({ reason, before, after }),
         ipAddress: request.ip,
+        barbershopId: shopId,
       },
     });
   }

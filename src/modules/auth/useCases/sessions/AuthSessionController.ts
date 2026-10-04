@@ -7,6 +7,7 @@ import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 type OwnSessionRow = {
   id: string;
   userId: string;
+  barbershopId: string | null;
   deviceLabel: string | null;
   ipAddress: string | null;
   userAgent: string | null;
@@ -22,6 +23,7 @@ type OwnSessionRow = {
 const ownSelect = {
   id: true,
   userId: true,
+  barbershopId: true,
   deviceLabel: true,
   ipAddress: true,
   userAgent: true,
@@ -97,6 +99,7 @@ export class AuthSessionController {
           resourceId: row.id,
           details: JSON.stringify({ reason, current: isCurrent }),
           ipAddress: request.ip,
+          barbershopId: row.barbershopId,
         },
       })
       .catch(() => undefined);

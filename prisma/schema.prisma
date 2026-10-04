@@ -1176,11 +1176,14 @@ model AuditLog {
   resourceId String?  @db.VarChar(100)
   details    String?  @db.Text
   ipAddress  String?  @db.VarChar(50)
+  /// Salão dono do recurso auditado (null em ações globais, ex.: planos).
+  barbershopId String? @db.Uuid
   createdAt  DateTime @default(now())
 
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+  @@index([barbershopId])
   @@map("audit_logs")
 }
 

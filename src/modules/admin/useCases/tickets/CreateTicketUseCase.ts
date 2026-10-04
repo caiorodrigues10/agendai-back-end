@@ -54,6 +54,7 @@ export class CreateTicketUseCase {
         resource: "Ticket",
         resourceId: ticket.id,
         details: JSON.stringify({ protocol, title: data.title }),
+        barbershopId: ticket.barbershopId
       },
     });
 

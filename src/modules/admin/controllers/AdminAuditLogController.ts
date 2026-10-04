@@ -22,6 +22,7 @@ interface AuditLogRow {
   resourceId: string | null;
   details: string | null;
   ipAddress: string | null;
+  barbershopId: string | null;
   createdAt: Date;
 }
 
@@ -67,10 +68,10 @@ const buildWhere = (query: AuditLogQuery): Record<string, any> => {
   }
 
   const orConditions: Array<Record<string, any>> = [];
+  // Coluna real de salão (barbershopId) — linhas antigas sem tag ficam fora
+  // do filtro até serem cobertas pelo backfill (`audit:backfill-shop`).
   if (query.shopId) {
-    // AuditLog não tem coluna de salão: em ações de conta o resourceId é o
-    // shop id e nas rotas HTTP o uuid aparece na action (ex.: /barbershops/<id>/...).
-    orConditions.push({ resourceId: query.shopId }, { action: { contains: query.shopId } });
+    where.barbershopId = query.shopId;
   }
   if (query.search) {
     orConditions.push(
@@ -94,7 +95,7 @@ const csvCell = (value: unknown): string => {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 
-const csvLine = (log: AuditLogRow): string =>
+const csvLine = (log: AuditLogRow, shopNames: Map<string, string>): string =>
   [
     log.createdAt.toISOString(),
     log.action,
@@ -102,13 +103,25 @@ const csvLine = (log: AuditLogRow): string =>
     log.resourceId ?? "",
     log.userId,
     log.ipAddress ?? "",
+    log.barbershopId ?? "",
+    log.barbershopId ? shopNames.get(log.barbershopId) ?? "" : "",
     (log.details ?? "").replace(/\r?\n/g, " "),
   ]
     .map(csvCell)
     .join(",");
 
 const CSV_HEADER =
-  "createdAt,action,resource,resourceId,userId,ipAddress,details\r\n";
+  "createdAt,action,resource,resourceId,userId,ipAddress,barbershopId,barbershopName,details\r\n";
+
+const loadShopNames = async (ids: Array<string | null>): Promise<Map<string, string>> => {
+  const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (unique.length === 0) return new Map();
+  const shops: Array<{ id: string; name: string }> = await prisma.barbershop.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, name: true },
+  });
+  return new Map(shops.map((shop) => [shop.id, shop.name]));
+};
 
 /** Export em lotes via cursor — sem teto de registros. */
 async function* auditCsvRows(where: Record<string, any>): AsyncGenerator<string> {
@@ -128,10 +141,13 @@ async function* auditCsvRows(where: Record<string, any>): AsyncGenerator<string>
         resourceId: true,
         details: true,
         ipAddress: true,
+        barbershopId: true,
         createdAt: true,
       },
     });
-    for (const log of batch) yield `${csvLine(log)}\r\n`;
+    if (batch.length === 0) return;
+    const shopNames = await loadShopNames(batch.map((log) => log.barbershopId));
+    for (const log of batch) yield `${csvLine(log, shopNames)}\r\n`;
     if (batch.length < EXPORT_BATCH) return;
     cursor = batch[batch.length - 1].id;
   }
@@ -184,20 +200,31 @@ export class AdminAuditLogController {
       .send(Readable.from(auditCsvRows(where)));
   }
 
-  /** Facetas para os filtros: recursos distintos, usuários com logs e salões. */
+  /** Facetas para os filtros: recursos distintos, usuários com logs e salões com logs. */
   async facets(_request: FastifyRequest, reply: FastifyReply) {
-    const [resourceRows, userIdRows, shops] = await Promise.all([
+    const [resourceRows, userIdRows, shopIdRows] = await Promise.all([
       prisma.auditLog.groupBy({ by: ["resource"], orderBy: { resource: "asc" } }),
       prisma.auditLog.groupBy({ by: ["userId"] }),
-      prisma.barbershop.findMany({
-        where: { active: true },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-        take: 100,
+      prisma.auditLog.groupBy({
+        by: ["barbershopId"],
+        where: { barbershopId: { not: null } },
       }),
     ]);
 
-    const users = await loadUsers(userIdRows.map((row: { userId: string }) => row.userId));
+    const shopIds = shopIdRows
+      .map((row: { barbershopId: string | null }) => row.barbershopId)
+      .filter((id: string | null): id is string => Boolean(id));
+
+    const [users, shops] = await Promise.all([
+      loadUsers(userIdRows.map((row: { userId: string }) => row.userId)),
+      shopIds.length > 0
+        ? prisma.barbershop.findMany({
+            where: { id: { in: shopIds } },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+          })
+        : Promise.resolve([]),
+    ]);
 
     return reply.status(200).send({
       success: true,
