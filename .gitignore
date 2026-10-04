@@ -12,6 +12,10 @@ evolution-qrcode.png
 docker-compose.evolution.yml
 graphify-out/
 **/graphify-out/
+# AGENTS.md: "In .gitignore: Always include graphify-out/cache/". As duas
+# entradas acima já cobrem este caminho; mantido explícito para que a regra
+# sobreviva a qualquer remoção ou reordenacao daquelas.
+graphify-out/cache/
 
 # OpenCode local artifacts
 .opencode/snapshots/
