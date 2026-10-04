@@ -425,10 +425,10 @@ premissa. Inventário completo em `docs/RLS-INVENTARIO.md` (B6).
 
 | Banco | Uso | Migrations | Diff vs `schema.prisma` |
 |---|---|---|---|
-| Supabase (`aws-0-us-west-2.pooler`) | produção | **85/85** — `migrate status`: *Database schema is up to date!* | **vazio** (`This is an empty migration`) — **zero drift** |
-| `agendai_db` @ localhost:5442 | testes de integração (`.env.test`) | **85/85** | **vazio** — zero drift |
-| `agendai_verify` @ localhost:5442 | banco descartável de verificação | 84/84 (1 atrás: `20261003000002`) | 422 bytes — só os 2 `DROP DEFAULT` que o 10.8.C remove de produção |
-| `agendai_scratch` @ localhost:5442 | replay para provar `financial_ledger` | 83/83 (2 atrás) | — |
+| Supabase (`aws-0-us-west-2.pooler`) | produção | **86/86** — `migrate status`: *Database schema is up to date!* | **vazio** (`This is an empty migration`) — **zero drift** |
+| `agendai_db` @ localhost:5442 | testes de integração (`.env.test`) | **86/86** | **vazio** — zero drift |
+| `agendai_verify` @ localhost:5442 | banco descartável de verificação | 84/84 (2 atrás: `20261003000002`, `20261003000003`) | 422 bytes — só os 2 `DROP DEFAULT` que o 10.8.C remove de produção |
+| `agendai_scratch` @ localhost:5442 | replay para provar `financial_ledger` | 83/83 (3 atrás) | — |
 | `agendai_test_db` | parado (container `Exited`, sem porta) | — | — |
 | Render `agendai_tcyy` | desconhecido | **inacessível** | não verificado |
 
@@ -462,14 +462,11 @@ migration, os 20 testes de integração voltaram a passar.
 - **Conflito de trabalho concorrente:** outra sessão segue commitando em `main`
   (HEAD = `3371530`). `20261002000004_add_post_social_interactions` **foi
   aplicada em produção durante a reteste** — resolvido, ver 10.9.
-  - ⚠️ **Os testes unitários não estão 100% verdes por causa dessa sessão:**
-    `src/modules/posts/services/postLayoutSafety.spec.ts` (untracked, 0 commits)
-    tem **4 asserções determinísticas** falhando. Causa: o renderizador
-    `postImageService.ts` foi reescrito às **13:53 de 03/10**, 8 minutos antes
-    do run às 14:01, e quebrou o spec escrito em 02/10. Texto de preço cai em
-    `y=886` com limite `ctaY-24=876`. **Não é regressão desta rodada** — é o
-    WIP da outra sessão no meio de edição (`MM`); mexer nele agora colidiria
-    com uma escrita em andamento.
+  - ~~Os testes unitários não estavam 100% verdes por causa dessa sessão~~ —
+    **resolvido em 10.10.A**: `postLayoutSafety.spec.ts` (untracked, 0 commits)
+    falhava em 4 templates porque o renderizador `postImageService.ts` foi
+    reescrito às 13:53 de 03/10 e quebrou o spec de 02/10 (preço em `y=886` >
+    limite `ctaY-24=876`). Corrigido no layout, agora 26/26.
 - **`financial_ledger`:** as 9 colunas agora estão declaradas no
   `schema.prisma`, mas nada no código as utiliza ainda — é DDL esperando
   implementação.
@@ -632,31 +629,85 @@ contra produção devolve **70 bytes = `-- This is an empty migration`**.
 As 3 defaults removidas: `review_invitations.updatedAt` passou de 67/68 para
 **68/68** colunas `updatedAt` sem default, 0 linhas afetadas.
 
-### 10.10 Validação final (2026-10-03, tarde)
+*(Estado desta etapa: 85/85. O commit `e9700d3` da outra sessão reabriu um
+drift logo depois — ver 10.10.C, que leva a 86/86 e mantém o diff vazio.)*
+
+### 10.10 Rodada "resolva tudo" (2026-10-03, noite) — três achados restantes
+
+**A. Layout do `oferta-clean` estourava a faixa do CTA (4 templates).**
+
+`postLayoutSafety.spec.ts` falhava em `oferta-clean`, `combo-premium`,
+`gift-card` e `avaliacao-clientes` — as 4 são apelidos do mesmo
+`TEMPLATE_LAYOUTS["oferta-clean"]` (`postImageService.ts:777-782`), então era
+**um** bug em **um** ponto. Causa: o orçamento fixo `-420` do `photoH` não
+acompanha a altura do título, que varia com o número de linhas; com título de
+2 linhas `photoH` ficava em 272 e o preço caía em `title.bottom + 210 = 886`
+contra o limite `ctaY - 24 = 876`.
+
+Corrigido com o `Math.min` que já é o idiom do arquivo (linhas 756 e 290),
+prendendo o preço em `ctaY - 24` e o nome em `priceY - 95` para nunca
+sobrepor. `postLayoutSafety` passou de 4 falhas para **26/26**. Só editei
+depois de confirmar que a outra sessão parou às 16:08 (6 h sem tocar no
+arquivo).
+
+**B. `cashMovementRepository.spec.ts` obsoleto em HEAD (4 testes).**
+
+A outra sessão reescreveu o repositório às 16:10 — **um minuto depois** de
+gravar o spec às 16:08 — trocando `createdAt` → `occurredAt` e `$queryRaw`
+(agregação SQL com `GROUP BY`) por `findMany` + agregação em JS, e não
+atualizou o spec. Reescrito para a implementação atual, com `vi.hoisted`
+(forma correta no vitest 4) e asserções de recorte diário **independentes de
+fuso** (`ms` 0/999 + duração de `86_399_999` ms + `shopDateKey`), no lugar das
+`getHours()` antigas que só passavam em host -03:00.
+
+Restaurado junto o **desempate por id** que a refatoração derrubou —
+`orderBy: { occurredAt: "desc" }` sem tie-break dá ordem instável entre
+requisições quando dois lançamentos compartilham `occurredAt`. Voltou a
+`[{ occurredAt: "desc" }, { id: "desc" }]`, como o próprio nome do teste
+("desempata por id") já documentava.
+
+**C. `appointments.finalPrice`: DDL para trás do schema → `20261003000003`.**
+
+Drift **novo**, introduzido entre o meu diff vazio das 14h e a noite: o commit
+`e9700d3` declarou `Float? @db.Real` em `Appointment.finalPrice`, mas a coluna
+em produção é `DOUBLE PRECISION` — o DDL de `20261002000000_financial_ledger`
+usou o tipo padrão do `Float`. Comparação:
+
+| Coluna | Schema | Banco | |
+|---|---|---|---|
+| `queue.finalPrice` | `@db.Real` | `real` | ✅ |
+| `appointments.finalPrice` | `@db.Real` | `double precision` | ❌ |
+
+`DOUBLE PRECISION` era o deslize, não a intenção: o `20260726000000_init` já
+criava a coluna irmã como `REAL`, e `percentage`/`amount`/`marginPercent` usam
+`@db.Real` na mesma convenção. Resolvido **pelo lado do banco**
+(`ALTER TABLE "appointments" ALTER COLUMN "finalPrice" SET DATA TYPE REAL`),
+que honra o contrato do schema sem reescrever migration já aplicada.
+
+**Sem perda, comprovado antes de rodar:** produção com 8 agendamentos e
+`finalPrice` preenchido em **0** (`completedAt` também 0 — a coluna só é
+gravada na conclusão) e `agendai_db` com 0 linhas: conversão de null por null.
+
+### 10.11 Validação final (2026-10-03, noite)
 
 | Comando | Resultado |
 |---|---|
 | `npx prisma validate` | válido |
 | `npx tsc --noEmit` | 0 erros |
-| `npx prisma migrate status` (produção) | **85/85 — up to date** |
-| `npx prisma migrate status` (`agendai_db`) | **85/85 — up to date** |
+| `npx prisma migrate status` (produção) | **86/86 — up to date** |
+| `npx prisma migrate status` (`agendai_db`) | **86/86 — up to date** |
 | `npx prisma migrate diff` (produção × schema) | **vazio** — zero drift |
-| `npm run test:unit` | 131 arquivos / 1203 testes → **1199 OK, 4 falham** ⚠️ |
+| `npm run test:unit` | 141 arquivos / **1277 testes — todos OK** |
 | `npm run test:integration` | 3 arquivos / **20 testes** OK |
 | `npm run test:security` | 2 arquivos / **7 testes** OK |
 | `npm run docs:check` | OK |
-| `graphify update .` | 6271 nós / 14670 arestas / 314 comunidades |
+| `graphify update .` | 6397 nós / 15025 arestas / 339 comunidades |
 
-⚠️ As **4 falhas** do unit são **todas** em
-`src/modules/posts/services/postLayoutSafety.spec.ts` — arquivo **untracked com
-0 commits**, WIP da outra sessão, reproduzido isolado (4/4). Não é regressão
-desta rodada: o renderizador `postImageService.ts` (`MM`) foi reescrito às
-13:53, 8 minutos antes do run às 14:01, e quebrou o spec de 02/10
-(preço em `y=886` > limite `ctaY-24=876`). Ver 10.7 — mexer nele colidiria com
-uma escrita em andamento.
+**Suíte 100% verde pela primeira vez** — nenhuma falha, nenhum skip pendente.
 
-Nota da passada anterior: `postRenderPool.spec.ts` (também untracked) falhou
-por timing numa primeira execução; isolado passa 6/6. É flake de carga, não
-regressão — o módulo não referencia Prisma.
+Nota histórica (já resolvida): na passada das 14h as 4 falhas do unit eram
+`postLayoutSafety.spec.ts` (10.10.A) e o `postRenderPool.spec.ts` já tinha
+falhado por timing numa primeira execução — isolado passa 6/6, é flake de
+carga e o módulo não referencia Prisma.
 
 **Última revisão:** 2026-10-03.
