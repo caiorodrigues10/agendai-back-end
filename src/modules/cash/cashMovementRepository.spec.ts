@@ -1,16 +1,29 @@
 /// <reference types="vitest/globals" />
 
-const findMany = vi.fn();
-const queryRaw = vi.fn();
+const { findMany, queryRaw, shopFindUnique } = vi.hoisted(() => ({
+  findMany: vi.fn(),
+  queryRaw: vi.fn(),
+  shopFindUnique: vi.fn(),
+}));
 
 vi.mock("@/libs/prismaClient", () => ({
   prisma: {
-    cashMovement: { findMany: (...args: unknown[]) => findMany(...args) },
+    cashMovement: {
+      findMany: (...args: unknown[]) => findMany(...args),
+      findUnique: (...args: unknown[]) => findMany(...args),
+    },
+    barbershop: { findUnique: (...args: unknown[]) => shopFindUnique(...args) },
     $queryRaw: (...args: unknown[]) => queryRaw(...args),
   },
 }));
 
 import { CashMovementRepository } from "./cashMovementRepository";
+import { DEFAULT_SHOP_TIMEZONE, shopDateKey } from "@/modules/financial/ledger/shopTime";
+
+/** Um dia de calendário cheio menos o último milissegundo (…23:59:59.999). */
+const DAY_MS = 86_400_000;
+
+const AT_NOON = new Date(2026, 8, 29, 15, 30);
 
 describe("CashMovementRepository.list", () => {
   let repo: CashMovementRepository;
@@ -18,10 +31,11 @@ describe("CashMovementRepository.list", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findMany.mockResolvedValue([]);
+    shopFindUnique.mockResolvedValue({ timezone: DEFAULT_SHOP_TIMEZONE });
     repo = new CashMovementRepository();
   });
 
-  it("desempata por id na ordenação por criação", async () => {
+  it("desempata por id na ordenação por ocorrência", async () => {
     await repo.list("shop-1", {});
 
     const args = findMany.mock.calls[0][0] as {
@@ -29,19 +43,25 @@ describe("CashMovementRepository.list", () => {
       where: Record<string, unknown>;
     };
 
-    expect(args.orderBy).toEqual([{ createdAt: "desc" }, { id: "desc" }]);
+    expect(args.orderBy).toEqual([{ occurredAt: "desc" }, { id: "desc" }]);
     expect(args.where).toEqual({ barbershopId: "shop-1" });
   });
 
   it("mantém o recorte diário usado pelo resumo de caixa", async () => {
-    await repo.list("shop-1", { date: new Date(2026, 8, 29, 15, 30) });
+    await repo.list("shop-1", { date: AT_NOON });
 
-    const args = findMany.mock.calls[0][0] as { where: { createdAt: { gte: Date; lte: Date } } };
+    const args = findMany.mock.calls[0][0] as {
+      where: { occurredAt: { gte: Date; lte: Date } };
+    };
 
-    expect(args.where.createdAt.gte.getHours()).toBe(0);
-    expect(args.where.createdAt.lte.getHours()).toBe(23);
-    expect(args.where.createdAt.lte.getMilliseconds()).toBe(999);
-    expect(args.where.createdAt.gte.getTime()).toBeLessThan(args.where.createdAt.lte.getTime());
+    const { gte, lte } = args.where.occurredAt;
+    expect(gte.getMilliseconds()).toBe(0);
+    expect(lte.getMilliseconds()).toBe(999);
+    expect(lte.getTime() - gte.getTime()).toBe(DAY_MS - 1);
+    expect(gte.getTime()).toBeLessThan(lte.getTime());
+    // O recorte é do dia de calendário pedido, interpretado no fuso do salão.
+    expect(shopDateKey(gte, DEFAULT_SHOP_TIMEZONE)).toBe("2026-09-29");
+    expect(shopDateKey(lte, DEFAULT_SHOP_TIMEZONE)).toBe("2026-09-29");
   });
 });
 
@@ -52,44 +72,51 @@ describe("CashMovementRepository.getSummary", () => {
     vi.clearAllMocks();
     findMany.mockResolvedValue([]);
     queryRaw.mockResolvedValue([]);
+    shopFindUnique.mockResolvedValue({ timezone: DEFAULT_SHOP_TIMEZONE });
     repo = new CashMovementRepository();
   });
 
-  it("agrega no banco com entradas positivas e saídas negativas", async () => {
-    queryRaw.mockResolvedValue([
-      { paymentMethod: "CASH", total: 150, count: 3 },
-      { paymentMethod: "PIX", total: -45.5, count: 2 },
+  it("agrega com entradas positivas e saídas negativas", async () => {
+    findMany.mockResolvedValue([
+      { paymentMethod: "CASH", type: "SERVICE_SALE", amount: 150 },
+      { paymentMethod: "PIX", type: "EXPENSE", amount: 45.5 },
+      { paymentMethod: "PIX", type: "TIP", amount: 10 },
     ]);
 
-    const summary = await repo.getSummary("shop-1", new Date(2026, 8, 29, 15, 30));
+    const summary = await repo.getSummary("shop-1", AT_NOON);
 
     expect(summary).toEqual({
       summary: {
-        CASH: { total: 150, count: 3 },
-        PIX: { total: -45.5, count: 2 },
+        CASH: { total: 150, count: 1 },
+        PIX: { total: -35.5, count: 2 },
       },
-      totalMovements: 5,
+      totalMovements: 3,
     });
-    expect(findMany).not.toHaveBeenCalled();
+    // A agregação saiu do SQL raw para o cliente.
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 
   it("mantém o recorte diário e o agrupamento por forma de pagamento", async () => {
-    queryRaw.mockResolvedValue([{ paymentMethod: "CASH", total: 10, count: 1 }]);
+    findMany.mockResolvedValue([
+      { paymentMethod: "CASH", type: "SERVICE_SALE", amount: 10 },
+      { paymentMethod: "CASH", type: "REFUND", amount: 4 },
+    ]);
 
-    await repo.getSummary("shop-1", new Date(2026, 8, 29, 15, 30));
+    const summary = await repo.getSummary("shop-1", AT_NOON);
 
-    const call = queryRaw.mock.calls[0];
-    const text = (call[0] as string[]).join("");
-    expect(text).toContain('GROUP BY "paymentMethod"');
-    expect(text).toContain("'SERVICE_SALE'");
-    expect(text).toContain("ELSE -amount");
+    const args = findMany.mock.calls[0][0] as {
+      where: { barbershopId: string; occurredAt: { gte: Date; lte: Date } };
+    };
+    const { gte, lte } = args.where.occurredAt;
+    expect(args.where.barbershopId).toBe("shop-1");
+    expect(gte.getMilliseconds()).toBe(0);
+    expect(lte.getMilliseconds()).toBe(999);
+    expect(lte.getTime() - gte.getTime()).toBe(DAY_MS - 1);
+    expect(gte.getTime()).toBeLessThan(lte.getTime());
+    expect(shopDateKey(gte, DEFAULT_SHOP_TIMEZONE)).toBe("2026-09-29");
 
-    const [shopId, start, end] = call.slice(1) as [string, Date, Date];
-    expect(shopId).toBe("shop-1");
-    expect(start.getHours()).toBe(0);
-    expect(start.getMilliseconds()).toBe(0);
-    expect(end.getHours()).toBe(23);
-    expect(end.getMilliseconds()).toBe(999);
-    expect(start.getTime()).toBeLessThan(end.getTime());
+    // REFUND não é entrada: +10 -4 = 6, ainda agrupado por CASH.
+    expect(summary.summary.CASH).toEqual({ total: 6, count: 2 });
+    expect(summary.totalMovements).toBe(2);
   });
 });

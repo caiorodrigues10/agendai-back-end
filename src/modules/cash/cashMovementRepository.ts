@@ -58,7 +58,7 @@ export class CashMovementRepository {
 
     return prisma.cashMovement.findMany({
       where,
-      orderBy: { occurredAt: "desc" },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
     });
   }
 
