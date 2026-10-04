@@ -6,6 +6,33 @@ import { isValidCpf, normalizeCpf } from "@/shared/utils/cpfUtils";
 import { adminCreateUserSchema, adminUpdateUserSchema, adminListUsersQuerySchema } from "../schemas/adminSchemas";
 
 export class AdminUserController {
+  /**
+   * Invariantes de proteção do master: não rebaixar/desativar a própria
+   * conta e não remover (rebaixar/desativar/excluir) o último MASTER_ADMIN
+   * ativo da plataforma.
+   */
+  private async assertNotRemovingLastMaster(
+    targetId: string,
+    action: "demote" | "deactivate" | "delete",
+  ): Promise<void> {
+    const target = await prisma.user.findUnique({
+      where: { id: targetId },
+      select: { role: true, active: true },
+    });
+    if (!target || target.role !== "MASTER_ADMIN" || !target.active) return;
+    const others = await prisma.user.count({
+      where: { role: "MASTER_ADMIN", active: true, id: { not: targetId } },
+    });
+    if (others === 0) {
+      const messages = {
+        demote: "Não é possível rebaixar o último MASTER_ADMIN ativo.",
+        deactivate: "Não é possível desativar o último MASTER_ADMIN ativo.",
+        delete: "Não é possível excluir o último MASTER_ADMIN ativo.",
+      } as const;
+      throw new AppError(messages[action], 400, undefined, "LAST_MASTER_ADMIN");
+    }
+  }
+
   async list(request: FastifyRequest, reply: FastifyReply) {
     const { page, limit, role, search, active, barbershopId } = adminListUsersQuerySchema.parse(request.query);
 
@@ -90,6 +117,21 @@ export class AdminUserController {
     const { id } = request.params as { id: string };
     const parsed = adminUpdateUserSchema.parse(request.body);
     const { name, email, role, active, barbershopId, cpf } = parsed;
+
+    const isSelf = request.user?.id === id;
+    if (isSelf) {
+      if (role !== undefined && role !== request.user?.role) {
+        throw new AppError("Você não pode alterar o próprio papel.", 400, undefined, "SELF_ROLE_CHANGE");
+      }
+      if (active === false) {
+        throw new AppError("Você não pode desativar a própria conta.", 400, undefined, "SELF_DEACTIVATE");
+      }
+    }
+    const wantsDemote = role !== undefined && role !== "MASTER_ADMIN";
+    const wantsDeactivate = active === false;
+    if (wantsDemote || wantsDeactivate) {
+      await this.assertNotRemovingLastMaster(id, wantsDeactivate ? "deactivate" : "demote");
+    }
     const sanitizedBarbershopId = (barbershopId === "NULL" || !barbershopId) ? null : barbershopId;
 
     let normalizedCpf: string | null | undefined = undefined;
@@ -136,6 +178,11 @@ export class AdminUserController {
 
   async delete(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
+
+    if (request.user?.id === id) {
+      throw new AppError("Você não pode excluir a própria conta.", 400, undefined, "SELF_DELETE");
+    }
+    await this.assertNotRemovingLastMaster(id, "delete");
 
     const deleted = await prisma.user.delete({ where: { id } });
 

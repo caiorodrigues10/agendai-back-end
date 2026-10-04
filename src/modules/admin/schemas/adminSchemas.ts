@@ -30,7 +30,7 @@ export const adminListSubscriptionsQuerySchema = searchQuerySchema.extend({
 export const adminCreateUserSchema = z.object({
   name: z.string().min(1).max(200),
   email: z.string().email(),
-  password: z.string().min(6).optional(),
+  password: z.string().min(6),
   role: userRoleEnum,
   barbershopId: z.string().uuid().nullable().optional(),
   active: z.boolean().optional().default(true),
