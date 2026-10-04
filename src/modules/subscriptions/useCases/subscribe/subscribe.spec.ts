@@ -137,7 +137,7 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
       payment_method_id: "visa",
       transaction_amount: 1199,
       currency_id: "BRL",
-      description: "Assinatura Agende Já — Pro Anual",
+      description: "Assinatura Agenda Já — Pro Anual",
       external_reference: "ag-sub-sub-1-inv-inv-1",
     });
   });

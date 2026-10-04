@@ -17,15 +17,15 @@ BEGIN
   IF current_database() ILIKE '%prod%' THEN
     RAISE EXCEPTION 'Seed CRM Demo bloqueado em banco de produção';
   END IF;
-  IF EXISTS (SELECT 1 FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name <> 'Agende Já CRM Demo') THEN
+  IF EXISTS (SELECT 1 FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name <> 'Agenda Já CRM Demo') THEN
     RAISE EXCEPTION 'UUID de demo já pertence a outro salão; abortando';
   END IF;
 END $$;
 
-DELETE FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name = 'Agende Já CRM Demo';
+DELETE FROM barbershops WHERE id = 'd0000000-0000-4000-8000-000000000001'::uuid AND name = 'Agenda Já CRM Demo';
 
 INSERT INTO barbershops (id, name, whatsapp, address, city, latitude, longitude, active, "approvalStatus", "createdAt", "updatedAt")
-VALUES ('d0000000-0000-4000-8000-000000000001', 'Agende Já CRM Demo', '11999990000', 'Rua da Demonstração, 100', 'São Paulo', -23.5505, -46.6333, true, 'APPROVED', now() - interval '18 months', now());
+VALUES ('d0000000-0000-4000-8000-000000000001', 'Agenda Já CRM Demo', '11999990000', 'Rua da Demonstração, 100', 'São Paulo', -23.5505, -46.6333, true, 'APPROVED', now() - interval '18 months', now());
 
 INSERT INTO users (id, name, email, password, role, cpf, "barbershopId", active, permissions, "createdAt", "updatedAt") VALUES
 ('d1000000-0000-4000-8000-000000000001', 'Dona Demo', 'demo.owner@agendai.local', '$2a$10$7EqJtq98hPqEX7fNZaFWoOeXLh1aY9vvGZsY9X2gkPv.E.A7wwk6a', 'OWNER', '52998224725', 'd0000000-0000-4000-8000-000000000001', true, ARRAY['CRM_ANALYTICS_VIEW','CRM_CAMPAIGNS_MANAGE'], now() - interval '18 months', now()),

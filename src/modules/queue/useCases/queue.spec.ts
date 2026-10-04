@@ -244,11 +244,11 @@ describe("Queue module", () => {
   });
 
   it("buildQueueJoinedMessage na 1ª posição pede para aguardar ser chamado", () => {
-    const msg = buildQueueJoinedMessage("Caio", "Agende Já", 1, 0);
+    const msg = buildQueueJoinedMessage("Caio", "Agenda Já", 1, 0);
     expect(msg).toContain("é o próximo");
     expect(msg).toContain("Aguarde ser chamado");
     expect(msg).not.toContain("Chegou sua vez");
-    expect(buildQueueCancelledMessage("Ana", "Agende Já")).toContain("foi cancelado");
+    expect(buildQueueCancelledMessage("Ana", "Agenda Já")).toContain("foi cancelado");
   });
 
   it("ignora completedAt extra no PATCH (timestamp fica no servidor)", () => {

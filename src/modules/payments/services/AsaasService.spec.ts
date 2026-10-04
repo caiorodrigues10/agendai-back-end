@@ -71,7 +71,7 @@ describe("AsaasService", () => {
       billingType: "UNDEFINED",
       value: 140,
       dueDate: "2026-09-18",
-      description: "Assinatura Agende Já — Essencial",
+      description: "Assinatura Agenda Já — Essencial",
       externalReference: "ag-sub-1-inv-1",
     });
 
@@ -84,7 +84,7 @@ describe("AsaasService", () => {
           billingType: "UNDEFINED",
           value: 140,
           dueDate: "2026-09-18",
-          description: "Assinatura Agende Já — Essencial",
+          description: "Assinatura Agenda Já — Essencial",
           externalReference: "ag-sub-1-inv-1",
         }),
       })

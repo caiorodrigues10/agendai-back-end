@@ -31,7 +31,7 @@ describe("buildPostSvg", () => {
     expect(svg).toContain("#10B981");
     expect(svg).toContain("#0F0F0F");
     expect(svg).not.toContain("#F59E0B");
-    expect(svg).toContain("Agende Já");
+    expect(svg).toContain("Agenda Já");
   });
 
   it("quebra título longo em duas linhas", () => {

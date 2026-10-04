@@ -152,7 +152,7 @@ describe("novos modelos editoriais — SVG nos 3 formatos", () => {
   it("identidade principal é do salão; plataforma aparece discreta no rodapé", () => {
     const svg = buildPostSvg({ ...baseInput, templateKey: "editorial-foto" });
     expect(svg).toContain("STUDIO AURORA");
-    expect(svg).toContain("Feito com Agende Já · agendai.app");
+    expect(svg).toContain("Feito com Agenda Já · agendai.app");
   });
 });
 
