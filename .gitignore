@@ -10,8 +10,7 @@ dist
 gcs-key.json
 evolution-qrcode.png
 docker-compose.evolution.yml
-graphify-out/cache/
-graphify-out/202*
+graphify-out/
 
 # OpenCode local artifacts
 .opencode/snapshots/
