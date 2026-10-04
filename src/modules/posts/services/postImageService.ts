@@ -723,10 +723,14 @@ ${price}`;
       const photoH = Math.min(ctx.format === "story" ? 640 : 430, Math.max(240, ctx.ctaY - ctx.top - 420));
       const photo = photoFill(ctx, ctx.input.primaryImageUrl, 90, ctx.top + 8, 900, photoH, "offerPhoto", 30);
       const title = titleBlock(ctx, ctx.top + photoH + 92, 40);
+      // O orçamento fixo do photoH (-420) não acompanha a altura do título, que
+      // varia com o nº de linhas. Com título longo o preço estourava a faixa do
+      // CTA; trava o baseline abaixo de ctaY e mantém o nome acima do preço.
+      const priceY = Math.min(title.bottom + 210, ctx.ctaY - 24);
       const price = svc
-        ? `<text x="540" y="${title.bottom + 96}" font-family="${FONT_FAMILY}" font-size="38" font-weight="800" fill="${ctx.fg}" text-anchor="middle">${escapeXml(truncate(svc.name, 24))}</text>
-<text x="540" y="${title.bottom + 210}" font-family="${FONT_FAMILY}" font-size="110" font-weight="800" fill="${ctx.accent}" text-anchor="middle">${escapeXml(formatBRL(svc.price))}</text>`
-        : `<text x="540" y="${title.bottom + 150}" font-family="${FONT_FAMILY}" font-size="72" font-weight="800" fill="${ctx.accent}" text-anchor="middle">Oferta especial</text>`;
+        ? `<text x="540" y="${Math.min(title.bottom + 96, priceY - 95)}" font-family="${FONT_FAMILY}" font-size="38" font-weight="800" fill="${ctx.fg}" text-anchor="middle">${escapeXml(truncate(svc.name, 24))}</text>
+<text x="540" y="${priceY}" font-family="${FONT_FAMILY}" font-size="110" font-weight="800" fill="${ctx.accent}" text-anchor="middle">${escapeXml(formatBRL(svc.price))}</text>`
+        : `<text x="540" y="${Math.min(title.bottom + 150, ctx.ctaY - 24)}" font-family="${FONT_FAMILY}" font-size="72" font-weight="800" fill="${ctx.accent}" text-anchor="middle">Oferta especial</text>`;
       return `${photo}
 ${title.svg}
 ${price}`;
