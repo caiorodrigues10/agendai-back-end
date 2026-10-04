@@ -11,6 +11,7 @@ gcs-key.json
 evolution-qrcode.png
 docker-compose.evolution.yml
 graphify-out/
+**/graphify-out/
 
 # OpenCode local artifacts
 .opencode/snapshots/
