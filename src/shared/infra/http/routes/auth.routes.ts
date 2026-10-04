@@ -15,6 +15,9 @@ import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 import { verifyRecaptcha } from "@/shared/infra/http/middlewares/verifyRecaptcha";
 import { resetByEmail, resetByIp } from "@/shared/services/bruteForceProtection";
+import { validateSchema } from "@/shared/infra/http/middlewares/validateSchema";
+import { AuthSessionController } from "@/modules/auth/useCases/sessions/AuthSessionController";
+import { authRevokeSessionSchema, sessionIdParamsSchema } from "@/modules/auth/schemas/authSchemas";
 
 const authRateLimit = {
   config: {
@@ -38,6 +41,7 @@ export async function authRoutes(app: FastifyInstance) {
   const forgotPassword = new ForgotPasswordController();
   const resetPassword = new ResetPasswordController();
   const resendVerification = new ResendVerificationEmailController();
+  const authSessions = new AuthSessionController();
 
   app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin, verifyRecaptcha] }, login.handle.bind(login));
   app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister, verifyRecaptcha] }, register.handle.bind(register));
@@ -61,6 +65,17 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/auth/logout", { preHandler: [authenticate, setRlsContext] }, logout.handle.bind(logout));
   app.post("/auth/revoke-all-sessions", { preHandler: [authenticate, setRlsContext] }, logout.revokeAllSessions.bind(logout));
+
+  // Sessões ("meus dispositivos") — só as do próprio usuário.
+  app.get("/auth/sessions", { preHandler: [authenticate, setRlsContext] }, authSessions.list.bind(authSessions));
+  app.delete("/auth/sessions/:id", {
+    preHandler: [
+      authenticate,
+      setRlsContext,
+      validateSchema(sessionIdParamsSchema, "params"),
+      validateSchema(authRevokeSessionSchema, "body"),
+    ],
+  }, authSessions.revoke.bind(authSessions));
 
   app.post("/auth/resend-verification", {
     config: { rateLimit: { max: 3, timeWindow: "10 minutes" } },

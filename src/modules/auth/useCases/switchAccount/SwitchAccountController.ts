@@ -12,6 +12,7 @@ import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 import { findUsableRefreshToken } from "../../services/refreshTokenUtils";
 import { logAccess } from "@/shared/services/accessLogService";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { createUserSession, newSessionId } from "../../services/userSessionService";
 
 const log = getModuleLogger("auth-switch-account");
 
@@ -65,10 +66,12 @@ export class SwitchAccountController {
         return reply.status(401).send({ message: "Usuário não encontrado" });
       }
 
-      // 5. Gerar novo token de sessão (purpose: 'session')
+      // 5. Gerar novo token de sessão (purpose: 'session') — uma NOVA sessão
+      // (novo `sid`), pois é um login completo sem senha neste dispositivo.
+      const sid = newSessionId();
       const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
       const accessToken = sign(
-        { role: user.role, barbershopId: user.barbershopId ?? undefined },
+        { role: user.role, barbershopId: user.barbershopId ?? undefined, sid },
         auth.secret as Secret,
         accessOpts,
       );
@@ -76,19 +79,29 @@ export class SwitchAccountController {
       const refreshExpiresMs = parseDuration(auth.refreshExpiresIn);
       const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
       const newSessionToken = sign(
-        { sub: user.id, jti: randomUUID(), persistent: true, purpose: "session" },
+        { sub: user.id, jti: randomUUID(), persistent: true, purpose: "session", sid },
         auth.refreshSecret as Secret,
         refreshOpts,
       );
 
       // 6. Criar nova sessão (sem apagar sessões de outros dispositivos)
-      await prisma.refreshToken.create({
+      const sessionTokenRow = await prisma.refreshToken.create({
         data: {
           token: newSessionToken,
           userId,
           purpose: "session",
           expiresAt: new Date(Date.now() + refreshExpiresMs),
         },
+      });
+
+      await createUserSession({
+        id: sid,
+        userId,
+        barbershopId: user.barbershopId,
+        refreshTokenId: sessionTokenRow.id,
+        expiresAt: new Date(Date.now() + refreshExpiresMs),
+        ip: request.ip,
+        userAgent: request.headers["user-agent"],
       });
 
       // 7. Setar cookie 'refresh_token' (sessão ativa)

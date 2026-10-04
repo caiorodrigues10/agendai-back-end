@@ -20,6 +20,7 @@ import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { issueAuthSession } from "../../services/issueAuthSession";
+import type { SessionContext } from "../../services/userSessionService";
 
 const logger = getModuleLogger("register-google");
 const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
@@ -50,7 +51,7 @@ export class RegisterGoogleUseCase {
     private hashProvider: IHashProvider
   ) {}
 
-  async execute(data: IRegisterGoogleDTO, reply?: FastifyReply) {
+  async execute(data: IRegisterGoogleDTO, reply?: FastifyReply, context?: SessionContext) {
     const client = new OAuth2Client(googleClientId);
 
     let payload;
@@ -225,7 +226,9 @@ export class RegisterGoogleUseCase {
         cpf: user.cpf ?? null,
         emailVerified: true,
       },
-      reply
+      reply,
+      true,
+      context
     );
   }
 }

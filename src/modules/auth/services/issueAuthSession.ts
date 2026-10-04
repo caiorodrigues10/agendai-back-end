@@ -5,6 +5,11 @@ import auth from "@/config/auth";
 import { prisma } from "@/libs/prismaClient";
 import { parseDuration } from "@/shared/utils/authUtils";
 import { getAuthCookieSecurityOptions } from "../utils/authCookieOptions";
+import {
+  createUserSession,
+  newSessionId,
+  type SessionContext,
+} from "./userSessionService";
 
 interface UserLike {
   id: string;
@@ -35,12 +40,23 @@ function mapRole(role: string): "admin" | "owner" | "employee" {
  *    - Criado em todo login, independente de rememberMe.
  *    - NÃO é rotacionado no /refresh.
  *    - NÃO é revogado no /logout (Sair normal).
- *    - Revogado apenas no /forget-account ou /revoke-all-sessions.
+ *    - Revogado apenas no /forget-account, /revoke-all-sessions ou quando
+ *      a sessão do login é encerrada (admin/usuário "encerrar dispositivo").
+ *
+ * Todo login cria uma linha em `UserSession` (claim `sid` em access + refresh),
+ * que é o que permite listar/encerrar dispositivos depois.
  */
-export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rememberMe = true) {
+export async function issueAuthSession(
+  user: UserLike,
+  reply?: FastifyReply,
+  rememberMe = true,
+  context?: SessionContext,
+) {
+  const sid = newSessionId();
+
   const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
   const accessToken = sign(
-    { role: user.role, barbershopId: user.barbershopId ?? undefined },
+    { role: user.role, barbershopId: user.barbershopId ?? undefined, sid },
     auth.secret as Secret,
     accessOpts
   );
@@ -51,12 +67,13 @@ export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rem
 
   // --- Token de sessão (purpose: 'session') ---
   const sessionToken = sign(
-    { sub: user.id, jti: randomUUID(), persistent: rememberMe, purpose: "session" as const },
+    { sub: user.id, jti: randomUUID(), persistent: rememberMe, purpose: "session" as const, sid },
     auth.refreshSecret as Secret,
     refreshOpts
   );
 
   // --- Token de dispositivo lembrado (purpose: 'remembered_device') — SEMPRE criado ---
+  // Sem `sid`: ele não é uma sessão ativa, só credencial para reativar uma.
   const rememberedDeviceToken = sign(
     { sub: user.id, jti: randomUUID(), persistent: true, purpose: "remembered_device" as const },
     auth.refreshSecret as Secret,
@@ -69,13 +86,24 @@ export async function issueAuthSession(user: UserLike, reply?: FastifyReply, rem
   });
 
   // Criar registro de sessão
-  await prisma.refreshToken.create({
+  const sessionTokenRow = await prisma.refreshToken.create({
     data: { token: sessionToken, userId: user.id, purpose: "session", expiresAt }
   });
 
   // Criar registro de dispositivo lembrado (sempre)
-  await prisma.refreshToken.create({
+  const rememberedTokenRow = await prisma.refreshToken.create({
     data: { token: rememberedDeviceToken, userId: user.id, purpose: "remembered_device", expiresAt }
+  });
+
+  await createUserSession({
+    id: sid,
+    userId: user.id,
+    barbershopId: user.barbershopId,
+    refreshTokenId: sessionTokenRow.id,
+    rememberedTokenId: rememberedTokenRow.id,
+    expiresAt,
+    ip: context?.ip,
+    userAgent: context?.userAgent,
   });
 
   if (reply) {

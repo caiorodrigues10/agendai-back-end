@@ -83,3 +83,17 @@ export const resetPasswordSchema = z.object({
 export const switchAccountSchema = z.object({
   userId: z.string().uuid("ID de usuário inválido"),
 }).strict();
+
+export const sessionIdParamsSchema = z.object({
+  id: z.string().uuid("ID de sessão inválido"),
+}).strict();
+
+/** Encerrar uma sessão própria (body opcional para permitir DELETE sem corpo). */
+export const authRevokeSessionSchema = z
+  .object({
+    reason: z.string().trim().min(10).max(500).optional(),
+    /** Exigido ao encerrar a sessão/dispositivo ATUAL. */
+    confirmSelf: z.boolean().optional(),
+  })
+  .strict()
+  .optional();

@@ -12,6 +12,8 @@ declare module "fastify" {
       barbershopId?: string;
       cpf?: string;
       permissions?: string[];
+      /** Id da `UserSession` do token atual (claim `sid`); ausente em tokens antigos. */
+      sid?: string;
     };
   }
 }

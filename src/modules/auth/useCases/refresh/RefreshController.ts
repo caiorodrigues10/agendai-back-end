@@ -18,7 +18,14 @@ const log = getModuleLogger("auth-refresh");
 
 export const validateRefresh = validateSchema(refreshSchema);
 
-type RefreshJwt = { sub: string; persistent?: boolean; purpose?: string; activeBarbershopId?: string };
+type RefreshJwt = {
+  sub: string;
+  persistent?: boolean;
+  purpose?: string;
+  activeBarbershopId?: string;
+  /** Id da `UserSession` (tokens antigos podem não ter). */
+  sid?: string;
+};
 
 export class RefreshController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -39,6 +46,23 @@ export class RefreshController {
       if (!tokenRecord) {
         return reply.status(401).send({ message: "Refresh token inválido" });
       }
+
+      // Sessão (claim `sid`): sessão revogada/expirada não rotaciona mais —
+      // apaga o token usado e derruba o dispositivo. Tokens antigos sem `sid`
+      // seguem apenas a validação do banco de refresh tokens.
+      if (decoded.sid) {
+        const sessionRow = await prisma.userSession.findUnique({
+          where: { id: decoded.sid },
+          select: { revokedAt: true, expiresAt: true },
+        });
+        if (!sessionRow || sessionRow.revokedAt || sessionRow.expiresAt.getTime() <= Date.now()) {
+          await prisma.refreshToken.deleteMany({ where: { token: refreshToken, purpose: "session" } });
+          reply.setCookie("refresh_token", "", { ...getAuthCookieSecurityOptions(), maxAge: 0 });
+          log.info({ userId: decoded.sub, sid: decoded.sid }, "refresh de sessão encerrada recusado");
+          return reply.status(401).send({ message: "Sessão encerrada" });
+        }
+      }
+
       const userRepo = container.resolve<IUserRepository>("UserRepository");
       const user = await userRepo.findById(decoded.sub);
       if (!user) return reply.status(401).send({ message: "Usuário inválido" });
@@ -47,7 +71,15 @@ export class RefreshController {
       // acesso acabou, a sessão cai para o salão original do usuário.
       const session = await resolveActiveSession(user, decoded.activeBarbershopId);
       const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
-      const accessToken = sign({ role: session.role, barbershopId: session.barbershopId ?? undefined }, auth.secret as Secret, accessOpts);
+      const accessToken = sign(
+        {
+          role: session.role,
+          barbershopId: session.barbershopId ?? undefined,
+          ...(decoded.sid ? { sid: decoded.sid } : {}),
+        },
+        auth.secret as Secret,
+        accessOpts,
+      );
 
       let cookieToken = tokenRecord.token;
       if (!concurrentReuse) {
@@ -61,13 +93,14 @@ export class RefreshController {
             jti: randomUUID(),
             persistent: rememberMe,
             purpose: "session",
+            ...(decoded.sid ? { sid: decoded.sid } : {}),
             ...(keepActiveShop ? { activeBarbershopId: session.barbershopId } : {}),
           },
           auth.refreshSecret as Secret,
           refreshOpts
         );
         await prisma.refreshToken.deleteMany({ where: { token: refreshToken, purpose: "session" } });
-        await prisma.refreshToken.create({
+        const rotated = await prisma.refreshToken.create({
           data: {
             token: newRefreshToken,
             userId: decoded.sub,
@@ -76,6 +109,20 @@ export class RefreshController {
           }
         });
         cookieToken = newRefreshToken;
+
+        // Sessão deslizante: acompanha a nova validade do refresh token.
+        if (decoded.sid) {
+          await prisma.userSession
+            .updateMany({
+              where: { id: decoded.sid, revokedAt: null },
+              data: {
+                refreshTokenId: rotated.id,
+                lastSeenAt: new Date(),
+                expiresAt: new Date(Date.now() + parseDuration(auth.refreshExpiresIn)),
+              },
+            })
+            .catch((err: unknown) => log.error({ err, sid: decoded.sid }, "falha ao atualizar sessão no refresh"));
+        }
       } else {
         log.info({ userId: decoded.sub }, "refresh reuse within grace window");
       }

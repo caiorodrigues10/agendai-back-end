@@ -33,6 +33,7 @@ model User {
 
   barbershop                Barbershop?                @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   refreshTokens             RefreshToken[]
+  userSessions              UserSession[]
   appointments              Appointment[]              @relation("staff")
   feedPosts                 FeedPost[]
   postMedia                 PostMedia[]                @relation("PostMediaUploadedBy")
@@ -134,6 +135,34 @@ model RefreshToken {
 enum RefreshTokenPurpose {
   session
   remembered_device
+}
+
+/// Sessão de login rastreável (um por dispositivo/navegador por login).
+/// O `id` vira o claim `sid` em access + refresh token; `revokedAt` derruba
+/// imediatamente qualquer request com aquele access token (via Redis flag).
+model UserSession {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  barbershopId      String?   @db.Uuid
+  /// Refresh token (purpose session) atualmente ativo desta sessão.
+  refreshTokenId    String?   @db.Uuid
+  /// Token de dispositivo lembrado criado junto no login (mesmo dispositivo).
+  rememberedTokenId String?   @db.Uuid
+  deviceLabel       String?   @db.VarChar(120)
+  ipAddress         String?   @db.VarChar(64)
+  userAgent         String?   @db.VarChar(500)
+  createdAt         DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  revokedById       String?   @db.Uuid
+  revokedReason     String?   @db.VarChar(500)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("user_sessions")
 }
 
 model VerificationToken {

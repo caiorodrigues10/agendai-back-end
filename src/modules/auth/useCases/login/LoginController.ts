@@ -24,7 +24,10 @@ export class LoginController {
 
     const useCase = container.resolve(LoginUseCase);
     try {
-      const result = await useCase.execute(email, password, reply, rememberMe);
+      const result = await useCase.execute(email, password, reply, rememberMe, {
+        ip,
+        userAgent: request.headers["user-agent"],
+      });
       await resetAttempts(email, ip);
       logAccess({
         email,

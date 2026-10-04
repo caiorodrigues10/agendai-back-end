@@ -8,6 +8,7 @@ import { schedulePostPublisher } from "@/shared/infra/cron/postPublisher.cron";
 import { scheduleEmailReminders } from "@/shared/infra/cron/emailReminders.cron";
 import { scheduleTrialCardCharges } from "@/shared/infra/cron/trialCardCharges.cron";
 import { scheduleCleanOldLogs } from "@/shared/infra/cron/cleanOldLogs.cron";
+import { scheduleSessionsCleanup } from "@/shared/infra/cron/sessionsCleanup.cron";
 import { scheduleDailyWeatherLog } from "@/shared/infra/cron/dailyWeatherLog.cron";
 import { scheduleCleanupExpiredPix } from "@/shared/infra/cron/cleanupExpiredPix.cron";
 import { scheduleRefundReconciliation } from "@/shared/infra/cron/refundReconciliation.cron";
@@ -177,6 +178,7 @@ function registerCrons(log: CronLog): void {
     ['publicação de posts', () => schedulePostPublisher(log)],
     ['cobrança pós-trial', () => scheduleTrialCardCharges(log)],
     ['limpeza de logs', () => scheduleCleanOldLogs(log)],
+    ['limpeza de sessões', () => scheduleSessionsCleanup(log)],
     ['daily weather log', () => scheduleDailyWeatherLog(log)],
     ['limpeza de QR Codes PIX', () => scheduleCleanupExpiredPix(log)],
     ['reconciliação de estornos', () => scheduleRefundReconciliation(log)],

@@ -5,6 +5,7 @@ import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashPr
 import { AppError } from "@/shared/errors/AppError";
 import { checkBarbershopAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { issueAuthSession } from "../../services/issueAuthSession";
+import type { SessionContext } from "../../services/userSessionService";
 import { prisma } from "@/libs/prismaClient";
 import { getModuleLogger } from "@/shared/utils/logger";
 
@@ -44,7 +45,13 @@ export class LoginUseCase {
     private hashProvider: IHashProvider
   ) { }
 
-  async execute(email: string, password: string, reply?: FastifyReply, rememberMe = true) {
+  async execute(
+    email: string,
+    password: string,
+    reply?: FastifyReply,
+    rememberMe = true,
+    context?: SessionContext,
+  ) {
     const user = await this.userRepository.findByEmail(email) as UserWithEmailPassword | null;
     if (!user || !user.active) {
       logger.info({ reason: !user ? "not_found" : "inactive" }, "login denied");
@@ -86,6 +93,6 @@ export class LoginUseCase {
       emailVerified: user.emailVerified ?? false,
     };
 
-    return issueAuthSession(userLike, reply, rememberMe);
+    return issueAuthSession(userLike, reply, rememberMe, context);
   }
 }

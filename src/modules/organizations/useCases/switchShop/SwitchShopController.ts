@@ -20,7 +20,7 @@ export const validateSwitchShop = validateSchema(switchShopSchema);
 
 const paramsSchema = z.object({ id: z.string().uuid("ID de organização inválido") });
 
-type SessionRefreshJwt = { sub: string; persistent?: boolean; purpose?: string };
+type SessionRefreshJwt = { sub: string; persistent?: boolean; purpose?: string; sid?: string };
 
 type SessionUser = {
   id: string;
@@ -104,7 +104,8 @@ export class SwitchShopController {
 
     const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
     const accessToken = sign(
-      { role: sessionRole, barbershopId },
+      // `sid` preserva a sessão rastreável (trocar de salão NÃO é novo login).
+      { role: sessionRole, barbershopId, ...(requester.sid ? { sid: requester.sid } : {}) },
       auth.secret as Secret,
       accessOpts,
     );
@@ -194,6 +195,7 @@ export class SwitchShopController {
         jti: randomUUID(),
         persistent: decoded.persistent === true,
         purpose: "session",
+        ...(decoded.sid ? { sid: decoded.sid } : {}),
         activeBarbershopId,
       },
       auth.refreshSecret as Secret,
@@ -201,7 +203,7 @@ export class SwitchShopController {
     );
 
     await prisma.refreshToken.deleteMany({ where: { token: currentToken, purpose: "session" } });
-    await prisma.refreshToken.create({
+    const rotated = await prisma.refreshToken.create({
       data: {
         token: nextToken,
         userId,
@@ -209,6 +211,15 @@ export class SwitchShopController {
         expiresAt: new Date(Date.now() + refreshExpiresMs),
       },
     });
+
+    if (decoded.sid) {
+      await prisma.userSession
+        .updateMany({
+          where: { id: decoded.sid, revokedAt: null },
+          data: { refreshTokenId: rotated.id, lastSeenAt: new Date() },
+        })
+        .catch((err: unknown) => log.error({ err, sid: decoded.sid }, "switch-shop: falha ao atualizar sessão"));
+    }
 
     reply.setCookie("refresh_token", nextToken, {
       ...getAuthCookieSecurityOptions(),

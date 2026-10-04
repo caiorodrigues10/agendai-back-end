@@ -10,7 +10,10 @@ export const validateRegisterWithGoogle = validateSchema(registerWithGoogleSchem
 export class RegisterGoogleController {
   async handle(request: FastifyRequest, reply: FastifyReply) {
     const useCase = container.resolve(RegisterGoogleUseCase);
-    const result = await useCase.execute(request.body as any, reply);
+    const result = await useCase.execute(request.body as any, reply, {
+      ip: request.ip,
+      userAgent: request.headers["user-agent"],
+    });
     logAccess({
       userId: result.user?.id,
       email: result.user?.email,

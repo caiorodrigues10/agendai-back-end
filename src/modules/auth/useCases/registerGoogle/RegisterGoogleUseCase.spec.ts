@@ -26,6 +26,9 @@ vi.mock("@/libs/prismaClient", () => ({
       deleteMany: vi.fn().mockResolvedValue({}),
       create: vi.fn().mockResolvedValue({}),
     },
+    userSession: {
+      create: vi.fn().mockResolvedValue({}),
+    },
   },
 }));
 

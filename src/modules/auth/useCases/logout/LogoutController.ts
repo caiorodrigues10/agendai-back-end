@@ -17,7 +17,7 @@ export class LogoutController {
     }
 
     const useCase = container.resolve(LogoutUseCase);
-    await useCase.execute(user.id, request.cookies.refresh_token);
+    await useCase.execute(user.id, request.cookies.refresh_token, user.sid);
 
     const userRepo = new UserRepository();
     const fullUser = await userRepo.findById(user.id);
@@ -47,7 +47,7 @@ export class LogoutController {
     }
 
     const useCase = container.resolve(LogoutUseCase);
-    const count = await useCase.revokeAllSessions(user.id);
+    const { tokens, sessions } = await useCase.revokeAllSessions(user.id);
 
     const userRepo = new UserRepository();
     const fullUser = await userRepo.findById(user.id);
@@ -73,7 +73,8 @@ export class LogoutController {
 
     return reply.status(200).send({
       message: "Todas as sessões revogadas com sucesso",
-      revokedTokens: count,
+      revokedTokens: tokens,
+      revokedSessions: sessions,
     });
   }
 

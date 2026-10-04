@@ -2,11 +2,14 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { verify } from "jsonwebtoken";
 import { AppError } from "@/shared/errors/AppError";
 import auth from "@/config/auth";
+import { checkSessionRevoked, touchSession } from "@/modules/auth/services/userSessionService";
 
 interface JwtPayload {
   sub: string;
   role: string;
   barbershopId?: string;
+  /** Id da `UserSession` (login/dispositivo) — claim `sid`. Tokens antigos sem `sid` são aceitos. */
+  sid?: string;
   /** Presença = sessão de impersonation emitida pelo master (somente leitura). */
   imp?: boolean;
   /** id do master que iniciou o impersonation (auditoria). */
@@ -49,10 +52,28 @@ export async function authenticate(
       }
     }
 
+    if (decoded.sid) {
+      const state = await checkSessionRevoked(decoded.sid);
+      if (state === "revoked") {
+        throw new AppError("Sessão encerrada", 401);
+      }
+      if (state === "unknown") {
+        // Banco/Redis inacessíveis e sem estado da sessão:
+        // falha FECHADA para MASTER_ADMIN (log já emitido pelo serviço),
+        // falha ABERTA para os demais (o refresh continua bloqueado no banco).
+        if (decoded.role === "MASTER_ADMIN") {
+          throw new AppError("Não foi possível validar a sessão", 401);
+        }
+      } else {
+        touchSession(decoded.sid);
+      }
+    }
+
     request.user = {
       id: decoded.sub,
       role: decoded.role,
       barbershopId: decoded.barbershopId,
+      sid: decoded.sid,
     };
     request.impersonated = decoded.imp === true;
   } catch (error) {

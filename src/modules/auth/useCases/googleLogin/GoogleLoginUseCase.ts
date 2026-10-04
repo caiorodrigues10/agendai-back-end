@@ -5,6 +5,7 @@ import { IUserRepository } from "@/modules/users/repositories/IUserRepository";
 import { AppError } from "@/shared/errors/AppError";
 import { checkBarbershopAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { issueAuthSession } from "../../services/issueAuthSession";
+import type { SessionContext } from "../../services/userSessionService";
 import { prisma } from "@/libs/prismaClient";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
@@ -26,7 +27,7 @@ export class GoogleLoginUseCase {
     private userRepository: IUserRepository
   ) {}
 
-  async execute(idToken: string, reply?: FastifyReply) {
+  async execute(idToken: string, reply?: FastifyReply, context?: SessionContext) {
     const client = new OAuth2Client(googleClientId);
 
     let payload;
@@ -85,6 +86,6 @@ export class GoogleLoginUseCase {
       emailVerified: user.emailVerified ?? false,
     };
 
-    return issueAuthSession(userLike, reply);
+    return issueAuthSession(userLike, reply, true, context);
   }
 }

@@ -22,6 +22,11 @@ import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
+import {
+  createUserSession,
+  newSessionId,
+  type SessionContext,
+} from "../../services/userSessionService";
 
 const logger = getModuleLogger("register");
 
@@ -52,7 +57,7 @@ export class RegisterUseCase {
     private hashProvider: IHashProvider
   ) {}
 
-  async execute(data: IRegisterDTO, reply?: FastifyReply) {
+  async execute(data: IRegisterDTO, reply?: FastifyReply, context?: SessionContext) {
     const email = data.email.trim().toLowerCase();
     const emailValidation = await validateEmail(email);
     if (!emailValidation.valid) {
@@ -166,9 +171,11 @@ export class RegisterUseCase {
       throw mapUniqueConstraintError(error) ?? error;
     }
 
+    const sid = newSessionId();
+
     const accessOpts: SignOptions = { subject: user.id, expiresIn: auth.expiresIn as any };
     const accessToken = sign(
-      { role: user.role, barbershopId: user.barbershopId ?? undefined },
+      { role: user.role, barbershopId: user.barbershopId ?? undefined, sid },
       auth.secret as Secret,
       accessOpts
     );
@@ -176,7 +183,7 @@ export class RegisterUseCase {
     const expiresAt = new Date(Date.now() + parseDuration(auth.refreshExpiresIn));
     const refreshOpts: SignOptions = { expiresIn: auth.refreshExpiresIn as any };
     const refreshToken = sign(
-      { sub: user.id, jti: randomUUID() },
+      { sub: user.id, jti: randomUUID(), sid },
       auth.refreshSecret as Secret,
       refreshOpts
     );
@@ -185,8 +192,18 @@ export class RegisterUseCase {
       where: { userId: user.id, expiresAt: { lt: new Date() } },
     });
 
-    await prisma.refreshToken.create({
+    const refreshTokenRow = await prisma.refreshToken.create({
       data: { token: refreshToken, userId: user.id, expiresAt },
+    });
+
+    await createUserSession({
+      id: sid,
+      userId: user.id,
+      barbershopId: user.barbershopId,
+      refreshTokenId: refreshTokenRow.id,
+      expiresAt,
+      ip: context?.ip,
+      userAgent: context?.userAgent,
     });
 
     // Código de indicação do novo owner (para compartilhar depois)

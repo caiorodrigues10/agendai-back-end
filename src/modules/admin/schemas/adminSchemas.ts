@@ -59,3 +59,29 @@ export const adminCreateBarbershopSchema = z.object({
   address: z.string().max(500).optional(),
   active: z.boolean().optional().default(true),
 }).strict();
+
+/** Motivo obrigatório de toda revogação de sessão (auditoria + diálogo). */
+export const sessionReasonSchema = z
+  .string()
+  .trim()
+  .min(10, "Informe um motivo com pelo menos 10 caracteres")
+  .max(500);
+
+export const adminSessionsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  userId: z.string().uuid().optional(),
+  status: z.enum(["active", "revoked", "expired"]).optional(),
+}).strict();
+
+export const adminRevokeSessionSchema = z.object({
+  reason: sessionReasonSchema,
+  /** Exigido ao encerrar a sessão ATUAL do próprio admin. */
+  confirmSelf: z.boolean().optional(),
+}).strict();
+
+export const adminRevokeUserSessionsSchema = z.object({
+  reason: sessionReasonSchema,
+  /** Exigido quando o alvo é o próprio admin (mata a sessão atual dele). */
+  confirmSelf: z.boolean().optional(),
+}).strict();

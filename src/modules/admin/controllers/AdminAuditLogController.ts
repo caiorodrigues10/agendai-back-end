@@ -25,23 +25,11 @@ interface AuditLogRow {
   createdAt: Date;
 }
 
-type AccessLogRow = {
-  userId: string | null;
-  email: string | null;
-  action: string;
-  ipAddress: string | null;
-  userAgent: string | null;
-  createdAt: Date;
-};
-
 type UserRow = { id: string; name: string; email: string };
 
 const DAY_MS = 86_400_000;
 const ALERTS_WINDOW_MS = DAY_MS;
-const SESSIONS_WINDOW_MS = DAY_MS;
 const ALERTS_TAKE = 200;
-const SESSIONS_TAKE = 200;
-const ACTIVE_SESSION_MS = 30 * 60 * 1000;
 const EXPORT_BATCH = 1000;
 
 const SENSITIVE_GROUPS: Array<{ key: string; label: string }> = [
@@ -263,63 +251,6 @@ export class AdminAuditLogController {
           userId: log.userId,
           userName: users.get(log.userId)?.name ?? null,
           createdAt: log.createdAt,
-        })),
-      },
-    });
-  }
-
-  /** Sessões por acesso (login/refresh/logout) nas últimas 24h. */
-  async sessions(_request: FastifyRequest, reply: FastifyReply) {
-    const now = Date.now();
-    const since = new Date(now - SESSIONS_WINDOW_MS);
-    const rows: AccessLogRow[] = await prisma.accessLog.findMany({
-      where: { createdAt: { gte: since } },
-      orderBy: { createdAt: "desc" },
-      take: SESSIONS_TAKE,
-    });
-
-    const latest = new Map<string, AccessLogRow>();
-    rows.forEach((row: AccessLogRow) => {
-      const key = `${row.userId ?? row.email ?? "-"}|${row.ipAddress ?? "-"}`;
-      if (!latest.has(key)) latest.set(key, row);
-    });
-
-    const sessions = [...latest.entries()].map(([key, row]: [string, AccessLogRow]) => {
-      const status =
-        row.action === "LOGOUT"
-          ? "CLOSED"
-          : row.createdAt.getTime() >= now - ACTIVE_SESSION_MS
-            ? "ACTIVE"
-            : "EXPIRED";
-      return {
-        key,
-        userId: row.userId,
-        email: row.email,
-        ip: row.ipAddress,
-        userAgent: row.userAgent,
-        lastEvent: row.action,
-        lastAt: row.createdAt,
-        status,
-      };
-    });
-    sessions.sort(
-      (a: { lastAt: Date }, b: { lastAt: Date }) => b.lastAt.getTime() - a.lastAt.getTime(),
-    );
-
-    const users = await loadUsers(
-      sessions
-        .map((session: { userId: string | null }) => session.userId)
-        .filter((id: string | null): id is string => id !== null),
-    );
-
-    return reply.status(200).send({
-      success: true,
-      data: {
-        generatedAt: new Date().toISOString(),
-        windowHours: 24,
-        sessions: sessions.map((session) => ({
-          ...session,
-          name: session.userId ? (users.get(session.userId)?.name ?? null) : null,
         })),
       },
     });

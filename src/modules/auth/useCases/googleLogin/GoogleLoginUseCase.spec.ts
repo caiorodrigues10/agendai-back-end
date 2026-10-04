@@ -17,6 +17,9 @@ const prismaMock = vi.hoisted(() => ({
     deleteMany: vi.fn().mockResolvedValue({}),
     create: vi.fn().mockResolvedValue({}),
   },
+  userSession: {
+    create: vi.fn().mockResolvedValue({}),
+  },
 }));
 
 vi.mock("@/libs/prismaClient", () => ({

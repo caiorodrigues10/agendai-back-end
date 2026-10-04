@@ -12,6 +12,7 @@ import { AdminAccountActionsController } from "@/modules/admin/controllers/Admin
 import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
 import { AdminProductController } from "@/modules/admin/controllers/AdminProductController";
 import { AdminEngagementController } from "@/modules/admin/controllers/AdminEngagementController";
+import { AdminSessionController } from "@/modules/admin/controllers/AdminSessionController";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
@@ -24,6 +25,10 @@ import {
   adminAccountExtendTrialSchema,
   adminAccountChangePlanSchema,
 } from "@/modules/admin/schemas/adminAccountsSchemas";
+import {
+  adminRevokeSessionSchema,
+  adminRevokeUserSessionsSchema,
+} from "@/modules/admin/schemas/adminSchemas";
 import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
 import { getNotificationOperationsHealth } from "@/modules/notifications/services/notificationOperationsService";
 
@@ -40,6 +45,7 @@ const accountActionsController = new AdminAccountActionsController();
 const operationsController = new AdminOperationsController();
 const productController = new AdminProductController();
 const engagementController = new AdminEngagementController();
+const sessionController = new AdminSessionController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -96,13 +102,24 @@ export async function adminRoutes(app: FastifyInstance) {
   app.patch("/admin/users/:id", { preHandler: usersManage }, userController.update.bind(userController));
   app.delete("/admin/users/:id", { preHandler: usersManage }, userController.delete.bind(userController));
 
+  // ─── Sessões (dispositivos) ───────────────────────────────────────────────
+  app.get("/admin/sessions", { preHandler: usersManage }, sessionController.list.bind(sessionController));
+  app.post("/admin/sessions/:id/revoke", {
+    preHandler: [...usersManage, validateSchema(adminRevokeSessionSchema, "body")],
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, sessionController.revoke.bind(sessionController));
+  app.post("/admin/users/:id/revoke-all-sessions", {
+    preHandler: [...usersManage, validateSchema(adminRevokeUserSessionsSchema, "body")],
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, sessionController.revokeAllForUser.bind(sessionController));
+
   // ─── Auditoria ───────────────────────────────────────────────────────────
   app.get("/admin/audit-logs", {
     preHandler: [...auditRead, validateSchema(adminAuditLogQuerySchema, "query")],
   }, auditLogController.list.bind(auditLogController));
   app.get("/admin/audit-logs/facets", { preHandler: auditRead }, auditLogController.facets.bind(auditLogController));
   app.get("/admin/audit-logs/alerts", { preHandler: auditRead }, auditLogController.alerts.bind(auditLogController));
-  app.get("/admin/audit-logs/sessions", { preHandler: auditRead }, auditLogController.sessions.bind(auditLogController));
+  // Sessões agora têm endpoint próprio (/admin/sessions) com dados reais de UserSession.
   app.get("/admin/audit-logs/export", {
     preHandler: [...auditRead, validateSchema(adminAuditLogQuerySchema, "query")],
   }, auditLogController.export.bind(auditLogController));
