@@ -18,7 +18,11 @@ import { verifyRecaptcha } from "@/shared/infra/http/middlewares/verifyRecaptcha
 import { resetByEmail, resetByIp } from "@/shared/services/bruteForceProtection";
 import { validateSchema } from "@/shared/infra/http/middlewares/validateSchema";
 import { AuthSessionController } from "@/modules/auth/useCases/sessions/AuthSessionController";
-import { authRevokeSessionSchema, sessionIdParamsSchema } from "@/modules/auth/schemas/authSchemas";
+import {
+  authRevokeOthersSchema,
+  authRevokeSessionSchema,
+  sessionIdParamsSchema,
+} from "@/modules/auth/schemas/authSchemas";
 
 const authRateLimit = {
   config: {
@@ -76,6 +80,18 @@ export async function authRoutes(app: FastifyInstance) {
 
   // Sessões ("meus dispositivos") — só as do próprio usuário.
   app.get("/auth/sessions", { preHandler: [authenticate, setRlsContext] }, authSessions.list.bind(authSessions));
+  app.post(
+    "/auth/sessions/revoke-others",
+    {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+      preHandler: [
+        authenticate,
+        setRlsContext,
+        validateSchema(authRevokeOthersSchema, "body"),
+      ],
+    },
+    authSessions.revokeOthers.bind(authSessions),
+  );
   app.delete("/auth/sessions/:id", {
     preHandler: [
       authenticate,

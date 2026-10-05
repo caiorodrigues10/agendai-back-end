@@ -1,7 +1,7 @@
 /// <reference types="vitest/globals" />
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { AuthSessionController } from "./AuthSessionController";
-import { revokeSessionRow } from "../../services/userSessionService";
+import { AuthSessionController, maskIpForDisplay } from "./AuthSessionController";
+import { revokeOtherSessionsForUser, revokeSessionRow } from "../../services/userSessionService";
 
 const prismaMock = vi.hoisted(() => ({
   userSession: { findMany: vi.fn(), findUnique: vi.fn() },
@@ -12,7 +12,7 @@ vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
 
 vi.mock("../../services/userSessionService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/userSessionService")>();
-  return { ...actual, revokeSessionRow: vi.fn() };
+  return { ...actual, revokeSessionRow: vi.fn(), revokeOtherSessionsForUser: vi.fn() };
 });
 
 const controller = new AuthSessionController();
@@ -142,5 +142,82 @@ describe("AuthSessionController.revoke", () => {
     expect(reply.setCookie).toHaveBeenCalledTimes(2);
     expect(reply.setCookie).toHaveBeenCalledWith("refresh_token", "", expect.anything());
     expect(reply.setCookie).toHaveBeenCalledWith("saved_refresh_user-1", "", expect.anything());
+  });
+});
+
+describe("maskIpForDisplay", () => {
+  it("mascara IPv4 mantendo os dois primeiros octetos", () => {
+    expect(maskIpForDisplay("189.45.120.7")).toBe("189.45.*.*");
+  });
+
+  it("mascara IPv6 mantendo os dois primeiros grupos", () => {
+    expect(maskIpForDisplay("2804:14d0:8e1d::1")).toBe("2804:14d0:*");
+  });
+
+  it("preserva null e valores não reconhecidos", () => {
+    expect(maskIpForDisplay(null)).toBeNull();
+    expect(maskIpForDisplay("valor-estranho")).toBe("valor-estranho");
+  });
+});
+
+describe("AuthSessionController.revokeOthers", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("revoga as outras sessões, audita e mantém a atual", async () => {
+    vi.mocked(revokeOtherSessionsForUser).mockResolvedValue({ sessions: 3 });
+    prismaMock.auditLog.create.mockResolvedValue({});
+    const reply = makeReply();
+
+    await controller.revokeOthers(
+      makeRequest({
+        body: { reason: "celular roubado, encerrar tudo" },
+        user: { id: "user-1", role: "OWNER", sid: "sid-a" },
+      }),
+      reply as never,
+    );
+
+    expect(revokeOtherSessionsForUser).toHaveBeenCalledWith(
+      "user-1",
+      "sid-a",
+      expect.objectContaining({ reason: "celular roubado, encerrar tudo" }),
+    );
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "SESSION_REVOKE_OTHERS" }) }),
+    );
+    expect(reply.send).toHaveBeenCalledWith({
+      success: true,
+      data: { revoked: 3, currentKept: true },
+    });
+  });
+
+  it("usa motivo padrão quando o body vem vazio", async () => {
+    vi.mocked(revokeOtherSessionsForUser).mockResolvedValue({ sessions: 1 });
+    prismaMock.auditLog.create.mockResolvedValue({});
+    const reply = makeReply();
+
+    await controller.revokeOthers(makeRequest({ user: { id: "user-1", role: "OWNER" } }), reply as never);
+
+    expect(revokeOtherSessionsForUser).toHaveBeenCalledWith(
+      "user-1",
+      null,
+      expect.objectContaining({ reason: expect.stringContaining("outras sessões") }),
+    );
+    expect(reply.send).toHaveBeenCalledWith({
+      success: true,
+      data: { revoked: 1, currentKept: false },
+    });
+  });
+
+  it("falha de auditoria não derruba a resposta", async () => {
+    vi.mocked(revokeOtherSessionsForUser).mockResolvedValue({ sessions: 0 });
+    prismaMock.auditLog.create.mockRejectedValue(new Error("audit down"));
+    const reply = makeReply();
+
+    await controller.revokeOthers(
+      makeRequest({ user: { id: "user-1", role: "OWNER", sid: "sid-a" } }),
+      reply as never,
+    );
+
+    expect(reply.status).toHaveBeenCalledWith(200);
   });
 });

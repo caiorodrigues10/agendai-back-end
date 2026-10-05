@@ -321,6 +321,22 @@ Authorization: Bearer <accessToken>
 3. Quando expirar (401), use POST `/api/auth/refresh` com o `refreshToken`
 4. Recebe novos tokens (rotação automática do refresh token)
 
+### Sessões ("Meus dispositivos")
+
+Cada login cria uma `UserSession` (claim `sid` no access token). Rotas próprias:
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/auth/sessions` 🔒 | Lista as sessões do usuário (IP mascarado no DTO, ex.: `189.45.*.*`; o IP completo fica só no banco/auditoria) |
+| `POST /api/auth/sessions/revoke-others` 🔒 | Encerra **todas as outras** sessões ativas mantendo a atual (rate limit 30/min) |
+| `DELETE /api/auth/sessions/:id` 🔒 | Encerra uma sessão; a atual exige `confirmSelf: true` |
+
+Revogação grava `revokedAt` no banco, apaga os refresh tokens daquela sessão e sinaliza no Redis (`session:revoked:<sid>`, TTL = vida do access token). Ações geram `AuditLog` (`SESSION_REVOKE_SELF`, `SESSION_REVOKE_OTHERS`).
+
+**Política de falha do Redis:** a checagem de sessão espera no máx. 150ms pelo Redis; se indisponível/lento, cai no banco (fonte de verdade) e, se o banco confirmar revogação, a flag é repovada no Redis. Se banco **e** Redis falharem: sessão `unknown` → **fechado** para `MASTER_ADMIN` (401) e **aberto** com log para os demais (o refresh continua bloqueado no banco).
+
+**Limpeza:** cron diário 03:40 (America/Sao_Paulo, com lock Redis + `CronRun`) apaga sessões expiradas há +30 dias nunca revogadas e revogadas há +90 dias — nunca mexe em sessões ativas.
+
 ---
 
 ## Roles e Permissões

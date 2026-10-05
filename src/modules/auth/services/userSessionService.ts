@@ -16,6 +16,28 @@ const REVOKED_FLAG_SECONDS = () => {
 
 const revokedFlagKey = (sid: string) => `session:revoked:${sid}`;
 
+/**
+ * Timeout da checagem no Redis: se o Redis travar (sem erro, só lento),
+ * a request não pode esperar — cai no fallback de banco em até 150ms.
+ */
+const REDIS_CHECK_TIMEOUT_MS = 150;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: timeout após ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err as Error);
+      },
+    );
+  });
+}
+
 /** Contexto do dispositivo que fez o login (ip + user-agent). */
 export interface SessionContext {
   ip?: string;
@@ -84,8 +106,11 @@ export async function createUserSession(input: CreateUserSessionInput): Promise<
  * Checa se a sessão está revogada.
  *
  * 1. Redis (`session:revoked:<sid>`, alimentado na revogação, TTL = vida do
- *    access token): barato e é o caminho feliz.
- * 2. Redis indisponível → fallback ao banco (fonte de verdade `revokedAt`).
+ *    access token): barato e é o caminho feliz. Máx. 150ms — Redis lento/travado
+ *    vira indisponível em vez de segurar a request.
+ * 2. Redis indisponível → fallback ao banco (fonte de verdade `revokedAt`);
+ *    se o banco confirmar revogação, a flag é repovada no Redis (repovoamento
+ *    pós-falha: recupera a chave caso o Redis tenha perdido dados).
  * 3. Banco inacessível → "unknown": o chamador decide a política de falha
  *    (fechada para MASTER_ADMIN, aberta com log para os demais).
  *
@@ -96,7 +121,7 @@ export async function createUserSession(input: CreateUserSessionInput): Promise<
 export async function checkSessionRevoked(sid: string): Promise<SessionCheck> {
   try {
     const redis = getRedisConnection();
-    const flag = await redis.get(revokedFlagKey(sid));
+    const flag = await withTimeout(redis.get(revokedFlagKey(sid)), REDIS_CHECK_TIMEOUT_MS, "session check");
     return flag === "1" ? "revoked" : "active";
   } catch (err) {
     log.error({ err, sid }, "session check: redis indisponível, usando banco");
@@ -108,7 +133,11 @@ export async function checkSessionRevoked(sid: string): Promise<SessionCheck> {
       select: { revokedAt: true, expiresAt: true },
     });
     if (!row) return "unknown";
-    if (row.revokedAt || row.expiresAt.getTime() <= Date.now()) return "revoked";
+    if (row.revokedAt || row.expiresAt.getTime() <= Date.now()) {
+      // Repovoamento pós-falha: banco confirmou revogação → regrava a flag.
+      if (row.revokedAt) void setRevokedFlag(sid);
+      return "revoked";
+    }
     return "active";
   } catch (err) {
     log.error({ err, sid }, "session check: banco indisponível");
@@ -214,6 +243,53 @@ export async function revokeAllSessionsForUser(
   for (const row of active) await setRevokedFlag(row.id);
 
   return { sessions: updated.count, tokens: tokens.count };
+}
+
+/**
+ * Revoga todas as sessões ATIVAS de um usuário exceto a atual
+ * ("Encerrar todos os outros dispositivos"). Preserva a sessão corrente
+ * (refresh token e cookies do navegador atual continuam válidos).
+ */
+export async function revokeOtherSessionsForUser(
+  userId: string,
+  currentSid: string | null,
+  opts: { reason: string },
+): Promise<{ sessions: number }> {
+  const where = {
+    userId,
+    revokedAt: null,
+    ...(currentSid ? { id: { not: currentSid } } : {}),
+  } as const;
+
+  const active = await prisma.userSession.findMany({
+    where,
+    select: { id: true, refreshTokenId: true, rememberedTokenId: true },
+  });
+  if (active.length === 0) return { sessions: 0 };
+
+  const updated = await prisma.userSession.updateMany({
+    where,
+    data: {
+      revokedAt: new Date(),
+      revokedReason: opts.reason.slice(0, 500),
+    },
+  });
+
+  const tokenIds = active
+    .flatMap((row: { refreshTokenId: string | null; rememberedTokenId: string | null }) => [
+      row.refreshTokenId,
+      row.rememberedTokenId,
+    ])
+    .filter((id: string | null): id is string => Boolean(id));
+  if (tokenIds.length > 0) {
+    await prisma.refreshToken
+      .deleteMany({ where: { id: { in: tokenIds } } })
+      .catch((err: unknown) => log.error({ err, userId }, "falha ao apagar tokens das outras sessões"));
+  }
+
+  for (const row of active) await setRevokedFlag(row.id);
+
+  return { sessions: updated.count };
 }
 
 export type SessionStatus = "active" | "revoked" | "expired";

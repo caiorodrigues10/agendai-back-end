@@ -30,6 +30,7 @@ import {
   createUserSession,
   deviceLabelFromUserAgent,
   revokeAllSessionsForUser,
+  revokeOtherSessionsForUser,
   revokeSessionRow,
   sessionStatus,
   setRevokedFlag,
@@ -235,5 +236,91 @@ describe("touchSession", () => {
     touchSession("touch-sid-1");
 
     expect(prismaMock.userSession.updateMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("checkSessionRevoked — timeout de 150ms", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("Redis que nunca responde cai no banco após o timeout", async () => {
+    redisMock.get.mockReturnValue(new Promise(() => undefined));
+    prismaMock.userSession.findUnique.mockResolvedValue({
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const started = Date.now();
+    await expect(checkSessionRevoked("slow-sid")).resolves.toBe("active");
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(prismaMock.userSession.findUnique).toHaveBeenCalled();
+  });
+
+  it("banco confirma revogação → repovoa a flag no Redis (repovoamento pós-falha)", async () => {
+    redisMock.get.mockRejectedValue(new Error("redis down"));
+    prismaMock.userSession.findUnique.mockResolvedValue({
+      revokedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    redisMock.set.mockResolvedValue("OK");
+
+    await expect(checkSessionRevoked("rehydrate-sid")).resolves.toBe("revoked");
+    await vi.waitFor(() =>
+      expect(redisMock.set).toHaveBeenCalledWith(
+        "session:revoked:rehydrate-sid",
+        "1",
+        "EX",
+        expect.any(Number),
+      ),
+    );
+  });
+});
+
+describe("revokeOtherSessionsForUser", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("revoga tudo exceto a sessão atual e preserva o token dela", async () => {
+    prismaMock.userSession.findMany.mockResolvedValue([
+      { id: "sid-b", refreshTokenId: "rt-b", rememberedTokenId: null },
+      { id: "sid-c", refreshTokenId: null, rememberedTokenId: "rm-c" },
+    ]);
+    prismaMock.userSession.updateMany.mockResolvedValue({ count: 2 });
+    prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 2 });
+    redisMock.set.mockResolvedValue("OK");
+
+    const result = await revokeOtherSessionsForUser("user-1", "sid-a", { reason: "encerrar outros" });
+
+    expect(result).toEqual({ sessions: 2 });
+    expect(prismaMock.userSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: "user-1", revokedAt: null, id: { not: "sid-a" } } }),
+    );
+    expect(prismaMock.userSession.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: "user-1", revokedAt: null, id: { not: "sid-a" } } }),
+    );
+    expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["rt-b", "rm-c"] } },
+    });
+    expect(redisMock.set).toHaveBeenCalledWith("session:revoked:sid-b", "1", "EX", expect.any(Number));
+    expect(redisMock.set).toHaveBeenCalledWith("session:revoked:sid-c", "1", "EX", expect.any(Number));
+  });
+
+  it("sem sid atual revoga todas as ativas; sem ativas retorna 0", async () => {
+    prismaMock.userSession.findMany.mockResolvedValueOnce([{ id: "x", refreshTokenId: null, rememberedTokenId: null }]);
+    prismaMock.userSession.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
+    redisMock.set.mockResolvedValue("OK");
+
+    await expect(
+      revokeOtherSessionsForUser("user-1", null, { reason: "motivo generico aqui" }),
+    ).resolves.toEqual({ sessions: 1 });
+    expect(prismaMock.userSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: "user-1", revokedAt: null } }),
+    );
+
+    prismaMock.userSession.findMany.mockResolvedValueOnce([]);
+    vi.clearAllMocks();
+    await expect(
+      revokeOtherSessionsForUser("user-2", "sid-z", { reason: "motivo generico aqui" }),
+    ).resolves.toEqual({ sessions: 0 });
+    expect(prismaMock.userSession.updateMany).not.toHaveBeenCalled();
   });
 });

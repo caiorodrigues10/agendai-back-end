@@ -112,6 +112,10 @@ Prisma **não suporta** comparar duas colunas da mesma tabela no `where` (ex: `q
 - [ ] Teste unitário com mock de repository quando regra muda?
 - [ ] `docs:check` se package/scripts/estrutura documentada mudou?
 
+### Sessões e falha do Redis (auth)
+
+`UserSession` + claim `sid`: revogação grava `revokedAt` no banco, apaga os refresh tokens e seta `session:revoked:<sid>` no Redis (TTL = vida do access token). A checagem no `authenticate` espera **150ms** pelo Redis e cai no banco; se o banco confirmar revogação, a flag é **repovada** (repovoamento pós-falha). Estado `unknown` (Redis **e** banco fora): **fechado** para `MASTER_ADMIN`, **aberto** com log para os demais. Limpeza: cron `sessionsCleanup` (expiradas >30d nunca revogadas, revogadas >90d), com lock Redis + `CronRun`.
+
 ---
 
 ## 6. Bugs conhecidos fora de escopo

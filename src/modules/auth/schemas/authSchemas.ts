@@ -108,3 +108,11 @@ export const authRevokeSessionSchema = z
   })
   .strict()
   .optional();
+
+/** Encerrar todas as outras sessões ("Encerrar todos os outros dispositivos"). */
+export const authRevokeOthersSchema = z
+  .object({
+    reason: z.string().trim().min(10).max(500).optional(),
+  })
+  .strict()
+  .optional();

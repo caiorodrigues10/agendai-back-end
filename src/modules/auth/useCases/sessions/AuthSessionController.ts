@@ -1,7 +1,11 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
-import { revokeSessionRow, sessionStatus } from "../../services/userSessionService";
+import {
+  revokeOtherSessionsForUser,
+  revokeSessionRow,
+  sessionStatus,
+} from "../../services/userSessionService";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 
 type OwnSessionRow = {
@@ -36,6 +40,23 @@ const ownSelect = {
   rememberedTokenId: true,
 } as const;
 
+/**
+ * IP parcialmente mascarado p/ exibição no DTO de listagem
+ * (LGPD: o valor completo fica só no banco e na auditoria).
+ */
+export function maskIpForDisplay(ip: string | null): string | null {
+  if (!ip) return ip;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+    const octets = ip.split(".");
+    return `${octets[0]}.${octets[1]}.*.*`;
+  }
+  if (ip.includes(":")) {
+    const groups = ip.split(":");
+    return `${groups.slice(0, 2).join(":")}:*`;
+  }
+  return ip;
+}
+
 /** "Meus dispositivos" — listar e encerrar sessões do próprio usuário. */
 export class AuthSessionController {
   async list(request: FastifyRequest, reply: FastifyReply) {
@@ -51,7 +72,7 @@ export class AuthSessionController {
       data: rows.map((row) => ({
         id: row.id,
         deviceLabel: row.deviceLabel,
-        ipAddress: row.ipAddress,
+        ipAddress: maskIpForDisplay(row.ipAddress),
         userAgent: row.userAgent,
         createdAt: row.createdAt,
         lastSeenAt: row.lastSeenAt,
@@ -115,6 +136,38 @@ export class AuthSessionController {
     return reply.status(200).send({
       success: true,
       data: { id: row.id, revoked: true, current: isCurrent },
+    });
+  }
+
+  /**
+   * "Encerrar todos os outros dispositivos" — revoga todas as sessões ativas
+   * exceto a atual (a sessão deste navegador continua válida).
+   */
+  async revokeOthers(request: FastifyRequest, reply: FastifyReply) {
+    const body = (request.body ?? {}) as { reason?: string };
+    const reason = body.reason?.trim() || "todas as outras sessões encerradas pelo próprio usuário";
+
+    const { sessions } = await revokeOtherSessionsForUser(request.user!.id, request.user!.sid ?? null, {
+      reason,
+    });
+
+    await prisma.auditLog
+      .create({
+        data: {
+          userId: request.user!.id,
+          action: "SESSION_REVOKE_OTHERS",
+          resource: "Session",
+          resourceId: request.user!.sid ?? null,
+          details: JSON.stringify({ reason, revoked: sessions, keptCurrent: Boolean(request.user!.sid) }),
+          ipAddress: request.ip,
+          barbershopId: null,
+        },
+      })
+      .catch(() => undefined);
+
+    return reply.status(200).send({
+      success: true,
+      data: { revoked: sessions, currentKept: Boolean(request.user!.sid) },
     });
   }
 }

@@ -10,7 +10,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 
 | Domínio | Rotas | Persistência principal |
 |---|---|---|
-| Auth / users | `/auth`, `/users` | `User`, `RefreshToken` |
+| Auth / users | `/auth`, `/users` | `User`, `RefreshToken`, `UserSession` (sessões/"meus dispositivos": `GET|POST /auth/sessions*`, revogação + flags no Redis, cron `sessionsCleanup`) |
 | Barbershop / schedule / logo | `/barbershops` | `Barbershop`, `Schedule` |
 | Serviços / categorias | `/services`, `/service-categories` | `Service`, `ServiceCategory` |
 | Fila | `/queue` | `QueueItem` |
