@@ -12,21 +12,28 @@ export class RedisRateLimitStore {
     this.timeWindow = opts.timeWindow ?? 60_000;
   }
 
+  /**
+   * Interface exigida por @fastify/rate-limit: incr(key, cb, max, ban).
+   * A janela de tempo é sempre a do store (`timeWindow`); o 3º argumento é o
+   * `max` da rota e não deve ser confundido com o TTL. A chave precisa receber
+   * o `prefix` (rl:METHOD:url:) para que os contadores das rotas não se cruzem.
+   */
   incr(
     key: string,
     callback: (error: Error | null, result?: { current: number; ttl: number }) => void,
-    timeWindow?: number,
+    _max?: number,
   ): void {
     const redis = getRedisConnection();
-    const ttlSeconds = Math.ceil((timeWindow ?? this.timeWindow) / 1000);
+    const redisKey = `${this.prefix}${key}`;
+    const ttlSeconds = Math.ceil(this.timeWindow / 1000);
 
     redis
-      .incr(key)
+      .incr(redisKey)
       .then(async (count) => {
         if (count === 1) {
-          await redis.expire(key, ttlSeconds);
+          await redis.expire(redisKey, ttlSeconds);
         }
-        const ttl = await redis.ttl(key);
+        const ttl = await redis.ttl(redisKey);
         callback(null, { current: count, ttl: Math.max(0, ttl) * 1000 });
       })
       .catch((err) => {
@@ -38,13 +45,13 @@ export class RedisRateLimitStore {
   read(
     key: string,
     callback: (error: Error | null, result?: { current: number; ttl: number }) => void,
-    timeWindow?: number,
   ): void {
     const redis = getRedisConnection();
-    const ttlSeconds = Math.ceil((timeWindow ?? this.timeWindow) / 1000);
+    const redisKey = `${this.prefix}${key}`;
+    const ttlSeconds = Math.ceil(this.timeWindow / 1000);
 
     redis
-      .get(key)
+      .get(redisKey)
       .then((val) => {
         const current = val ? parseInt(val, 10) : 0;
         callback(null, { current, ttl: ttlSeconds * 1000 });
@@ -55,10 +62,17 @@ export class RedisRateLimitStore {
       });
   }
 
-  child(routeOptions: { timeWindow?: number; max?: number; method?: string; url?: string }): RedisRateLimitStore {
-    const childPrefix = routeOptions.method && routeOptions.url
-      ? `${this.prefix}${routeOptions.method}:${routeOptions.url}:`
-      : this.prefix;
+  child(routeOptions: {
+    timeWindow?: number;
+    max?: number;
+    method?: string;
+    url?: string;
+    routeInfo?: { method?: string; url?: string };
+  }): RedisRateLimitStore {
+    // @fastify/rate-limit repassa method/url dentro de `routeInfo` (do onRoute).
+    const method = routeOptions.routeInfo?.method ?? routeOptions.method;
+    const url = routeOptions.routeInfo?.url ?? routeOptions.url;
+    const childPrefix = method && url ? `${this.prefix}${method}:${url}:` : this.prefix;
 
     return new RedisRateLimitStore({
       timeWindow: routeOptions.timeWindow ?? this.timeWindow,
@@ -69,14 +83,14 @@ export class RedisRateLimitStore {
 
   decrement(key: string): void {
     const redis = getRedisConnection();
-    redis.decr(key).catch((err) => {
+    redis.decr(`${this.prefix}${key}`).catch((err) => {
       logger.error({ err }, "Redis error in rate-limit decrement");
     });
   }
 
   reset(key: string): void {
     const redis = getRedisConnection();
-    redis.del(key).catch((err) => {
+    redis.del(`${this.prefix}${key}`).catch((err) => {
       logger.error({ err }, "Redis error in rate-limit reset");
     });
   }
