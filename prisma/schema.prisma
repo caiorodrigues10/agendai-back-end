@@ -604,6 +604,12 @@ model QueueItem {
   clientId               String?     @db.Uuid
   responsibleQueueItemId String?     @db.Uuid
   activeIdentityKey      String?     @db.VarChar(500)
+  /// Arquivamento lógico ("remover da visualização"): o item sai das listas
+  /// operacionais, mas comissões/ledger continuam ancorados nele. Nunca
+  /// apagar fisicamente — commission_entries/retail_sales referenciam a linha.
+  archivedAt             DateTime?
+  archivedBy             String?     @db.Uuid
+  archiveReason          String?     @db.VarChar(200)
 
   barbershop           Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service              Service           @relation(fields: [serviceId], references: [id], onDelete: Restrict)

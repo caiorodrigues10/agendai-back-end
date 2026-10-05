@@ -5,6 +5,7 @@ const prismaMock = vi.hoisted(() => ({
   queueItem: { findUnique: vi.fn() },
   commissionEntry: { createMany: vi.fn() },
   cashMovement: { findFirst: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
+  fiado: { create: vi.fn() },
 }));
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
@@ -39,6 +40,9 @@ function completedItem() {
     completedBy: "user-1",
     finalPrice: 50,
     paymentMethod: "pix",
+    archivedAt: null,
+    archivedBy: null,
+    archiveReason: null,
     service: { name: "Corte", avgTimeMinutes: 30 },
     responsibleQueueItem: null,
   };
@@ -52,11 +56,13 @@ function setup(row: TxRow, updateCount = 1) {
     },
     commissionEntry: prismaMock.commissionEntry,
     cashMovement: prismaMock.cashMovement,
+    fiado: prismaMock.fiado,
   };
   prismaMock.$transaction.mockReset().mockImplementation(async (fn: any) => fn(tx));
   prismaMock.commissionEntry.createMany.mockReset().mockResolvedValue({ count: 1 });
   prismaMock.cashMovement.findFirst.mockReset().mockResolvedValue(null);
   prismaMock.cashMovement.create.mockReset().mockResolvedValue({ id: "led-1" });
+  prismaMock.fiado.create.mockReset().mockResolvedValue({ id: "fiado-1" });
   prismaMock.queueItem.findUnique.mockReset().mockResolvedValue(completedItem());
 
   return { repo: new QueueRepository(), tx };
@@ -74,13 +80,15 @@ describe("QueueRepository.completeWithCommissions", () => {
   it("conclui na transação, grava comissão arredondada e ledger SERVICE_SALE", async () => {
     const { repo, tx } = setup(baseRow);
 
-    await repo.completeWithCommissions("q-1", {
+    const { item, createdFiadoId } = await repo.completeWithCommissions("q-1", {
       completedBy: "user-1",
       finalPrice: 33.33,
       paymentMethod: "pix",
       splits: [{ professionalId: "pro-1", percentage: 30 }],
     });
 
+    expect(item.id).toBe("q-1");
+    expect(createdFiadoId).toBeNull();
     expect(tx.queueItem.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.commissionEntry.createMany).toHaveBeenCalledWith({
       data: [
@@ -125,18 +133,61 @@ describe("QueueRepository.completeWithCommissions", () => {
 
     expect(tx.commissionEntry.createMany).not.toHaveBeenCalled();
     expect(prismaMock.cashMovement.create).not.toHaveBeenCalled();
+    expect(prismaMock.fiado.create).not.toHaveBeenCalled();
   });
 
-  it("sessão paga por pacote não gera receita nova (sem ledger)", async () => {
-    const { repo, tx } = setup({ ...baseRow, appointment: { clientPackageId: "pkg-1" } });
+  it("fiado nasce na MESMA transação da conclusão (SERVICE_COMPLETION)", async () => {
+    const { repo } = setup(baseRow);
 
-    await repo.completeWithCommissions("q-1", {
+    const { createdFiadoId } = await repo.completeWithCommissions("q-1", {
       completedBy: "user-1",
-      finalPrice: 120,
-      paymentMethod: "cash",
-      splits: [{ professionalId: "pro-1", percentage: 100 }],
+      finalPrice: 50,
+      paymentMethod: "fiado",
+      splits: [],
+      fiado: {
+        customerName: "Ana",
+        whatsapp: "5511999990000",
+        clientId: "client-1",
+        description: "Corte",
+        createdById: "user-1",
+      },
     });
 
+    expect(createdFiadoId).toBe("fiado-1");
+    expect(prismaMock.fiado.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.fiado.create.mock.calls[0][0].data).toMatchObject({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      clientId: "client-1",
+      description: "Corte",
+      originalAmount: 50,
+      paidAmount: 0,
+      status: "PENDING",
+      origin: "SERVICE_COMPLETION",
+    });
+    // ledger SERVICE_SALE convive com o fiado: o título não é entrada de caixa.
+    expect(prismaMock.cashMovement.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("sessão paga por pacote não gera receita nova nem fiado", async () => {
+    const { repo, tx } = setup({ ...baseRow, appointment: { clientPackageId: "pkg-1" } });
+
+    const { createdFiadoId } = await repo.completeWithCommissions("q-1", {
+      completedBy: "user-1",
+      finalPrice: 120,
+      paymentMethod: "fiado",
+      splits: [{ professionalId: "pro-1", percentage: 100 }],
+      fiado: {
+        customerName: "Ana",
+        whatsapp: "5511999990000",
+        clientId: "client-1",
+        description: "Corte",
+        createdById: "user-1",
+      },
+    });
+
+    expect(createdFiadoId).toBeNull();
+    expect(prismaMock.fiado.create).not.toHaveBeenCalled();
     expect(tx.commissionEntry.createMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.cashMovement.create).not.toHaveBeenCalled();
   });
@@ -166,5 +217,29 @@ describe("QueueRepository.completeWithCommissions", () => {
         splits: [],
       }),
     ).rejects.toThrow("caixa off");
+  });
+
+  it("falha na gravação do fiado reverte a conclusão inteira (sem status orfão)", async () => {
+    const { repo, tx } = setup(baseRow);
+    prismaMock.fiado.create.mockRejectedValue(new Error("fiado fora"));
+
+    await expect(
+      repo.completeWithCommissions("q-1", {
+        completedBy: "user-1",
+        finalPrice: 50,
+        paymentMethod: "fiado",
+        splits: [],
+        fiado: {
+          customerName: "Ana",
+          whatsapp: "5511999990000",
+          clientId: null,
+          description: "Corte",
+          createdById: "user-1",
+        },
+      }),
+    ).rejects.toThrow("fiado fora");
+
+    // nada é gravado fora da transação abortada
+    expect(tx.commissionEntry.createMany).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,12 @@ export interface IQueueRepository {
     status: string,
     details?: { completedBy?: string; finalPrice?: number; paymentMethod?: string; joinedAt?: Date }
   ): Promise<IQueueItemResponseDTO>;
+  /**
+   * Conclusão atômica: guard de transição (só IN_CHAIR → COMPLETED),
+   * comissões (dedupe natural pela unique do par), ledger SERVICE_SALE e
+   * fiado — tudo na mesma transação. Qualquer falha reverte a conclusão.
+   * Lanca Error("QUEUE_ITEM_ALREADY_COMPLETED") quando a guarda recusa.
+   */
   completeWithCommissions(
     id: string,
     details: {
@@ -27,8 +33,21 @@ export interface IQueueRepository {
       finalPrice: number;
       paymentMethod?: string;
       splits: Array<{ professionalId: string; percentage: number }>;
+      /** Presente só quando o pagamento é fiado: o título nasce na MESMA transação. */
+      fiado?: {
+        customerName: string;
+        whatsapp: string;
+        clientId: string | null;
+        description: string;
+        createdById: string;
+      } | null;
     },
-  ): Promise<IQueueItemResponseDTO>;
+  ): Promise<{ item: IQueueItemResponseDTO; createdFiadoId: string | null }>;
+  /**
+   * Arquivamento lógico ("remover da visualização"): o item sai das listas
+   * operacionais, mas comissões/ledger permanecem ancorados nele.
+   */
+  archive(id: string, details: { archivedBy: string; reason?: string | null }): Promise<void>;
   delete(id: string): Promise<void>;
   countCompleted(barbershopId?: string): Promise<number>;
   /**

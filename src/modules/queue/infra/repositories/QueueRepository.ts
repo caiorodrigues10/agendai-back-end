@@ -30,6 +30,7 @@ export class QueueRepository implements IQueueRepository {
       where: {
         barbershopId,
         status: { in: ["WAITING", "IN_CHAIR"] },
+        archivedAt: null,
       },
       include: { service: true },
     });
@@ -68,6 +69,9 @@ export class QueueRepository implements IQueueRepository {
       where: {
         ...(barbershopId ? { barbershopId } : {}),
         status: { in: [...statuses] },
+        // Vistas operacionais/histórico do painel escondem arquivados
+        // ("remover da visualização"); relatórios financeiros leem o ledger.
+        archivedAt: null,
       },
       // Busca na ordem desc para capturar os mais recentes e devolve asc (contrato do frontend).
       orderBy: [{ joinedAt: "desc" }, { id: "desc" }],
@@ -127,8 +131,16 @@ export class QueueRepository implements IQueueRepository {
       finalPrice: number;
       paymentMethod?: string;
       splits: Array<{ professionalId: string; percentage: number }>;
+      fiado?: {
+        customerName: string;
+        whatsapp: string;
+        clientId: string | null;
+        description: string;
+        createdById: string;
+      } | null;
     },
-  ): Promise<IQueueItemResponseDTO> {
+  ): Promise<{ item: IQueueItemResponseDTO; createdFiadoId: string | null }> {
+    let createdFiadoId: string | null = null;
     await prisma.$transaction(async (tx: AppTx) => {
       const queueItem = await tx.queueItem.findUnique({
         where: { id },
@@ -169,7 +181,7 @@ export class QueueRepository implements IQueueRepository {
         });
       }
 
-      // Sessão paga por pacote não gera receita nova (já contada na compra).
+      // Sessão paga por pacote não gera receita nova nem fiado (já foi paga na compra).
       const packageSession = Boolean(queueItem.appointment?.clientPackageId);
       if (!packageSession && details.finalPrice > 0) {
         await recordLedgerEntry(tx, {
@@ -181,12 +193,34 @@ export class QueueRepository implements IQueueRepository {
           sourceId: id,
           occurredAt: completedAt,
           professionalId: details.splits[0]?.professionalId ?? details.completedBy ?? null,
-          clientId: queueItem.clientId ?? null,
+          clientId: details.fiado?.clientId ?? queueItem.clientId ?? null,
           description: queueItem.customerName
             ? `Atendimento na fila: ${queueItem.customerName}`
             : "Atendimento na fila",
           createdBy: details.completedBy ?? details.splits[0]?.professionalId ?? queueItem.barbershopId,
         });
+      }
+
+      // O fiado NÃO é entrada de caixa — só o pagamento dele entra (FIADO_PAYMENT).
+      // Mesmo padrão da agenda: o título nasce dentro da transação da conclusão.
+      if (details.fiado && !packageSession && details.finalPrice > 0) {
+        const fiado = await tx.fiado.create({
+          data: {
+            barbershopId: queueItem.barbershopId,
+            customerName: details.fiado.customerName,
+            whatsapp: details.fiado.whatsapp,
+            clientId: details.fiado.clientId,
+            description: details.fiado.description,
+            originalAmount: details.finalPrice,
+            paidAmount: 0,
+            status: "PENDING",
+            notes: `Gerado automaticamente ao finalizar o atendimento da fila (${id}).`,
+            createdById: details.fiado.createdById,
+            origin: "SERVICE_COMPLETION",
+          },
+          select: { id: true },
+        });
+        createdFiadoId = fiado.id;
       }
     }).catch((error: unknown) => {
       if (error instanceof Error && error.message === "QUEUE_ITEM_ALREADY_COMPLETED") {
@@ -194,9 +228,22 @@ export class QueueRepository implements IQueueRepository {
       }
       throw error;
     });
-    return this.findById(id) as Promise<IQueueItemResponseDTO>;
+    const item = (await this.findById(id)) as IQueueItemResponseDTO;
+    return { item, createdFiadoId };
   }
 
+  async archive(id: string, details: { archivedBy: string; reason?: string | null }): Promise<void> {
+    await prisma.queueItem.update({
+      where: { id },
+      data: {
+        archivedAt: new Date(),
+        archivedBy: details.archivedBy,
+        archiveReason: details.reason ?? null,
+      },
+    });
+  }
+
+  /** @deprecated Exclusão física destrói comissões/ledger ancorados (CASCADE). Use archive(). */
   async delete(id: string): Promise<void> {
     await prisma.queueItem.delete({ where: { id } });
   }
@@ -212,7 +259,7 @@ export class QueueRepository implements IQueueRepository {
 
   async findActiveInLine(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
     const items = await prisma.queueItem.findMany({
-      where: { barbershopId, status: { in: ["WAITING", "IN_CHAIR"] } },
+      where: { barbershopId, status: { in: ["WAITING", "IN_CHAIR"] }, archivedAt: null },
       orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } },
     });
@@ -221,7 +268,7 @@ export class QueueRepository implements IQueueRepository {
 
   async findWaitingByBarbershop(barbershopId: string): Promise<IQueueItemResponseDTO[]> {
     const items = await prisma.queueItem.findMany({
-      where: { barbershopId, status: "WAITING" },
+      where: { barbershopId, status: "WAITING", archivedAt: null },
       orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } },
     });

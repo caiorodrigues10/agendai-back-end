@@ -11,8 +11,15 @@ export class DeleteQueueItemController {
     }
 
     const { id } = request.params as { id: string };
+    // Motivo do arquivamento é opcional (auditoria). Body em DELETE é aceito
+    // pelo Fastify; ausente/vazio segue como null.
+    const body = (request.body ?? undefined) as { reason?: unknown } | undefined;
+    const reason =
+      typeof body?.reason === "string" && body.reason.trim().length > 0
+        ? body.reason.trim().slice(0, 200)
+        : null;
     const useCase = container.resolve(DeleteQueueItemUseCase);
-    await useCase.execute(id, user);
+    await useCase.execute(id, user, reason);
     return reply.status(204).send();
   }
 }

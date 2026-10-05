@@ -23,12 +23,16 @@ import * as queueModule from "@/shared/infra/queue";
 import { AppError } from "@/shared/errors/AppError";
 import { isActiveQueueDuplicate, resolveQueueWhatsApp, STAFF_QUEUE_PLACEHOLDER_WHATSAPP } from "../utils/queueDuplicate";
 import { updateQueueItemSchema } from "../schemas/queueSchemas";
-import { MockFiadoRepository } from "@/modules/fiado/infra/repositories/mocks/MockFiadoRepository";
 
 vi.mock("@/shared/utils/assertOperationEnabled", () => ({
   assertOperationEnabled: vi.fn().mockResolvedValue("HYBRID"),
 }));
 
+/**
+ * Espia o uso de repositório de disponibilidade nas asserções de lembrete de
+ * agendamento. MockFiadoRepository: fiado da conclusão da fila NÃO usa mais
+ * o FiadoRepository — nasce na mesma transação (ver queues.createdFiados).
+ */
 let queues: MockQueueRepository;
 let join: JoinQueueUseCase;
 let list: ListQueueUseCase;
@@ -36,7 +40,6 @@ let update: UpdateQueueItemUseCase;
 let del: DeleteQueueItemUseCase;
 let notifyPosition: NotifyQueuePositionUpdatesUseCase;
 let notifySpy: ReturnType<typeof vi.fn>;
-let fiados: MockFiadoRepository;
 
 const staffShop1 = { id: "u1", role: "OWNER", barbershopId: "shop-1" };
 const staffShop2 = { id: "u2", role: "OWNER", barbershopId: "shop-2" };
@@ -46,7 +49,6 @@ beforeEach(() => {
   queues = new MockQueueRepository();
   notifySpy = vi.fn().mockResolvedValue({ notified: 0, failed: 0 });
   notifyPosition = { execute: notifySpy } as any;
-  fiados = new MockFiadoRepository();
   const shopsStub = {
     findById: vi.fn().mockResolvedValue({
       id: "shop-1",
@@ -56,7 +58,7 @@ beforeEach(() => {
   };
   join = new JoinQueueUseCase(queues as any, shopsStub as any);
   list = new ListQueueUseCase(queues as any);
-  update = new UpdateQueueItemUseCase(queues as any, notifyPosition, shopsStub as any, undefined, fiados);
+  update = new UpdateQueueItemUseCase(queues as any, notifyPosition, shopsStub as any);
   del = new DeleteQueueItemUseCase(queues as any, notifyPosition);
 });
 
@@ -126,16 +128,42 @@ describe("Queue module", () => {
       paymentMethod: "fiado",
     });
 
-    expect(fiados.fiados).toHaveLength(1);
-    expect(fiados.fiados[0]).toMatchObject({
-      barbershopId: "shop-1",
+    // O título nasce na MESMA transação da conclusão (repo), não pós-commit.
+    expect(queues.createdFiados).toHaveLength(1);
+    expect(queues.createdFiados[0]).toMatchObject({
       customerName: "Ana",
       whatsapp: "11988887777",
       description: "Corte",
       originalAmount: 50,
       createdById: "staff-1",
-      status: "PENDING",
     });
+  });
+
+  it("repetir a conclusão (duplo clique/retry) responde já concluído SEM novo fiado", async () => {
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "11988887777",
+      serviceId: "svc-1",
+      customerId: "cust-f2",
+    });
+    q.serviceName = "Corte";
+    await update.execute(q.id, "in_chair", staffShop1);
+    await update.execute(q.id, "completed", staffShop1, {
+      completedBy: "staff-1",
+      finalPrice: 50,
+      paymentMethod: "fiado",
+    });
+
+    const again = await update.execute(q.id, "completed", staffShop1, {
+      completedBy: "staff-1",
+      finalPrice: 50,
+      paymentMethod: "fiado",
+    });
+
+    expect(again.alreadyCompleted).toBe(true);
+    expect(again.status).toBe("completed");
+    expect(queues.createdFiados).toHaveLength(1);
   });
 
   it("Chamar enfileira WhatsApp ao ir para in_chair", async () => {
@@ -295,6 +323,27 @@ describe("Queue module", () => {
     await del.execute(q.id, staffShop1);
     const listAll = await list.execute();
     expect(listAll.find((i) => i.id === q.id)).toBeUndefined();
+  });
+
+  it("arquivar é lógico: some das vistas, mas o registro continua existindo", async () => {
+    const q = await queues.create({
+      barbershopId: "shop-1",
+      customerName: "Ana",
+      whatsapp: "55",
+      serviceId: "svc-1",
+      customerId: "cust-arch",
+    });
+    await update.execute(q.id, "in_chair", staffShop1);
+    await update.execute(q.id, "completed", staffShop1, { finalPrice: 40 });
+
+    await del.execute(q.id, staffShop1);
+
+    // Presente no armazenamento (auditoria/relatórios), fora de QUALQUER vista.
+    expect(await queues.findById(q.id)).not.toBeNull();
+    expect(queues.archivedIds.has(q.id)).toBe(true);
+    expect((await list.execute("shop-1")).find((i) => i.id === q.id)).toBeUndefined();
+    const history = await list.execute("shop-1", { statuses: ["COMPLETED", "CANCELLED"] });
+    expect(history.find((i) => i.id === q.id)).toBeUndefined();
   });
 
   it("lança erro ao atualizar item inexistente", async () => {

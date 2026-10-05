@@ -6,7 +6,20 @@ import { isActiveQueueDuplicate } from "@/modules/queue/utils/queueDuplicate";
 
 export class MockQueueRepository implements IQueueRepository {
   public data: IQueueItemResponseDTO[] = [];
+  /** Itens arquivados (archive) — espelha o filtro `archivedAt: null` do Prisma. */
+  public archivedIds = new Set<string>();
+  /** Fiados solicitados dentro da conclusão (espelha a tx.fiado.create do repo). */
+  public createdFiados: Array<{
+    customerName: string;
+    whatsapp: string;
+    clientId: string | null;
+    description: string;
+    originalAmount: number;
+    createdById: string;
+    id: string;
+  }> = [];
   private seq = 1;
+  private fiadoSeq = 1;
 
   async findActiveDuplicate(
     barbershopId: string,
@@ -17,6 +30,7 @@ export class MockQueueRepository implements IQueueRepository {
     return (
       this.data.find(
         (q) =>
+          !this.archivedIds.has(q.id) &&
           q.barbershopId === barbershopId &&
           (q.status === "waiting" || q.status === "in_chair") &&
           isActiveQueueDuplicate(q, { customerId, whatsappDigits, customerName })
@@ -53,7 +67,7 @@ export class MockQueueRepository implements IQueueRepository {
     options?: { statuses?: readonly ("WAITING" | "IN_CHAIR" | "COMPLETED" | "CANCELLED")[] }
   ): Promise<IQueueItemResponseDTO[]> {
     const statuses = (options?.statuses ?? ["WAITING", "IN_CHAIR"]).map(s => s.toLowerCase());
-    let result = this.data;
+    let result = this.data.filter((q) => !this.archivedIds.has(q.id));
     if (barbershopId) result = result.filter((q) => q.barbershopId === barbershopId);
     return result.filter((q) => statuses.includes(q.status));
   }
@@ -94,10 +108,41 @@ export class MockQueueRepository implements IQueueRepository {
 
   async completeWithCommissions(
     id: string,
-    details: { completedBy?: string; finalPrice: number; paymentMethod?: string; splits: Array<{ professionalId: string; percentage: number }> },
-  ): Promise<IQueueItemResponseDTO> {
+    details: {
+      completedBy?: string;
+      finalPrice: number;
+      paymentMethod?: string;
+      splits: Array<{ professionalId: string; percentage: number }>;
+      fiado?: {
+        customerName: string;
+        whatsapp: string;
+        clientId: string | null;
+        description: string;
+        createdById: string;
+      } | null;
+    },
+  ): Promise<{ item: IQueueItemResponseDTO; createdFiadoId: string | null }> {
+    // Mesma guarda da transação real: só IN_CHAIR conclui; repetição/corrida recusa.
+    const current = this.data.find((q) => q.id === id);
+    if (current && current.status !== "in_chair") throw new Error("QUEUE_ITEM_ALREADY_COMPLETED");
     const item = await this.updateStatus(id, "completed", details);
-    return item;
+    let createdFiadoId: string | null = null;
+    if (details.fiado) {
+      const fid = `fiado-${this.fiadoSeq++}`;
+      createdFiadoId = fid;
+      this.createdFiados.push({
+        ...details.fiado,
+        id: fid,
+        originalAmount: details.finalPrice,
+      });
+    }
+    return { item, createdFiadoId };
+  }
+
+  async archive(id: string, details: { archivedBy: string; reason?: string | null }): Promise<void> {
+    const idx = this.data.findIndex((q) => q.id === id);
+    if (idx < 0) throw new AppError("Item de fila não encontrado", 404);
+    this.archivedIds.add(id);
   }
 
   async delete(id: string): Promise<void> {
@@ -116,6 +161,7 @@ export class MockQueueRepository implements IQueueRepository {
     return this.data
       .filter(
         (q) =>
+          !this.archivedIds.has(q.id) &&
           q.barbershopId === barbershopId &&
           (q.status === "waiting" || q.status === "in_chair")
       )
@@ -126,6 +172,7 @@ export class MockQueueRepository implements IQueueRepository {
     return this.data
       .filter(
         (q) =>
+          !this.archivedIds.has(q.id) &&
           q.barbershopId === barbershopId &&
           q.status === "waiting"
       )
