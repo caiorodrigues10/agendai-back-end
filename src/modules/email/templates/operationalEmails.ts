@@ -335,6 +335,43 @@ export function buildWelcomeStaffEmail(input: {
 	}
 }
 
+/** Convite de dono: o link leva à página pública para definir a senha. */
+export function buildOwnerInviteEmail(input: {
+	ownerName: string
+	barbershopName: string
+	email: string
+	inviteUrl: string
+}): SendEmailInput {
+	const title = `Você é o dono de ${input.barbershopName}`
+	return {
+		to: input.email,
+		subject: `Acesse ${input.barbershopName} — defina sua senha`,
+		text: [
+			`Olá, ${input.ownerName.split(' ')[0]}!`,
+			'',
+			`O acesso de dono da ${input.barbershopName} foi criado para você na ${BRAND_NAME}.`,
+			'',
+			'Defina sua senha para entrar: ' + input.inviteUrl,
+			'',
+			'O link expira em 72 horas.',
+		].join('\n'),
+		html: agendaiEmailBase({
+			title,
+			preheader: `Defina a senha para acessar a ${input.barbershopName}.`,
+			bodyHtml:
+				`<p>Olá, <strong>${esc(input.ownerName.split(' ')[0])}</strong>!</p>` +
+				`<p>O acesso de dono da <strong>${esc(input.barbershopName)}</strong> foi criado para você na ${BRAND_NAME}.</p>` +
+				`<p>Clique abaixo para definir sua senha e entrar no painel. O link expira em 72 horas.</p>`,
+			ctaLabel: 'Definir minha senha',
+			ctaUrl: input.inviteUrl,
+			receivedBy: input.email,
+		}),
+		template: 'owner_invite',
+		metadata: { barbershopName: input.barbershopName },
+		tags: { module: 'auth', kind: 'owner_invite' },
+	}
+}
+
 export function buildSubscriptionTrialEndedEmail(input: {
 	ownerName: string
 	email: string

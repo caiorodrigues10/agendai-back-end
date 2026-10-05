@@ -1,9 +1,17 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { randomBytes } from "node:crypto";
+import { prisma } from "@/libs/prismaClient";
 import { container } from "tsyringe";
-import { CreateBarbershopUseCase } from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopUseCase";
+import { AppError } from "@/shared/errors/AppError";
 import { adminUpdateBarbershopStatusSchema, adminCreateBarbershopSchema, adminListBarbershopsQuerySchema } from "../schemas/adminSchemas";
-import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
+import { CreateShopWithOwnerUseCase } from "../useCases/shop/CreateShopWithOwnerUseCase";
+import { hashInviteToken } from "@/shared/utils/tokenHash";
+import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
+import { getFrontendUrl } from "@/shared/constants/env";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("admin:barbershops");
+const INVITE_EXPIRES_HOURS = 72;
 
 export class AdminBarbershopController {
   async list(request: FastifyRequest, reply: FastifyReply) {
@@ -76,36 +84,95 @@ export class AdminBarbershopController {
 
   async create(request: FastifyRequest, reply: FastifyReply) {
     const parsed = adminCreateBarbershopSchema.parse(request.body);
-    const { name, whatsapp, cnpj, address, active = true } = parsed;
+    if (!request.user) throw new AppError("Não autenticado", 401);
 
-    // Usa o UseCase para garantir que checkCnpjAccess() seja executado
-    const useCase = container.resolve(CreateBarbershopUseCase);
-    const barbershopData = await useCase.execute({ name, whatsapp, cnpj: cnpj ?? undefined });
+    const useCase = container.resolve(CreateShopWithOwnerUseCase);
+    const result = await useCase.execute(
+      { id: request.user.id, ip: request.ip },
+      parsed,
+    );
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await seedBarbershopDefaults(tx, barbershopData.id);
-      await tx.barbershop.update({
-        where: { id: barbershopData.id },
-        data: { address: address ?? undefined, active, approvalStatus: "APPROVED" },
-      });
+    return reply.status(201).send({
+      success: true,
+      data: result.barbershop,
+      owner: result.owner,
+      subscription: result.subscription,
+      inviteSent: result.inviteSent,
+    });
+  }
+
+  /**
+   * Reenvia o convite de dono: revoga o último token e gera outro novo.
+   * Resposta nunca contém o token — ele só existe no link do e-mail.
+   */
+  async resendInvite(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    if (!request.user) throw new AppError("Não autenticado", 401);
+
+    const latest = await prisma.ownerInvite.findFirst({
+      where: { barbershopId: id },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!latest) {
+      throw new AppError("Nenhum convite encontrado para este salão", 404, undefined, "INVITE_NOT_FOUND");
+    }
+    if (latest.status === "ACCEPTED") {
+      throw new AppError("Convite já aceito pelo dono", 409, undefined, "INVITE_ALREADY_ACCEPTED");
+    }
+
+    await prisma.ownerInvite.update({
+      where: { id: latest.id },
+      data: { status: "REVOKED", revokedAt: new Date() },
     });
 
-    const barbershop = await prisma.barbershop.findUniqueOrThrow({ where: { id: barbershopData.id } });
+    const rawInviteToken = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + INVITE_EXPIRES_HOURS * 60 * 60 * 1000);
+    const created = await prisma.ownerInvite.create({
+      data: {
+        barbershopId: id,
+        email: latest.email,
+        invitedById: request.user.id,
+        tokenHash: hashInviteToken(rawInviteToken),
+        status: "PENDING",
+        expiresAt,
+      },
+      select: { id: true, email: true, expiresAt: true },
+    });
 
-    if (request.user) {
+    const [shop, ownerUser] = await Promise.all([
+      prisma.barbershop.findUnique({ where: { id }, select: { name: true } }),
+      prisma.user.findFirst({
+        where: { email: latest.email, barbershopId: id, deletedAt: null },
+        select: { name: true },
+      }),
+    ]);
+
+    let inviteSent = false;
+    try {
+      await enqueueEmail({
+        kind: "owner_invite",
+        ownerName: ownerUser?.name ?? latest.email.split("@")[0],
+        barbershopName: shop?.name ?? "seu salão",
+        email: latest.email,
+        inviteUrl: `${getFrontendUrl()}/convite/${rawInviteToken}`,
+        deduplicationKey: `owner-invite-resend-${created.id}`,
+      });
+      inviteSent = true;
       await prisma.auditLog.create({
         data: {
           userId: request.user.id,
-          action: 'CREATE_BARBERSHOP',
-          resource: 'Barbershop',
-          resourceId: barbershop.id,
-          details: JSON.stringify({ name, whatsapp, cnpj }),
+          action: "OWNER_INVITE_RESEND",
+          resource: "OwnerInvite",
+          resourceId: created.id,
+          details: JSON.stringify({ barbershopId: id, email: latest.email }),
           ipAddress: request.ip,
-          barbershopId: barbershop.id,
+          barbershopId: id,
         },
       });
+    } catch (err) {
+      logger.error({ err, barbershopId: id }, "Falha ao reenviar convite de dono");
     }
 
-    return reply.status(201).send({ success: true, data: barbershop });
+    return reply.status(200).send({ success: true, data: { inviteSent } });
   }
 }

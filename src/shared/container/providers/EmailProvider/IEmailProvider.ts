@@ -8,6 +8,7 @@
 export type EmailTemplateId =
 	| 'welcome'
 	| 'welcome_staff'
+	| 'owner_invite'
 	| 'referral_applied'
 	| 'referral_converted'
 	| 'referral_revoked'

@@ -86,6 +86,10 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.list.bind(barbershopController));
   app.post("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.create.bind(barbershopController));
   app.patch("/admin/barbershops/:id/status", { preHandler: barbershopsManage }, barbershopController.updateStatus.bind(barbershopController));
+  app.post("/admin/barbershops/:id/resend-invite", {
+    preHandler: barbershopsManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, barbershopController.resendInvite.bind(barbershopController));
 
   // ─── Contas ───────────────────────────────────────────────────────────────
   app.get("/admin/accounts", { preHandler: barbershopsManage }, accountsController.list.bind(accountsController));

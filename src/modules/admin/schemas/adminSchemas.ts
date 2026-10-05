@@ -58,6 +58,16 @@ export const adminCreateBarbershopSchema = z.object({
   cnpj: z.string().nullable().optional(),
   address: z.string().max(500).optional(),
   active: z.boolean().optional().default(true),
+  /** Dono criado junto (convite por e-mail para definir a senha). Opcional p/ compat. */
+  owner: z
+    .object({
+      name: z.string().trim().min(2).max(200),
+      email: z.string().trim().email("E-mail inválido"),
+    })
+    .strict()
+    .optional(),
+  planId: z.string().uuid().optional(),
+  trialDays: z.number().int().min(1).max(60).optional(),
 }).strict();
 
 /** Motivo obrigatório de toda revogação de sessão (auditoria + diálogo). */

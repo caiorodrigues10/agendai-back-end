@@ -74,6 +74,7 @@ model User {
   salonEmailPreferences     SalonEmailPreference[]
   emailDeliveryLogs         EmailDeliveryLog[]
   invitationsSent           InternalInvitation[]
+  ownerInvitesSent          OwnerInvite[]
   ticketsCreated            Ticket[]                   @relation("TicketCreatedBy")
   ticketsAssigned           Ticket[]                   @relation("TicketAssignedTo")
   ticketComments            TicketComment[]
@@ -327,6 +328,7 @@ model Barbershop {
   feedPosts                      FeedPost[]
   postMedia                      PostMedia[]
   subscriptions                  Subscription[]
+  ownerInvites                   OwnerInvite[]
   payments                       Payment[]
   serviceCategories              ServiceCategory[]
   expenseCategories              ExpenseCategory[]
@@ -4206,6 +4208,29 @@ model InternalInvitation {
   @@index([invitedById])
   @@index([status])
   @@map("internal_invitations")
+}
+
+/// Convite de dono de salão criado pelo master: guarda APENAS o hash
+/// SHA-256 do token bruto (o token cru existe só no link do e-mail).
+model OwnerInvite {
+  id           String           @id @default(uuid()) @db.Uuid
+  barbershopId String           @db.Uuid
+  email        String           @db.VarChar(100)
+  invitedById  String           @db.Uuid
+  tokenHash    String           @unique @db.VarChar(128)
+  status       InvitationStatus @default(PENDING)
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime         @default(now())
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  invitedBy  User       @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId])
+  @@index([email])
+  @@index([status])
+  @@map("owner_invites")
 }
 
 model Ticket {

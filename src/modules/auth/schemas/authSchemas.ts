@@ -80,6 +80,17 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
 }).strict();
 
+/** Convite de dono de salão (assistente do master) — uso único. */
+export const acceptOwnerInviteSchema = z.object({
+  token: z.string().min(32, "Token inválido"),
+  newPassword: z
+    .string()
+    .min(6, "Senha deve ter no mínimo 6 caracteres")
+    .refine((v) => /[a-zA-Z]/.test(v) && /\d/.test(v), {
+      message: "Senha deve conter letras e números",
+    }),
+}).strict();
+
 export const switchAccountSchema = z.object({
   userId: z.string().uuid("ID de usuário inválido"),
 }).strict();

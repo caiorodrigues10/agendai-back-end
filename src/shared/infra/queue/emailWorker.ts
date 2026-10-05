@@ -24,6 +24,7 @@ import {
   buildAppointmentUrgentRescheduledEmail,
   buildProductReservationAlertEmail,
   buildWelcomeStaffEmail,
+  buildOwnerInviteEmail,
 } from "@/modules/email/templates/operationalEmails";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { categoryForTemplate } from "@/modules/email/services/emailPreferenceService";
@@ -40,6 +41,8 @@ export function buildEmailPayload(data: EmailJobData) {
       return buildWelcomeEmail(data);
     case "welcome_staff":
       return buildWelcomeStaffEmail(data);
+    case "owner_invite":
+      return buildOwnerInviteEmail(data);
     case "referral_applied":
       return buildReferralAppliedEmail(data);
     case "referral_converted":

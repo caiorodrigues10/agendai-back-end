@@ -33,6 +33,14 @@ export type EmailJobData =
       deduplicationKey?: string;
     }
   | {
+      kind: "owner_invite";
+      ownerName: string;
+      barbershopName: string;
+      email: string;
+      inviteUrl: string;
+      deduplicationKey?: string;
+    }
+  | {
       kind: "referral_applied";
       ownerName: string;
       email: string;
@@ -239,6 +247,7 @@ function emailNotificationType(kind: EmailJobData["kind"]): NotificationType {
     case "verify_email": return "AUTH_VERIFY_EMAIL";
     case "welcome": return "AUTH_WELCOME";
     case "welcome_staff": return "AUTH_WELCOME_STAFF";
+    case "owner_invite": return "AUTH_WELCOME_STAFF";
     case "forgot_password": return "AUTH_FORGOT_PASSWORD";
     case "password_changed": return "AUTH_PASSWORD_CHANGED";
     case "referral_applied": return "REFERRAL_APPLIED";
@@ -290,6 +299,7 @@ async function shouldSendEmail(data: EmailJobData): Promise<boolean> {
       "verify_email",
       "welcome",
       "welcome_staff",
+      "owner_invite",
       "forgot_password",
       "password_changed",
       "payment_approved",

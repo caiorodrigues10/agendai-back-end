@@ -10,6 +10,7 @@ import { LogoutController } from "@/modules/auth/useCases/logout/LogoutControlle
 import { SwitchAccountController, validateSwitchAccount } from "@/modules/auth/useCases/switchAccount/SwitchAccountController";
 import { ForgotPasswordController, validateForgotPassword } from "@/modules/auth/useCases/forgotPassword/ForgotPasswordController";
 import { ResetPasswordController, validateResetPassword } from "@/modules/auth/useCases/resetPassword/ResetPasswordController";
+import { AcceptOwnerInviteController, validateAcceptOwnerInvite } from "@/modules/auth/useCases/acceptInvite/AcceptOwnerInviteController";
 import { ResendVerificationEmailController } from "@/modules/auth/useCases/resendVerification/ResendVerificationEmailController";
 import { authenticate } from "@/shared/infra/http/middlewares/authenticate";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
@@ -40,6 +41,7 @@ export async function authRoutes(app: FastifyInstance) {
   const switchAccount = new SwitchAccountController();
   const forgotPassword = new ForgotPasswordController();
   const resetPassword = new ResetPasswordController();
+  const acceptOwnerInvite = new AcceptOwnerInviteController();
   const resendVerification = new ResendVerificationEmailController();
   const authSessions = new AuthSessionController();
 
@@ -62,6 +64,12 @@ export async function authRoutes(app: FastifyInstance) {
     config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
     preHandler: [validateResetPassword],
   }, resetPassword.handle.bind(resetPassword));
+
+  // Convite de dono de salão — público (link do e-mail), uso único, sem recaptcha.
+  app.post("/auth/accept-invite", {
+    config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
+    preHandler: [validateAcceptOwnerInvite],
+  }, acceptOwnerInvite.handle.bind(acceptOwnerInvite));
 
   app.post("/auth/logout", { preHandler: [authenticate, setRlsContext] }, logout.handle.bind(logout));
   app.post("/auth/revoke-all-sessions", { preHandler: [authenticate, setRlsContext] }, logout.revokeAllSessions.bind(logout));

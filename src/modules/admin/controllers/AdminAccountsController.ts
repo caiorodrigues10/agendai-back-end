@@ -188,6 +188,7 @@ export class AdminAccountsController {
       invoicesOverdue,
       invoicesPending,
       lastAppointment,
+      ownerInvite,
     ] = await Promise.all([
       prisma.user.groupBy({
         by: ["role"],
@@ -230,6 +231,17 @@ export class AdminAccountsController {
         where: { barbershopId: id },
         orderBy: [{ date: "desc" }, { time: "desc" }],
         select: { id: true, date: true, time: true, status: true },
+      }),
+      prisma.ownerInvite.findFirst({
+        where: { barbershopId: id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          email: true,
+          status: true,
+          expiresAt: true,
+          acceptedAt: true,
+          createdAt: true,
+        },
       }),
     ]);
 
@@ -320,6 +332,7 @@ export class AdminAccountsController {
           byRole: membersByRole,
         },
         subscription,
+        invite: ownerInvite ?? null,
         billing: {
           invoicesTotal,
           paid: invoicesPaid._count._all,

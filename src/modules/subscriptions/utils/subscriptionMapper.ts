@@ -6,8 +6,13 @@ export function buildSubscriptionResponse(
   barbershopCreatedAt: Date,
   trialDays: number
 ): ISubscriptionResponseDTO {
-  const trialEndsAt = new Date(barbershopCreatedAt);
+  // Fim do trial: endDate real quando TRIALING (trialDays customizado /
+  // extend-trial); caso contrário, fallback createdAt + trialDays.
+  let trialEndsAt = new Date(barbershopCreatedAt);
   trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
+  if (record.status === "TRIALING" && record.endDate) {
+    trialEndsAt = new Date(record.endDate);
+  }
 
   const now = new Date();
   const isInTrial = now <= trialEndsAt;

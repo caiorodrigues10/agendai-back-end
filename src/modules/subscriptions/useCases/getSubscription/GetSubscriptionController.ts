@@ -56,10 +56,14 @@ export class GetSubscriptionController {
 
     const plans = await loadActivePlans();
 
-    // Trial Pro = createdAt + TRIAL_DAYS (independe do plano escolhido/assinado).
-    // Quem assina Essencial no meio do trial continua com Pro até o fim; depois faz "downgrade".
-    const trialEndsAt = new Date(barbershop.createdAt);
+    // Trial: quando existe assinatura TRIALING, o fim real é o endDate
+    // (trialDays customizado no assistente / extend-trial). Sem assinatura,
+    // ou em outro status, cai no padrão createdAt + TRIAL_DAYS.
+    let trialEndsAt = new Date(barbershop.createdAt);
     trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+    if (subscription?.status === "TRIALING" && subscription.endDate) {
+      trialEndsAt = new Date(subscription.endDate);
+    }
     const now = new Date();
     const isInTrial = now <= trialEndsAt;
     const daysRemainingInTrial = isInTrial

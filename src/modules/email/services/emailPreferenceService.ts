@@ -28,6 +28,7 @@ export function categoryForTemplate(templateKey: string): EmailCategoryValue {
     "verify_email",
     "welcome",
     "welcome_staff",
+    "owner_invite",
     "forgot_password",
     "password_changed",
     "payment_approved",
