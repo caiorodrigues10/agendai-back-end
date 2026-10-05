@@ -4,6 +4,7 @@
  */
 import { Queue, QueueEvents } from "bullmq";
 import { getRedisConnection } from "./redisConnection";
+import { getCorrelationId } from "@/shared/utils/correlationContext";
 
 export interface PostBroadcastJobData {
   postId: string;
@@ -18,6 +19,8 @@ export interface PostBroadcastJobData {
   clientPhone: string;
   /** Chave de deduplicação (ex: "post-broadcast:postId:clientId"). */
   deduplicationKey?: string;
+  /** correlationId do request/cron que enfileirou o job (B21). */
+  correlationId?: string;
 }
 
 const QUEUE_NAME = "post-broadcast";
@@ -74,5 +77,9 @@ export async function enqueuePostBroadcast(
   const { ensurePostBroadcastWorker } = await import("./postBroadcastWorker");
   await ensurePostBroadcastWorker();
   const jobId = data.deduplicationKey || undefined;
-  await getQueue().add("send-media", data, { jobId });
+  await getQueue().add(
+    "send-media",
+    { ...data, correlationId: data.correlationId ?? getCorrelationId() },
+    { jobId },
+  );
 }

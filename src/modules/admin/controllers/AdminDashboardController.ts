@@ -68,6 +68,90 @@ function generateTimeSlots(startDate: Date, format: 'day' | 'week' | 'month' | '
   return slots;
 }
 
+type SlotRange = { label: string; start: Date; end: Date };
+
+/** Mesmo avanço de `generateTimeSlots`: os slots são contíguos, mas não são alinhados ao calendário. */
+function slotEndOf(slotStart: Date, format: 'day' | 'week' | 'month' | 'year'): Date {
+  const slotEnd = new Date(slotStart);
+  if (format === 'day') slotEnd.setDate(slotStart.getDate() + 1);
+  else if (format === 'week') slotEnd.setDate(slotStart.getDate() + 7);
+  else if (format === 'month') slotEnd.setMonth(slotStart.getMonth() + 1);
+  else slotEnd.setFullYear(slotStart.getFullYear() + 1);
+  return slotEnd;
+}
+
+function buildSlotRanges(startDate: Date, format: 'day' | 'week' | 'month' | 'year'): SlotRange[] {
+  return generateTimeSlots(startDate, format).map(({ label, date }) => ({
+    label,
+    start: date,
+    end: slotEndOf(date, format),
+  }));
+}
+
+function countBySlot(values: Date[], slots: SlotRange[]): number[] {
+  const counts = new Array<number>(slots.length).fill(0);
+  const starts = slots.map((slot) => slot.start.getTime());
+
+  for (const value of values) {
+    const time = value.getTime();
+    let low = 0;
+    let high = starts.length - 1;
+    let index = -1;
+
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (starts[mid] <= time) {
+        index = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    if (index >= 0 && time < slots[index].end.getTime()) counts[index] += 1;
+  }
+
+  return counts;
+}
+
+/**
+ * Três consultas fixas por request (antes: 3 counts por slot ≈ 90 transações RLS em period=1m).
+ * As fronteiras vêm do gerador de slots em JS: a agregação no banco teria de reproduzir
+ * buckets não-calendarizados (date_trunc divergiria do resultado atual).
+ */
+async function buildChartData(slots: SlotRange[]) {
+  if (slots.length === 0) return [];
+
+  const rangeStart = slots[0].start;
+  const rangeEnd = slots[slots.length - 1].end;
+
+  const [barbershops, appointments, queueItems] = await Promise.all([
+    prisma.barbershop.findMany({
+      where: { createdAt: { gte: rangeStart, lt: rangeEnd } },
+      select: { createdAt: true },
+    }),
+    prisma.appointment.findMany({
+      where: { createdAt: { gte: rangeStart, lt: rangeEnd } },
+      select: { createdAt: true },
+    }),
+    prisma.queueItem.findMany({
+      where: { status: 'COMPLETED', joinedAt: { gte: rangeStart, lt: rangeEnd } },
+      select: { joinedAt: true },
+    }),
+  ]);
+
+  const newShops = countBySlot(barbershops.map((row: { createdAt: Date }) => row.createdAt), slots);
+  const appointmentCounts = countBySlot(appointments.map((row: { createdAt: Date }) => row.createdAt), slots);
+  const completedCounts = countBySlot(queueItems.map((row: { joinedAt: Date }) => row.joinedAt), slots);
+
+  return slots.map((slot, index) => ({
+    label: slot.label,
+    newShops: newShops[index],
+    appointments: appointmentCounts[index],
+    completedQueue: completedCounts[index],
+  }));
+}
+
 export class AdminDashboardController {
   async getDashboard(request: FastifyRequest, reply: FastifyReply) {
     const { period = '12m' } = request.query as { period?: Period };
@@ -92,29 +176,12 @@ export class AdminDashboardController {
       ? (((newInPeriod - newInPrevPeriod) / newInPrevPeriod) * 100).toFixed(1)
       : newInPeriod > 0 ? '+100' : '0';
 
-    const slots = generateTimeSlots(startDate, groupByFormat);
-
-    const chartData = await Promise.all(
-      slots.map(async ({ label: slotLabel, date: slotStart }) => {
-        const slotEnd = new Date(slotStart);
-        if (groupByFormat === 'day') slotEnd.setDate(slotStart.getDate() + 1);
-        else if (groupByFormat === 'week') slotEnd.setDate(slotStart.getDate() + 7);
-        else if (groupByFormat === 'month') slotEnd.setMonth(slotStart.getMonth() + 1);
-        else slotEnd.setFullYear(slotStart.getFullYear() + 1);
-
-        const [newShops, appointments, completedQueue] = await Promise.all([
-          prisma.barbershop.count({ where: { createdAt: { gte: slotStart, lt: slotEnd } } }),
-          prisma.appointment.count({ where: { createdAt: { gte: slotStart, lt: slotEnd } } }),
-          prisma.queueItem.count({ where: { joinedAt: { gte: slotStart, lt: slotEnd }, status: 'COMPLETED' } }),
-        ]);
-
-        return { label: slotLabel, newShops, appointments, completedQueue };
-      })
-    );
+    const slots = buildSlotRanges(startDate, groupByFormat);
+    const chartData = await buildChartData(slots);
 
     const recentBarbershops = await prisma.barbershop.findMany({
       take: 5,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: {
         id: true, name: true, whatsapp: true, active: true,
         approvalStatus: true, createdAt: true, address: true,

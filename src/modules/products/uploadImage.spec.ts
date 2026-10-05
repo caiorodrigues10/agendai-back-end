@@ -88,13 +88,13 @@ describe("ProductCatalogUseCase.uploadImage", () => {
   const user = { id: "user-1", role: "OWNER", barbershopId };
 
   it("faz upload e salva imageUrl no produto", async () => {
-    mockedPrisma.product.findFirst.mockResolvedValue({ id: productId, barbershopId } as any);
+    vi.mocked(mockedPrisma.product.findFirst).mockResolvedValue({ id: productId, barbershopId } as any);
     mockUploadBuffer.mockResolvedValue({
       publicUrl: "https://storage.googleapis.com/agendai-assets/products/prod-1-123.jpg",
       objectName: "products/prod-1-123.jpg",
       size: 1024,
     });
-    mockedPrisma.product.update.mockResolvedValue({} as any);
+    vi.mocked(mockedPrisma.product.update).mockResolvedValue({} as any);
 
     const { useCase } = makeUseCase();
     const buffer = Buffer.from("fake-image-data");
@@ -118,7 +118,7 @@ describe("ProductCatalogUseCase.uploadImage", () => {
   });
 
   it("lança 404 se produto não existe", async () => {
-    mockedPrisma.product.findFirst.mockResolvedValue(null);
+    vi.mocked(mockedPrisma.product.findFirst).mockResolvedValue(null);
     const { useCase } = makeUseCase();
 
     await expect(
@@ -130,7 +130,7 @@ describe("ProductCatalogUseCase.uploadImage", () => {
   });
 
   it("lança erro se uploadBuffer falha", async () => {
-    mockedPrisma.product.findFirst.mockResolvedValue({ id: productId, barbershopId } as any);
+    vi.mocked(mockedPrisma.product.findFirst).mockResolvedValue({ id: productId, barbershopId } as any);
     mockUploadBuffer.mockRejectedValue(new Error("GCS connection refused"));
 
     const { useCase } = makeUseCase();
@@ -145,13 +145,13 @@ describe("ProductCatalogUseCase.uploadImage", () => {
   });
 
   it("normaliza mimeType image/jpg para extensão jpg", async () => {
-    mockedPrisma.product.findFirst.mockResolvedValue({ id: productId, barbershopId } as any);
+    vi.mocked(mockedPrisma.product.findFirst).mockResolvedValue({ id: productId, barbershopId } as any);
     mockUploadBuffer.mockResolvedValue({
       publicUrl: "https://storage.googleapis.com/agendai-assets/products/prod-1.jpg",
       objectName: "products/prod-1.jpg",
       size: 512,
     });
-    mockedPrisma.product.update.mockResolvedValue({} as any);
+    vi.mocked(mockedPrisma.product.update).mockResolvedValue({} as any);
 
     const { useCase } = makeUseCase();
     await useCase.uploadImage(productId, barbershopId, user, {

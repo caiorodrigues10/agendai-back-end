@@ -12,6 +12,10 @@ export interface ICreateAppointmentDTO {
   date: string;
   /** Formato "HH:MM": "10:30" */
   time: string;
+  reservedProducts?: Array<{
+    productId: string;
+    quantity: number;
+  }>;
 }
 
 export interface IUpdateAppointmentDTO {
@@ -43,6 +47,14 @@ export interface IAppointmentResponseDTO {
   reminderSentAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  reservedProducts?: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    imageUrl?: string | null;
+  }>;
 }
 
 /**

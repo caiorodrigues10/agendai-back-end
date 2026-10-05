@@ -1,6 +1,6 @@
 import { injectable } from "tsyringe";
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { publishRealtime } from "@/shared/services/realtimeService";
@@ -29,7 +29,7 @@ export class CheckInAppointmentUseCase {
   async execute(data: ICheckInDTO): Promise<ICheckInResult> {
     const { appointmentId, barbershopId, userId, userRole } = data;
 
-    const result = await prisma.$transaction(async (tx: typeof prisma) => {
+    const result = await prisma.$transaction(async (tx: AppTx) => {
       const appointment = await tx.appointment.findUnique({
         where: { id: appointmentId },
         select: {

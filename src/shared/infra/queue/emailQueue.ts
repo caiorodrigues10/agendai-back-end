@@ -9,8 +9,9 @@ import {
 import { canReceiveEmail } from "@/modules/email/services/emailPreferenceService";
 import { prisma } from "@/libs/prismaClient";
 import type { NotificationType } from "@/modules/notifications/services/notificationRegistry";
+import { getCorrelationId } from "@/shared/utils/correlationContext";
 
-export type EmailJobData =
+export type EmailJobData = (
   | {
       kind: "forgot_password";
       email: string;
@@ -190,7 +191,11 @@ export type EmailJobData =
       expiresAt: Date | string;
       panelUrl: string;
       deduplicationKey?: string;
-    };
+    }
+) & {
+  /** correlationId do request/cron que enfileirou o job (B21). */
+  correlationId?: string;
+};
 
 const QUEUE_NAME = "email";
 const logger = getModuleLogger("queue:email");
@@ -344,9 +349,11 @@ async function enqueueLegacy(data: EmailJobData): Promise<void> {
 
   const { ensureEmailWorker } = await import("./emailWorker");
   await ensureEmailWorker();
-  await getQueue().add(data.kind as EmailTemplateId, data, {
-    jobId: data.deduplicationKey || undefined,
-  });
+  await getQueue().add(
+    data.kind as EmailTemplateId,
+    { ...data, correlationId: data.correlationId ?? getCorrelationId() },
+    { jobId: data.deduplicationKey || undefined },
+  );
 }
 
 export async function enqueueEmail(data: EmailJobData): Promise<void> {

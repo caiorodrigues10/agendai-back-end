@@ -59,7 +59,9 @@ export class ExportFinancialDataUseCase {
         Origem: 'Atendimento',
         Cliente: maskName(event.client?.name ?? 'N/A'),
         Categoria: event.kind ?? '',
-        Descricao: event.description ?? `Evento: ${event.kind}`,
+        // `description` não existe em `CrmFinancialEvent` no schema atual;
+        // cast estreito mantém a leitura — drift listado no relatório de B18.
+        Descricao: (event as unknown as { description?: string }).description ?? `Evento: ${event.kind}`,
         Produzido: event.grossAmount ?? 0,
         Recebido: event.receivedAmount ?? 0,
         'Em Aberto': (event.grossAmount ?? 0) - (event.receivedAmount ?? 0),

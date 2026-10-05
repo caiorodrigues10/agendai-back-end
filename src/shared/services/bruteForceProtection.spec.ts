@@ -5,6 +5,13 @@ vi.stubEnv("NODE_ENV", "production");
 
 const redisStore = new Map<string, { value: string; ttl: number }>();
 
+function globToRegExp(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+
 function createMockRedis() {
   return {
     incr: vi.fn(async (key: string) => {
@@ -36,6 +43,13 @@ function createMockRedis() {
       redisStore.delete(key);
       return 1;
     }),
+    scan: vi.fn(
+      async (cursor: string, _match: string, pattern: string) => {
+        if (cursor !== "0") return ["0", [] as string[]];
+        const matcher = globToRegExp(pattern);
+        return ["0", [...redisStore.keys()].filter((key) => matcher.test(key))];
+      }
+    ),
     pipeline: vi.fn(function (this: ReturnType<typeof createMockRedis>) {
       const cmds: { method: string; args: unknown[] }[] = [];
       const pipelineApi = {
@@ -72,7 +86,7 @@ function createMockRedis() {
 const mockRedis = createMockRedis();
 
 vi.mock("@/shared/infra/queue/redisConnection", () => ({
-  getRedisConnection: () => mockRedis,
+  getApiRedisConnection: () => mockRedis,
 }));
 
 vi.mock("@/shared/utils/logger", () => ({
@@ -88,6 +102,8 @@ describe("bruteForceProtection", () => {
   let checkLock: typeof import("./bruteForceProtection").checkLock;
   let recordFailure: typeof import("./bruteForceProtection").recordFailure;
   let resetAttempts: typeof import("./bruteForceProtection").resetAttempts;
+  let resetByEmail: typeof import("./bruteForceProtection").resetByEmail;
+  let resetByIp: typeof import("./bruteForceProtection").resetByIp;
   let cleanupTimers: typeof import("./bruteForceProtection").cleanupTimers;
 
   beforeEach(async () => {
@@ -98,6 +114,8 @@ describe("bruteForceProtection", () => {
     checkLock = mod.checkLock;
     recordFailure = mod.recordFailure;
     resetAttempts = mod.resetAttempts;
+    resetByEmail = mod.resetByEmail;
+    resetByIp = mod.resetByIp;
     cleanupTimers = mod.cleanupTimers;
   });
 
@@ -200,6 +218,53 @@ describe("bruteForceProtection", () => {
     });
   });
 
+  describe("resetByEmail", () => {
+    it("remove contadores e lock do email via SCAN", async () => {
+      await recordFailure("a@test.com", "1.1.1.1");
+      await recordFailure("a@test.com", "2.2.2.2");
+      await recordFailure("b@test.com", "1.1.1.1");
+      redisStore.set("login:locked:a@test.com", { value: "1", ttl: 60 });
+
+      await resetByEmail("a@test.com");
+
+      expect(redisStore.has("login:attempts:a@test.com:1.1.1.1")).toBe(false);
+      expect(redisStore.has("login:attempts:a@test.com:2.2.2.2")).toBe(false);
+      expect(redisStore.has("login:locked:a@test.com")).toBe(false);
+      expect(redisStore.has("login:attempts:b@test.com:1.1.1.1")).toBe(true);
+      expect(mockRedis.scan).toHaveBeenCalled();
+      expect((mockRedis as { keys?: unknown }).keys).toBeUndefined();
+    });
+  });
+
+  describe("resetByIp", () => {
+    it("remove contadores do ip e os locks dos emails afetados", async () => {
+      await recordFailure("a@test.com", "9.9.9.9");
+      await recordFailure("b@test.com", "9.9.9.9");
+      await recordFailure("c@test.com", "8.8.8.8");
+      redisStore.set("login:locked:a@test.com", { value: "1", ttl: 60 });
+
+      await resetByIp("9.9.9.9");
+
+      expect(redisStore.has("login:attempts:a@test.com:9.9.9.9")).toBe(false);
+      expect(redisStore.has("login:attempts:b@test.com:9.9.9.9")).toBe(false);
+      expect(redisStore.has("login:locked:a@test.com")).toBe(false);
+      expect(redisStore.has("login:attempts:c@test.com:8.8.8.8")).toBe(true);
+      expect(mockRedis.scan).toHaveBeenCalled();
+    });
+
+    it("preserva a semântica de reset quando o SCAN não encontra nada", async () => {
+      await resetByIp("7.7.7.7");
+
+      expect(mockRedis.scan).toHaveBeenCalledWith(
+        "0",
+        "MATCH",
+        "login:attempts:*:7.7.7.7",
+        "COUNT",
+        expect.any(Number),
+      );
+    });
+  });
+
   describe("cleanupTimers", () => {
     it("clears all timers without errors", async () => {
       for (let i = 0; i < 5; i++) {
@@ -242,3 +307,4 @@ describe("bruteForceProtection", () => {
     });
   });
 });
+export {};

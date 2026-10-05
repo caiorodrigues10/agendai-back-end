@@ -29,7 +29,7 @@ const RESPONSE_TEMPLATES: Record<string, (entities: Record<string, unknown>) => 
   human_transfer: () =>
     "Entendi! Vou transferir você para um de nossos atendentes. Por favor, aguarde um momento... 🙋‍♂️",
   greeting: () =>
-    "Olá! 👋 Bem-vindo à Agenda Já! Como posso te ajudar hoje? Posso auxiliar com:\n\n📅 Agendamento\n💰 Preços\n🕐 Horários\n📍 Localização",
+    "Olá! 👋 Bem-vindo aa Agenda Já! Como posso te ajudar hoje? Posso auxiliar com:\n\n📅 Agendamento\n💰 Preços\n🕐 Horários\n📍 Localização",
   farewell: () =>
     "Obrigado pelo contato! 😊 Foi ótimo te atender. Qualquer coisa, é só chamar! Até mais! 👋",
   unknown: () =>

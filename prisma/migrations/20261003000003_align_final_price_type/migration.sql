@@ -1,0 +1,24 @@
+-- migrations/20261003000003_align_final_price_type
+--
+-- `Appointment.finalPrice` está como `DOUBLE PRECISION` em produção e
+-- `REAL` no datamodel (`Float? @db.Real`, prisma/schema.prisma:657).
+--
+-- Origem: a migration `20261002000000_financial_ledger` criou a coluna com o
+-- tipo padrão do `Float` do Prisma (`DOUBLE PRECISION`), enquanto o schema foi
+-- declarado com `@db.Real` no commit e9700d3 ("feat(db): financial ledger
+-- schema and migration") — a mesma convenção usada em `percentage`, `amount`
+-- e `marginPercent`. O DDL ficou para trás da intenção do schema.
+--
+-- Não é arbitrária: `20260726000000_init` criou a coluna irmã
+-- (`queue.finalPrice`) como `REAL`, e `queue.finalPrice` está `REAL` em
+-- produção e no datamodel — este `ALTER` apenas leva `appointments` para a
+-- mesma convenção.
+--
+-- Sem perda de precisão:
+--   * produção: 8 agendamentos, `finalPrice` preenchido em 0, `completedAt` em 0
+--     (a coluna só é gravada na conclusão; nenhum concluído);
+--   * agendai_db (testes): 0 linhas.
+-- A conversão é uma troca de null por null.
+
+-- AlterTable
+ALTER TABLE "appointments" ALTER COLUMN "finalPrice" SET DATA TYPE REAL;

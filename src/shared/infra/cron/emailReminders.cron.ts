@@ -11,6 +11,9 @@ import { prisma } from "@/libs/prismaClient";
 import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
 import { getOwnerContactForBarbershop } from "@/modules/email/services/ownerContact";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { spDateKey, withCronLock, type CronLockContext } from "@/shared/infra/redis/cronLock";
+import { withCronCorrelation } from "@/shared/utils/correlationContext";
 
 const logger = getModuleLogger("cron:email-reminders");
 const TZ = "America/Sao_Paulo";
@@ -31,7 +34,7 @@ function todayInSaoPaulo(offsetDays = 0): string {
 
 // ─── Trial ending ──────────────────────────────────────────────
 
-async function runTrialEndingReminders(): Promise<number> {
+async function runTrialEndingReminders(ctx?: CronLockContext): Promise<number> {
   const now = new Date();
   const endDateMin = new Date(now);
   endDateMin.setDate(endDateMin.getDate() + TRIAL_WARNING_DAYS);
@@ -57,6 +60,10 @@ async function runTrialEndingReminders(): Promise<number> {
 
   let sent = 0;
   for (const sub of subscriptions) {
+    if (ctx && !ctx.isLockHeld()) {
+      logger.warn({ processed: sent }, "Lock de cron perdido — lembretes de trial interrompidos");
+      return sent;
+    }
     const barbershop = sub.barbershop;
     if (!barbershop) continue;
 
@@ -91,7 +98,7 @@ async function runTrialEndingReminders(): Promise<number> {
 
 // ─── Daily digest ─────────────────────────────────────────────
 
-async function runDailyDigest(): Promise<number> {
+async function runDailyDigest(ctx?: CronLockContext): Promise<number> {
   const today = todayInSaoPaulo(0);
 
   // Apenas salões com dono ativo e com agendamentos confirmados hoje.
@@ -108,6 +115,10 @@ async function runDailyDigest(): Promise<number> {
 
   let sent = 0;
   for (const shop of shops) {
+    if (ctx && !ctx.isLockHeld()) {
+      logger.warn({ processed: sent }, "Lock de cron perdido — resumo diário interrompido");
+      return sent;
+    }
     const owner = await getOwnerContactForBarbershop(shop.id);
     if (!owner) continue;
 
@@ -174,14 +185,25 @@ export function scheduleEmailReminders(): void {
   // local do salão.
   cron.schedule(
     "0 18 * * *", // 18:00 America/Sao_Paulo
-    async () => {
+    withCronCorrelation("email-reminders", async () => {
       try {
-        await runTrialEndingReminders();
-        await runDailyDigest();
+        const scheduledKey = spDateKey();
+        await withCronLock(
+          getRedisConnection(),
+          { jobName: "email-reminders", scheduledKey },
+          async (ctx) => {
+            await runTrialEndingReminders(ctx);
+            if (!ctx.isLockHeld()) {
+              logger.warn("Lock de cron perdido — resumo diário não iniciado");
+              return;
+            }
+            await runDailyDigest(ctx);
+          }
+        );
       } catch (err) {
         logger.error({ err }, "Email reminder cron failed");
       }
-    },
+    }),
     { timezone: TZ }
   );
   logger.info("Email reminders scheduler registered (18:00 America/Sao_Paulo)");

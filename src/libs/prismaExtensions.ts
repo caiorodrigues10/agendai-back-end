@@ -6,6 +6,28 @@ function modelDelegateKey(model: string): string {
   return model.charAt(0).toLowerCase() + model.slice(1);
 }
 
+/**
+ * Shape do delegate de um model dentro da transação, acessado por chave
+ * dinâmica (`tx[modelDelegateKey(model)]`). O cast estreito é necessário
+ * porque `Prisma.TransactionClient` não expõe índice dinâmico de string.
+ */
+type DelegateDinamico = Record<
+  string,
+  ((args: unknown) => PromiseLike<unknown>) | undefined
+>;
+
+type DelegatesTx = Record<string, DelegateDinamico | undefined>;
+
+/**
+ * Contrato mínimo do cliente usado dentro da transação da extensão. Declarado
+ * localmente, sem referência a `AppPrisma`, para quebrar o ciclo de tipo
+ * `prismaClient → rlsExtension → prismaClient` (o ciclo gera TS2589
+ * "Type instantiation is excessively deep" na definição da extensão).
+ */
+type ClienteDaExtensao = {
+  $transaction<R>(fn: (tx: Prisma.TransactionClient) => Promise<R>): Promise<R>;
+};
+
 /** Evita reentrar a extensão quando a query já roda no `tx` (loop infinito). */
 const insideRlsTx = new AsyncLocalStorage<boolean>();
 
@@ -21,30 +43,40 @@ const insideRlsTx = new AsyncLocalStorage<boolean>();
  * isso roda em outra conexão do pool e o SET LOCAL não vale — login de OWNER
  * vira 401 "Credenciais inválidas" (usuário invisível).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const rlsExtension: any = Prisma.defineExtension({
+export const rlsExtension = Prisma.defineExtension({
   name: "rls",
   query: {
     $allModels: {
-      async $allOperations({ model, operation, args, query }) {
+      async $allOperations({
+        model,
+        operation,
+        args,
+        query,
+      }): Promise<unknown> {
         if (insideRlsTx.getStore()) {
           return query(args);
         }
 
         const barbershopId = requestContext.getStore()?.barbershopId ?? "";
-        const { prisma } = await import("./prismaClient");
+        // Retorno anotado como `Promise<unknown>` e import com tipo estreito,
+        // ambos documentados: derivar o tipo de `query`/`prisma` aqui estoura
+        // TS2589 e fecha o ciclo `prismaClient → rlsExtension → prismaClient`.
+        const { prisma } = (await import("./prismaClient")) as unknown as {
+          prisma: ClienteDaExtensao;
+        };
 
         return insideRlsTx.run(true, () =>
-          prisma.$transaction(async (tx: any) => {
+          prisma.$transaction(async (tx) => {
             await tx.$executeRaw`
               SELECT set_config('app.current_barbershop_id', ${barbershopId}, TRUE)
             `;
             const key = modelDelegateKey(String(model));
-            const delegate = tx[key];
-            if (!delegate || typeof delegate[operation] !== "function") {
+            const delegate = (tx as unknown as DelegatesTx)[key];
+            const operacao = delegate?.[operation];
+            if (typeof operacao !== "function") {
               return query(args);
             }
-            return delegate[operation](args);
+            return operacao(args);
           })
         );
       },

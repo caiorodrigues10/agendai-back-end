@@ -15,6 +15,7 @@ type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
 		service: { select: { name: true; price: true } }
 		staff: { select: { name: true } }
 		barbershop: { select: { name: true } }
+		productReservations: true
 	}
 }>
 
@@ -38,6 +39,14 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 		reminderSentAt: record.reminderSentAt ?? null,
 		createdAt: record.createdAt,
 		updatedAt: record.updatedAt,
+		reservedProducts: record.productReservations?.map((item) => ({
+			id: item.id,
+			productId: item.productId,
+			productName: item.productName,
+			quantity: item.quantity,
+			unitPrice: item.unitPrice,
+			imageUrl: item.imageUrl,
+		})) ?? [],
 	}
 }
 
@@ -45,6 +54,7 @@ const include = {
 	service: { select: { name: true, price: true } },
 	staff: { select: { name: true } },
 	barbershop: { select: { name: true } },
+	productReservations: true,
 } as const
 
 /** Limites UTC do dia civil. `new Date("YYYY-MM-DD")` + `setDate` no fuso local desloca o intervalo e some o agendamento. */
@@ -120,7 +130,7 @@ export class AppointmentRepository implements IAppointmentRepository {
 				where,
 				skip,
 				take: query.limit,
-				orderBy: [{ date: 'asc' }, { time: 'asc' }],
+				orderBy: [{ date: 'asc' }, { time: 'asc' }, { id: 'asc' }],
 				include,
 			}),
 			prisma.appointment.count({ where }),

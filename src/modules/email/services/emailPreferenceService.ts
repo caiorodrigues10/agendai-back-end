@@ -173,17 +173,18 @@ export async function getBarbershopEmailSettings(
   const settings = await prisma.barbershopEmailSettings.findUnique({
     where: { barbershopId },
   });
-  return (
-    settings ?? {
-      barbershopId,
-      dailyDigestEnabled: true,
-      dailyDigestTime: "18:00",
-      timezone: "America/Sao_Paulo",
-      urgentAppointmentWindowHours: 24,
-      lowStockEnabled: false,
-      performanceSummaryFrequency: "weekly",
-    }
-  );
+  // Drift do schema (B18): o banco devolve `performanceSummaryFrequency` como
+  // `string`, enquanto a interface local exige união literal; cast estreito
+  // apenas no retorno (runtime inalterado).
+  return (settings ?? {
+    barbershopId,
+    dailyDigestEnabled: true,
+    dailyDigestTime: "18:00",
+    timezone: "America/Sao_Paulo",
+    urgentAppointmentWindowHours: 24,
+    lowStockEnabled: false,
+    performanceSummaryFrequency: "weekly",
+  }) as unknown as BarbershopEmailSettings;
 }
 
 export async function updateBarbershopEmailSettings(
@@ -197,7 +198,7 @@ export async function updateBarbershopEmailSettings(
     where: { barbershopId },
     create: { barbershopId, ...input },
     update: input,
-  });
+  }) as unknown as Promise<BarbershopEmailSettings>;
 }
 
 // ─── Token de descadastro seguro ─────────────────────────────────

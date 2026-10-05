@@ -113,7 +113,7 @@ export class EquipmentRepository {
     const now = new Date();
     return prisma.equipment.create({
       data: {
-        barbershopId: data.barbershopId,
+        barbershopId: data.barbershopId as string,
         name: data.name,
         category: equipmentCategoryMap[data.category],
         brand: data.brand ?? null,
@@ -204,7 +204,7 @@ export class EquipmentRepository {
     return prisma.equipmentMovement.create({
       data: {
         equipmentId: data.equipmentId,
-        barbershopId: data.barbershopId,
+        barbershopId: data.barbershopId as string,
         type: movementTypeMap[data.type],
         quantity: data.quantity,
         reason: data.reason ?? null,
@@ -238,7 +238,7 @@ export class EquipmentRepository {
   async createNeed(data: CreateNeedInput) {
     return prisma.equipmentNeed.create({
       data: {
-        barbershopId: data.barbershopId,
+        barbershopId: data.barbershopId as string,
         equipmentId: data.equipmentId ?? null,
         name: data.name,
         quantityNeeded: data.quantityNeeded ?? 1,

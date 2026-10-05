@@ -1,6 +1,6 @@
 import { inject, injectable } from "tsyringe";
 import { randomUUID } from "node:crypto";
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { prisma, Prisma, type AppTx } from "@/libs/prismaClient";
 import type { ProductType as ProductTypeEnum } from "@prisma/client";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
@@ -262,6 +262,37 @@ export class ProductCatalogUseCase {
       this.withReservations(enrichExpiration(stripCost(row, showCost), todayISO, days), reserved, showCustomer),
     );
     return { data, total };
+  }
+
+  async listPublicSaleProducts(barbershopId: string) {
+    const shop = await prisma.barbershop.findUnique({
+      where: { id: barbershopId },
+      select: { id: true },
+    });
+    if (!shop) throw new AppError("SalÃ£o nÃ£o encontrado", 404);
+
+    return prisma.product.findMany({
+      where: {
+        barbershopId,
+        active: true,
+        salePrice: { gt: 0 },
+        type: { in: ["RETAIL", "BOTH"] as ProductTypeEnum[] },
+        OR: [{ trackStock: false }, { stockQty: { gt: 0 } }],
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        imageUrl: true,
+        salePrice: true,
+        stockQty: true,
+        trackStock: true,
+        unitLabel: true,
+        category: { select: { id: true, name: true, color: true } },
+      },
+      orderBy: [{ name: "asc" }],
+      take: 20,
+    });
   }
 
   async createProduct(barbershopId: string, user: ProductActor, data: Prisma.ProductUncheckedCreateInput) {
@@ -738,7 +769,7 @@ export class ProductCatalogUseCase {
       products: opts?.include?.products !== false,
     };
 
-    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    return prisma.$transaction(async (tx: AppTx) => {
       const created = { serviceCategories: 0, productCategories: 0, expenseCategories: 0, services: 0, products: 0 };
       const [serviceCats, productCats, expenseCats, services, products] = await Promise.all([
         tx.serviceCategory.findMany({ where: { OR: [{ barbershopId }, { barbershopId: null }] }, select: { name: true } }),

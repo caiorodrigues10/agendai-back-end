@@ -1,7 +1,11 @@
-import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import type IORedis from "ioredis";
+import { getApiRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { getModuleLogger } from "@/shared/utils/logger";
 
 const logger = getModuleLogger("brute-force");
+
+const SCAN_COUNT = 200;
+const MAX_SCAN_BATCHES = 1_000;
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -37,12 +41,24 @@ function getRemainingTTL(ttlSeconds: number): number {
   return Math.max(0, Math.ceil(ttlSeconds));
 }
 
+async function scanMatchingKeys(redis: IORedis, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = "0";
+  for (let batch = 0; batch < MAX_SCAN_BATCHES; batch++) {
+    const [next, found] = await redis.scan(cursor, "MATCH", pattern, "COUNT", SCAN_COUNT);
+    cursor = String(next);
+    keys.push(...found);
+    if (cursor === "0") break;
+  }
+  return keys;
+}
+
 export async function checkLock(
   email: string,
   ip: string,
 ): Promise<{ locked: boolean; retryAfterSeconds?: number }> {
   try {
-    const redis = getRedisConnection();
+    const redis = getApiRedisConnection();
     const ttl = await redis.ttl(`login:locked:${email}`);
     if (ttl > 0) {
       return { locked: true, retryAfterSeconds: getRemainingTTL(ttl) };
@@ -59,7 +75,7 @@ export async function recordFailure(
   ip: string,
 ): Promise<{ locked: boolean; retryAfterSeconds: number }> {
   try {
-    const redis = getRedisConnection();
+    const redis = getApiRedisConnection();
     const attemptKey = `login:attempts:${email}:${ip}`;
     const lockKey = `login:locked:${email}`;
 
@@ -96,7 +112,7 @@ export async function resetAttempts(
   ip: string,
 ): Promise<void> {
   try {
-    const redis = getRedisConnection();
+    const redis = getApiRedisConnection();
     const pipeline = redis.pipeline();
     pipeline.del(`login:attempts:${email}:${ip}`);
     pipeline.del(`login:locked:${email}`);
@@ -118,12 +134,12 @@ export async function resetAttempts(
  */
 export async function resetByEmail(email: string): Promise<void> {
   try {
-    const redis = getRedisConnection();
+    const redis = getApiRedisConnection();
     await redis.del(`login:locked:${email}`);
 
     // Limpar todos os keys de tentativas que combinem com o email
     const pattern = `login:attempts:${email}:*`;
-    const keys = await redis.keys(pattern);
+    const keys = await scanMatchingKeys(redis, pattern);
     if (keys.length > 0) {
       const pipeline = redis.pipeline();
       for (const key of keys) {
@@ -148,11 +164,11 @@ export async function resetByEmail(email: string): Promise<void> {
  */
 export async function resetByIp(ip: string): Promise<void> {
   try {
-    const redis = getRedisConnection();
+    const redis = getApiRedisConnection();
 
     // Limpar todos os keys de tentativas que combinem com o IP
     const pattern = `login:attempts:*:${ip}`;
-    const keys = await redis.keys(pattern);
+    const keys = await scanMatchingKeys(redis, pattern);
     if (keys.length > 0) {
       const pipeline = redis.pipeline();
       for (const key of keys) {

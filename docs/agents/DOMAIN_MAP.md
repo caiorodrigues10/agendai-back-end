@@ -22,7 +22,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Fiado / despesas | `/fiado`, `/expenses` | `Fiado`, `FiadoPayment`, `Expense*` |
 | Comissões | `/commissions` | modelos de comissão |
 | Assinaturas / planos / pagamentos | `/subscriptions`, `/plans`, `/payments`, webhooks | `Subscription`, `Plan`, `Invoice`, `Payment`, `BlockedEntity` |
-| Feed / posts | `/feed`, `/posts` | `FeedPost` / posts |
+| Feed / posts / perfil social | `/feed`, `/posts`, `/salons/:salonId/posts/:postId`, `/salons/:salonId/stories`, `/salons/:salonId/tagged` | `FeedPost`, `PostMedia`, `PostComment`, `PostTag`; comentários por JWT staff ou sessão OTP do cliente, marcações aprovadas pelo owner |
 | Admin | `/admin/*` | agregações + audit/notifications |
 | Notificações | `/notifications` + filas | deliveries / Evolution |
 | NPS | `/admin/nps/*` (master) + `/nps/:surveyId` (público, com rate limit) | `NpsSurvey`, `NpsResponse`; gating via `NotificationPreference` (`NPS_SURVEY`) e `NotificationSuppression` |

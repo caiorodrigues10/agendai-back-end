@@ -127,7 +127,7 @@ const detailInclude = {
   },
   appointments: {
     include: { service: { select: { name: true } } },
-    orderBy: [{ date: "asc" as const }, { time: "asc" as const }],
+    orderBy: [{ date: "asc" as const }, { time: "asc" as const }, { id: "asc" as const }],
     take: 50,
   },
 };
@@ -220,7 +220,7 @@ export class SalonClientRepository implements ISalonClientRepository {
         where,
         skip,
         take: query.limit,
-        orderBy: { name: "asc" },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
         include: listInclude,
       }),
       prisma.salonClient.count({ where }),

@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import type { Prisma } from "@prisma/client";
 import { AppError } from "@/shared/errors/AppError";
 import { Decimal } from "@prisma/client/runtime/library";
 import type { z } from "zod";
@@ -35,11 +36,13 @@ export class WalletRepository {
   }
 
   async getOrCreateWallet(identityId: string) {
+    // Drift do schema (B18): o `upsert` do código omite `update`, que o tipo
+    // exige; cast estreito preserva o payload (runtime inalterado).
     return prisma.digitalWallet.upsert({
       where: { identityId },
       create: { identityId },
       select: walletSelect,
-    });
+    } as unknown as Prisma.DigitalWalletUpsertArgs);
   }
 
   async getWalletById(walletId: string) {

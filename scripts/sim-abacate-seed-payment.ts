@@ -63,7 +63,7 @@ async function main() {
       paymentMethod: "payment_link",
       transactionAmount: plan.price,
       currency: "BRL",
-      description: `Assinatura Agenda Já — ${plan.name}`,
+      description: `Assinatura Agende Já — ${plan.name}`,
       barbershopId,
       externalReference,
       rawResponse: JSON.stringify({ simulated: true }),

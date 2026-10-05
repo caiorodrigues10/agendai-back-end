@@ -21,6 +21,11 @@ const timeField = z
 	.regex(timeRegex, 'Hora deve ser no formato HH:MM')
 	.refine((v) => isBusinessHour(v), { message: 'Horário fora do comercial (07:00–22:00)' })
 
+const reservedProductSchema = z.object({
+	productId: z.string().uuid('productId invÃ¡lido'),
+	quantity: z.coerce.number().int().min(1).max(10),
+})
+
 export const createAppointmentSchema = z.object({
 	barbershopId: z.string().uuid('barbershopId inválido'),
 	serviceId: z.string().uuid('serviceId inválido'),
@@ -31,6 +36,7 @@ export const createAppointmentSchema = z.object({
 	time: timeField,
 	clientId: z.string().uuid().optional().nullable(),
 	clientPackageId: z.string().uuid().optional().nullable(),
+	reservedProducts: z.array(reservedProductSchema).max(10).optional(),
 })
 
 export const updateAppointmentSchema = z.object({

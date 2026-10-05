@@ -1,12 +1,31 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@/libs/prismaClient';
-import { getRedisConnection } from '@/shared/infra/queue/redisConnection';
+import { getApiRedisConnection } from '@/shared/infra/queue/redisConnection';
+
+const DEAD_JOB_QUEUES = ['email', 'whatsapp', 'post-broadcast', 'notifications-v2'];
+const DEAD_JOBS_PER_QUEUE = 50;
 
 function hoursAgo(h: number): Date {
   return new Date(Date.now() - h * 3600_000);
 }
 function minutesAgo(m: number): Date {
   return new Date(Date.now() - m * 60_000);
+}
+
+async function readDeadJobs(): Promise<string[]> {
+  try {
+    const redis = getApiRedisConnection();
+    const batches = await Promise.all(
+      DEAD_JOB_QUEUES.map((queue) =>
+        redis
+          .zrange(`bull:${queue}:failed`, '0', String(DEAD_JOBS_PER_QUEUE - 1))
+          .catch(() => [] as string[])
+      )
+    );
+    return [...new Set(batches.flat())];
+  } catch {
+    return [];
+  }
 }
 
 export async function getMonitoringDashboard(
@@ -30,9 +49,7 @@ export async function getMonitoringDashboard(
           status: { in: ['PENDING', 'PARTIAL'] },
         },
       }),
-      getRedisConnection()
-        .zrange('bull:jobs:completed', '0', '-1')
-        .catch(() => [] as string[]),
+      readDeadJobs(),
       prisma.errorLog.count({
         where: {
           path: { startsWith: '/api' },

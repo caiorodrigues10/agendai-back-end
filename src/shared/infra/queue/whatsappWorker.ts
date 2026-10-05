@@ -9,6 +9,7 @@ import { sendWhatsAppMessage } from "@/shared/services/evolutionApiService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { prisma } from "@/libs/prismaClient";
 import { refreshCrmCampaignStatus } from "@/modules/crm/services/campaignStatusService";
+import { jobCorrelationId, runWithCorrelationId } from "@/shared/utils/correlationContext";
 
 const logger = getModuleLogger('queue:whatsapp');
 
@@ -28,29 +29,33 @@ function resetIdleTimer(): void {
 function createWorker(): Worker<WhatsAppJobData> {
   const worker = new Worker<WhatsAppJobData>(
     QUEUE_NAME,
-    async (job: Job<WhatsAppJobData>) => {
-      if (_idleTimer) clearTimeout(_idleTimer);
+    (job: Job<WhatsAppJobData>) =>
+      runWithCorrelationId(
+        jobCorrelationId(QUEUE_NAME, job.id, job.data.correlationId),
+        async () => {
+          if (_idleTimer) clearTimeout(_idleTimer);
 
-      const { phone, message, instanceName, platform, campaignRecipientId } = job.data;
+          const { phone, message, instanceName, platform, campaignRecipientId } = job.data;
 
-      logger.debug({ jobId: job.id, attempt: job.attemptsMade + 1, maxAttempts: job.opts.attempts }, 'Processing WhatsApp job');
+          logger.debug({ jobId: job.id, attempt: job.attemptsMade + 1, maxAttempts: job.opts.attempts }, 'Processing WhatsApp job');
 
-      const sent = await sendWhatsAppMessage(phone, message, {
-        instanceName: instanceName || undefined,
-        platform: Boolean(platform),
-      });
+          const sent = await sendWhatsAppMessage(phone, message, {
+            instanceName: instanceName || undefined,
+            platform: Boolean(platform),
+          });
 
-      if (!sent) {
-        throw new Error(`Falha ao enviar WhatsApp`);
-      }
-      if (campaignRecipientId) {
-        const recipient = await prisma.crmCampaignRecipient.update({ where: { id: campaignRecipientId }, data: { status: "SENT", sentAt: new Date(), error: null }, select: { campaignId: true } });
-        await refreshCrmCampaignStatus(recipient.campaignId);
-      }
+          if (!sent) {
+            throw new Error(`Falha ao enviar WhatsApp`);
+          }
+          if (campaignRecipientId) {
+            const recipient = await prisma.crmCampaignRecipient.update({ where: { id: campaignRecipientId }, data: { status: "SENT", sentAt: new Date(), error: null }, select: { campaignId: true } });
+            await refreshCrmCampaignStatus(recipient.campaignId);
+          }
 
-      resetIdleTimer();
-      return { sent: true };
-    },
+          resetIdleTimer();
+          return { sent: true };
+        },
+      ),
     {
       connection: getRedisConnection(),
       concurrency: 5,
@@ -59,7 +64,10 @@ function createWorker(): Worker<WhatsAppJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    logger.error({ err, jobId: job?.id }, 'WhatsApp job failed');
+    logger.error(
+      { err, jobId: job?.id, correlationId: job?.data?.correlationId },
+      "WhatsApp job failed",
+    );
     if (job?.data.campaignRecipientId) {
       prisma.crmCampaignRecipient.update({ where: { id: job.data.campaignRecipientId }, data: { status: "FAILED", error: err.message.slice(0, 2000) }, select: { campaignId: true } })
         .then((recipient: { campaignId: string }) => refreshCrmCampaignStatus(recipient.campaignId))

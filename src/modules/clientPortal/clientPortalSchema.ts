@@ -10,6 +10,7 @@ export const requestOtpSchema = z.object({
     .min(10, "Telefone obrigatório")
     .max(20, "Telefone muito longo"),
   name: z.string().min(1, "Nome obrigatório").max(200).optional(),
+  barbershopId: z.string().uuid().optional(),
 });
 
 export const verifyOtpSchema = z.object({

@@ -49,8 +49,13 @@ vi.mock("@/shared/infra/queue/redisConnection", () => ({
 // --- Mock postImageService ---
 vi.mock("../services/postImageService", () => ({
   buildPostSvg: vi.fn().mockReturnValue("<svg></svg>"),
-  renderPostSvgToPng: vi.fn().mockReturnValue(Buffer.from("png")),
+  renderPostSvgToPng: vi.fn().mockResolvedValue(Buffer.from("png")),
   pngToDataUrl: vi.fn().mockReturnValue("data:image/png;base64,aWNv"),
+}));
+
+vi.mock("tsyringe", async importOriginal => ({
+  ...(await importOriginal<typeof import("tsyringe")>()),
+  container: { resolve: () => ({ extractObjectName: (url: string) => url.startsWith("https://storage.example/") ? url.slice("https://storage.example/".length) : null }) },
 }));
 
 // --- Mock logger ---
@@ -120,6 +125,31 @@ beforeEach(() => {
 // create — sempre nasce como rascunho
 // ---------------------------------------------------------------------------
 describe("PostsController.create — explicit draft by default", () => {
+  it("does not replace an unavailable uploaded photo with an illustrative stock image", async () => {
+    const mediaId = "00000000-0000-0000-0000-000000000004";
+    mockPostMediaFindFirst.mockResolvedValue({ url: "https://storage.example/posts/photo.png" });
+    vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
+    await expect(new PostsController().create({ body: { barbershopId: BARBERSHOP_ID, type: "announcement", templateKey: "editorial-foto", primaryMediaId: mediaId }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toMatchObject({ statusCode: 503 });
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+  });
+  it("persists an uploaded video and returns it to the editor", async () => {
+    const videoUrl = `https://storage.example/posts/video-${BARBERSHOP_ID}-123.mp4`;
+    mockFeedPostCreate.mockResolvedValue(makeDraftRow({ videoUrl }));
+    const reply = fakeReply();
+    await new PostsController().create({ body: { barbershopId: BARBERSHOP_ID, type: "announcement", content: "Nos bastidores", videoUrl }, user: fakeUser() } as unknown as FastifyRequest, reply);
+    expect(mockFeedPostCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ videoUrl, content: "Nos bastidores" }) }));
+    expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ videoUrl }) }));
+  });
+
+  it("rejects videos uploaded for another salon", async () => {
+    await expect(new PostsController().create({ body: { barbershopId: BARBERSHOP_ID, type: "announcement", videoUrl: "https://storage.example/posts/video-other-123.mp4" }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+  });
+  it("rejects a forged tenant filename on an external origin", async () => {
+    const videoUrl = `https://untrusted.example/posts/video-${BARBERSHOP_ID}-123.mp4`;
+    await expect(new PostsController().create({ body: { barbershopId: BARBERSHOP_ID, type: "announcement", videoUrl }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+  });
   it("creates a DRAFT post without broadcasting WhatsApp", async () => {
     mockFeedPostCreate.mockResolvedValue(makeDraftRow());
 
@@ -193,6 +223,11 @@ describe("PostsController.create — explicit draft by default", () => {
 // publish — ação explícita, atômica, sem WhatsApp
 // ---------------------------------------------------------------------------
 describe("PostsController.publish — explicit action, atomic, no WhatsApp", () => {
+  it("does not publish a before/after template without both real photos", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow({ templateKey: "antes-depois" }));
+    await expect(new PostsController().publish({ params: { id: POST_ID }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockFeedPostUpdateMany).not.toHaveBeenCalled();
+  });
   it("publishes a DRAFT post without calling WhatsApp", async () => {
     mockFeedPostFindUnique.mockResolvedValue(makeDraftRow());
     mockFeedPostUpdateMany.mockResolvedValue({ count: 1 });

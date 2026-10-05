@@ -36,6 +36,8 @@ model User {
   userSessions              UserSession[]
   appointments              Appointment[]              @relation("staff")
   feedPosts                 FeedPost[]
+  postComments              PostComment[]
+  postTagsRequested         PostTag[]
   postMedia                 PostMedia[]                @relation("PostMediaUploadedBy")
   referralCodes             ReferralCode[]
   referralsAsReferrer       Referral[]                 @relation("ReferralReferrer")
@@ -326,6 +328,7 @@ model Barbershop {
   queue                          QueueItem[]
   appointments                   Appointment[]
   feedPosts                      FeedPost[]
+  taggedPosts                    PostTag[]
   postMedia                      PostMedia[]
   subscriptions                  Subscription[]
   ownerInvites                   OwnerInvite[]
@@ -627,12 +630,12 @@ model CommissionEntry {
   id             String   @id @default(uuid()) @db.Uuid
   barbershopId   String   @db.Uuid
   queueItemId    String?  @db.Uuid
-  appointmentId  String?  @db.Uuid
   serviceId      String   @db.Uuid
   professionalId String   @db.Uuid
   percentage     Float    @db.Real
   amount         Float    @db.Real
   createdAt      DateTime @default(now())
+  appointmentId  String?  @db.Uuid
 
   barbershop   Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   queueItem    QueueItem?   @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
@@ -924,9 +927,47 @@ model FeedPost {
   primaryMedia   PostMedia?     @relation("PrimaryPostMedia", fields: [primaryMediaId], references: [id], onDelete: SetNull)
   secondaryMedia PostMedia?     @relation("SecondaryPostMedia", fields: [secondaryMediaId], references: [id], onDelete: SetNull)
   showcaseEntry  ShowcaseEntry?
+  comments       PostComment[]
+  tags           PostTag[]
 
   @@index([barbershopId, status, scheduledFor])
   @@map("feed_posts")
+}
+
+model PostComment {
+  id               String   @id @default(uuid()) @db.Uuid
+  postId           String   @db.Uuid
+  authorId         String?  @db.Uuid
+  clientIdentityId String?  @db.Uuid
+  content          String   @db.VarChar(500)
+  createdAt        DateTime @default(now())
+
+  post           FeedPost        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author         User?           @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  clientIdentity ClientIdentity? @relation(fields: [clientIdentityId], references: [id], onDelete: SetNull)
+
+  @@index([postId, createdAt, id])
+  @@index([authorId])
+  @@index([clientIdentityId])
+  @@map("post_comments")
+}
+
+model PostTag {
+  id           String   @id @default(uuid()) @db.Uuid
+  postId       String   @db.Uuid
+  barbershopId String   @db.Uuid
+  requestedById String? @db.Uuid
+  approvedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  post        FeedPost   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  barbershop  Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  requestedBy User?      @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@unique([postId, barbershopId])
+  @@index([barbershopId, approvedAt, createdAt])
+  @@index([requestedById])
+  @@map("post_tags")
 }
 
 enum PostFormat {
@@ -3090,6 +3131,7 @@ model ClientIdentity {
   careInstructions ClientCareInstruction[]
   salonClients     SalonClient[]
   digitalWallet    DigitalWallet?
+  postComments     PostComment[]
 
   @@index([normalizedPhone])
   @@map("client_identities")

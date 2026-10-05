@@ -28,6 +28,8 @@ import { broadcastPostToClients } from "../services/postBroadcastService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
 import { listPostTemplates } from "../services/postTemplates";
+import { loadPostStockImage } from "../services/postStockImages";
+import { assertOwnedPostVideo } from "../services/postVideoOwnership";
 import { listPostPalettes } from "../services/postPalettes";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 
@@ -46,6 +48,7 @@ const postSelect = {
   title: true,
   content: true,
   imageUrl: true,
+  videoUrl: true,
   likes: true,
   createdAt: true,
   status: true,
@@ -69,6 +72,7 @@ type PostRow = {
   title: string | null;
   content: string;
   imageUrl: string | null;
+  videoUrl?: string | null;
   likes: number;
   createdAt: Date;
   status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
@@ -94,6 +98,7 @@ function toPostResponse(post: PostRow) {
     title: post.title ?? undefined,
     content: post.content,
     imageUrl: post.imageUrl ?? undefined,
+    videoUrl: post.videoUrl ?? undefined,
     likes: post.likes,
     createdAt: post.createdAt.getTime(),
     authorName: post.author?.name ?? "Equipe",
@@ -169,9 +174,11 @@ async function loadMediaDataUrl(
     where: { id: mediaId, barbershopId },
     select: { url: true },
   });
-  if (!media?.url) return null;
-  const response = await fetch(media.url);
-  if (!response.ok) return null;
+  if (!media?.url) throw new AppError("Imagem não encontrada na biblioteca deste salão", 404);
+  let response: Response;
+  try { response = await fetch(media.url, { signal: AbortSignal.timeout(10_000) }); }
+  catch { throw new AppError("Não foi possível carregar a foto. Tente novamente antes de publicar.", 503); }
+  if (!response.ok) throw new AppError("A foto enviada está indisponível. Envie novamente antes de publicar.", 503);
   const contentType = response.headers.get("content-type") || "image/jpeg";
   return `data:${contentType};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
 }
@@ -185,6 +192,17 @@ async function loadExternalImageUrl(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+async function assertRequiredPostMedia(post: { barbershopId: string; templateKey: string; primaryMediaId: string | null; secondaryMediaId: string | null }) {
+  const template = listPostTemplates().find(item => item.key === post.templateKey);
+  if (!template) throw new AppError("Modelo de post não encontrado", 400);
+  if (template.requiredMedia > 0 && !post.primaryMediaId) throw new AppError("Adicione uma foto própria para publicar este modelo", 400);
+  if (template.requiredMedia > 1 && !post.secondaryMediaId) throw new AppError("Adicione as fotos de antes e depois para publicar este modelo", 400);
+  await Promise.all([
+    loadMediaDataUrl(post.primaryMediaId, post.barbershopId),
+    loadMediaDataUrl(post.secondaryMediaId, post.barbershopId),
+  ]);
 }
 
 /** Gera a imagem (SVG → PNG → data-URL) com os defaults de título e CTA. */
@@ -211,6 +229,9 @@ async function buildPostImage(
     // Fetch shop logo URL and convert to data URL for the renderer
     barbershop.logoUrl ? loadExternalImageUrl(barbershop.logoUrl) : Promise.resolve(null),
   ]);
+  const template = listPostTemplates().find(item => item.key === (opts.templateKey ?? "agenda-aberta")) as { stockImageKey?: string } | undefined;
+  const stockImageUrl = primaryImageUrl ? null : loadPostStockImage(template?.stockImageKey);
+  const illustrativeBackground = Boolean(stockImageUrl && template?.stockImageKey?.startsWith("promo-"));
   const svg = buildPostSvg({
     shopName: barbershop.name,
     logoUrl: logoDataUrl,
@@ -223,13 +244,21 @@ async function buildPostImage(
     format: opts.format,
     paletteKey: opts.paletteKey,
     designOptions: opts.designOptions,
-    primaryImageUrl,
+    primaryImageUrl: primaryImageUrl ?? stockImageUrl,
     secondaryImageUrl,
+    illustrativeBackground,
   });
-  return pngToDataUrl(renderPostSvgToPng(svg));
+  return pngToDataUrl(await renderPostSvgToPng(svg));
 }
 
 export class PostsController {
+  async templatePreview(request: FastifyRequest, reply: FastifyReply) {
+    const { key } = request.params as { key: string };
+    if (!listPostTemplates().some(template => template.key === key)) throw new AppError("Modelo não encontrado", 404);
+    const query = previewPostQuerySchema.parse({ ...(request.query as object), templateKey: key });
+    assertSameBarbershop(request.user!, query.barbershopId);
+    return reply.send({ success: true, data: { imageUrl: await buildPostImage(query.barbershopId, query) } });
+  }
   async templates(_request: FastifyRequest, reply: FastifyReply) {
     return reply.status(200).send({ success: true, data: listPostTemplates() });
   }
@@ -289,6 +318,8 @@ export class PostsController {
 
     assertSameBarbershop(user, body.barbershopId);
 
+    assertOwnedPostVideo(body.videoUrl, body.barbershopId);
+
     const parsedScheduledFor = body.scheduledFor
       ? new Date(body.scheduledFor)
       : null;
@@ -300,6 +331,11 @@ export class PostsController {
       parsedScheduledFor !== null
         ? ("SCHEDULED" as const)
         : ("DRAFT" as const);
+
+    if (parsedScheduledFor) await assertRequiredPostMedia({
+      barbershopId: body.barbershopId, templateKey: body.templateKey ?? "agenda-aberta",
+      primaryMediaId: body.primaryMediaId ?? null, secondaryMediaId: body.secondaryMediaId ?? null,
+    });
 
     const imageUrl = await buildPostImage(body.barbershopId, {
       title: body.title,
@@ -321,6 +357,7 @@ export class PostsController {
         title: body.title ?? "Vem pra cá hoje!",
         content: body.content,
         imageUrl,
+        videoUrl: body.videoUrl ?? null,
         status,
         postMode: POST_MODE_MAP[body.postMode],
         ctaText: body.ctaText ?? defaultCtaText(body.postMode),
@@ -369,6 +406,14 @@ export class PostsController {
     if (!existing) throw new AppError("Post não encontrado", 404);
 
     assertSameBarbershop(user, existing.barbershopId);
+
+    assertOwnedPostVideo(body.videoUrl, existing.barbershopId);
+
+    if (existing.status === "PUBLISHED" || existing.status === "SCHEDULED") await assertRequiredPostMedia({
+      barbershopId: existing.barbershopId, templateKey: body.templateKey ?? existing.templateKey,
+      primaryMediaId: body.primaryMediaId !== undefined ? body.primaryMediaId : existing.primaryMediaId,
+      secondaryMediaId: body.secondaryMediaId !== undefined ? body.secondaryMediaId : existing.secondaryMediaId,
+    });
 
     const visualChanged =
       body.title !== undefined ||
@@ -421,6 +466,7 @@ export class PostsController {
         ...(body.title !== undefined && { title: body.title }),
         ...(body.ctaText !== undefined && { ctaText: body.ctaText }),
         ...(body.content !== undefined && { content: body.content }),
+        ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl }),
         ...(body.postMode && { postMode: POST_MODE_MAP[body.postMode] }),
         ...(body.templateKey && { templateKey: body.templateKey }),
         ...(body.format && { format: body.format.toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY" }),
@@ -447,10 +493,12 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, status: true },
+      select: { id: true, barbershopId: true, status: true, templateKey: true, primaryMediaId: true, secondaryMediaId: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
     assertSameBarbershop(user, existing.barbershopId);
+
+    await assertRequiredPostMedia(existing);
 
     const result = await prisma.feedPost.updateMany({
       where: { id, status: { in: ["DRAFT", "SCHEDULED"] } },
@@ -472,10 +520,12 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, status: true },
+      select: { id: true, barbershopId: true, status: true, templateKey: true, primaryMediaId: true, secondaryMediaId: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
     assertSameBarbershop(user, existing.barbershopId);
+
+    await assertRequiredPostMedia(existing);
 
     const when = new Date(body.scheduledFor);
     if (when.getTime() <= Date.now()) {

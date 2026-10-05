@@ -29,6 +29,7 @@ import {
 import { getModuleLogger } from "@/shared/utils/logger";
 import { categoryForTemplate } from "@/modules/email/services/emailPreferenceService";
 import { prisma } from "@/libs/prismaClient";
+import { jobCorrelationId, runWithCorrelationId } from "@/shared/utils/correlationContext";
 
 const logger = getModuleLogger('queue:email');
 
@@ -136,31 +137,35 @@ function resetIdleTimer(): void {
 function createWorker(): Worker<EmailJobData> {
   const worker = new Worker<EmailJobData>(
     QUEUE_NAME,
-    async (job: Job<EmailJobData>) => {
-      if (_idleTimer) clearTimeout(_idleTimer);
+    (job: Job<EmailJobData>) =>
+      runWithCorrelationId(
+        jobCorrelationId(QUEUE_NAME, job.id, job.data.correlationId),
+        async () => {
+          if (_idleTimer) clearTimeout(_idleTimer);
 
-      const emailProvider =
-        container.resolve<IEmailProvider>("EmailProvider");
-      const payload = buildEmailPayload(job.data);
-      const result = await emailProvider.send({
-        ...payload,
-        idempotencyKey: job.data.deduplicationKey ?? `email-${job.id}`,
-      });
+          const emailProvider =
+            container.resolve<IEmailProvider>("EmailProvider");
+          const payload = buildEmailPayload(job.data);
+          const result = await emailProvider.send({
+            ...payload,
+            idempotencyKey: job.data.deduplicationKey ?? `email-${job.id}`,
+          });
 
-      // Sincroniza o log do salão: SENT ou FAILED.
-      void logDeliveryToPanel(job.data, payload, result);
+          // Sincroniza o log do salão: SENT ou FAILED.
+          void logDeliveryToPanel(job.data, payload, result);
 
-      if (!result.ok) {
-        const DeliveryError = result.errorKind === "PERMANENT" || result.errorKind === "CONFIG"
-          ? UnrecoverableError : Error;
-        throw new DeliveryError(
-          result.error || `Falha ao enviar e-mail ${job.data.kind}`
-        );
-      }
+          if (!result.ok) {
+            const DeliveryError = result.errorKind === "PERMANENT" || result.errorKind === "CONFIG"
+              ? UnrecoverableError : Error;
+            throw new DeliveryError(
+              result.error || `Falha ao enviar e-mail ${job.data.kind}`
+            );
+          }
 
-      resetIdleTimer();
-      return result;
-    },
+          resetIdleTimer();
+          return result;
+        },
+      ),
     {
       connection: getRedisConnection(),
       concurrency: 5,
@@ -169,7 +174,10 @@ function createWorker(): Worker<EmailJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    logger.error({ err, jobId: job?.id }, 'Email job failed');
+    logger.error(
+      { err, jobId: job?.id, correlationId: job?.data?.correlationId },
+      "Email job failed",
+    );
     resetIdleTimer();
   });
 

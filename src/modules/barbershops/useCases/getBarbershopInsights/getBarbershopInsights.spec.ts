@@ -76,7 +76,7 @@ describe("GetBarbershopInsightsUseCase", () => {
     const twoMonthsAgo = new Date(now);
     twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
-    mockPrisma.queueItem.findMany.mockResolvedValueOnce([
+    vi.mocked(mockPrisma.queueItem.findMany).mockResolvedValueOnce([
       {
         id: "q1",
         serviceId: "s1",
@@ -100,8 +100,8 @@ describe("GetBarbershopInsightsUseCase", () => {
         status: "COMPLETED",
       },
     ] as any);
-    mockPrisma.user.findMany.mockResolvedValueOnce([{ id: "staff1", name: "Barbeiro 1" }] as any);
-    mockPrisma.service.findMany.mockResolvedValueOnce([{ id: "s1", name: "Corte", price: 40 }] as any);
+    vi.mocked(mockPrisma.user.findMany).mockResolvedValueOnce([{ id: "staff1", name: "Barbeiro 1" }] as any);
+    vi.mocked(mockPrisma.service.findMany).mockResolvedValueOnce([{ id: "s1", name: "Corte", price: 40 }] as any);
 
     const result = await useCase.execute(barbershopId, "1y");
 
@@ -131,9 +131,9 @@ describe("GetBarbershopInsightsUseCase", () => {
       };
     });
 
-    mockPrisma.queueItem.findMany.mockResolvedValueOnce(items as any);
-    mockPrisma.user.findMany.mockResolvedValueOnce([{ id: "staff1", name: "Barbeiro" }] as any);
-    mockPrisma.service.findMany.mockResolvedValueOnce([{ id: "s1", name: "Corte", price: 100 }] as any);
+    vi.mocked(mockPrisma.queueItem.findMany).mockResolvedValueOnce(items as any);
+    vi.mocked(mockPrisma.user.findMany).mockResolvedValueOnce([{ id: "staff1", name: "Barbeiro" }] as any);
+    vi.mocked(mockPrisma.service.findMany).mockResolvedValueOnce([{ id: "s1", name: "Corte", price: 100 }] as any);
 
     const result = await useCase.execute(barbershopId, "1y");
 

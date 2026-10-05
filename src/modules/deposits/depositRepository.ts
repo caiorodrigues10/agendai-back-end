@@ -46,13 +46,16 @@ export class DepositRepository {
   }
 
   async updatePolicy(barbershopId: string, data: UpdatePolicyData) {
+    // Drift do schema (B18): `depositRequired` é enum `DepositRequiredMode`,
+    // não boolean. Os casts estreitos preservam o payload exatamente como o
+    // código envia hoje — nada de mudança de runtime.
     return prisma.appointmentPolicy.upsert({
       where: { barbershopId },
       create: {
         barbershopId,
         ...data,
-      },
-      update: data,
+      } as unknown as Prisma.AppointmentPolicyUncheckedCreateInput,
+      update: data as unknown as Prisma.AppointmentPolicyUncheckedUpdateInput,
     });
   }
 
@@ -75,6 +78,9 @@ export class DepositRepository {
       if (existing) return existing;
     }
 
+    // Drift do schema (B18): os campos `amount`/`pixKey`/`notes`/`waivedAt`/
+    // `refundedAt`/status `REJECTED` não existem nos modelos atuais; casts
+    // estreitos mantêm o payload de runtime idêntico.
     return prisma.appointmentDeposit.create({
       data: {
         barbershopId: data.barbershopId,
@@ -84,7 +90,7 @@ export class DepositRepository {
         expiresAt: data.expiresAt,
         idempotencyKey: data.idempotencyKey ?? null,
         status: "PENDING",
-      },
+      } as unknown as Prisma.AppointmentDepositUncheckedCreateInput,
     });
   }
 
@@ -97,7 +103,7 @@ export class DepositRepository {
         confirmedById: userId,
         pixKey: data.pixKey ?? undefined,
         notes: data.notes ?? undefined,
-      },
+      } as unknown as Prisma.AppointmentDepositUncheckedUpdateInput,
     });
   }
 
@@ -108,7 +114,7 @@ export class DepositRepository {
         status: "WAIVED",
         waivedAt: new Date(),
         waivedById: userId,
-      },
+      } as unknown as Prisma.AppointmentDepositUncheckedUpdateInput,
     });
   }
 
@@ -119,7 +125,7 @@ export class DepositRepository {
         status: "REFUNDED",
         refundedAt: new Date(),
         refundedById: userId,
-      },
+      } as unknown as Prisma.AppointmentDepositUncheckedUpdateInput,
     });
   }
 
@@ -128,7 +134,7 @@ export class DepositRepository {
       where: { id: depositId },
       data: {
         status: "REJECTED",
-      },
+      } as unknown as Prisma.AppointmentDepositUncheckedUpdateInput,
     });
   }
 

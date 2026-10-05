@@ -24,16 +24,18 @@ export class AdminReferralsController {
 			take: 10,
 		})
 
+		// `referrerBarbershopId` é anulável no groupBy; os casts preservam o
+		// runtime (null vira "sem correspondência" no `in`/`get`, como sempre).
 		const barbershopIds = topReferrers.map((r: { referrerBarbershopId: string | null }) => r.referrerBarbershopId)
 		const barbershops = await prisma.barbershop.findMany({
-			where: { id: { in: barbershopIds } },
+			where: { id: { in: barbershopIds as string[] } },
 			select: { id: true, name: true },
 		})
 		const barbershopMap = new Map(barbershops.map((b: { id: string; name: string }) => [b.id, b.name]))
 
 		const topReferrersFormatted = topReferrers.map((r: { referrerBarbershopId: string | null; _count: { id: number }; _sum: { rewardDays: number | null } }) => ({
 			barbershopId: r.referrerBarbershopId,
-			barbershopName: barbershopMap.get(r.referrerBarbershopId) ?? 'Desconhecido',
+			barbershopName: barbershopMap.get(r.referrerBarbershopId as string) ?? 'Desconhecido',
 			totalReferrals: r._count.id,
 			creditDays: r._sum.rewardDays ?? 0,
 		}))

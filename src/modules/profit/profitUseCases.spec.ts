@@ -213,11 +213,11 @@ describe("ProfitUseCases", () => {
     it("recalcula por servico e por profissional com comissao real", async () => {
       const result = await useCases.computePeriod("shop-1", "2026-09");
 
-      const byService = result.byService as { serviceId: string; revenue: number }[];
+      const byService = result.byService as unknown as { serviceId: string; revenue: number }[];
       expect(byService.find((e) => e.serviceId === "s1")?.revenue).toBe(100);
       expect(byService.find((e) => e.serviceId === "s2")?.revenue).toBe(50);
 
-      const byStaff = result.byStaff as {
+      const byStaff = result.byStaff as unknown as {
         staffId: string;
         revenue: number;
         commissionAmt: number;

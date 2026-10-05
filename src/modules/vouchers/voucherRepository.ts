@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import type { Prisma } from "@prisma/client";
 import { AppError } from "@/shared/errors/AppError";
 import {
   createVoucherSchema,
@@ -81,7 +82,9 @@ export class VoucherRepository {
         minPurchase: data.minPurchase ?? null,
         maxUses: data.maxUses ?? null,
         perClientLimit: data.perClientLimit,
-        applicableServiceIds: data.applicableServiceIds ?? null,
+        // Drift do schema (B18): `applicableServiceIds` é JSON e não aceita
+        // `null` literal; cast estreito preserva o valor de runtime.
+        applicableServiceIds: (data.applicableServiceIds ?? null) as unknown as Prisma.InputJsonValue,
         startAt: new Date(data.startAt),
         endAt: new Date(data.endAt),
         isActive: data.isActive,
@@ -111,7 +114,7 @@ export class VoucherRepository {
         ...(data.minPurchase !== undefined && { minPurchase: data.minPurchase }),
         ...(data.maxUses !== undefined && { maxUses: data.maxUses }),
         ...(data.perClientLimit !== undefined && { perClientLimit: data.perClientLimit }),
-        ...(data.applicableServiceIds !== undefined && { applicableServiceIds: data.applicableServiceIds }),
+        ...(data.applicableServiceIds !== undefined && { applicableServiceIds: data.applicableServiceIds as unknown as Prisma.InputJsonValue }),
         ...(data.startAt !== undefined && { startAt: new Date(data.startAt) }),
         ...(data.endAt !== undefined && { endAt: new Date(data.endAt) }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),

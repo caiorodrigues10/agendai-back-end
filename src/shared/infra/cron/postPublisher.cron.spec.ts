@@ -32,8 +32,26 @@ vi.mock("@/libs/prismaClient", () => ({
 // --- Mock postImageService ---
 vi.mock("@/modules/posts/services/postImageService", () => ({
   buildPostSvg: vi.fn().mockReturnValue("<svg></svg>"),
-  renderPostSvgToPng: vi.fn().mockReturnValue(Buffer.from("png")),
+  renderPostSvgToPng: vi.fn().mockResolvedValue(Buffer.from("png")),
   pngToDataUrl: vi.fn().mockReturnValue("data:image/png;base64,aWNv"),
+}));
+
+// --- Mock distributed lock ---
+let lockHeld = true;
+const mockWithCronLock = vi.fn(async (...args: unknown[]) => {
+  const fn = args[2] as (ctx: { isLockHeld: () => boolean }) => Promise<void>;
+  return fn({ isLockHeld: () => lockHeld });
+});
+
+vi.mock("@/shared/infra/queue/redisConnection", () => ({
+  getRedisConnection: vi.fn(() => ({})),
+}));
+
+vi.mock("@/shared/infra/redis/cronLock", () => ({
+  withCronLock: (...args: unknown[]) => mockWithCronLock(...args),
+  spDateKey: vi.fn(() => "2026-08-28"),
+  spMinuteKey: vi.fn(() => "2026-08-28-09-00"),
+  spSlotKey: vi.fn(() => "2026-08-28-09-00"),
 }));
 
 const BARBERSHOP_ID = "00000000-0000-0000-0000-000000000001";
@@ -51,6 +69,7 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    lockHeld = true;
 
     // Mock node-cron to capture the handler
     vi.doMock("node-cron", () => ({
@@ -180,5 +199,37 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
       { count: 1 },
       "Posts agendados publicados pelo cron"
     );
+  });
+
+  it("roda o tick dentro de withCronLock com jobName estável e scheduledKey de minuto", async () => {
+    await handler();
+
+    expect(mockWithCronLock).toHaveBeenCalledTimes(1);
+    const [, options] = mockWithCronLock.mock.calls[0];
+    expect(options).toEqual({
+      jobName: "post-publisher",
+      scheduledKey: "2026-08-28-09-00",
+    });
+  });
+
+  it("perda do lock interrompe publicação e auto-post", async () => {
+    lockHeld = false;
+    mockFeedPostFindMany.mockResolvedValue([
+      { id: POST_ID_1, barbershopId: BARBERSHOP_ID, title: "P1", ctaText: null },
+    ]);
+    mockBarbershopFindMany.mockResolvedValue([
+      { id: BARBERSHOP_ID, name: "Barber Shop", logoUrl: null, autoPostLastDate: null },
+    ]);
+    mockScheduleFindFirst.mockResolvedValue({
+      isOpen: true,
+      openTime: "09:00",
+      closeTime: "19:00",
+    });
+
+    await handler();
+
+    expect(mockFeedPostUpdateMany).not.toHaveBeenCalled();
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalled();
   });
 });

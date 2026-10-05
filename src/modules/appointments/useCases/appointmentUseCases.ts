@@ -27,6 +27,15 @@ import {
 
 const FORBIDDEN_TRANSITIONS = new Set(["COMPLETED", "CHECKED_IN", "CANCELLED"]);
 
+type ReservableProductSnapshot = {
+  id: string;
+  name: string;
+  salePrice: number;
+  imageUrl: string | null;
+  trackStock: boolean;
+  stockQty: number;
+};
+
 function mapCreatedAppointment(record: {
   id: string;
   barbershopId: string;
@@ -45,6 +54,14 @@ function mapCreatedAppointment(record: {
   service?: { name: string; price: number } | null;
   staff?: { name: string } | null;
   barbershop?: { name: string } | null;
+  productReservations?: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    imageUrl: string | null;
+  }>;
 }): IAppointmentResponseDTO {
   return {
     id: record.id,
@@ -65,7 +82,72 @@ function mapCreatedAppointment(record: {
     updatedAt: record.updatedAt,
     clientId: record.clientId ?? null,
     clientPackageId: record.clientPackageId ?? null,
+    reservedProducts: record.productReservations?.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      imageUrl: item.imageUrl,
+    })) ?? [],
   };
+}
+
+async function createProductReservationsInTx(
+  tx: any,
+  input: {
+    barbershopId: string;
+    appointmentId: string;
+    items?: Array<{ productId: string; quantity: number }>;
+  }
+): Promise<void> {
+  const items = input.items ?? [];
+  if (!items.length) return;
+
+  const quantities = new Map<string, number>();
+  for (const item of items) {
+    quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+  }
+
+  const products = await tx.product.findMany({
+    where: {
+      barbershopId: input.barbershopId,
+      id: { in: [...quantities.keys()] },
+      active: true,
+      type: { in: ["RETAIL", "BOTH"] },
+    },
+    select: {
+      id: true,
+      name: true,
+      salePrice: true,
+      imageUrl: true,
+      trackStock: true,
+      stockQty: true,
+    },
+  }) as ReservableProductSnapshot[];
+
+  if (products.length !== quantities.size) {
+    throw new AppError("Um dos produtos selecionados nÃ£o estÃ¡ disponÃ­vel para reserva", 400);
+  }
+
+  for (const product of products) {
+    const quantity = quantities.get(product.id) ?? 0;
+    if (product.trackStock && product.stockQty < quantity) {
+      throw new AppError(`Estoque insuficiente para ${product.name}`, 409, undefined, "PRODUCT_STOCK_UNAVAILABLE");
+    }
+  }
+
+  await tx.appointmentProductReservation.createMany({
+    data: products.map((product) => ({
+      barbershopId: input.barbershopId,
+      appointmentId: input.appointmentId,
+      productId: product.id,
+      productName: product.name,
+      quantity: quantities.get(product.id) ?? 1,
+      unitPrice: product.salePrice,
+      imageUrl: product.imageUrl,
+    })),
+  });
 }
 
 async function createAppointmentAtomic(
@@ -79,7 +161,7 @@ async function createAppointmentAtomic(
     return created;
   }
 
-  const lock = new AdvisoryLock(prisma);
+  const lock = new AdvisoryLock(prisma as any);
   const lockId = AdvisoryLock.generateLockId(data.barbershopId, data.date);
   const release = await lock.acquire(lockId);
 
@@ -161,9 +243,24 @@ async function createAppointmentAtomic(
           service: { select: { name: true, price: true } },
           staff: { select: { name: true } },
           barbershop: { select: { name: true } },
+          productReservations: true,
         },
       });
-      return mapCreatedAppointment(record);
+      await createProductReservationsInTx(tx, {
+        barbershopId: data.barbershopId,
+        appointmentId: record.id,
+        items: data.reservedProducts,
+      });
+      const withReservations = await tx.appointment.findUniqueOrThrow({
+        where: { id: record.id },
+        include: {
+          service: { select: { name: true, price: true } },
+          staff: { select: { name: true } },
+          barbershop: { select: { name: true } },
+          productReservations: true,
+        },
+      });
+      return mapCreatedAppointment(withReservations);
     });
     publishRealtime(data.barbershopId, "appointments:changed");
     return created;
@@ -322,7 +419,7 @@ export class UpdateAppointmentUseCase {
 
     const isReschedule = data.date || data.time || data.staffId;
     if (isReschedule && !process.env.VITEST) {
-      const lock = new AdvisoryLock(prisma);
+      const lock = new AdvisoryLock(prisma as any);
       const lockDateSource = data.date ?? appointment.date;
       const lockDate =
         lockDateSource instanceof Date

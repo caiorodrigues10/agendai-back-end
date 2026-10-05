@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { ChargeTrialEndedSubscriptionsUseCase } from "@/modules/subscriptions/useCases/chargeTrialEnded/ChargeTrialEndedSubscriptionsUseCase";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { withCronLock } from "@/shared/infra/redis/cronLock";
+import { withCronCorrelation } from "@/shared/utils/correlationContext";
 
 type CronLogger = {
   info: (obj: object | string, msg?: string) => void;
@@ -18,7 +19,7 @@ export function scheduleTrialCardCharges(log: CronLogger): void {
   try {
     cron.schedule(
       "0 9 * * *",
-      async () => {
+      withCronCorrelation("trial-card-charges", async () => {
         try {
           const scheduledKey = new Intl.DateTimeFormat("en-CA", {
             timeZone: "America/Sao_Paulo",
@@ -35,7 +36,7 @@ export function scheduleTrialCardCharges(log: CronLogger): void {
         } catch (err) {
           log.error({ err }, "Falha ao rodar cron de cobrança pós-trial");
         }
-      },
+      }),
       { timezone: "America/Sao_Paulo" }
     );
     log.info(

@@ -58,7 +58,7 @@ export class CashMovementRepository {
 
     return prisma.cashMovement.findMany({
       where,
-      orderBy: { occurredAt: "desc" },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
     });
   }
 
@@ -84,7 +84,10 @@ export class CashMovementRepository {
       summary[m.paymentMethod].count += 1;
     }
 
-    return { summary, totalMovements: movements.length };
+    return {
+      summary,
+      totalMovements: movements.length,
+    };
   }
 
   async countByDate(barbershopId: string, date: Date): Promise<number> {

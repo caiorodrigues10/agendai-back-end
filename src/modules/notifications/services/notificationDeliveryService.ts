@@ -15,6 +15,7 @@ import {
   type NotificationChannelName,
   type NotificationType,
 } from "./notificationRegistry";
+import { getCorrelationId } from "@/shared/utils/correlationContext";
 
 export type NotificationV2Mode = "disabled" | "shadow" | "active";
 
@@ -32,6 +33,12 @@ export interface NotificationPayload extends Record<string, unknown> {
     platform?: boolean;
   };
   email?: Record<string, unknown>;
+  /**
+   * correlationId do contexto que agendou. Persistido junto do payload
+   * criptografado do outbox — é a ponte que permite ao dispatcher
+   * reconectar o job ao request/webhook original (B21).
+   */
+  correlationId?: string;
 }
 
 export interface ScheduleNotificationInput {
@@ -146,6 +153,11 @@ export async function scheduleNotification(
     retryOfId: input.retryOfId ?? null,
   };
 
+  // Correlação vigente no contexto (request/cron) sobrescreve a herdada:
+  // cada agendamento fica ligado à origem imediata que o disparou.
+  const correlationId = getCorrelationId() ?? input.payload.correlationId;
+  const payload = correlationId ? { ...input.payload, correlationId } : input.payload;
+
   try {
     if (skipReason) {
       return await db.notificationDelivery.create({
@@ -159,7 +171,7 @@ export async function scheduleNotification(
       });
     }
 
-    const encrypted = encryptNotificationPayload(input.payload);
+    const encrypted = encryptNotificationPayload(payload);
     return await db.notificationDelivery.create({
       data: {
         ...baseData,
@@ -291,4 +303,38 @@ export function encryptedPayloadFromRecord(record: any): EncryptedNotificationPa
     tag: record.payloadTag,
     keyVersion: record.keyVersion,
   };
+}
+
+/**
+ * Lê o correlationId persistido no payload criptografado de uma linha de
+ * outbox. Usado pelo dispatcher para religar o job ao request/webhook que
+ * originou a notificação. Retorna undefined quando o registro não tem
+ * payload utilizável (chave rotacionada, registro legado) — o chamador
+ * cai em um correlationId autônomo.
+ */
+export function extractCorrelationIdFromOutbox(outbox: {
+  payloadCiphertext?: unknown;
+  payloadIv?: unknown;
+  payloadTag?: unknown;
+  keyVersion?: unknown;
+}): string | undefined {
+  if (
+    typeof outbox.payloadCiphertext !== "string" ||
+    typeof outbox.payloadIv !== "string" ||
+    typeof outbox.payloadTag !== "string" ||
+    typeof outbox.keyVersion !== "string"
+  ) {
+    return undefined;
+  }
+  try {
+    const payload = decryptNotificationPayload<NotificationPayload>({
+      ciphertext: outbox.payloadCiphertext,
+      iv: outbox.payloadIv,
+      tag: outbox.payloadTag,
+      keyVersion: outbox.keyVersion,
+    });
+    return typeof payload.correlationId === "string" ? payload.correlationId : undefined;
+  } catch {
+    return undefined;
+  }
 }

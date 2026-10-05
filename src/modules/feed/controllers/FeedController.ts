@@ -7,6 +7,7 @@ import {
   updateFeedPostSchema,
   listFeedQuerySchema,
 } from "../schemas/feedSchemas";
+import { publishedPostWhere } from "../social/socialRepository";
 
 const feedSelect = {
   id: true,
@@ -15,6 +16,9 @@ const feedSelect = {
   title: true,
   content: true,
   imageUrl: true,
+  videoUrl: true,
+  format: true,
+  _count: { select: { comments: true } },
   likes: true,
   createdAt: true,
   status: true,
@@ -32,6 +36,9 @@ type FeedRow = {
   title: string | null;
   content: string;
   imageUrl: string | null;
+  videoUrl?: string | null;
+  format?: string;
+  _count?: { comments: number };
   likes: number;
   createdAt: Date;
   status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
@@ -57,6 +64,9 @@ function toResponse(post: FeedRow) {
     title: post.title ?? undefined,
     content: post.content,
     imageUrl: post.imageUrl ?? undefined,
+    videoUrl: post.videoUrl ?? undefined,
+    format: (post.format ?? "SQUARE").toLowerCase(),
+    commentsCount: post._count?.comments ?? 0,
     likes: post.likes,
     createdAt: post.createdAt.getTime(),
     authorName: post.author?.name ?? "Equipe",
@@ -84,7 +94,7 @@ export class FeedController {
     }
 
     const posts = await prisma.feedPost.findMany({
-      where: { barbershopId, status: "PUBLISHED" },
+      where: publishedPostWhere(barbershopId),
       select: feedSelect,
       orderBy: { createdAt: "desc" },
     });
@@ -106,6 +116,7 @@ export class FeedController {
         title: body.title ?? null,
         content: body.content,
         imageUrl: body.imageUrl ?? null,
+        videoUrl: body.videoUrl ?? null,
         // Posts criados pelo formulário antigo continuam públicos
         status: "PUBLISHED",
         publishedAt: new Date(),
@@ -123,7 +134,7 @@ export class FeedController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, likes: true },
+      select: { id: true, barbershopId: true, likes: true, status: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
 
@@ -132,13 +143,15 @@ export class FeedController {
       body.type === undefined &&
       body.title === undefined &&
       body.content === undefined &&
-      body.imageUrl === undefined;
+      body.imageUrl === undefined &&
+      body.videoUrl === undefined;
 
     // Curtir é público; edição de conteúdo exige staff da barbearia
     if (!onlyLikes) {
       if (!user) throw new AppError("Token ausente", 401);
       assertSameBarbershop(user, existing.barbershopId);
     }
+    if (onlyLikes && existing.status !== "PUBLISHED") throw new AppError("Publicação não encontrada", 404);
 
     const post = await prisma.feedPost.update({
       where: { id },
@@ -147,9 +160,10 @@ export class FeedController {
         ...(body.title !== undefined && { title: body.title ?? null }),
         ...(body.content !== undefined && { content: body.content }),
         ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl ?? null }),
+        ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl ?? null }),
         // Curtidas: aceita apenas incremento de +1 por request (anti-abuso simples)
         ...(body.likes !== undefined && {
-          likes: Math.min(body.likes, existing.likes + 1),
+          likes: { increment: 1 },
         }),
       },
       select: feedSelect,

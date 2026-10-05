@@ -53,4 +53,29 @@ describe("idempotencyService", () => {
     expect(second.replayed).toBe(false);
     expect(op).toHaveBeenCalledTimes(2);
   });
+
+  it("rejects the same key used with a different payload", async () => {
+    const operation = vi.fn().mockResolvedValue({ invoiceId: "invoice-2" });
+    await executeIdempotent(request("mismatch-key-000001", { amount: 10 }), "pix", operation);
+    await expect(
+      executeIdempotent(request("mismatch-key-000001", { amount: 999 }), "pix", operation),
+    ).rejects.toMatchObject({ statusCode: 409, code: "IDEMPOTENCY_PAYLOAD_MISMATCH" });
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cache the result when the operation fails", async () => {
+    const failing = vi.fn().mockRejectedValue(new Error("boom"));
+    await expect(
+      executeIdempotent(request("failed-key-0000001", { amount: 10 }), "pix", failing),
+    ).rejects.toBeInstanceOf(Error);
+
+    const retry = vi.fn().mockResolvedValue({ invoiceId: "invoice-3" });
+    const result = await executeIdempotent(
+      request("failed-key-0000001", { amount: 10 }),
+      "pix",
+      retry,
+    );
+    expect(result.replayed).toBe(false);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
 });

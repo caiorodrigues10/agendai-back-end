@@ -5,6 +5,7 @@ import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
 import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/libs/prismaClient";
+import type { EmailDeliveryStatus } from "@prisma/client";
 import {
   canReceiveEmail,
   getBarbershopEmailSettings,
@@ -120,10 +121,12 @@ export async function emailPreferenceRoutes(app: FastifyInstance) {
         search: z.string().max(200).optional(),
       }).parse(request.query);
 
+      // Drift do schema (B18): `status` do query vem como `string`; o cast
+      // estreito mantém o filtro de runtime idêntico.
       const where = {
         barbershopId,
         ...(query.category && { category: query.category }),
-        ...(query.status && { status: query.status.toUpperCase() }),
+        ...(query.status && { status: query.status.toUpperCase() as EmailDeliveryStatus }),
         ...(query.search && { subject: { contains: query.search, mode: "insensitive" as const } }),
       };
 

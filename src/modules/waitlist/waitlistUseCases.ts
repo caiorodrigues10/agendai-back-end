@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { prismaWaitlistLegado } from "./waitlistRepository";
 import { AppError } from "@/shared/errors/AppError";
 import {
   WaitlistRepository,
@@ -73,7 +74,7 @@ export class WaitlistUseCases {
 
     const appointment = await prisma.appointment.create({
       data: {
-        barbershopId: offer.entry.barbershop?.id ?? (offer.entry as any).barbershopId,
+        barbershopId: offer.entry.barbershop?.id ?? offer.entry.barbershopId,
         serviceId: offer.entry.serviceId,
         staffId: offer.staffId,
         customerName: offer.entry.customerName,
@@ -84,7 +85,7 @@ export class WaitlistUseCases {
       },
     });
 
-    await prisma.waitlistEntry.update({
+    await prismaWaitlistLegado.waitlistEntry.update({
       where: { id: offer.entryId },
       data: { status: "FULFILLED" },
     });
@@ -103,12 +104,12 @@ export class WaitlistUseCases {
 
     await this.repo.respondToOffer(offer.id, "DECLINED");
 
-    const pendingOffers = await prisma.waitlistOffer.count({
+    const pendingOffers = await prismaWaitlistLegado.waitlistOffer.count({
       where: { entryId: offer.entryId, status: "PENDING" },
     });
 
     if (pendingOffers === 0) {
-      await prisma.waitlistEntry.update({
+      await prismaWaitlistLegado.waitlistEntry.update({
         where: { id: offer.entryId },
         data: { status: "ACTIVE" },
       });
