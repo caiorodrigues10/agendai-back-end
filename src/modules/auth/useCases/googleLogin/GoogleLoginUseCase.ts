@@ -18,6 +18,7 @@ interface UserLike {
   barbershopId: string | null;
   cpf: string | null;
   emailVerified?: boolean;
+  permissions?: string[] | null;
 }
 
 @injectable()
@@ -84,6 +85,7 @@ export class GoogleLoginUseCase {
       barbershopId: user.barbershopId ?? null,
       cpf: user.cpf ?? null,
       emailVerified: user.emailVerified ?? false,
+      permissions: user.permissions ?? [],
     };
 
     return issueAuthSession(userLike, reply, true, context);

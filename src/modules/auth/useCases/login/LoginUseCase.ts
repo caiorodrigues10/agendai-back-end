@@ -21,6 +21,7 @@ interface UserLike {
   barbershopId: string | null;
   cpf: string | null;
   emailVerified?: boolean;
+  permissions?: string[] | null;
 }
 
 interface UserWithEmailPassword {
@@ -34,6 +35,7 @@ interface UserWithEmailPassword {
   password: string | null;
   termsVersion: string | null;
   emailVerified: boolean | null;
+  permissions?: string[] | null;
 }
 
 @injectable()
@@ -91,6 +93,7 @@ export class LoginUseCase {
       barbershopId: user.barbershopId ?? null,
       cpf: user.cpf ?? null,
       emailVerified: user.emailVerified ?? false,
+      permissions: user.permissions ?? [],
     };
 
     return issueAuthSession(userLike, reply, rememberMe, context);
