@@ -81,6 +81,11 @@ describe("postRenderPool", () => {
     const err = await expectAppError(renderSvgToPng(heavySvg(300_000)), "POST_RENDER_TIMEOUT");
     expect(err.statusCode).toBe(503);
 
+    // Restaura o timeout padrão ANTES do render de recuperação: o orçamento
+    // fim-a-fim cobre o respawn do worker (compile do entry via tsx sob a
+    // carga da suíte inteira > 1s), então 1s seria uma flake ambiental.
+    delete process.env.POST_RENDER_TIMEOUT_MS;
+
     const png = await renderSvgToPng(tinySvg);
     expect(png.subarray(0, 8).toString("hex")).toBe(PNG_MAGIC);
   }, 30_000);
