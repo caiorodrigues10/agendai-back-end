@@ -65,10 +65,16 @@ export const listAppointmentsQuerySchema = z.object({
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
 		.optional(),
+	/** Intervalo civil (YYYY-MM-DD). `date` tem precedência quando presente. */
+	from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+	to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'CHECKED_IN', 'NO_SHOW']).optional(),
 	staffId: z.string().uuid().optional(),
 	search: z.string().max(100).optional(),
-})
+}).refine((v) => !(v.from && v.to && v.from > v.to), {
+	message: '`from` não pode ser depois de `to`',
+	path: ['from'],
+});
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>
 export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>

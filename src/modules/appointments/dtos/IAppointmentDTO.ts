@@ -73,6 +73,10 @@ export interface IListAppointmentsQuery {
   limit: number;
   /** Filtrar por data específica (ISO "2026-06-20") */
   date?: string;
+  /** Intervalo civil: início (inclusive) */
+  from?: string;
+  /** Intervalo civil: fim (inclusive) */
+  to?: string;
   /** Filtrar por status */
   status?: AppointmentStatus;
   /** Filtrar por funcionário */

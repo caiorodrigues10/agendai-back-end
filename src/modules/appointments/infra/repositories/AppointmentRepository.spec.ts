@@ -47,4 +47,20 @@ describe("AppointmentRepository.list", () => {
     expect(listArgs.where).toEqual({ barbershopId: "shop-1", status: "CONFIRMED" });
     expect(countArgs.where).toEqual(listArgs.where);
   });
+
+  it("filtra por intervalo civil from/to em UTC (inclusive nas pontas)", async () => {
+    await repo.list("shop-1", { page: 1, limit: 100, from: "2026-10-01", to: "2026-10-31" });
+
+    const listArgs = findMany.mock.calls[0][0] as { where: { date: { gte: Date; lt: Date } } };
+    expect(listArgs.where.date.gte).toEqual(new Date(Date.UTC(2026, 9, 1)));
+    expect(listArgs.where.date.lt).toEqual(new Date(Date.UTC(2026, 10, 1)));
+  });
+
+  it("`date` específica tem precedência sobre from/to", async () => {
+    await repo.list("shop-1", { page: 1, limit: 100, date: "2026-10-05", from: "2026-10-01", to: "2026-10-31" });
+
+    const listArgs = findMany.mock.calls[0][0] as { where: { date: { gte: Date; lt: Date } } };
+    expect(listArgs.where.date.gte).toEqual(new Date(Date.UTC(2026, 9, 5)));
+    expect(listArgs.where.date.lt).toEqual(new Date(Date.UTC(2026, 9, 6)));
+  });
 });
