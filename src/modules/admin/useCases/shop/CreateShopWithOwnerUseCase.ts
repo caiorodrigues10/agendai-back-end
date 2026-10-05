@@ -1,7 +1,7 @@
 import { inject, injectable } from "tsyringe";
 import { randomBytes } from "node:crypto";
 import type { z } from "zod";
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
@@ -85,7 +85,7 @@ export class CreateShopWithOwnerUseCase {
     const normalizedWhatsapp = whatsapp.replace(/\D/g, "") || whatsapp;
 
     const created = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
+      async (tx: AppTx) => {
         const shop = await tx.barbershop.create({
           data: {
             name,

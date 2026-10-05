@@ -89,7 +89,7 @@ export class AdminBillingController {
       }),
       prisma.subscription.findMany({
         where: { status: "CANCELED", cancelDate: { gte: since30d } },
-        select: { plan: { select: { price: true, billingCycle: true } } },
+        select: { status: true, plan: { select: { price: true, billingCycle: true } } },
       }),
       prisma.subscription.findMany({
         where: { status: "PAST_DUE" },

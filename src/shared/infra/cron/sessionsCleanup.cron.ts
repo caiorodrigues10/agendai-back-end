@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { prisma } from "@/libs/prismaClient";
+import { prisma, Prisma } from "@/libs/prismaClient";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { withCronLock } from "@/shared/infra/redis/cronLock";
 
@@ -33,12 +33,12 @@ export function scheduleSessionsCleanup(log?: CronLog) {
           const now = Date.now();
           const expiredCutoff = new Date(now - EXPIRED_RETENTION_DAYS * MS_PER_DAY);
           const revokedCutoff = new Date(now - REVOKED_RETENTION_DAYS * MS_PER_DAY);
-          const where = {
+          const where: Prisma.UserSessionWhereInput = {
             OR: [
               { expiresAt: { lt: expiredCutoff }, revokedAt: null },
               { revokedAt: { lt: revokedCutoff } },
             ],
-          } as const;
+          };
 
           let total = 0;
           let deleted = BATCH_SIZE;

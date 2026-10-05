@@ -1,10 +1,16 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import type { NotificationDeliveryStatus } from "@prisma/client";
 import { prisma } from "@/libs/prismaClient";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-const FAILED_DELIVERY_STATUSES = ["FAILED", "BOUNCED", "COMPLAINED", "SUPPRESSED"];
+const FAILED_DELIVERY_STATUSES: NotificationDeliveryStatus[] = [
+  "FAILED",
+  "BOUNCED",
+  "COMPLAINED",
+  "SUPPRESSED",
+];
 
 type CountRow = { _count: { _all: number } };
 

@@ -1,5 +1,5 @@
 import { inject, injectable } from "tsyringe";
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { hashInviteToken } from "@/shared/utils/tokenHash";
@@ -26,7 +26,7 @@ export class AcceptOwnerInviteUseCase {
 
     // Uso único atômico: a revogação/aceite acontece dentro da transação junto
     // com a troca de senha; se falhar, tudo é desfeito (invite continua PENDING).
-    const ownerId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const ownerId = await prisma.$transaction(async (tx: AppTx) => {
       const claimed = await tx.ownerInvite.updateMany({
         where: {
           id: invite.id,

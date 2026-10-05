@@ -464,12 +464,12 @@ async function buildOverview(period: OverviewPeriod): Promise<AdminOverviewPaylo
   }
 
   const churnShops = canceledByPlan.reduce(
-    (total: number, row: SubPlanRow) => total + row._count._all,
+    (total: number, row) => total + row._count._all,
     0,
   );
   const churnRevenue = round2(
     canceledByPlan.reduce(
-      (total: number, row: SubPlanRow) => total + monthlyPrice(row.planId) * row._count._all,
+      (total: number, row) => total + monthlyPrice(row.planId) * row._count._all,
       0,
     ),
   );

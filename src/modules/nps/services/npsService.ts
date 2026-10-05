@@ -1,5 +1,4 @@
-import type { Prisma } from "@prisma/client";
-import { prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { createAuditLog } from "@/shared/services/auditLogService";
 import {
@@ -305,7 +304,7 @@ export async function recordResponse(
   const comment = input.comment?.trim() ? input.comment.trim().slice(0, 500) : null;
 
   const response = await prisma
-    .$transaction(async (tx: Prisma.TransactionClient) => {
+    .$transaction(async (tx: AppTx) => {
       const created = await tx.npsResponse.create({
         data: {
           surveyId: survey.id,

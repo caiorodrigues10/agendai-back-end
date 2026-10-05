@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { sign, Secret } from "jsonwebtoken";
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { prisma, type AppTx } from "@/libs/prismaClient";
 import auth from "@/config/auth";
 import { AppError } from "@/shared/errors/AppError";
 import {
@@ -188,7 +188,7 @@ export class AdminAccountActionsController {
 
     const cnpj = shop.cnpj;
     const userId = request.user?.id;
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: AppTx) => {
       await tx.barbershop.update({
         where: { id },
         data: { active: false, approvalStatus: "REJECTED", rejectionReason: reason },

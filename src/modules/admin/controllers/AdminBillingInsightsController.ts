@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { Readable } from "node:stream";
+import type { Prisma, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/libs/prismaClient";
 import {
   BillingStatementQuery,
@@ -46,7 +47,7 @@ type StatementRow = {
   barbershopName: string | null;
 };
 
-const RETAINED_STATUSES = ["ACTIVE", "PAST_DUE"];
+const RETAINED_STATUSES: SubscriptionStatus[] = ["ACTIVE", "PAST_DUE"];
 
 const csvCell = (value: unknown): string => {
   const text = value === null || value === undefined ? "" : String(value);
@@ -129,7 +130,7 @@ export class AdminBillingInsightsController {
   /** Inadimplência por faixa, coortes, economia unitária (ARPA/LTV) e previsão. */
   async insights(_request: FastifyRequest, reply: FastifyReply) {
     const now = new Date();
-    const overdueBase = {
+    const overdueBase: Prisma.InvoiceWhereInput = {
       OR: [
         { status: "OVERDUE" },
         { status: "PENDING", dueDate: { lt: now } },
@@ -215,7 +216,7 @@ export class AdminBillingInsightsController {
 
     const cohorts = buildCohorts(cohortSubs as CohortRow[], now);
 
-    const activeSubs = paidEconomics as SubEconomicsRow[];
+    const activeSubs = paidEconomics as unknown as SubEconomicsRow[];
     const mrr = round2(
       activeSubs.reduce(
         (total: number, sub: SubEconomicsRow) =>
@@ -317,7 +318,7 @@ function buildCohorts(rows: CohortRow[], now: Date): Array<{
       (row: CohortRow) => row.createdAt >= month.start && row.createdAt < month.end,
     );
     const retained = inMonth.filter((row: CohortRow) =>
-      RETAINED_STATUSES.includes(row.status),
+      (RETAINED_STATUSES as readonly string[]).includes(row.status),
     ).length;
     const canceled = inMonth.filter((row: CohortRow) => row.status === "CANCELED").length;
     return {

@@ -1,12 +1,13 @@
 import { FastifyReply, FastifyRequest } from "fastify";
+import type { SubscriptionStatus, TicketStatus } from "@prisma/client";
 import { prisma } from "@/libs/prismaClient";
 import { npsSummary, NpsSummary } from "@/modules/nps/services/npsService";
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 
-const OPEN_TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "WAITING_SHOP"];
-const RISK_SUBSCRIPTION_STATUSES = ["PAST_DUE", "UNPAID"];
+const OPEN_TICKET_STATUSES: TicketStatus[] = ["OPEN", "IN_PROGRESS", "WAITING_SHOP"];
+const RISK_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = ["PAST_DUE", "UNPAID"];
 
 type GroupRow = { barbershopId: string };
 type TicketRow = { id: string; createdAt: Date; resolvedAt: Date | null };
