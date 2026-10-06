@@ -14,6 +14,15 @@ const FAILED_DELIVERY_STATUSES: NotificationDeliveryStatus[] = [
 
 type CountRow = { _count: { _all: number } };
 
+type OperationsStatus = "HEALTHY" | "DEGRADED" | "UNHEALTHY";
+type OperationsSource = "errors" | "cron" | "delivery" | "outbox";
+
+const STATUS_RANK: Record<OperationsStatus, number> = {
+  HEALTHY: 0,
+  DEGRADED: 1,
+  UNHEALTHY: 2,
+};
+
 export class AdminOperationsController {
   async health(_request: FastifyRequest, reply: FastifyReply) {
     const now = new Date();
@@ -96,17 +105,56 @@ export class AdminOperationsController {
     const emailFailedRate =
       email24h > 0 ? Math.round((emailFailed24h / email24h) * 1000) / 10 : 0;
 
-    let status: "HEALTHY" | "DEGRADED" | "UNHEALTHY" = "HEALTHY";
-    if (errors5xxLastHour > 0 || cronFailures24h > 0 || outboxFailed > 0) {
-      status = "DEGRADED";
+    const errorsStatus: OperationsStatus =
+      errors5xxLastHour >= 10 ? "UNHEALTHY" : errors5xxLastHour > 0 ? "DEGRADED" : "HEALTHY";
+    const cronStatus: OperationsStatus =
+      cronFailures24h >= 5 ? "UNHEALTHY" : cronFailures24h > 0 ? "DEGRADED" : "HEALTHY";
+    const deliveryStatus: OperationsStatus =
+      whatsappFailedRate >= 50 || emailFailedRate >= 50 ? "UNHEALTHY" : "HEALTHY";
+    const outboxStatus: OperationsStatus = outboxFailed > 0 ? "DEGRADED" : "HEALTHY";
+
+    const statusBreakdown: Record<OperationsSource, OperationsStatus> = {
+      errors: errorsStatus,
+      cron: cronStatus,
+      delivery: deliveryStatus,
+      outbox: outboxStatus,
+    };
+
+    let status: OperationsStatus = "HEALTHY";
+    for (const source of Object.keys(statusBreakdown) as OperationsSource[]) {
+      if (STATUS_RANK[statusBreakdown[source]] > STATUS_RANK[status]) {
+        status = statusBreakdown[source];
+      }
     }
-    if (
-      errors5xxLastHour >= 10 ||
-      cronFailures24h >= 5 ||
-      whatsappFailedRate >= 50 ||
-      emailFailedRate >= 50
-    ) {
-      status = "UNHEALTHY";
+
+    const statusReasons: { source: OperationsSource; status: OperationsStatus; message: string }[] = [];
+    if (errorsStatus !== "HEALTHY") {
+      statusReasons.push({
+        source: "errors",
+        status: errorsStatus,
+        message: `${errors5xxLastHour} ${errors5xxLastHour === 1 ? "erro" : "erros"} 5xx na última hora`,
+      });
+    }
+    if (cronStatus !== "HEALTHY") {
+      statusReasons.push({
+        source: "cron",
+        status: cronStatus,
+        message: `${cronFailures24h} ${cronFailures24h === 1 ? "falha" : "falhas"} de cron nas últimas 24h`,
+      });
+    }
+    if (deliveryStatus !== "HEALTHY") {
+      statusReasons.push({
+        source: "delivery",
+        status: deliveryStatus,
+        message: `Falha de entrega acima de 50% (WhatsApp ${whatsappFailedRate}% / e-mail ${emailFailedRate}%)`,
+      });
+    }
+    if (outboxStatus !== "HEALTHY") {
+      statusReasons.push({
+        source: "outbox",
+        status: outboxStatus,
+        message: `${outboxFailed} ${outboxFailed === 1 ? "mensagem" : "mensagens"} com falha na fila de saída`,
+      });
     }
 
     return reply.status(200).send({
@@ -114,6 +162,8 @@ export class AdminOperationsController {
       data: {
         generatedAt: now.toISOString(),
         status,
+        statusBreakdown,
+        statusReasons,
         errors: {
           total24h: errors24h,
           last24h5xx: errors5xx24h,
