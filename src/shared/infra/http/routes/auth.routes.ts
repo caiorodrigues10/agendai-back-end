@@ -23,15 +23,7 @@ import {
   authRevokeSessionSchema,
   sessionIdParamsSchema,
 } from "@/modules/auth/schemas/authSchemas";
-
-const authRateLimit = {
-  config: {
-    rateLimit: {
-      max: 10,
-      timeWindow: "1 minute",
-    },
-  },
-};
+import { authRateLimit } from "@/shared/infra/http/authRateLimit";
 
 export async function authRoutes(app: FastifyInstance) {
   const login = new LoginController();
