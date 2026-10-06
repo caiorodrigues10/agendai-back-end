@@ -44,18 +44,22 @@ export class WaitlistUseCases {
     return this.repo.listEntries(barbershopId, filters);
   }
 
-  async offerSlot(barbershopId: string, entryId: string, data: Omit<CreateOfferData, "entryId">) {
+  async offerSlot(
+    barbershopId: string,
+    entryId: string,
+    data: Omit<CreateOfferData, "entryId" | "barbershopId">,
+  ) {
     if (!barbershopId) throw new AppError("barbershopId is required", 400);
     if (!entryId) throw new AppError("entryId is required", 400);
 
     const entry = await this.repo.getEntry(entryId);
     if (!entry) throw new AppError("Waitlist entry not found", 404);
     if (entry.barbershopId !== barbershopId) throw new AppError("Access denied", 403);
-    if (entry.status !== "ACTIVE") {
+    if (entry.status !== "WAITING") {
       throw new AppError(`Cannot offer slot to entry in status ${entry.status}`, 400);
     }
 
-    return this.repo.createOffer({ ...data, entryId });
+    return this.repo.createOffer({ ...data, entryId, barbershopId });
   }
 
   async acceptOffer(token: string) {
@@ -63,22 +67,25 @@ export class WaitlistUseCases {
 
     const offer = await this.repo.getOfferByToken(token);
     if (!offer) throw new AppError("Offer not found", 404);
-    if (offer.status !== "PENDING") {
-      throw new AppError(`Offer is already ${offer.status}`, 400);
+    if (offer.response) {
+      throw new AppError(`Offer is already ${offer.response}`, 400);
     }
     if (offer.expiresAt && offer.expiresAt < new Date()) {
       throw new AppError("Offer has expired", 400);
+    }
+    if (!offer.entry.serviceId) {
+      throw new AppError("Offer entry has no service", 400);
     }
 
     await this.repo.respondToOffer(offer.id, "ACCEPTED");
 
     const appointment = await prisma.appointment.create({
       data: {
-        barbershopId: offer.entry.barbershop?.id ?? offer.entry.barbershopId,
+        barbershopId: offer.entry.barbershopId,
         serviceId: offer.entry.serviceId,
         staffId: offer.staffId,
         customerName: offer.entry.customerName,
-        whatsapp: offer.entry.whatsapp ?? "",
+        whatsapp: offer.entry.whatsapp,
         date: offer.offeredDate,
         time: offer.offeredTime,
         status: "CONFIRMED",
@@ -87,7 +94,7 @@ export class WaitlistUseCases {
 
     await prismaWaitlistLegado.waitlistEntry.update({
       where: { id: offer.entryId },
-      data: { status: "FULFILLED" },
+      data: { status: "BOOKED" },
     });
 
     return { offer, appointment };
@@ -98,20 +105,20 @@ export class WaitlistUseCases {
 
     const offer = await this.repo.getOfferByToken(token);
     if (!offer) throw new AppError("Offer not found", 404);
-    if (offer.status !== "PENDING") {
-      throw new AppError(`Offer is already ${offer.status}`, 400);
+    if (offer.response) {
+      throw new AppError(`Offer is already ${offer.response}`, 400);
     }
 
     await this.repo.respondToOffer(offer.id, "DECLINED");
 
     const pendingOffers = await prismaWaitlistLegado.waitlistOffer.count({
-      where: { entryId: offer.entryId, status: "PENDING" },
+      where: { entryId: offer.entryId, response: null },
     });
 
     if (pendingOffers === 0) {
-      await prismaWaitlistLegado.waitlistEntry.update({
-        where: { id: offer.entryId },
-        data: { status: "ACTIVE" },
+      await prismaWaitlistLegado.waitlistEntry.updateMany({
+        where: { id: offer.entryId, status: "OFFERED" },
+        data: { status: "WAITING" },
       });
     }
 
@@ -135,6 +142,7 @@ export class WaitlistUseCases {
 
     const offer = await this.repo.createOffer({
       entryId: bestCandidate.id,
+      barbershopId,
       offeredDate: date,
       offeredTime: time,
       staffId: staff.id,
