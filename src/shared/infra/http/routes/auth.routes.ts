@@ -23,7 +23,7 @@ import {
   authRevokeSessionSchema,
   sessionIdParamsSchema,
 } from "@/modules/auth/schemas/authSchemas";
-import { authRateLimit } from "@/shared/infra/http/authRateLimit";
+import { authRateLimit, refreshRateLimit } from "@/shared/infra/http/authRateLimit";
 
 export async function authRoutes(app: FastifyInstance) {
   const login = new LoginController();
@@ -44,7 +44,8 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin, verifyRecaptcha] }, login.handle.bind(login));
   app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister, verifyRecaptcha] }, register.handle.bind(register));
   app.post("/auth/register-google", { ...authRateLimit, preHandler: [validateRegisterWithGoogle, verifyRecaptcha] }, registerGoogle.handle.bind(registerGoogle));
-  app.post("/auth/refresh", { ...authRateLimit, preHandler: [validateRefresh] }, refresh.handle.bind(refresh));
+  // Refresh tem teto próprio (mais alto, por sessão): ver `refreshRateLimit`.
+  app.post("/auth/refresh", { ...refreshRateLimit, preHandler: [validateRefresh] }, refresh.handle.bind(refresh));
   app.get("/auth/me", { preHandler: [mePreHandler] }, me.handle.bind(me));
   app.get("/auth/verify-email", {
     config: { rateLimit: { max: 5, timeWindow: "5 minutes" } },

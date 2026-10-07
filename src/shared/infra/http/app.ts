@@ -87,8 +87,9 @@ function shopIdFromRequest(request: FastifyRequest): string | null {
 
 export async function buildApp() {
   const app = fastify({
-    // Silencia logs nos testes de inject (NODE_ENV=test)
-    logger: process.env.NODE_ENV !== "test",
+    // Silencia logs nos testes de inject (NODE_ENV=test). Fora disso, o nível
+    // segue o LOG_LEVEL já documentado no .env.example (default: info).
+    logger: process.env.NODE_ENV !== "test" ? { level: process.env.LOG_LEVEL || "info" } : false,
     trustProxy: resolveTrustProxy(),
     // reqId == correlationId: os logs nativos do Fastify ("incoming
     // request", "request completed") saem já correlacionados (B21).
