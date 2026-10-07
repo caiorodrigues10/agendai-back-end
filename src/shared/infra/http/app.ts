@@ -64,10 +64,18 @@ function shopIdFromRequest(request: FastifyRequest): string | null {
 }
 
 export async function buildApp() {
+  const trustProxy = resolveTrustProxy();
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test)
     logger: process.env.NODE_ENV !== "test",
-    trustProxy: resolveTrustProxy(),
+    // Fastify 5 removeu `number` do tipo de trustProxy e passou a ignorar
+    // (fail-closed) valores numéricos. Convertemos a contagem de saltos para a
+    // forma função equivalente: confia nos N saltos da cadeia (hop 0 = peer
+    // imediato), preservando o comportamento do Fastify 4.
+    trustProxy:
+      typeof trustProxy === "number"
+        ? (_address: string, hop: number) => hop < trustProxy
+        : trustProxy,
     // reqId == correlationId: os logs nativos do Fastify ("incoming
     // request", "request completed") saem já correlacionados (B21).
     requestIdHeader: false,

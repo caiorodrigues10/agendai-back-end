@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { sign } from "jsonwebtoken";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import auth from "@/config/auth";
@@ -35,7 +35,7 @@ beforeAll(async () => {
   mock.actor.mockImplementation(async user => user);
   mock.createComment.mockResolvedValue({ id: "comment", content: "Olá", createdAt: new Date(), authorId: null, clientIdentityId: "client", author: null, clientIdentity: { name: "Cliente" } });
   app = Fastify();
-  app.setErrorHandler((error, _req, reply) => reply.status(error.statusCode || (error.name === "ZodError" ? 400 : 500)).send({ message: error.message }));
+  app.setErrorHandler((error: FastifyError, _req, reply) => reply.status(error.statusCode || (error.name === "ZodError" ? 400 : 500)).send({ message: error.message }));
   await app.register(socialRoutes, { prefix: "/api" });
   await app.ready();
 });
