@@ -30,8 +30,30 @@ const RATE_LIMIT_ALLOWED_PATHS = new Set([
   "/internal/health",
 ]);
 
+/**
+ * Avisos de configuração insegura de TRUST_PROXY (somente produção).
+ * Só orienta o operador — nunca altera a resolução do trustProxy.
+ */
+export function trustProxyProductionWarnings(raw: string | undefined): string[] {
+  if (process.env.NODE_ENV !== "production") return [];
+  if (!raw) {
+    return [
+      "TRUST_PROXY ausente em produção: atrás de load balancer a API enxerga o IP do proxy, então rate limit, brute force e audit logs compartilham a cota de todos os clientes. Configure o número de hops (ex.: TRUST_PROXY=1).",
+    ];
+  }
+  if (raw.trim().toLowerCase() === "true") {
+    return [
+      "TRUST_PROXY=true em produção: confia em qualquer X-Forwarded-For e permite forjar o IP no rate limit e na auditoria. Use o número de hops (ex.: TRUST_PROXY=1) ou os CIDRs do proxy.",
+    ];
+  }
+  return [];
+}
+
 export function resolveTrustProxy(): boolean | number | string {
   const raw = process.env.TRUST_PROXY?.trim();
+
+  for (const warning of trustProxyProductionWarnings(raw)) logger.warn(warning);
+
   if (!raw) return false;
 
   const normalized = raw.toLowerCase();

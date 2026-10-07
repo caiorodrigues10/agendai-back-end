@@ -24,10 +24,9 @@ function assertRateLimit(ip: string) {
 
 export class ContactController {
   async submit(request: FastifyRequest, reply: FastifyReply) {
-    const ip =
-      (request.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
-      request.ip ||
-      "unknown";
+    // IP real via trustProxy (nunca o header cru): X-Forwarded-For forjado
+    // não pode criar buckets novos na limitação em memória.
+    const ip = request.ip || "unknown";
 
     assertRateLimit(ip);
 

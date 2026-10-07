@@ -128,6 +128,31 @@ GCS_KEY_FILE_PATH=/caminho/absoluto/para/agendai-api-xxxx.json
 > ```
 > O servidor sobe normalmente; o erro só ocorre ao tentar fazer upload de logo.
 
+### Trust proxy (X-Forwarded-For)
+
+Quando a API roda atrás de um load balancer (Render, NGINX, ingress…), configure
+`TRUST_PROXY` com o **número de saltos** até o proxy ou com os CIDRs dele:
+
+```env
+# 1 salto (LB direto) — exemplo comum em produção
+TRUST_PROXY=1
+```
+
+- **Padrão (ausente):** `X-Forwarded-For` é ignorado. Correto para execução
+  direta; atrás de LB, `request.ip` passa a ser o IP do proxy e rate limit,
+  brute force de login e audit logs compartilham a cota de todos os clientes.
+  Em produção a API emite aviso no boot quando a variável está ausente.
+- **`TRUST_PROXY=true`:** confia em qualquer `X-Forwarded-For`, ou seja, o
+  cliente pode forjar o próprio IP no rate limit e na auditoria. Evite em
+  produção (a API também avisa no boot).
+- **`TRUST_PROXY=1`, `TRUST_PROXY=2`:** confia nos N últimos saltos; o IP
+  resolvido é o do cliente final. É a forma recomendada.
+- **`TRUST_PROXY=10.0.0.0/8, ...`:** confia apenas nos ranges do proxy.
+- **`TRUST_PROXY=false` / `0`:** desativado (mesmo que a variável ausente).
+
+A variável só afeta `request.ip` (Fastify `trustProxy`); `X-Forwarded-For`
+nunca é lido diretamente no código da aplicação.
+
 ---
 
 ## Como Rodar
