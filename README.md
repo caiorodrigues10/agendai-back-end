@@ -2108,6 +2108,18 @@ http://localhost:3333/docs
 
 > O Swagger é gerado automaticamente pelo `@fastify/swagger` + `@fastify/swagger-ui`.
 
+**Em produção `/docs` e `/docs/json` respondem 404** (a UI lista todas as rotas
+e schemas). Para abrir a documentação em produção, declare explicitamente:
+
+```env
+ENABLE_API_DOCS=true
+# opcional: URL exibida em servers[0].url
+API_DOCS_SERVER_URL=https://api.suaempresa.com
+```
+
+Fora de produção a UI fica ligada por padrão; `ENABLE_API_DOCS=false` a
+desliga também em desenvolvimento.
+
 ---
 
 ## Variáveis de Ambiente — Referência Completa
@@ -2122,6 +2134,9 @@ http://localhost:3333/docs
 | `PORT` | ❌ | Porta do servidor (default: `3333`) |
 | `NODE_ENV` | ❌ | `development` ou `production` |
 | `ALLOWED_ORIGINS` | ❌ | Origens CORS permitidas, separadas por vírgula |
+| `TRUST_PROXY` | ❌ | Nº de saltos do proxy (`1`, `2`, …) ou CIDRs; use hops, nunca `true` em produção |
+| `ENABLE_API_DOCS` | ❌ | `true` mantém `/docs` ligado em produção (fora de produção é ligado por padrão) |
+| `API_DOCS_SERVER_URL` | ❌ | URL de `servers[0].url` no Swagger (default: `http://localhost:3333`) |
 | `MERCADOPAGO_ACCESS_TOKEN` | ✅* | Token do Mercado Pago (necessário para pagamentos) |
 | `MERCADOPAGO_WEBHOOK_SECRET` | ✅* | Segredo HMAC para validar webhooks do MP |
 | `GCS_BUCKET_NAME` | ✅* | Nome do bucket GCS (necessário para upload de logo) |
