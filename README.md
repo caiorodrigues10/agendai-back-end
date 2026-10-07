@@ -2144,5 +2144,15 @@ desliga também em desenvolvimento.
 | `GCS_KEY_FILE_PATH` | ❌ | Caminho para JSON da service account |
 | `GCS_CREDENTIALS_JSON` | ❌ | JSON da service account (base64 ou string) |
 | `GCS_PUBLIC_BASE_URL` | ❌ | URL base pública do GCS (default automático) |
+| `ASAAS_WEBHOOK_TOKEN` | ✅* | Token de webhook Asaas (>=32 chars; exigido em produção com ASAAS habilitado) |
+| `MERCADOPAGO_WEBHOOK_SECRET` | ✅* | Segredo HMAC do webhook MP (>=32 chars; exigido com MERCADOPAGO habilitado) |
+| `ABACATEPAY_WEBHOOK_SECRET` | ✅* | Segredo do webhook AbacatePay (>=32 chars; exigido com ABACATEPAY habilitado) |
+| `ALLOW_INSECURE_WEBHOOKS` | ❌ | `true` libera webhooks sem assinatura — **só local**; em produção o boot é recusado |
+| `PAYMENT_PROVIDERS_ENABLED` | ❌ | Provedores ativos (ex.: `ASAAS,MERCADOPAGO`); default em produção: `ASAAS` |
 
 > \* Necessário apenas para o respectivo módulo funcionar (Mercado Pago ou GCS). O servidor sobe sem essas variáveis, mas as rotas correspondentes retornarão erro ao serem chamadas.
+
+> **Webhooks em produção:** o boot é recusado se `ALLOW_INSECURE_WEBHOOKS=true`,
+> se o segredo de webhook de um provedor habilitado estiver ausente, ou se
+> algum segredo configurado tiver menos de 32 caracteres. Gere com
+> `openssl rand -base64 32` e nunca coloque o valor em logs ou repositório.

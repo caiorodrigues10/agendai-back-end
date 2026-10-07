@@ -4,6 +4,7 @@ import { shutdownTracing } from "@/shared/utils/telemetryBootstrap";
 import { env } from "@/config/env";
 import "@/shared/container";
 import authConfig from "@/config/auth";
+import { assertWebhookConfig } from "@/config/webhooks";
 import { buildApp } from "./app";
 import type { FastifyInstance } from "fastify";
 import { getTasks as listCronTasks } from "node-cron";
@@ -44,6 +45,10 @@ initSentry();
 
 // Trigger auth config validation (throws on startup if secrets not set)
 void authConfig;
+
+// Recusa subir em produção com ALLOW_INSECURE_WEBHOOKS=true ou com os
+// segredos de webhook dos provedores habilitados ausentes/curtos (S4).
+assertWebhookConfig();
 
 const port = env.port;
 const serverLogger = getModuleLogger('server');

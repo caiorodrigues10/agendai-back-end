@@ -2,9 +2,9 @@ import { AppError } from "@/shared/errors/AppError";
 
 export type EnabledPaymentProvider = "ASAAS" | "MERCADOPAGO" | "ABACATEPAY";
 
-export function enabledPaymentProviders(): Set<EnabledPaymentProvider> {
-  const configured = process.env.PAYMENT_PROVIDERS_ENABLED;
-  const fallback = process.env.NODE_ENV === "production"
+export function enabledPaymentProviders(env: NodeJS.ProcessEnv = process.env): Set<EnabledPaymentProvider> {
+  const configured = env.PAYMENT_PROVIDERS_ENABLED;
+  const fallback = env.NODE_ENV === "production"
     ? ["ASAAS"]
     : ["ASAAS", "MERCADOPAGO", "ABACATEPAY"];
   const values = configured
