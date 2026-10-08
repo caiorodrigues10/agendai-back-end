@@ -25,6 +25,9 @@ export function createFakeDelegate(uniqueBy: string[] = [], seedRows: Row[] = []
     async findFirst(args?: Row) {
       return rows.find(r => whereMatches(r, args?.where)) ?? null;
     },
+    async findMany(args?: Row) {
+      return rows.filter(r => whereMatches(r, args?.where));
+    },
     async findUnique(args?: Row) {
       return rows.find(r => whereMatches(r, args?.where)) ?? null;
     },
@@ -86,6 +89,15 @@ export function createFakeDelegate(uniqueBy: string[] = [], seedRows: Row[] = []
     async count(args?: Row) {
       return rows.filter(r => whereMatches(r, args?.where)).length;
     },
+    async delete(args: Row) {
+      const index = rows.findIndex(r => whereMatches(r, args.where));
+      if (index === -1) {
+        const error: any = new Error("Record not found");
+        error.code = "P2025";
+        throw error;
+      }
+      return rows.splice(index, 1)[0];
+    },
   };
 }
 
@@ -103,6 +115,7 @@ export function createFakeSeedDb() {
     schedule: createFakeDelegate(["barbershopId", "dayOfWeek"]),
     expenseCategory: createFakeDelegate(),
     productCategory: createFakeDelegate(["barbershopId", "name"]),
+    product: createFakeDelegate(["barbershopId", "name"]),
     appointmentPolicy: createFakeDelegate(),
     barbershopEmailSettings: createFakeDelegate(),
     profitSettings: createFakeDelegate(),

@@ -26,6 +26,7 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:demo": "tsx prisma/seed.ts --profile=demo",
     "prisma:seed:tenant": "tsx prisma/seed.ts --tenant",
+    "prisma:seed:perf-fixture": "tsx scripts/seed-perf-fixture.ts",
     "security:audit-logs": "tsx scripts/remediateSensitiveAuditLogs.ts",
     "ledger:backfill": "tsx scripts/backfillFinancialLedger.ts",
     "audit:backfill-shop": "tsx scripts/backfillAuditLogBarbershop.ts",
