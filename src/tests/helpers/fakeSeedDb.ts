@@ -122,6 +122,7 @@ export function createFakeSeedDb() {
     loyaltyProgram: createFakeDelegate(),
     notificationPreference: createFakeDelegate(["barbershopId", "channel", "type"]),
     barbershop: createFakeDelegate(),
+    subscription: createFakeDelegate(),
     $executeRaw: (...args: any[]) => {
       rawValues.push(args.slice(1));
       return Promise.resolve(0);

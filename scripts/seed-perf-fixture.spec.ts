@@ -111,6 +111,43 @@ describe("scripts/seed-perf-fixture", () => {
 			await expect(seedPerfFixture(db, fakeHash)).rejects.toThrow(/produção/);
 		});
 
+		it("renova o trial expirado do fixture para agora (createdAt + endDate da assinatura)", async () => {
+			const { db } = createFakeSeedDb();
+			const now = new Date();
+			const expiredShopDate = new Date(now.getTime() - 60 * 86_400_000);
+			const expiredTrialEnd = new Date(now.getTime() - 40 * 86_400_000);
+			await db.barbershop.create({ data: { id: PERF_BARBERSHOP_ID, name: PERF_BARBERSHOP_NAME, createdAt: expiredShopDate } });
+			await db.subscription.create({
+				data: { barbershopId: PERF_BARBERSHOP_ID, status: "TRIALING", endDate: expiredTrialEnd },
+			});
+
+			await seedPerfFixture(db, fakeHash);
+
+			const shop: any = db.barbershop.rows.find((r: any) => r.id === PERF_BARBERSHOP_ID);
+			const sub: any = db.subscription.rows.find((r: any) => r.barbershopId === PERF_BARBERSHOP_ID);
+			const daysSince = (d: Date) => (Date.now() - new Date(d).getTime()) / 86_400_000;
+			expect(daysSince(shop.createdAt)).toBeLessThan(1);
+			expect(daysSince(sub.endDate)).toBeLessThan(0); // endDate ainda no futuro
+			expect(sub.status).toBe("TRIALING");
+		});
+
+		it("não mexe no trial quando o fixture ainda está dentro do período", async () => {
+			const { db } = createFakeSeedDb();
+			const activeShopDate = new Date(Date.now() - 2 * 86_400_000);
+			const activeTrialEnd = new Date(Date.now() + 28 * 86_400_000);
+			await db.barbershop.create({ data: { id: PERF_BARBERSHOP_ID, name: PERF_BARBERSHOP_NAME, createdAt: activeShopDate } });
+			await db.subscription.create({
+				data: { barbershopId: PERF_BARBERSHOP_ID, status: "TRIALING", endDate: activeTrialEnd },
+			});
+
+			await seedPerfFixture(db, fakeHash);
+
+			const shop: any = db.barbershop.rows.find((r: any) => r.id === PERF_BARBERSHOP_ID);
+			const sub: any = db.subscription.rows.find((r: any) => r.barbershopId === PERF_BARBERSHOP_ID);
+			expect(shop.createdAt).toEqual(activeShopDate);
+			expect(sub.endDate).toEqual(activeTrialEnd);
+		});
+
 		it("recusa se o UUID já pertence a outro salão", async () => {
 			const { db } = createFakeSeedDb();
 			await db.barbershop.create({ data: { id: PERF_BARBERSHOP_ID, name: "Outro Salão" } });

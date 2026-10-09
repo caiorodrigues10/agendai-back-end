@@ -19,6 +19,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { BcryptHashProvider } from "../src/shared/container/providers/HashProvider/implementations/BcryptHashProvider";
 import { seedBarbershopDefaults } from "../src/shared/utils/seedBarbershopDefaults";
+import { TRIAL_DAYS } from "../src/shared/constants/subscription";
 import { looksLikeProductionEnvironment } from "../prisma/seed";
 
 export const PERF_BARBERSHOP_ID = "1ac5be50-6ce7-464e-bc38-ab18cf24aeab";
@@ -84,6 +85,62 @@ export function buildPerfProducts(): Array<{
 		stockQty: 2 + i,
 		type: i % 3 === 2 ? "CONSUMABLE" : ("RETAIL" as const),
 	}));
+}
+
+/**
+ * Fim de trial do fixture, com a MESMA regra do GetSubscriptionController:
+ * assinatura TRIALING com endDate manda; senão cai em createdAt + TRIAL_DAYS.
+ */
+export function fixtureTrialEnd(
+	shop: { createdAt: Date },
+	subscription?: { status: string; endDate?: Date | null } | null,
+): Date {
+	const trialEndsAt = new Date(shop.createdAt);
+	trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+	if (subscription?.status === "TRIALING" && subscription.endDate) {
+		return new Date(subscription.endDate);
+	}
+	return trialEndsAt;
+}
+
+/**
+ * Renova o trial do fixture para "agora" quando expirou (relativo a agora,
+ * não a uma data fixa). Idempotente: trial vigente não é tocado.
+ * Retorna true se algo foi renovado.
+ */
+export async function renewFixtureTrialIfExpired(
+	client: any,
+	now: Date = new Date(),
+): Promise<boolean> {
+	const shop = await client.barbershop.findUnique({
+		where: { id: PERF_BARBERSHOP_ID },
+		select: { id: true, createdAt: true },
+	});
+	if (!shop) return false;
+
+	const subscription = await client.subscription.findUnique({
+		where: { barbershopId: PERF_BARBERSHOP_ID },
+		select: { status: true, endDate: true },
+	});
+
+	if (now <= fixtureTrialEnd(shop, subscription)) return false;
+
+	const trialEnd = new Date(now);
+	trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
+
+	await client.$transaction(async (tx: any) => {
+		await tx.barbershop.update({
+			where: { id: PERF_BARBERSHOP_ID },
+			data: { createdAt: now },
+		});
+		if (subscription) {
+			await tx.subscription.update({
+				where: { barbershopId: PERF_BARBERSHOP_ID },
+				data: { status: "TRIALING", endDate: trialEnd, startDate: now },
+			});
+		}
+	});
+	return true;
 }
 
 export async function seedPerfFixture(client: any, hashProvider: { hash: (v: string) => Promise<string> }) {
@@ -175,7 +232,10 @@ export async function seedPerfFixture(client: any, hashProvider: { hash: (v: str
 		});
 	});
 
-	console.log(`✅ Fixture perf pronto: ${PERF_BARBERSHOP_ID} (${PERF_PRODUCT_COUNT} produtos, dono ${PERF_OWNER_EMAIL})`);
+	const renewed = await renewFixtureTrialIfExpired(client);
+
+	console.log(`✅ Fixture perf pronto: ${PERF_BARBERSHOP_ID} (${PERF_PRODUCT_COUNT} produtos, dono ${PERF_OWNER_EMAIL})${renewed ? " — trial renovado para agora" : ""}`);
+	return { renewed };
 }
 
 export async function listTestAccounts(client: any) {
