@@ -4,6 +4,7 @@ import { inject, injectable } from "tsyringe";
 import { IServiceRepository } from "../../repositories/IServiceRepository";
 import { ICreateServiceDTO } from "../../dtos/ICreateServiceDTO";
 import { IServiceResponseDTO } from "../../dtos/IServiceResponseDTO";
+import { assertShopAccess, type RequestingUser } from "../../../barbershops/utils/assertShopAccess";
 
 @injectable()
 export class CreateServiceUseCase {
@@ -13,7 +14,8 @@ export class CreateServiceUseCase {
     @inject("ServiceCategoryRepository")
     private categoryRepository: IServiceCategoryRepository
   ) {}
-  async execute(data: ICreateServiceDTO): Promise<IServiceResponseDTO> {
+  async execute(data: ICreateServiceDTO, requestingUser: RequestingUser | undefined): Promise<IServiceResponseDTO> {
+    assertShopAccess(requestingUser, data.barbershopId);
     if (data.categoryId) {
       const category = await this.categoryRepository.findById(data.categoryId);
       if (!category || !category.active || (category.barbershopId !== null && category.barbershopId !== data.barbershopId)) {

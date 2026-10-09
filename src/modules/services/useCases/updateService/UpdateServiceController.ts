@@ -8,7 +8,7 @@ export class UpdateServiceController {
     const { id } = request.params as { id: string };
     const data = updateServiceSchema.parse(request.body);
     const useCase = container.resolve(UpdateServiceUseCase);
-    const updated = await useCase.execute(id, data);
+    const updated = await useCase.execute(id, data, request.user);
     reply.send({ success: true, data: updated });
   }
 }
