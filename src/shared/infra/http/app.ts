@@ -163,7 +163,11 @@ export async function buildApp() {
     contentSecurityPolicy: isProd ? {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://www.google.com", "https://www.gstatic.com"],
+        // S6: script-src sem 'unsafe-inline' — o backend serve só JSON (o HTML
+        // do front é estático na Render e não passa por aqui); nenhum script
+        // inline precisa da permissão. Se um dia o backend servir páginas com
+        // scripts inline, usar nonce/hash em vez de reabrir unsafe-inline.
+        scriptSrc: ["'self'", "https://www.google.com", "https://www.gstatic.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
