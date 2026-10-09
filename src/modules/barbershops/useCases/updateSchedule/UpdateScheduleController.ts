@@ -8,7 +8,7 @@ export class UpdateScheduleController {
     const { id } = request.params as { id: string };
     const data = updateScheduleSchema.parse(request.body);
     const useCase = container.resolve(UpdateScheduleUseCase);
-    const updated = await useCase.execute(id, data);
+    const updated = await useCase.execute(id, data, request.user);
     reply.status(200).send({
       success: true,
       message: "Agenda atualizada com sucesso",

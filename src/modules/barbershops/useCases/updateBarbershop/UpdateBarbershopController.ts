@@ -8,7 +8,7 @@ export class UpdateBarbershopController {
     const { id } = request.params as { id: string };
     const parsed = updateBarbershopSchema.parse(request.body);
     const useCase = container.resolve(UpdateBarbershopUseCase);
-    const updated = await useCase.execute(id, parsed);
+    const updated = await useCase.execute(id, parsed, request.user);
     reply.send({ success: true, data: updated });
   }
 }

@@ -3,6 +3,7 @@ import { IBarbershopRepository } from "../../repositories/IBarbershopRepository"
 import { IUpdateBarbershopDTO } from "../../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
 import { geocodeCity } from "@/shared/services/geocodeCity";
+import { assertShopAccess, type RequestingUser } from "../../utils/assertShopAccess";
 
 @injectable()
 export class UpdateBarbershopUseCase {
@@ -10,7 +11,12 @@ export class UpdateBarbershopUseCase {
     @inject("BarbershopRepository")
     private barbershopRepository: IBarbershopRepository
   ) {}
-  async execute(id: string, data: IUpdateBarbershopDTO): Promise<IBarbershopResponseDTO> {
+  async execute(
+    id: string,
+    data: IUpdateBarbershopDTO,
+    requestingUser: RequestingUser | undefined,
+  ): Promise<IBarbershopResponseDTO> {
+    assertShopAccess(requestingUser, id);
     let resolved = { ...data };
     const shop = await this.barbershopRepository.findById(id);
 

@@ -59,7 +59,7 @@ describe("Barbershops module", () => {
     expect(items.length).toBe(1);
     const fetched = await get.execute(b.id);
     expect(fetched.name).toBe("Barber X");
-    const updated = await update.execute(b.id, { name: "Barber Y" });
+    const updated = await update.execute(b.id, { name: "Barber Y" }, { id: "owner-1", role: "OWNER", barbershopId: b.id });
     expect(updated.name).toBe("Barber Y");
   });
 
@@ -72,7 +72,7 @@ describe("Barbershops module", () => {
 
   it("agenda: atualiza e busca", async () => {
     const b = await create.execute({ name: "Sched", whatsapp: "55" });
-    await updateSchedule.execute(b.id, [{ dayOfWeek: 1, isOpen: true, openTime: "09:00", closeTime: "18:00" }]);
+    await updateSchedule.execute(b.id, [{ dayOfWeek: 1, isOpen: true, openTime: "09:00", closeTime: "18:00" }], { id: "owner-1", role: "OWNER", barbershopId: b.id });
     const sched = await getSchedule.execute(b.id);
     expect(sched.length).toBe(1);
     expect(sched[0].dayOfWeek).toBe(1);
@@ -89,9 +89,55 @@ describe("Barbershops module", () => {
 
   it("geocodifica a cidade quando faltam coordenadas", async () => {
     const b = await create.execute({ name: "Geo", whatsapp: "55" });
-    const updated = await update.execute(b.id, { city: "Bebedouro" });
+    const updated = await update.execute(b.id, { city: "Bebedouro" }, { id: "owner-1", role: "OWNER", barbershopId: b.id });
     expect(updated.city).toBe("Bebedouro");
     expect(updated.latitude).toBe(-20.949);
     expect(updated.longitude).toBe(-48.479);
+  });
+
+  it("OWNER não atualiza barbearia de outro salão (403) e nada muda", async () => {
+    const victim = await create.execute({ name: "Vitima", whatsapp: "55" });
+    const attacker = { id: "owner-2", role: "OWNER", barbershopId: "outro-salao" };
+
+    const attempt = update.execute(victim.id, { name: "Hackeado" }, attacker);
+    await expect(attempt).rejects.toMatchObject({ statusCode: 403 });
+
+    const untouched = await get.execute(victim.id);
+    expect(untouched.name).toBe("Vitima");
+  });
+
+  it("OWNER atualiza a própria barbearia", async () => {
+    const mine = await create.execute({ name: "Propria", whatsapp: "55" });
+    const updated = await update.execute(
+      mine.id,
+      { name: "Propria Editada" },
+      { id: "owner-1", role: "OWNER", barbershopId: mine.id },
+    );
+    expect(updated.name).toBe("Propria Editada");
+  });
+
+  it("MASTER_ADMIN atualiza barbearia de qualquer salão", async () => {
+    const any = await create.execute({ name: "Global", whatsapp: "55" });
+    const updated = await update.execute(
+      any.id,
+      { name: "Global Editada" },
+      { id: "master-1", role: "MASTER_ADMIN" },
+    );
+    expect(updated.name).toBe("Global Editada");
+  });
+
+  it("OWNER não atualiza a agenda de barbearia de outro salão (403)", async () => {
+    const victim = await create.execute({ name: "Vitima Agenda", whatsapp: "55" });
+    const attacker = { id: "owner-2", role: "OWNER", barbershopId: "outro-salao" };
+
+    await expect(
+      updateSchedule.execute(
+        victim.id,
+        [{ dayOfWeek: 3, isOpen: true, openTime: "10:00", closeTime: "20:00" }],
+        attacker,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+
+    expect(await getSchedule.execute(victim.id)).toHaveLength(0);
   });
 });
