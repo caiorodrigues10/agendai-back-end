@@ -8,7 +8,7 @@ export class ReputationController {
 
   async getReputation(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { barbershopId } = request.params as { barbershopId: string };
-    const reputation = await this.useCases.getReputation(barbershopId);
+    const reputation = await this.useCases.getReputation(barbershopId, request.user);
     reply.send({ success: true, data: reputation });
   }
 
@@ -23,7 +23,7 @@ export class ReputationController {
 
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const reputation = await this.useCases.computeReputation(resolvedBarbershopId);
+    const reputation = await this.useCases.computeReputation(resolvedBarbershopId, request.user);
     reply.send({ success: true, data: reputation });
   }
 
@@ -32,13 +32,14 @@ export class ReputationController {
     const { barbershopId, reviewId } = request.params as { barbershopId: string; reviewId: string };
     const body = respondToReviewSchema.parse(request.body);
 
-    const response = await this.useCases.respondToReview(reviewId, user.id, body);
+    const response = await this.useCases.respondToReview(reviewId, user.id, body, user);
     reply.status(201).send({ success: true, data: response });
   }
 
   async getReviewResponse(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const user = request.user!;
     const { reviewId } = request.params as { reviewId: string };
-    const response = await this.useCases.getReviewResponse(reviewId);
+    const response = await this.useCases.getReviewResponse(reviewId, user);
     reply.send({ success: true, data: response });
   }
 }
