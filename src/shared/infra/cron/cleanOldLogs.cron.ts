@@ -6,9 +6,19 @@ import { withCronCorrelation } from "@/shared/utils/correlationContext";
 
 const RETENTION_MONTHS = 6;
 const BATCH_SIZE = 1000;
-const ALLOWED_TABLES = new Set(["audit_logs", "access_logs", "error_logs"]);
+const ALLOWED_TABLES = new Set<string>(["audit_logs", "access_logs", "error_logs"]);
 
-async function cleanTable(tableName: string): Promise<number> {
+export const LOG_COLUMNS = {
+  audit_logs: "createdAt",
+  access_logs: "createdAt",
+  error_logs: "createdAt",
+} as const satisfies Record<string, string>;
+export function buildCleanTableSql(tableName: keyof typeof LOG_COLUMNS): string {
+  const column = LOG_COLUMNS[tableName];
+  return `DELETE FROM ${tableName} WHERE id IN (SELECT id FROM ${tableName} WHERE ${column} < $1 LIMIT ${BATCH_SIZE})`;
+}
+
+export async function cleanTable(tableName: string): Promise<number> {
   if (!ALLOWED_TABLES.has(tableName)) {
     throw new Error(`Tabela não permitida: ${tableName}`);
   }
@@ -20,7 +30,7 @@ async function cleanTable(tableName: string): Promise<number> {
 
   while (deleted === BATCH_SIZE) {
     const result = await prisma.$executeRawUnsafe(
-      `DELETE FROM ${tableName} WHERE id IN (SELECT id FROM ${tableName} WHERE created_at < $1 LIMIT ${BATCH_SIZE})`,
+      buildCleanTableSql(tableName as keyof typeof LOG_COLUMNS),
       cutoff
     );
     deleted = Number(result);
