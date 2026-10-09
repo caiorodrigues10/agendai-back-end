@@ -31,11 +31,14 @@ describe("cleanOldLogs — limpeza de logs (LGPD)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it.each(["audit_logs", "access_logs", "error_logs"] as const)(
-    "usa a coluna real createdAt em %s (não created_at)",
+    "usa a coluna real \"createdAt\" (citada) em %s",
     (table) => {
       const sql = buildCleanTableSql(table);
 
-      expect(sql).toContain(`FROM ${table} WHERE createdAt < $1`);
+      // Sem aspas o Postgres dobra o identificador para "createdat" e a query
+      // falha com 42703 — por isso a coluna precisa vir entre aspas duplas.
+      expect(sql).toContain(`FROM ${table} WHERE "createdAt" < $1`);
+      expect(sql).not.toMatch(/WHERE\s+createdAt\s*</);
       expect(sql).not.toContain("created_at");
       expect(sql).toContain("LIMIT 1000");
     },
@@ -52,7 +55,7 @@ describe("cleanOldLogs — limpeza de logs (LGPD)", () => {
     expect(total).toBe(2007);
     expect(prismaMock.$executeRawUnsafe).toHaveBeenCalledTimes(3);
     const [sql, cutoff] = prismaMock.$executeRawUnsafe.mock.calls[0];
-    expect(sql).toContain("WHERE createdAt < $1");
+    expect(sql).toContain('WHERE "createdAt" < $1');
     expect(cutoff).toBeInstanceOf(Date);
   });
 

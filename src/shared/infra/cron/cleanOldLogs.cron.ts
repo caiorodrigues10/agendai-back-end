@@ -9,9 +9,9 @@ const BATCH_SIZE = 1000;
 const ALLOWED_TABLES = new Set<string>(["audit_logs", "access_logs", "error_logs"]);
 
 export const LOG_COLUMNS = {
-  audit_logs: "createdAt",
-  access_logs: "createdAt",
-  error_logs: "createdAt",
+  audit_logs: '"createdAt"',
+  access_logs: '"createdAt"',
+  error_logs: '"createdAt"',
 } as const satisfies Record<string, string>;
 export function buildCleanTableSql(tableName: keyof typeof LOG_COLUMNS): string {
   const column = LOG_COLUMNS[tableName];
