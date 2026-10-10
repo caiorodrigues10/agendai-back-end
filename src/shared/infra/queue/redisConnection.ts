@@ -108,6 +108,46 @@ export function getSubscriberConnection(): IORedis {
   return getClient("subscriber");
 }
 
+/**
+ * Aquece a conexão `api` no boot e espera o handshake terminar.
+ *
+ * O cliente `api` nasce com `lazyConnect` + `enableOfflineQueue: false`: o
+ * primeiro comando emitido enquanto o connect ainda está em andamento é
+ * rejeitado ("Stream isn't writeable"). Sem este passo, o 1º login após o
+ * restart batia em `checkLock` durante o handshake e caía no fail-closed do
+ * lockout (423 por 60s) mesmo com o Redis saudável.
+ *
+ * Best-effort: retorna false se o Redis não ficar pronto no tempo limite —
+ * nesse caso as rotas seguem fail-closed, como manda a política B4.
+ */
+export async function warmupApiRedis(timeoutMs = 3_000): Promise<boolean> {
+  try {
+    const client = getApiRedisConnection();
+    if (client.status === "ready") return true;
+
+    return await new Promise<boolean>((resolve) => {
+      const finish = (ready: boolean) => {
+        clearTimeout(timer);
+        client.removeListener("ready", onReady);
+        client.removeListener("error", onError);
+        resolve(ready);
+      };
+      const onReady = () => finish(true);
+      const onError = () => finish(false);
+      const timer = setTimeout(() => finish(client.status === "ready"), timeoutMs);
+      timer.unref?.();
+
+      client.once("ready", onReady);
+      client.once("error", onError);
+
+      // status "end"/"close" não emite mais "ready" — não espera até o timeout.
+      if (client.status === "end" || client.status === "close") finish(false);
+    });
+  } catch {
+    return false;
+  }
+}
+
 export async function closeRedisConnections(): Promise<void> {
   const open = (Object.values(clients) as Array<IORedis | undefined>).filter(
     (client): client is IORedis => Boolean(client)
