@@ -135,7 +135,10 @@ export async function buildApp() {
           /* ignore invalid origin */
         }
       }
-      cb(new Error("Origin not allowed"), false);
+      // Origem fora da whitelist: 403 explícito. Um Error genérico aqui virava
+      // 500 "Erro interno do servidor" no error handler (falso alarme em
+      // monitoramento e log poluído por requisição cruzada malformada).
+      cb(new AppError("Origem não permitida", 403), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
