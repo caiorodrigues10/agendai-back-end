@@ -32,6 +32,12 @@ const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }));
 
+const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() =>
+  vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
+);
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
 
 vi.mock("@/modules/referrals/services/referralService", () => ({
@@ -130,6 +136,8 @@ beforeEach(() => {
   prismaMock.adminNotification.create.mockResolvedValue({});
   prismaMock.auditLog.create.mockResolvedValue({});
   prismaMock.$transaction.mockImplementation((ops: unknown[]) => Promise.all(ops));
+  rlsHolder.tx = prismaMock;
+  rlsMock.mockClear();
 });
 
 describe("traço financeiro do estorno (mock de provedor)", () => {
@@ -145,6 +153,9 @@ describe("traço financeiro do estorno (mock de provedor)", () => {
 
     // 2) Nenhuma reversão de comissão.
     expect(prismaMock.commissionEntry.create).not.toHaveBeenCalled();
+
+    // 3) Estorno grava refund + payment na MESMA transação (rlsTransaction).
+    expect(rlsMock).toHaveBeenCalled();
     expect(prismaMock.commissionEntry.createMany).not.toHaveBeenCalled();
     expect(prismaMock.commissionEntry.update).not.toHaveBeenCalled();
     expect(prismaMock.commissionEntry.updateMany).not.toHaveBeenCalled();

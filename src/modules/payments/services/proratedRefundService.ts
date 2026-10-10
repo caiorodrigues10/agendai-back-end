@@ -1,5 +1,6 @@
 import { container } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import { billingPeriodDays } from "@/shared/constants/subscription";
@@ -185,16 +186,16 @@ export async function issueProratedRefund(
 
     providerSucceeded = true;
 
-    await prisma.$transaction([
-      prisma.refund.update({
+    await rlsTransaction(async (tx) => {
+      await tx.refund.update({
         where: { id: refund.id },
         data: {
           status: "SUCCEEDED",
           providerRefundId,
           completedAt: new Date(),
         },
-      }),
-      prisma.payment.update({
+      });
+      await tx.payment.update({
         where: { id: payment.id },
         data: {
           status: "refunded",
@@ -203,8 +204,8 @@ export async function issueProratedRefund(
               ? "prorated_refunded_via_pix"
               : "prorated_refunded_partial",
         },
-      }),
-    ]);
+      });
+    });
 
     await invalidateSubscriptionCache(input.barbershopId);
 

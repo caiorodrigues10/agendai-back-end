@@ -9,6 +9,12 @@ const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn((ops: any[]) => Promise.all(ops)),
 }));
 
+const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() =>
+  vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
+);
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
 
 vi.mock("@/shared/infra/http/middlewares/subscriptionAccessCache", () => ({
@@ -60,6 +66,8 @@ describe("issueProratedRefund", () => {
     mpMock.refundPayment.mockResolvedValue({ id: "mp-refund-1", status: "approved" });
     abacateMock.sendPix.mockResolvedValue({ id: "pix-txn-1", status: "COMPLETE" });
     asaasMock.refundPayment.mockResolvedValue({ id: "asaas-refund-1", status: "REFUND_REQUESTED" });
+    rlsHolder.tx = prismaMock;
+    rlsMock.mockClear();
   });
 
   it("calcula proporcional com multa de 20% e faz refund parcial no MercadoPago (mensal, 20 de 30 dias usados → 1/3 × 0,8)", async () => {
@@ -73,6 +81,8 @@ describe("issueProratedRefund", () => {
 
     expect(result?.status).toBe("SUCCEEDED");
     expect(result?.amount).toBe(26);
+    // refund + payment na MESMA transação (rlsTransaction).
+    expect(rlsMock).toHaveBeenCalled();
     expect(prismaMock.refund.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ paymentId: "pay-1", amount: 26, status: "PENDING", requestedById: null }),

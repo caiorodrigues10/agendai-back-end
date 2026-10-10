@@ -18,6 +18,12 @@ const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }));
 
+const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() =>
+  vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
+);
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
 vi.mock("@/libs/prismaClient", () => ({
   prisma: prismaMock,
 }));
@@ -72,6 +78,8 @@ describe("RefundPaymentUseCase", () => {
     prismaMock.refund.findUnique.mockResolvedValue(null);
     prismaMock.invoice.updateMany.mockResolvedValue({ count: 0 });
     prismaMock.invoice.update.mockResolvedValue({});
+    rlsHolder.tx = prismaMock;
+    rlsMock.mockClear();
     abacateMock = {
       refundCheckout: vi
         .fn()
@@ -239,6 +247,8 @@ describe("RefundPaymentUseCase", () => {
         }),
       })
     );
+    // Estorno: refund + payment (+ invoices) na MESMA transação.
+    expect(rlsMock).toHaveBeenCalled();
   });
 
   it("sucesso MERCADOPAGO: chama refundPayment com mpPaymentId string", async () => {

@@ -32,6 +32,12 @@ const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }));
 
+const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() =>
+  vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
+);
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
 
 vi.mock("@/modules/referrals/services/referralService", () => ({
@@ -97,6 +103,8 @@ beforeEach(() => {
   prismaMock.auditLog.create.mockResolvedValue({});
   prismaMock.adminNotification.create.mockResolvedValue({});
   prismaMock.$transaction.mockImplementation((ops: unknown[]) => Promise.all(ops));
+  rlsHolder.tx = prismaMock;
+  rlsMock.mockClear();
 });
 
 describe("estorno entre salões (gate por papel, não por tenant)", () => {
@@ -123,6 +131,8 @@ describe("estorno entre salões (gate por papel, não por tenant)", () => {
     expect(mp.refundPayment).toHaveBeenCalledWith("987654321");
     const paymentUpdate = prismaMock.payment.update.mock.calls[0][0];
     expect(paymentUpdate.data.status).toBe("refunded");
+    // refund + payment na MESMA transação (rlsTransaction).
+    expect(rlsMock).toHaveBeenCalled();
   });
 
   it("OWNER da MESMA barbearia do pagamento recebe 403 (gate é papel, não tenant)", async () => {
