@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { ICreateBarbershopDTO } from "../../dtos/ICreateBarbershopDTO";
 import { IUpdateBarbershopDTO } from "../../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
@@ -68,11 +69,11 @@ export class BarbershopRepository implements IBarbershopRepository {
     barbershopId: string,
     schedule: Array<{ dayOfWeek: number; isOpen: boolean; openTime: string; closeTime: string }>
   ): Promise<void> {
-    await prisma.$transaction([
-      prisma.schedule.deleteMany({ where: { barbershopId } }),
-      prisma.schedule.createMany({
+    await rlsTransaction(async (tx) => {
+      await tx.schedule.deleteMany({ where: { barbershopId } });
+      await tx.schedule.createMany({
         data: schedule.map((s) => ({ barbershopId, ...s }))
-      })
-    ]);
+      });
+    });
   }
 }
