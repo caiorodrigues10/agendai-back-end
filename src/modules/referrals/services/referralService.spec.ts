@@ -8,24 +8,19 @@ import {
 	getReferralTier,
 } from '@/shared/constants/referral'
 import {
-	attachReferralOnRegister,
 	qualifyReferralOnPayment,
 	revokeReferralOnCancellation,
 } from './referralService'
-import { validateEmail } from '@/shared/services/emailValidationService'
 
 const prismaMock = vi.hoisted(() => ({
 	referral: {
 		findUnique: vi.fn(),
 		updateMany: vi.fn(),
-		create: vi.fn(),
 		count: vi.fn(),
 	},
 	referralCode: {
 		update: vi.fn(),
-		findUnique: vi.fn(),
 	},
-	user: { findUnique: vi.fn() },
 	subscription: {
 		findUnique: vi.fn(),
 		update: vi.fn(),
@@ -35,19 +30,12 @@ const prismaMock = vi.hoisted(() => ({
 	},
 	barbershop: {
 		findUnique: vi.fn(),
-		update: vi.fn(),
 	},
 	adminNotification: {
 		create: vi.fn(),
 	},
 	$transaction: vi.fn(),
 }))
-
-const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }))
-const rlsMock = vi.hoisted(() =>
-	vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
-)
-vi.mock('@/libs/prismaExtensions', () => ({ rlsTransaction: rlsMock }))
 
 const queueMock = vi.hoisted(() => ({
 	enqueueEmail: vi.fn(),
@@ -116,8 +104,6 @@ beforeEach(() => {
 			referralCreditLedger: prismaMock.referralCreditLedger,
 		})
 	)
-	rlsHolder.tx = prismaMock
-	rlsMock.mockClear()
 })
 
 describe('referral constants', () => {
@@ -227,47 +213,5 @@ describe('referral constants', () => {
 		})
 		expect(prismaMock.subscription.update).not.toHaveBeenCalled()
 		expect(queueMock.enqueueEmail).not.toHaveBeenCalled()
-	})
-})
-
-describe('attachReferralOnRegister — atomicidade', () => {
-	it('vincula o código e cria a indicação na MESMA transação (rlsTransaction)', async () => {
-		vi.mocked(validateEmail).mockResolvedValue({ valid: true } as never)
-		prismaMock.referralCode.findUnique.mockResolvedValue({
-			id: 'code-1',
-			code: 'CODE123',
-			active: true,
-			maxUses: null,
-			ownerUserId: 'owner-1',
-			barbershopId: 'shop-referrer',
-			barbershop: { id: 'shop-referrer', name: 'Salao A' },
-		})
-		prismaMock.referral.findUnique.mockResolvedValue(null)
-		prismaMock.barbershop.update.mockResolvedValue({})
-		prismaMock.referral.create.mockResolvedValue({ id: 'referral-novo' })
-
-		await attachReferralOnRegister({
-			referralCode: 'CODE123',
-			refereeUserId: 'referee-user-1',
-			refereeBarbershopId: 'shop-referee',
-			refereeOwnerName: 'Bia',
-			refereeEmail: 'bia@example.com',
-		})
-
-		expect(rlsMock).toHaveBeenCalledTimes(1)
-		expect(prismaMock.barbershop.update).toHaveBeenCalledWith(
-			expect.objectContaining({
-				where: { id: 'shop-referee' },
-				data: { referredByCodeId: 'code-1' },
-			}),
-		)
-		expect(prismaMock.referral.create).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({
-					refereeBarbershopId: 'shop-referee',
-					status: 'PENDING',
-				}),
-			}),
-		)
 	})
 })

@@ -1,5 +1,4 @@
 import { prisma } from '@/libs/prismaClient'
-import { rlsTransaction } from '@/libs/prismaExtensions'
 import { AppError } from '@/shared/errors/AppError'
 
 export class VerifyEmailUseCase {
@@ -15,15 +14,15 @@ export class VerifyEmailUseCase {
 		if (vt.usedAt) throw new AppError('Token já utilizado', 400)
 		if (vt.expiresAt < new Date()) throw new AppError('Token expirado', 400)
 
-		await rlsTransaction(async (tx) => {
-			await tx.user.update({
+		await prisma.$transaction([
+			prisma.user.update({
 				where: { id: vt.userId },
 				data: { emailVerified: true },
-			})
-			await tx.verificationToken.update({
+			}),
+			prisma.verificationToken.update({
 				where: { id: vt.id },
 				data: { usedAt: new Date() },
-			})
-		})
+			}),
+		])
 	}
 }

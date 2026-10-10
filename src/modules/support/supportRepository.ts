@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
-import { rlsTransaction } from "@/libs/prismaExtensions";
 import type { AdminNotificationType } from "@prisma/client";
 import type { CreateReportInput, ListMyReportsQuery } from "./supportSchema";
 
@@ -145,13 +144,13 @@ export class SupportRepository {
       return null;
     }
     const nextStatus = currentStatus === "WAITING_SHOP" ? "IN_PROGRESS" : "OPEN";
-    const updated = await rlsTransaction(async (tx) => {
-      const ticket = await tx.ticket.update({
+    const [updated] = await prisma.$transaction([
+      prisma.ticket.update({
         where: { id: ticketId },
         data: { status: nextStatus },
         select: { id: true, status: true },
-      });
-      await tx.ticketHistory.create({
+      }),
+      prisma.ticketHistory.create({
         data: {
           ticketId,
           actorId,
@@ -160,9 +159,8 @@ export class SupportRepository {
           newValue: nextStatus,
           reason: "Resposta do usuário",
         },
-      });
-      return ticket;
-    });
+      }),
+    ]);
     return updated;
   }
 

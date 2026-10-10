@@ -1,6 +1,5 @@
 import { inject, injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
-import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
@@ -32,17 +31,16 @@ export class ResetPasswordUseCase {
 
     const passwordHash = await this.hashProvider.hash(newPassword);
 
-    const updatedUser = await rlsTransaction(async (tx) => {
-      const user = await tx.user.update({
+    const [updatedUser] = await prisma.$transaction([
+      prisma.user.update({
         where: { email: resetToken.email },
         data: { password: passwordHash },
-      });
-      await tx.passwordResetToken.update({
+      }),
+      prisma.passwordResetToken.update({
         where: { id: resetToken.id },
         data: { usedAt: new Date() },
-      });
-      return user;
-    });
+      }),
+    ]);
 
     // E-mail de confirmação de senha alterada — fire-and-forget.
     await enqueueEmail({
