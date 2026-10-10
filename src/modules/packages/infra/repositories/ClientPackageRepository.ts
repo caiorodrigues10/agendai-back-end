@@ -1,4 +1,5 @@
 import { prisma, type AppTx } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 import { AppError } from "@/shared/errors/AppError";
 import { IClientPackageRepository, ICreateClientPackageRecord } from "../../repositories/IClientPackageRepository";
@@ -61,7 +62,7 @@ function map(record: {
 export class ClientPackageRepository implements IClientPackageRepository {
   async create(data: ICreateClientPackageRecord): Promise<IClientPackageResponseDTO> {
     // Venda do pacote e receita no ledger na MESMA transação (idempotente).
-    return prisma.$transaction(async (tx: AppTx) => {
+    return rlsTransaction(async (tx: AppTx) => {
       const record = await tx.clientPackage.create({
         data: {
           barbershopId: data.barbershopId,

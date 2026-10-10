@@ -1,4 +1,5 @@
-import { prisma, Prisma, type AppTx } from "@/libs/prismaClient"; 
+import { prisma, Prisma, type AppTx } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { IExpenseRepository } from "../../repositories/IExpenseRepository";
 import {
   ICreateExpenseDTO,
@@ -24,7 +25,7 @@ type ExpenseCategoryName = { id: string; name: string };
 export class ExpenseRepository implements IExpenseRepository {
   async create(data: ICreateExpenseDTO): Promise<IExpenseResponseDTO> {
     // Despesa paga entra no ledger no MESMO instante do pagamento (paidAt).
-    const record = await prisma.$transaction(async (tx: AppTx) => {
+    const record = await rlsTransaction(async (tx: AppTx) => {
       const created = await tx.expense.create({
       data: {
         barbershopId: data.barbershopId,
@@ -114,7 +115,7 @@ export class ExpenseRepository implements IExpenseRepository {
 
   async update(id: string, data: IUpdateExpenseDTO): Promise<IExpenseResponseDTO> {
     // Mudança de valor/forma/pagamento regrava o lançamento de forma idempotente.
-    const record = await prisma.$transaction(async (tx: AppTx) => {
+    const record = await rlsTransaction(async (tx: AppTx) => {
       const previous = await tx.expense.findUnique({ where: { id }, select: { barbershopId: true } });
       const updated = await tx.expense.update({
         where: { id },
@@ -164,7 +165,7 @@ export class ExpenseRepository implements IExpenseRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await prisma.$transaction(async (tx: AppTx) => {
+    await rlsTransaction(async (tx: AppTx) => {
       const existing = await tx.expense.findUnique({ where: { id }, select: { barbershopId: true } });
       await tx.expense.delete({ where: { id } });
       if (existing) {

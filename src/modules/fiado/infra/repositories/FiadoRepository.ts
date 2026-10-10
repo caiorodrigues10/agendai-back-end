@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
 import { IFiadoRepository } from "../../repositories/IFiadoRepository";
 import {
@@ -133,7 +134,10 @@ export class FiadoRepository implements IFiadoRepository {
   }
 
   async addPayment(data: ICreateFiadoPaymentDTO): Promise<IFiadoPaymentResponseDTO> {
-    return prisma.$transaction(async (tx: any) => {
+    // rlsTransaction garante atomicidade; o set_config abaixo mantém o GUC
+    // explícito da barbearia operada (fiados tem RLS e o SELECT ... FOR UPDATE
+    // precisa enxergar o tenant correto).
+    return rlsTransaction(async (tx: any) => {
       await tx.$executeRaw`SELECT set_config('app.current_barbershop_id', ${data.barbershopId}, TRUE)`;
 
       const rows = await tx.$queryRaw<

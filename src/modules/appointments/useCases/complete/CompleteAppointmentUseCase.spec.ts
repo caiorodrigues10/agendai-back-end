@@ -1,5 +1,9 @@
 /// <reference types="vitest/globals" />
 
+const holder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() => vi.fn(async (fn: (tx: unknown) => unknown) => fn(holder.tx)));
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
 const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
   cashMovement: {
@@ -60,7 +64,9 @@ function setup(appointment: AppointmentRow) {
     cashMovement: prismaMock.cashMovement,
     fiado: { create: vi.fn().mockResolvedValue({ id: "fiado-1" }) },
   };
-  prismaMock.$transaction.mockReset().mockImplementation(async (fn: any) => fn(tx));
+  prismaMock.$transaction.mockReset();
+  holder.tx = tx;
+  rlsMock.mockClear();
   prismaMock.cashMovement.findFirst.mockReset().mockResolvedValue(null);
   prismaMock.cashMovement.create.mockReset().mockResolvedValue({ id: "led-1" });
 
@@ -152,7 +158,7 @@ describe("CompleteAppointmentUseCase — conclusão alimenta comissão e ledger"
 
     await expect(useCase.execute(request)).rejects.toMatchObject({ statusCode: 409 });
     expect(appointmentRepository.findById).toHaveBeenCalled();
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(rlsMock).not.toHaveBeenCalled();
     expect(prismaMock.cashMovement.create).not.toHaveBeenCalled();
   });
 
