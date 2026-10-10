@@ -1,5 +1,6 @@
 import { inject, injectable } from "tsyringe";
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
 import { MercadoPagoService } from "../../services/MercadoPagoService";
 import { AbacatePayService } from "../../services/AbacatePayService";
@@ -132,48 +133,46 @@ export class RefundPaymentUseCase {
           })
         : null;
 
-      const transaction: Prisma.PrismaPromise<unknown>[] = [
-        prisma.refund.update({
+      // Captura no escopo estreitado: dentro do callback do rlsTransaction o
+      // TS perde o narrowing de `providerResponse` (let atribuído em ramos).
+      const { refundId: providerRefundIdResposta, raw: providerRaw } = providerResponse;
+
+      await rlsTransaction(async (tx) => {
+        await tx.refund.update({
           where: { id: refund.id },
           data: {
             status: "SUCCEEDED",
-            providerRefundId: providerResponse.refundId,
+            providerRefundId: providerRefundIdResposta,
             completedAt: new Date(),
           },
-        }),
-        prisma.payment.update({
+        });
+        await tx.payment.update({
           where: { id: payment.id },
           data: {
             status: "refunded",
             statusDetail: "refunded_by_admin",
             rawResponse: null,
-            providerSnapshot: buildPaymentProviderSnapshot(payment.provider, providerResponse.raw),
+            providerSnapshot: buildPaymentProviderSnapshot(payment.provider, providerRaw),
           },
-        }),
-      ];
+        });
 
-      if (subscription) {
-        transaction.push(
-          prisma.invoice.updateMany({
+        if (subscription) {
+          await tx.invoice.updateMany({
             where: {
               subscriptionId: subscription.id,
               status: { in: ["PENDING", "OVERDUE"] },
             },
             data: { status: "CANCELLED" },
-          })
-        );
-      }
+          });
+        }
 
-      if (invoiceMatch) {
-        transaction.push(
-          prisma.invoice.updateMany({
+        if (invoiceMatch) {
+          await tx.invoice.updateMany({
             where: { id: invoiceMatch[2] },
             data: { status: "CANCELLED" },
-          })
-        );
-      }
-
-      await prisma.$transaction(transaction);
+          });
+        }
+      });
 
       if (subscription) {
         await cancelSubscriptionForBarbershop(payment.barbershopId, {

@@ -1,4 +1,5 @@
-import { prisma, Prisma } from "@/libs/prismaClient";
+import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { sanitizeNotificationError } from "@/modules/notifications/services/notificationSecurity";
 
 const INVOICE_REFERENCE_PATTERN = /^(?:bq|ag)-sub-([0-9a-f-]+)-inv-([0-9a-f-]+)$/;
@@ -32,8 +33,8 @@ export async function reconcilePendingRefunds(limit = 25): Promise<{
         select: { id: true },
       });
       const invoiceId = refund.payment.externalReference?.match(INVOICE_REFERENCE_PATTERN)?.[2];
-      const operations: Prisma.PrismaPromise<unknown>[] = [
-        prisma.refund.update({
+      await rlsTransaction(async (tx) => {
+        await tx.refund.update({
           where: { id: refund.id },
           data: {
             status: "SUCCEEDED",
@@ -41,8 +42,8 @@ export async function reconcilePendingRefunds(limit = 25): Promise<{
             nextReconciliationAt: null,
             lastReconciliationError: null,
           },
-        }),
-        prisma.payment.update({
+        });
+        await tx.payment.update({
           where: { id: refund.paymentId },
           data: {
             status: "refunded",
@@ -51,15 +52,14 @@ export async function reconcilePendingRefunds(limit = 25): Promise<{
             pixQrCodeBase64: null,
             pixExpirationDate: null,
           },
-        }),
-      ];
-      if (invoiceId) {
-        operations.push(prisma.invoice.updateMany({
-          where: { id: invoiceId },
-          data: { status: "CANCELLED" },
-        }));
-      }
-      await prisma.$transaction(operations);
+        });
+        if (invoiceId) {
+          await tx.invoice.updateMany({
+            where: { id: invoiceId },
+            data: { status: "CANCELLED" },
+          });
+        }
+      });
       reconciled += 1;
     } catch (error) {
       const attempt = refund.reconciliationAttempts + 1;
