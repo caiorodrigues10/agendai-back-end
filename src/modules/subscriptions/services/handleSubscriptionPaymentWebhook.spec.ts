@@ -8,8 +8,15 @@ const prismaMock = vi.hoisted(() => ({
   payment: { findFirst: vi.fn() },
   refund: { findFirst: vi.fn() },
   adminNotification: { create: vi.fn() },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn((ops: any[]) => Promise.all(ops)),
 }));
+
+const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() =>
+  vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
+);
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
 
@@ -61,6 +68,8 @@ describe("handleSubscriptionPaymentWebhook — eventos negativos", () => {
     prismaMock.payment.findFirst.mockResolvedValue({ id: "pay-1" });
     prismaMock.refund.findFirst.mockResolvedValue(null);
     prismaMock.adminNotification.create.mockResolvedValue({});
+    rlsHolder.tx = prismaMock;
+    rlsMock.mockClear();
   });
 
   it("in_mediation → assinatura UNPAID e invoice PENDING (acesso suspenso)", async () => {
@@ -128,6 +137,20 @@ describe("handleSubscriptionPaymentWebhook — eventos negativos", () => {
     expect(prismaMock.subscription.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: "PAST_DUE" }) })
     );
+  });
+
+  it("evento grava invoice + subscription na MESMA transação (rlsTransaction)", async () => {
+    prismaMock.invoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      subscriptionId: "1",
+      status: "PENDING",
+    });
+
+    await handleSubscriptionPaymentWebhook(REF, "approved");
+
+    expect(rlsMock).toHaveBeenCalledTimes(1);
+    expect(prismaMock.invoice.update).toHaveBeenCalled();
+    expect(prismaMock.subscription.update).toHaveBeenCalled();
   });
 
   it("approved → ativa assinatura e paga invoice (legado)", async () => {
