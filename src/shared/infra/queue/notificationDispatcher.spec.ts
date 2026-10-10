@@ -7,19 +7,24 @@ const mockDeliveryUpdateMany = vi.fn();
 const mockTransaction = vi.fn();
 const mockQueueAdd = vi.fn();
 
-vi.mock("@/libs/prismaClient", () => ({
-  prisma: {
-    notificationOutbox: {
-      findMany: (...args: unknown[]) => mockOutboxFindMany(...args),
-      update: (...args: unknown[]) => mockOutboxUpdate(...args),
-      updateMany: (...args: unknown[]) => mockOutboxUpdateMany(...args),
-    },
-    notificationDelivery: {
-      updateMany: (...args: unknown[]) => mockDeliveryUpdateMany(...args),
-    },
-    $transaction: (...args: unknown[]) => mockTransaction(...args),
+const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() =>
+  vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
+);
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
+const prismaMock = vi.hoisted(() => ({
+  notificationOutbox: {
+    findMany: (...args: unknown[]) => mockOutboxFindMany(...args),
+    update: (...args: unknown[]) => mockOutboxUpdate(...args),
+    updateMany: (...args: unknown[]) => mockOutboxUpdateMany(...args),
   },
+  notificationDelivery: {
+    updateMany: (...args: unknown[]) => mockDeliveryUpdateMany(...args),
+  },
+  $transaction: (...args: unknown[]) => mockTransaction(...args),
 }));
+vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
 
 vi.mock("./notificationQueue", () => ({
   getNotificationQueue: () => ({ add: (...args: unknown[]) => mockQueueAdd(...args) }),
@@ -60,6 +65,8 @@ describe("notificationDispatcher", () => {
     vi.useFakeTimers();
     vi.stubEnv("VITEST", "");
     vi.stubEnv("NOTIFICATION_V2_MODE", "active");
+    rlsHolder.tx = prismaMock;
+    rlsMock.mockClear();
     mockOutboxFindMany.mockResolvedValue([]);
     mockOutboxUpdate.mockResolvedValue({});
     mockOutboxUpdateMany.mockResolvedValue({ count: 1 });
@@ -164,6 +171,26 @@ describe("notificationDispatcher", () => {
 
     expect(mockQueueAdd).toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("publica outbox e enfileira a delivery na MESMA transação (rlsTransaction)", async () => {
+    mockOutboxFindMany.mockResolvedValue([candidate("o1")]);
+
+    await dispatchNotificationOutboxNow();
+
+    expect(rlsMock).toHaveBeenCalledTimes(1);
+    expect(mockOutboxUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "o1" },
+        data: expect.objectContaining({ status: "PUBLISHED" }),
+      })
+    );
+    expect(mockDeliveryUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "d-o1", status: { in: ["PENDING", "RETRYING"] } },
+        data: expect.objectContaining({ status: "QUEUED" }),
+      })
+    );
   });
 
   it("não inicia quando o modo V2 não está ativo", async () => {
