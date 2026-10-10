@@ -57,7 +57,6 @@ function setup(row: TxRow, updateCount = 1) {
     commissionEntry: prismaMock.commissionEntry,
     cashMovement: prismaMock.cashMovement,
   };
-  prismaMock.$transaction?.mockReset?.();
   holder.tx = tx;
   rlsMock.mockClear();
   prismaMock.commissionEntry.createMany.mockReset().mockResolvedValue({ count: 1 });
