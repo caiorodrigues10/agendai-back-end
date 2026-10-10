@@ -55,8 +55,16 @@ export class ForgotPasswordUseCase {
         await redis.expire(key, RATE_LIMIT_WINDOW);
       }
       return count;
-    } catch {
-      return 0;
+    } catch (err) {
+      // B4/P0-13: sem Redis não há como contar as tentativas. Devolver 0 aqui
+      // seria fail-open (liberaria a emissão ilimitada de tokens de reset).
+      logger.error({ err, key }, "Redis error in forgot-password rate limit, failing closed");
+      throw new AppError(
+        "Serviço temporariamente indisponível. Tente novamente em instantes.",
+        503,
+        undefined,
+        "RATE_LIMIT_UNAVAILABLE",
+      );
     }
   }
 
