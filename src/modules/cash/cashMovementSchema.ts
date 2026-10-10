@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
 
 const dateValue = z.union([
   z.date(),
@@ -44,7 +45,7 @@ export const createCashMovementSchema = z.object({
     "WITHDRAWAL",
     "ADJUSTMENT",
   ]),
-  amount: z.coerce.number().positive("O valor deve ser maior que zero"),
+  amount: z.coerce.number().positive("O valor deve ser maior que zero").max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH),
   paymentMethod: z.enum(["CASH", "PIX", "CREDIT_CARD", "DEBIT_CARD", "FIADO"]),
   description: z.string().max(300).optional().nullable(),
   sourceType: z.enum(["APPOINTMENT", "RETAIL_SALE", "FIADO", "MANUAL"]).optional().nullable(),

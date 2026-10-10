@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
 
 export const createExpenseSchema = z.object({
   barbershopId: z.string().uuid().optional(),
   categoryId: z.string().uuid().optional().nullable(),
   title: z.string().min(2).max(200),
   description: z.string().max(1000).optional().nullable(),
-  amount: z.number().positive("Valor deve ser positivo"),
+  amount: z.number().positive("Valor deve ser positivo").max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH),
   type: z.enum(["FIXED", "VARIABLE", "INVESTMENT"]).default("VARIABLE"),
   recurrence: z.enum(["ONCE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).default("ONCE"),
   referenceDate: z.coerce.date({ required_error: "Data de referência obrigatória" }),
@@ -21,7 +22,7 @@ export const updateExpenseSchema = z.object({
   categoryId: z.string().uuid().optional().nullable(),
   title: z.string().min(2).max(200).optional(),
   description: z.string().max(1000).optional().nullable(),
-  amount: z.number().positive().optional(),
+  amount: z.number().positive().max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH).optional(),
   type: z.enum(["FIXED", "VARIABLE", "INVESTMENT"]).optional(),
   recurrence: z.enum(["ONCE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
   referenceDate: z.coerce.date().optional(),

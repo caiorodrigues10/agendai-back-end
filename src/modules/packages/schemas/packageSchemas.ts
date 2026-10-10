@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
 import { isValidDate, isNotPast, isWithinHorizon, isBusinessHour } from "@/shared/utils/dateUtils";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -19,7 +20,7 @@ export const createServicePackageSchema = z.object({
   serviceId: z.string().uuid("serviceId inválido"),
   name: z.string().min(2, "Nome obrigatório").max(100),
   sessionCount: z.number().int().min(2, "Mínimo 2 sessões").max(100),
-  price: z.number().min(0, "Preço não pode ser negativo"),
+  price: z.number().min(0, "Preço não pode ser negativo").max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH),
   validityDays: z.number().int().min(1).max(3650).optional().nullable(),
 });
 
@@ -27,7 +28,7 @@ export const updateServicePackageSchema = z.object({
   serviceId: z.string().uuid().optional(),
   name: z.string().min(2).max(100).optional(),
   sessionCount: z.number().int().min(2).max(100).optional(),
-  price: z.number().min(0).optional(),
+  price: z.number().min(0).max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH).optional(),
   validityDays: z.number().int().min(1).max(3650).optional().nullable(),
   active: z.boolean().optional(),
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { retailSalePayloadSchema } from "@/modules/products/schemas/productSchemas";
+import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
 
 /**
  * Campos extras (ex.: `completedAt` enviado pelo front) são ignorados.
@@ -8,7 +9,7 @@ import { retailSalePayloadSchema } from "@/modules/products/schemas/productSchem
 export const updateQueueItemSchema = z.object({
   status: z.enum(["waiting", "in_chair", "completed", "cancelled"]),
   completedBy: z.string().uuid().optional(),
-  finalPrice: z.number().min(0).optional(),
+  finalPrice: z.number().min(0).max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH).optional(),
   paymentMethod: z.enum(["pix", "credit_card", "debit_card", "fiado"]).optional(),
   /** Índice na fila WAITING (0 = frente, N = fim). Usado ao voltar da cadeira. */
   insertAt: z.number().int().min(0).max(500).optional(),
