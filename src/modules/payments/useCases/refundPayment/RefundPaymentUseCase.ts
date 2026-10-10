@@ -117,14 +117,20 @@ export class RefundPaymentUseCase {
       }
       providerConfirmed = true;
 
-      const subscription = await prisma.subscription.findUnique({
-        where: { barbershopId: payment.barbershopId },
-        select: { id: true, status: true },
-      });
-
       const invoiceMatch = payment.externalReference?.match(
         INVOICE_REFERENCE_PATTERN
       );
+      // Pagamento é de ASSINATURA só se a referência externa casa com o padrão
+      // de fatura (bq|ag-sub-...-inv-...). Pagamento de SERVIÇO (serviceId, sem
+      // ref de fatura) não pode cancelar a assinatura da barbearia.
+      const isSubscriptionPayment = Boolean(invoiceMatch);
+
+      const subscription = isSubscriptionPayment
+        ? await prisma.subscription.findUnique({
+            where: { barbershopId: payment.barbershopId },
+            select: { id: true, status: true },
+          })
+        : null;
 
       const transaction: Prisma.PrismaPromise<unknown>[] = [
         prisma.refund.update({
@@ -144,14 +150,19 @@ export class RefundPaymentUseCase {
             providerSnapshot: buildPaymentProviderSnapshot(payment.provider, providerResponse.raw),
           },
         }),
-        prisma.invoice.updateMany({
-          where: {
-            subscriptionId: subscription?.id ?? "",
-            status: { in: ["PENDING", "OVERDUE"] },
-          },
-          data: { status: "CANCELLED" },
-        }),
       ];
+
+      if (subscription) {
+        transaction.push(
+          prisma.invoice.updateMany({
+            where: {
+              subscriptionId: subscription.id,
+              status: { in: ["PENDING", "OVERDUE"] },
+            },
+            data: { status: "CANCELLED" },
+          })
+        );
+      }
 
       if (invoiceMatch) {
         transaction.push(
