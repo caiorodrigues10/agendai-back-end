@@ -69,6 +69,42 @@ describe("HTTP security baseline (local inject)", () => {
     expect(rejected.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
+  it("recusa origem fora da whitelist com 403 (nunca 500)", async () => {
+    const evil = { origin: "https://untrusted.example.test" };
+
+    // Requisição real: o callback de origin passava um Error genérico, que caía
+    // no fallback do error handler e virava 500 "Erro interno do servidor".
+    const actual = await app.inject({
+      method: "GET",
+      url: "/pentest/ping",
+      headers: evil,
+    });
+    expect(actual.statusCode).toBe(403);
+    expect(actual.json()).toMatchObject({ success: false });
+    expect(actual.headers["access-control-allow-origin"]).toBeUndefined();
+
+    // Preflight também era 500.
+    const preflight = await app.inject({
+      method: "OPTIONS",
+      url: "/pentest/ping",
+      headers: { ...evil, "access-control-request-method": "GET" },
+    });
+    expect(preflight.statusCode).toBe(403);
+    expect(preflight.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("origem permitida segue respondendo normalmente", async () => {
+    const ok = await app.inject({
+      method: "GET",
+      url: "/pentest/ping",
+      headers: { origin: "https://console.example.test" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.headers["access-control-allow-origin"]).toBe(
+      "https://console.example.test"
+    );
+  });
+
   it("adds baseline hardening headers", async () => {
     const response = await app.inject({ method: "GET", url: "/pentest/ping" });
     expect(response.statusCode).toBe(200);
