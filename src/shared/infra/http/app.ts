@@ -8,6 +8,7 @@ import websocket from "@fastify/websocket";
 import { registerRoutes } from "./routes";
 import { apiRoutes } from "./routes/api";
 import { realtimeHub } from "@/shared/services/realtimeService";
+import { warmupApiRedis } from "@/shared/infra/queue/redisConnection";
 import { healthRoutes } from "./health";
 import { correlationIdMiddleware } from "./middlewares/correlationId";
 import { resolveCorrelationId } from "@/shared/utils/correlationContext";
@@ -270,6 +271,17 @@ export async function buildApp() {
       });
     } catch (err) {
       request.log.error(err as any, "Failed to create audit log");
+    }
+  });
+
+  // Aquece a conexão Redis de operações de request ANTES de aceitar tráfego.
+  // O cliente nasce lazy e com enableOfflineQueue:false: o 1º comando emitido
+  // durante o handshake é rejeitado ("Stream isn't writeable") e, com o
+  // fail-closed do lockout (B4), viraria 423 no primeiro login de cada boot.
+  app.addHook("onReady", async () => {
+    const ok = await warmupApiRedis();
+    if (!ok && !process.env.VITEST) {
+      app.log.warn("Redis api não ficou pronto no boot — auth permanece fail-closed até reconectar");
     }
   });
 

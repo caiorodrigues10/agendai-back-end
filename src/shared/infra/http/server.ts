@@ -10,7 +10,7 @@ import type { FastifyInstance } from "fastify";
 import { getTasks as listCronTasks } from "node-cron";
 import { prisma } from "@/libs/prismaClient";
 import { realtimeHub } from "@/shared/services/realtimeService";
-import { closeRedisConnections, warmupApiRedis } from "@/shared/infra/queue/redisConnection";
+import { closeRedisConnections } from "@/shared/infra/queue/redisConnection";
 import { stopPostBroadcastWorker } from "@/shared/infra/queue/postBroadcastWorker";
 import { closePostRenderPool } from "@/shared/infra/worker/postRenderPool";
 import { scheduleAppointmentReminders } from "@/shared/infra/cron/appointmentReminders.cron";
@@ -226,11 +226,8 @@ async function start() {
 
     const app = await buildApp();
     try {
-      // Aquece a conexão Redis de operações de request antes de aceitar
-      // tráfego: senão o 1º comando cai no fail-closed do lockout (423).
-      if (!(await warmupApiRedis())) {
-        serverLogger.warn("Redis api não ficou pronto no boot — auth permanece fail-closed até reconectar");
-      }
+      // O warm-up da conexão Redis `api` roda no hook onReady do buildApp
+      // (caminho comum entre o servidor real e os smoke tests com inject).
       await app.listen({ port, host: "0.0.0.0" });
       serverLogger.info({ port }, 'Server started');
 
