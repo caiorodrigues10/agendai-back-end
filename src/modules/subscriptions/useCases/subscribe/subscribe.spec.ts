@@ -17,8 +17,15 @@ const prismaMock = vi.hoisted(() => ({
     updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn(),
 }));
+
+const rlsHolder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() =>
+  vi.fn(async (fn: (tx: unknown) => unknown) => fn(rlsHolder.tx)),
+);
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
 
 vi.mock("@/libs/prismaClient", () => ({
   prisma: prismaMock,
@@ -123,6 +130,8 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
       }
       return Promise.all(fnOrOps);
     });
+    rlsHolder.tx = prismaMock;
+    rlsMock.mockClear();
     prismaMock.subscription.update.mockResolvedValue({});
     prismaMock.invoice.update.mockResolvedValue({});
     prismaMock.subscription.findUniqueOrThrow.mockResolvedValue(
@@ -180,6 +189,38 @@ describe("SubscribeUseCase — endDate anual via cartão", () => {
     expect(subUpdateCall![0].data.endDate).toEqual(expectedEndDate);
     expect(subUpdateCall![0].data.endDate.getTime() - NOW.getTime()).toBe(
       365 * 86400000
+    );
+  });
+
+  it("pagamento aprovado grava invoice + subscription na MESMA transação (rlsTransaction)", async () => {
+    const useCase = new SubscribeUseCase(
+      mpService as any,
+      {} as any,
+      {} as any,
+      repo as any
+    );
+
+    await useCase.execute(
+      {
+        barbershopId: "shop-1",
+        planId: "plan-yearly",
+        paymentMethod: "credit_card",
+        cardToken: "card-token",
+        cardPaymentMethodId: "visa",
+        payerEmail: "owner@example.com",
+        payerFirstName: "Dono",
+        payerLastName: "Teste",
+        payerIdentification: { type: "CPF", number: "12345678901" },
+      },
+      { role: "OWNER", barbershopId: "shop-1" }
+    );
+
+    expect(rlsMock).toHaveBeenCalledTimes(1);
+    expect(prismaMock.invoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "inv-1" } })
+    );
+    expect(prismaMock.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "sub-1" } })
     );
   });
 
