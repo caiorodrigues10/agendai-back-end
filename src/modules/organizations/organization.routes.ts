@@ -47,7 +47,13 @@ export async function organizationRoutes(app: FastifyInstance) {
 
   app.post("/organizations/:id/barbershops", { preHandler: guard }, controller.attachBarbershop.bind(controller));
 
-  app.delete("/organizations/:id/barbershops/:barbershopId", { preHandler: guard }, controller.detachBarbershop.bind(controller));
+  // O detach é autorizado pela organização (controller resolve o acesso), não
+  // pelo salão ativo da sessão — isento do guard central de :barbershopId.
+  app.delete(
+    "/organizations/:id/barbershops/:barbershopId",
+    { preHandler: guard, config: { tenantParamGuard: false } },
+    controller.detachBarbershop.bind(controller)
+  );
 
   // Troca o salão ativo da sessão — autenticação + validação zod + rate limit de
   // auth. Autorização fica no controller (resolveOrgAccessToBarbershop === FULL).
