@@ -36,6 +36,14 @@ const SUB_THRESHOLD_TTL = isDev ? 30 : 300;
  */
 const ATTEMPTS_WINDOW = Math.max(...THRESHOLDS.map(([, duration]) => duration)) * 2;
 
+/**
+ * Política de falha (B4 / P0-13): o Redis é a ÚNICA memória do lockout. Se ele
+ * cair, devolver `{ locked: false }` liberaria o login sem contagem nenhuma —
+ * fail-open exatamente no caminho de autenticação. Aqui a falha fecha o caminho:
+ * o login é recusado por alguns segundos até o Redis voltar.
+ */
+const FAIL_CLOSED_RETRY_AFTER_SECONDS = 60;
+
 const lockTimers = new Map<string, NodeJS.Timeout>();
 
 function getLockDuration(count: number): number {
@@ -73,8 +81,8 @@ export async function checkLock(
     }
     return { locked: false };
   } catch (err) {
-    logger.error({ err, email, ip }, "Redis error in checkLock, allowing login");
-    return { locked: false };
+    logger.error({ err, email, ip }, "Redis error in checkLock, failing closed");
+    return { locked: true, retryAfterSeconds: FAIL_CLOSED_RETRY_AFTER_SECONDS };
   }
 }
 
@@ -111,8 +119,8 @@ export async function recordFailure(
     await redis.expire(attemptKey, SUB_THRESHOLD_TTL);
     return { locked: false, retryAfterSeconds: 0 };
   } catch (err) {
-    logger.error({ err, email, ip }, "Redis error in recordFailure, allowing login");
-    return { locked: false, retryAfterSeconds: 0 };
+    logger.error({ err, email, ip }, "Redis error in recordFailure, failing closed");
+    return { locked: true, retryAfterSeconds: FAIL_CLOSED_RETRY_AFTER_SECONDS };
   }
 }
 

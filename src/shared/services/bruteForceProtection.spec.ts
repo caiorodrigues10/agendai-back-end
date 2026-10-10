@@ -320,24 +320,26 @@ describe("bruteForceProtection", () => {
     });
   });
 
-  describe("graceful Redis failure", () => {
-    it("checkLock allows login when Redis throws", async () => {
+  describe("Redis indisponível (B4: fail-closed em autenticação)", () => {
+    it("checkLock recusa o login quando o Redis falha (nunca libera)", async () => {
       const origIncr = mockRedis.ttl;
       mockRedis.ttl = vi.fn(async () => {
         throw new Error("ECONNREFUSED");
       });
       const result = await checkLock("user@test.com", "1.2.3.4");
-      expect(result.locked).toBe(false);
+      expect(result.locked).toBe(true);
+      expect(result.retryAfterSeconds).toBeGreaterThan(0);
       mockRedis.ttl = origIncr;
     });
 
-    it("recordFailure allows login when Redis throws", async () => {
+    it("recordFailure sinaliza bloqueio quando o Redis falha (sem tentativa livre)", async () => {
       const origIncr = mockRedis.incr;
       mockRedis.incr = vi.fn(async () => {
         throw new Error("ECONNREFUSED");
       });
       const result = await recordFailure("user@test.com", "1.2.3.4");
-      expect(result.locked).toBe(false);
+      expect(result.locked).toBe(true);
+      expect(result.retryAfterSeconds).toBeGreaterThan(0);
       mockRedis.incr = origIncr;
     });
 
