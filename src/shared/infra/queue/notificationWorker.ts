@@ -1,6 +1,7 @@
 import { Job, Worker, UnrecoverableError } from "bullmq";
 import { container } from "tsyringe";
 import { prisma, type AppTx } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { refreshCrmCampaignStatus } from "@/modules/crm/services/campaignStatusService";
 import {
   getNotificationV2Mode,
@@ -100,7 +101,7 @@ async function claimAttempt(deliveryId: string): Promise<{
   });
 }
 
-async function completeAttempt(
+export async function completeAttempt(
   deliveryId: string,
   attemptId: string,
   result: {
@@ -112,8 +113,8 @@ async function completeAttempt(
   },
 ): Promise<void> {
   const now = new Date();
-  await prisma.$transaction([
-    prisma.notificationAttempt.update({
+  await rlsTransaction(async (tx) => {
+    await tx.notificationAttempt.update({
       where: { id: attemptId },
       data: {
         status: "SUCCEEDED",
@@ -122,8 +123,8 @@ async function completeAttempt(
         httpStatus: result.httpStatus ?? null,
         completedAt: now,
       },
-    }),
-    prisma.notificationDelivery.update({
+    });
+    await tx.notificationDelivery.update({
       where: { id: deliveryId },
       data: {
         status: result.skipped ? "SKIPPED" : "SENT",
@@ -134,15 +135,15 @@ async function completeAttempt(
         errorCode: result.skipped ? "PROVIDER_SKIPPED" : null,
         errorMessage: result.skipped ? "Envio ignorado pela configuração do provedor." : null,
       },
-    }),
-    prisma.notificationOutbox.update({
+    });
+    await tx.notificationOutbox.update({
       where: { deliveryId },
       data: { purgeAfter: new Date(now.getTime() + PAYLOAD_RETENTION_MS) },
-    }),
-  ]);
+    });
+  });
 }
 
-async function failAttempt(
+export async function failAttempt(
   deliveryId: string,
   attemptId: string,
   error: unknown,
@@ -150,8 +151,8 @@ async function failAttempt(
 ): Promise<{ code: string; message: string }> {
   const safe = sanitizeNotificationError(error);
   const now = new Date();
-  await prisma.$transaction([
-    prisma.notificationAttempt.update({
+  await rlsTransaction(async (tx) => {
+    await tx.notificationAttempt.update({
       where: { id: attemptId },
       data: {
         status: "FAILED",
@@ -159,8 +160,8 @@ async function failAttempt(
         errorMessage: safe.message,
         completedAt: now,
       },
-    }),
-    prisma.notificationDelivery.update({
+    });
+    await tx.notificationDelivery.update({
       where: { id: deliveryId },
       data: {
         status: finalAttempt ? "FAILED" : "RETRYING",
@@ -168,16 +169,14 @@ async function failAttempt(
         errorMessage: safe.message,
         failedAt: finalAttempt ? now : null,
       },
-    }),
-    ...(finalAttempt
-      ? [
-          prisma.notificationOutbox.update({
-            where: { deliveryId },
-            data: { purgeAfter: new Date(now.getTime() + PAYLOAD_RETENTION_MS) },
-          }),
-        ]
-      : []),
-  ]);
+    });
+    if (finalAttempt) {
+      await tx.notificationOutbox.update({
+        where: { deliveryId },
+        data: { purgeAfter: new Date(now.getTime() + PAYLOAD_RETENTION_MS) },
+      });
+    }
+  });
   return safe;
 }
 
