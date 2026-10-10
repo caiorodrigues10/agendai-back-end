@@ -1,5 +1,6 @@
 import { inject, injectable } from "tsyringe";
-import { prisma, type AppTx } from "@/libs/prismaClient";
+import type { AppTx } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
 import { IAppointmentRepository } from "../../repositories/IAppointmentRepository";
 import { CompleteServiceUseCase } from "@/modules/shared/useCases/CompleteServiceUseCase";
@@ -84,7 +85,7 @@ export class CompleteAppointmentUseCase {
 
     // Status + finalPrice/paymentMethod + comissão + ledger (+ fiado) numa única
     // transação: qualquer falha reverte a conclusão inteira.
-    await prisma.$transaction(async (tx: AppTx) => {
+    await rlsTransaction(async (tx: AppTx) => {
       const [affected] = await tx.$executeRaw`
         UPDATE appointments
            SET status = 'COMPLETED',

@@ -1,5 +1,9 @@
 /// <reference types="vitest/globals" />
 
+const holder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() => vi.fn(async (fn: (tx: unknown) => unknown) => fn(holder.tx)));
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
 const prismaMock = vi.hoisted(() => ({ $transaction: vi.fn() }));
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock, Prisma: {} }));
@@ -36,7 +40,8 @@ function setup() {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
   };
-  prismaMock.$transaction.mockReset().mockImplementation(async (fn: any) => fn(tx));
+  holder.tx = tx;
+  rlsMock.mockClear();
   return { tx };
 }
 
