@@ -1,12 +1,14 @@
 /// <reference types="vitest/globals" />
 /**
- * VERIFICAÇÃO (não commitar) — traço financeiro do RefundPaymentUseCase.
+ * Regressão do traço financeiro do RefundPaymentUseCase (mock de provedor).
  *
- * Prova, com provedor mockado, o que o estorno grava/nao grava:
- *  1. Pagamento de SERVICO (serviceId preenchido, sem externalReference de
- *     fatura): o use case NAO cria cash_movement nem reversa commission_entry.
- *  2. Pior: se a barbearia tem assinatura ACTIVE, estornar um pagamento de
- *     SERVICO tambem cancela a assinatura (subscription.update -> CANCELED).
+ * O estorno só deve cancelar assinatura/faturas quando o pagamento é de
+ * ASSINATURA (externalReference casa com INVOICE_REFERENCE_PATTERN). Pagamento
+ * de SERVIÇO (serviceId, sem ref de fatura) não pode derrubar a assinatura da
+ * barbearia — bug que cancelava a assinatura inteira ao estornar um corte.
+ *
+ * Também fixa o comportamento de caixa: estorno de serviço não cria
+ * cash_movement nem reverte commission_entry (lacuna conhecida, não coberta aqui).
  */
 import { RefundPaymentUseCase } from "./RefundPaymentUseCase";
 import { cancelSubscriptionForBarbershop } from "@/modules/subscriptions/services/cancelSubscriptionService";
@@ -156,19 +158,20 @@ describe("traço financeiro do estorno (mock de provedor)", () => {
     expect(paymentUpdate.data.status).toBe("refunded");
   });
 
-  it("pagamento de SERVIÇO ainda cancela a assinatura da barbearia (efeito colateral)", async () => {
+  it("pagamento de SERVIÇO NÃO cancela a assinatura da barbearia (regressão)", async () => {
     ligaSucesso(pagamentoServico(), assinaturaAtiva());
     const { uc } = montaUseCase();
 
     await uc.execute("pay-servico-1", "[QA] estorno de serviço", admin);
 
-    // subscription.findUnique roda por barbershopId, sem checar se o payment é de assinatura.
-    expect(prismaMock.subscription.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { barbershopId: "shop-1" } })
-    );
+    // Pagamento tem serviceId e sem ref de fatura → não é de assinatura.
+    // A assinatura da barbearia NÃO pode ser cancelada por este estorno.
+    expect(cancelSubMock).not.toHaveBeenCalled();
+    expect(prismaMock.subscription.update).not.toHaveBeenCalled();
 
-    // Assinatura da barbearia é cancelada mesmo sendo estorno de serviço.
-    expect(cancelSubMock).toHaveBeenCalledWith("shop-1", { revokeImmediately: true });
+    // E o payment ainda vira refunded (o estorno em si acontece).
+    const paymentUpdate = prismaMock.payment.update.mock.calls[0][0];
+    expect(paymentUpdate.data.status).toBe("refunded");
   });
 
   it("pagamento de ASSINATURA: também não cria cash_movement (comportamento esperado)", async () => {
