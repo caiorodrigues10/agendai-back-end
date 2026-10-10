@@ -62,3 +62,13 @@ export const scheduleItemSchema = z.object({
 });
 
 export const updateScheduleSchema = z.array(scheduleItemSchema).min(1);
+
+/**
+ * Listagem pública GET /barbershops (M7): o parâmetro ?limit era ignorado.
+ * Sem parâmetros o comportamento segue sendo a lista completa (contrato atual
+ * do showcase); com parâmetros, paginação real e limitado a 100 por página.
+ */
+export const listBarbershopsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
