@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
 
 /** Formas de pagamento aceitas no recebimento de fiado (mesmo vocabulário do caixa). */
 const paymentMethodEnum = z.enum(["cash", "pix", "credit_card", "debit_card", "card", "other"]);
@@ -14,28 +15,28 @@ export const createFiadoSchema = z.object({
     }),
   clientId: z.string().uuid().optional().nullable(),
   description: z.string().min(2, "Descrição obrigatória").max(500),
-  amount: z.number().positive("Valor deve ser positivo"),
+  amount: z.number().positive("Valor deve ser positivo").max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH),
   dueDate: z.coerce.date().optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
 });
 
 export const createFiadoPaymentSchema = z.object({
   barbershopId: z.string().uuid().optional(),
-  amount: z.number().positive("Valor deve ser positivo"),
+  amount: z.number().positive("Valor deve ser positivo").max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH),
   paymentMethod: paymentMethodEnum.optional(),
   notes: z.string().max(1000).optional().nullable(),
 });
 
 export const updateFiadoSchema = z.object({
   description: z.string().min(2).max(500).optional(),
-  amount: z.number().positive().optional(),
+  amount: z.number().positive().max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH).optional(),
   dueDate: z.coerce.date().optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
   status: z.enum(["PENDING", "PARTIAL", "PAID", "FORGIVEN"]).optional(),
 });
 
 export const addFiadoPaymentSchema = z.object({
-  amount: z.number().positive("Valor deve ser positivo"),
+  amount: z.number().positive("Valor deve ser positivo").max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH),
   paymentMethod: paymentMethodEnum.optional(),
   notes: z.string().max(1000).optional().nullable(),
 });

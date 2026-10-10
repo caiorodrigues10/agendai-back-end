@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
 
 export const retailPaymentMethodSchema = z.enum(["cash", "pix", "credit_card", "debit_card", "fiado"]);
 
@@ -7,9 +8,9 @@ export const retailSalePayloadSchema = z.object({
   items: z.array(z.object({
     productId: z.string().uuid(),
     quantity: z.number().positive().max(999),
-    unitPrice: z.number().min(0).optional(),
+    unitPrice: z.number().min(0).max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH).optional(),
   })).min(1).max(50),
-  discount: z.number().min(0).optional(),
+  discount: z.number().min(0).max(MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH).optional(),
   clientId: z.string().uuid().optional(),
   idempotencyKey: z.string().min(8).max(120).optional(),
 });
