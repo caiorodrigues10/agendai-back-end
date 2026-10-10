@@ -113,3 +113,41 @@ export async function rlsTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T>
     })
   );
 }
+
+/**
+ * Embrulha o `$transaction` do cliente estendido para que o callback-form seja
+ * ATÔMICO e rode com o GUC de RLS na MESMA conexão.
+ *
+ * Por quê: a extensão acima reroteia cada operação de model para o SEU
+ * `prisma.$transaction` quando `insideRlsTx` não está setado. Por isso
+ * `prisma.$transaction(async tx => …)` NÃO era atômico — cada escrita
+ * commitava sozinha em outra conexão. Medido em 2026-10-10 contra o Postgres
+ * local: com o callback-form cru, 1 escrita sobrevivia à falha da transação;
+ * com `rlsTransaction`, 0 sobreviviam (rollback total).
+ *
+ * O embrulho delega o callback-form ao `rlsTransaction` (mesma conexão + GUC).
+ * O array-form (`$transaction([op1, op2])`) continua passando direto: as
+ * promessas já estão presas ao cliente e não podem ser reatribuídas ao `tx` —
+ * os sites multi-write precisam ser convertidos para `rlsTransaction`.
+ *
+ * Proteção de reentrância: `rlsTransaction` chama o `$transaction` por baixo;
+ * se o embrulho estiver ativo (store setado), delega ao original.
+ */
+export function aplicarGuardAtomico<T extends object>(cliente: T): T {
+  const alvo = cliente as unknown as {
+    $transaction: (arg: unknown, opts?: unknown) => Promise<unknown>;
+  };
+  const original = alvo.$transaction.bind(alvo);
+
+  alvo.$transaction = (arg: unknown, opts?: unknown) => {
+    if (typeof arg !== "function") {
+      return opts === undefined ? original(arg) : original(arg, opts);
+    }
+    if (insideRlsTx.getStore()) {
+      return original(arg as (tx: any) => Promise<unknown>);
+    }
+    return rlsTransaction(arg as (tx: any) => Promise<unknown>);
+  };
+
+  return cliente;
+}

@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Prisma } from "@prisma/client";
-import { rlsExtension } from "./prismaExtensions";
+import { aplicarGuardAtomico, rlsExtension } from "./prismaExtensions";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -54,5 +54,5 @@ export type AppTx = Omit<
   "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
 >;
 
-export const prisma: AppPrisma = createPrisma(clienteBase);
+export const prisma: AppPrisma = aplicarGuardAtomico(createPrisma(clienteBase));
 export { Prisma };
