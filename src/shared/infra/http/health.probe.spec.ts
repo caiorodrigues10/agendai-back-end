@@ -198,4 +198,30 @@ describe("health probes", () => {
     });
     expect(valid.statusCode).toBe(200);
   });
+
+  it("X-Forwarded-For forjado não autoriza /internal/health (fail closed)", async () => {
+    const { isInternalHealthAuthorized } = await import("./health");
+
+    // Peer TCP desconhecido (p. ex. atrás de unix socket) e `request.ip`
+    // vindo do X-Forwarded-For forjado como 127.0.0.1 — que é exatamente o
+    // que Fastify devolve quando TRUST_PROXY está ativo. O loopback precisa
+    // vir do peer real, nunca do header.
+    const forged = {
+      raw: { socket: { remoteAddress: undefined } },
+      ip: "127.0.0.1",
+      headers: {},
+    } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+
+    expect(isInternalHealthAuthorized(forged)).toBe(false);
+  });
+
+  it("cliente externo forjando X-Forwarded-For de loopback continua 401", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/internal/health",
+      remoteAddress: "203.0.113.80",
+      headers: { "x-forwarded-for": "127.0.0.1" },
+    });
+    expect(response.statusCode).toBe(401);
+  });
 });
