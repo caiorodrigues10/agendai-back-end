@@ -151,7 +151,7 @@ describe("atomicidade de completeWithCommissions (Postgres real)", () => {
       splits: [{ professionalId, percentage: 40 }],
     });
 
-    expect(ok.status).toBe("completed");
+    expect(ok.item.status).toBe("completed");
     const after = await estado(id);
     expect(after.status).toBe("COMPLETED");
     expect(after.ce).toBe(1);
