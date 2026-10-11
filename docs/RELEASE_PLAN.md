@@ -33,6 +33,7 @@ Conflitos resolvidos:
 |---|---|---|---|---|
 | 1 | `origin/main` | `release/backend` | Merge de integridade (já feito, `cfa98c3`) | ✅ Feito |
 | 2 | `release/backend` | `main` | Abrir PR de merge-commit (sem squash apagando histórico, sem rebase) | ⬜ Pendente |
+| 2.1 | — | — | Esse PR é o **primeiro** momento em que o CI roda nesta branch (ver R7) | ⬜ |
 | 3 | — | — | `git push origin release/backend` (apenas `release/*`) | ⬜ Pendente |
 
 Regras:
@@ -95,6 +96,7 @@ Drift conhecido (não introduzido por esta release):
 | R4 | `INTERNAL_HEALTH_TOKEN` obrigatória em produção mas fora do `.env.example` | Média | `src/shared/infra/http/health.ts` (`isInternalHealthAuthorized`) | Adicionar ao `.env.example` antes do deploy | ⬜ Ação recomendada |
 | R5 | `assertWebhookConfig()` **recusa o boot em produção** com provider habilitado e secret ausente/curto | Alta | `src/config/webhooks.ts`, chamado em `src/shared/infra/http/server.ts` | Conferir envs do provedor **antes** do deploy | ⬜ Ação recomendada |
 | R6 | `warmupApiRedis()` só loga warning | Baixa | `src/shared/infra/queue/redisConnection.ts` | Nenhuma — é fail-open por design; auth de webhook continua fail-closed | ✅ Aceito |
+| R7 | O workflow do backend só dispara em `push: branches: [main]` e `pull_request: branches: [main]` — **`release/backend` não gera run de CI** | Média | `.github/workflows/ci.yml` (linhas 3–8); nenhum run para a branch após o push | Abrir o PR de §2 é o que dispara o CI; a evidência local de §7 substitui o run até lá | ✅ Conhecido |
 
 ### R1 — findings do Gitleaks (10)
 
@@ -156,8 +158,8 @@ Ambiente de verificação: macOS local, Node 24, Postgres em `localhost:5442`, R
 | 8 | `npm run db:migrate:status` | 92 migrations aplicadas | `prisma migrate status` | ✅ |
 | 9 | `npm ci --dry-run` | exit 0 | lockfile consistente | ✅ |
 | 10 | `npm ls --depth=0` | exit 0 | sem dependências quebradas | ✅ |
-| 11 | CI `secrets` (Gitleaks) | **10 findings** | scan local idêntico ao do CI | ❌ |
-| 12 | CI `backend` | **não executado** | `needs: secrets` | ⏭ |
+| 11 | CI `secrets` (Gitleaks) | **10 findings** | scan local `zricethezav/gitleaks:v8.24.3` idêntico ao do CI | ❌ |
+| 12 | CI `backend` | **não executado no CI** | job depende de `needs: secrets`; e a branch não dispara workflow (R7) | ⏭ |
 
 ### 7.2 Smoke test manual (pré-deploy)
 
