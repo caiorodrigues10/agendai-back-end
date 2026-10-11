@@ -87,3 +87,50 @@ sem caixa **e** sem comissão) — não são vítimas do bug. As 3 vítimas
 observadas em 2026-10-09 pertenciam à fixture de teste `[QA]` e foram
 removidas junto com a limpeza daquele round. **Nenhuma correção foi feita nas
 linhas `SeedPhase2` (fora de escopo).**
+
+## 5. Auditoria financeira — consultas somente leitura (produção)
+
+> **NUNCA executar estas consultas sem confirmação do operador.** Ambas são
+> somente leitura (`SELECT`), mas operam sobre dados de produção.
+> Padrão de referência de invoice: `^(?:bq|ag)-sub-([0-9a-f-]+)-inv-([0-9a-f-]+)$`
+> (`RefundPaymentUseCase.ts:17`, `refundReconciliationService.ts:5`).
+
+### 5.1 Prefixos de `externalReference` em payments aprovados × casamento com o padrão
+
+```sql
+-- Prefixos distintos e contagem; a última linha mostra quantas aprovadas
+-- casam com o padrão de invoice (bq|ag-sub-<uuid>-inv-<uuid>).
+SELECT prefix,
+       count(*)                                        AS total,
+       count(*) FILTER (WHERE ref ~*
+         '^(bq|ag)-sub-[0-9a-f-]+-inv-[0-9a-f-]+$')    AS casam_com_padrao
+FROM (
+  SELECT CASE
+           WHEN "externalReference" IS NULL OR btrim("externalReference") = '' THEN '(vazio)'
+           ELSE substring("externalReference" from '^([a-zA-Z]+)')
+         END AS prefix,
+         "externalReference" AS ref
+  FROM payments
+  WHERE status = 'approved'
+) t
+GROUP BY prefix
+ORDER BY total DESC;
+```
+
+### 5.2 Valores máximos por campo monetário (com teto) e contagem > 100000
+
+```sql
+-- Teto de sanidade: R$ 100.000. Ajustar o teto se o negócio justificar.
+SELECT 'cash_movements.amount'   AS campo, count(*) FILTER (WHERE amount > 100000) AS acima_teto, max(amount) AS maximo FROM cash_movements
+UNION ALL SELECT 'expenses.amount',              count(*) FILTER (WHERE amount > 100000), max(amount)              FROM expenses
+UNION ALL SELECT 'services.price',              count(*) FILTER (WHERE price > 100000), max(price)               FROM services
+UNION ALL SELECT 'products.salePrice',          count(*) FILTER (WHERE "salePrice" > 100000), max("salePrice")   FROM products
+UNION ALL SELECT 'service_packages.price',      count(*) FILTER (WHERE price > 100000), max(price)               FROM service_packages
+UNION ALL SELECT 'digital_wallets.balance',     count(*) FILTER (WHERE balance > 100000), max(balance)           FROM digital_wallets
+UNION ALL SELECT 'queue.finalPrice',            count(*) FILTER (WHERE "finalPrice" > 100000), max("finalPrice") FROM queue
+ORDER BY acima_teto DESC, campo;
+```
+
+Resultado local (dev, 2026-10-10) registrado em
+`/tmp/qa-sql-audit-local.txt` — validação de sintaxe apenas, não é baseline
+de produção.
