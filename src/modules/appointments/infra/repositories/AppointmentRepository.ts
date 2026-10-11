@@ -115,6 +115,13 @@ export class AppointmentRepository implements IAppointmentRepository {
 		if (query.date) {
 			const { gte, lt } = utcDayBounds(query.date)
 			where.date = { gte, lt }
+		} else if (query.from || query.to) {
+			// Intervalo civil (mesma convenção de datas UTC do filtro por dia);
+			// o frontend pagina o período visível do painel por aqui.
+			where.date = {
+				...(query.from ? { gte: utcDayBounds(query.from).gte } : {}),
+				...(query.to ? { lt: utcDayBounds(query.to).lt } : {}),
+			}
 		}
 		if (query.status) where.status = query.status
 		if (query.staffId) where.staffId = query.staffId

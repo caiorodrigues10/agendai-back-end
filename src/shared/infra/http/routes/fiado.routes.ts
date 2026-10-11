@@ -4,19 +4,8 @@ import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
 import { checkDashboardAccess } from "../middlewares/checkDashboardAccess";
 import { setRlsContext } from "../middlewares/setRlsContext";
+import { requirePermission } from "../middlewares/requirePermission";
 import { FiadoController } from "@/modules/fiado/controllers/FiadoController";
-
-function requirePermission(...perms: string[]) {
-  return async (request: any, reply: any) => {
-    const user = request.user;
-    if (!user) return reply.status(401).send({ error: "Unauthorized" });
-    if (user.role === "MASTER_ADMIN" || user.role === "OWNER") return;
-    const userPerms = user.permissions ?? [];
-    if (!perms.some(p => userPerms.includes(p))) {
-      return reply.status(403).send({ error: "Permissão insuficiente" });
-    }
-  };
-}
 
 export async function fiadoRoutes(app: FastifyInstance) {
   const fiado = new FiadoController();

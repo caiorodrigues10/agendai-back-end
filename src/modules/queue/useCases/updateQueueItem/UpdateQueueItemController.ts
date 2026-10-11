@@ -13,7 +13,7 @@ export class UpdateQueueItemController {
     }
 
     const { id } = request.params as { id: string };
-    const { status, completedBy, finalPrice, paymentMethod, insertAt, commissionSplits, retailSale } = updateQueueItemSchema.parse(request.body);
+    const { status, completedBy, finalPrice, paymentMethod, insertAt, commissionSplits, retailSale, procedure } = updateQueueItemSchema.parse(request.body);
 
     const useCase = container.resolve(UpdateQueueItemUseCase);
     const item = await useCase.execute(id, status, user, {
@@ -23,6 +23,7 @@ export class UpdateQueueItemController {
       insertAt,
       commissionSplits,
       retailSale,
+      procedure,
     });
     if (status.toLowerCase() === "waiting") {
       try { await notifyQueueCapacity(item.barbershopId, item.id, item.customerName); } catch { /* alerta não bloqueia a operação */ }

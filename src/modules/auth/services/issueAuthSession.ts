@@ -19,6 +19,8 @@ interface UserLike {
   barbershopId: string | null;
   cpf: string | null;
   emailVerified?: boolean;
+  /** Permissões de funcionário (EMPLOYEE). OWNER/MASTER_ADMIN: indefinido (acesso total). */
+  permissions?: string[] | null;
 }
 
 function mapRole(role: string): "admin" | "owner" | "employee" {
@@ -128,6 +130,9 @@ export async function issueAuthSession(
       role: mapRole(user.role),
       barbershopId: user.barbershopId ?? undefined,
       emailVerified: user.emailVerified ?? false,
+      // Mesma convenção de GET /auth/me: EMPLOYEE carrega permissões;
+      // papéis privilegiados vêm implícitos no papel.
+      permissions: mapRole(user.role) === "employee" ? (user.permissions ?? []) : undefined,
     },
     accessToken,
   };

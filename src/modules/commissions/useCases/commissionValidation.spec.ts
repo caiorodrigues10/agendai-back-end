@@ -21,7 +21,6 @@ describe("commission validation on queue completion", () => {
       { execute: vi.fn().mockResolvedValue(undefined) } as never,
       { findById: vi.fn() } as never,
       undefined,
-      undefined,
       serviceRepository as never,
       userRepository as never,
       commissionRepository as never,

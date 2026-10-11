@@ -17,13 +17,18 @@ export class DeleteQueueItemUseCase {
     private notifyQueuePositionUpdates: NotifyQueuePositionUpdatesUseCase
   ) {}
 
-  async execute(id: string, requestingUser: QueueRequestingUser): Promise<void> {
+  /**
+   * Arquivamento lógico — "remover da visualização" NÃO apaga o atendimento:
+   * comissões e lançamentos do ledger ancorados no item permanecem para os
+   * relatórios e a auditoria financeira (commission_entries é CASCADE na linha).
+   */
+  async execute(id: string, requestingUser: QueueRequestingUser, reason?: string | null): Promise<void> {
     const item = await this.queueRepository.findById(id);
     if (!item) throw new AppError("Item de fila não encontrado", 404);
 
     assertQueueTenantAccess(item.barbershopId, requestingUser);
 
-    await this.queueRepository.delete(id);
+    await this.queueRepository.archive(id, { archivedBy: requestingUser.id, reason: reason ?? null });
     publishRealtime(item.barbershopId, "queue:changed");
     try {
       await this.notifyQueuePositionUpdates.execute(item.barbershopId);

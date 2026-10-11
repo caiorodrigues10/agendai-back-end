@@ -62,6 +62,22 @@ export class MockAppointmentRepository implements IAppointmentRepository {
 
     if (query.status) results = results.filter((a) => a.status === query.status);
     if (query.staffId) results = results.filter((a) => a.staffId === query.staffId);
+    if (query.date) {
+      const start = Date.parse(`${query.date}T00:00:00.000Z`);
+      const end = start + 86_400_000;
+      results = results.filter((a) => {
+        const t = (a.date instanceof Date ? a.date : new Date(a.date)).getTime();
+        return t >= start && t < end;
+      });
+    }
+    if (query.from || query.to) {
+      results = results.filter((a) => {
+        const t = (a.date instanceof Date ? a.date : new Date(a.date)).getTime();
+        if (query.from && t < Date.parse(`${query.from}T00:00:00.000Z`)) return false;
+        if (query.to && t >= Date.parse(`${query.to}T00:00:00.000Z`) + 86_400_000) return false;
+        return true;
+      });
+    }
     if (query.search) {
       const term = query.search.toLowerCase();
       results = results.filter(
