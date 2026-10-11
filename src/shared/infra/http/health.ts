@@ -272,7 +272,11 @@ function isRefreshRequested(request: FastifyRequest): boolean {
  * vem de X-Forwarded-For — header forjável pelo cliente).
  */
 export function isInternalHealthAuthorized(request: FastifyRequest): boolean {
-  if (isLoopbackAddress(peerAddress(request))) return true;
+  // Produção: token SEMPRE — sem exceção de loopback (decisão QA 2026-10).
+  // Qualquer processo local (ou SSRF de outro serviço) acessaria o
+  // diagnóstico completo sem segredo se o loopback continuasse isento.
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!isProduction && isLoopbackAddress(peerAddress(request))) return true;
 
   const expected = process.env.INTERNAL_HEALTH_TOKEN;
   if (!expected) return false;

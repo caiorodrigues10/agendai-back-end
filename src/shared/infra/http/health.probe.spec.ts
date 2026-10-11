@@ -224,4 +224,54 @@ describe("health probes", () => {
     });
     expect(response.statusCode).toBe(401);
   });
+
+  it("produção: loopback sem token é recusado (token sempre, sem exceção)", async () => {
+    const { isInternalHealthAuthorized } = await import("./health");
+    const prevEnv = process.env.NODE_ENV;
+    const prevToken = process.env.INTERNAL_HEALTH_TOKEN;
+    process.env.NODE_ENV = "production";
+    try {
+      delete process.env.INTERNAL_HEALTH_TOKEN;
+      const loopbackNoToken = {
+        raw: { socket: { remoteAddress: "::ffff:127.0.0.1" } },
+        headers: {},
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopbackNoToken)).toBe(false);
+
+      process.env.INTERNAL_HEALTH_TOKEN = "internal-health-token-abc123";
+      const loopbackValidToken = {
+        raw: { socket: { remoteAddress: "127.0.0.1" } },
+        headers: { "x-internal-health-token": "internal-health-token-abc123" },
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopbackValidToken)).toBe(true);
+
+      const loopbackWrongToken = {
+        raw: { socket: { remoteAddress: "127.0.0.1" } },
+        headers: { "x-internal-health-token": "errado" },
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopbackWrongToken)).toBe(false);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevToken === undefined) delete process.env.INTERNAL_HEALTH_TOKEN;
+      else process.env.INTERNAL_HEALTH_TOKEN = prevToken;
+    }
+  });
+
+  it("fora de produção: loopback segue isento do token (dev preservado)", async () => {
+    const { isInternalHealthAuthorized } = await import("./health");
+    const prevEnv = process.env.NODE_ENV;
+    const prevToken = process.env.INTERNAL_HEALTH_TOKEN;
+    process.env.NODE_ENV = "test";
+    delete process.env.INTERNAL_HEALTH_TOKEN;
+    try {
+      const loopback = {
+        raw: { socket: { remoteAddress: "127.0.0.1" } },
+        headers: {},
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopback)).toBe(true);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevToken !== undefined) process.env.INTERNAL_HEALTH_TOKEN = prevToken;
+    }
+  });
 });
