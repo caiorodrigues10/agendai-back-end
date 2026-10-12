@@ -85,6 +85,14 @@ function createMockRedis() {
 
 const mockRedis = createMockRedis();
 
+/** Simula passagem de tempo nos TTLs do mock (o mock não expira sozinho). */
+function advanceSeconds(seconds: number): void {
+  for (const [key, entry] of [...redisStore.entries()]) {
+    entry.ttl -= seconds;
+    if (entry.ttl <= 0) redisStore.delete(key);
+  }
+}
+
 vi.mock("@/shared/infra/queue/redisConnection", () => ({
   getApiRedisConnection: () => mockRedis,
 }));
@@ -196,6 +204,44 @@ describe("bruteForceProtection", () => {
       expect(result.locked).toBe(true);
       expect(result.retryAfterSeconds).toBe(60);
     });
+
+    it("o contador de falhas sobrevive ao lock (senão a escalação nunca sobe)", async () => {
+      for (let i = 0; i < 5; i++) {
+        await recordFailure("user@test.com", "1.2.3.4");
+      }
+      const lock = redisStore.get("login:locked:user@test.com")!;
+      const attempts = redisStore.get("login:attempts:user@test.com:1.2.3.4")!;
+
+      expect(lock.ttl).toBe(60);
+      // O contador precisa durar MAIS que o lock. Se expira junto com ele,
+      // cada lock zera a contagem e os thresholds seguintes (10 → 300s,
+      // 15 → 900s, 20 → 1800s) nunca são atingidos: o lockout fica eternamente
+      // no primeiro nível (60s) e o brute force nunca escala.
+      expect(attempts.ttl).toBeGreaterThan(lock.ttl);
+    });
+
+    it("depois do lock expirar, a nova falha continua acumulando (escala)", async () => {
+      for (let i = 0; i < 5; i++) {
+        await recordFailure("user@test.com", "1.2.3.4");
+      }
+      expect(redisStore.get("login:locked:user@test.com")!.ttl).toBe(60);
+
+      // Simula o tempo do lock passando: o lock some, o contador não.
+      advanceSeconds(61);
+      expect(redisStore.has("login:locked:user@test.com")).toBe(false);
+
+      const result = await recordFailure("user@test.com", "1.2.3.4");
+      expect(result.locked).toBe(true);
+      expect(result.retryAfterSeconds).toBe(60);
+
+      // 10 falhas no total → segundo degrau (300s), prova de escalação.
+      let last = result;
+      for (let i = 0; i < 4; i++) {
+        last = await recordFailure("user@test.com", "1.2.3.4");
+      }
+      expect(last.locked).toBe(true);
+      expect(last.retryAfterSeconds).toBe(300);
+    });
   });
 
   describe("resetAttempts", () => {
@@ -274,24 +320,26 @@ describe("bruteForceProtection", () => {
     });
   });
 
-  describe("graceful Redis failure", () => {
-    it("checkLock allows login when Redis throws", async () => {
+  describe("Redis indisponível (B4: fail-closed em autenticação)", () => {
+    it("checkLock recusa o login quando o Redis falha (nunca libera)", async () => {
       const origIncr = mockRedis.ttl;
       mockRedis.ttl = vi.fn(async () => {
         throw new Error("ECONNREFUSED");
       });
       const result = await checkLock("user@test.com", "1.2.3.4");
-      expect(result.locked).toBe(false);
+      expect(result.locked).toBe(true);
+      expect(result.retryAfterSeconds).toBeGreaterThan(0);
       mockRedis.ttl = origIncr;
     });
 
-    it("recordFailure allows login when Redis throws", async () => {
+    it("recordFailure sinaliza bloqueio quando o Redis falha (sem tentativa livre)", async () => {
       const origIncr = mockRedis.incr;
       mockRedis.incr = vi.fn(async () => {
         throw new Error("ECONNREFUSED");
       });
       const result = await recordFailure("user@test.com", "1.2.3.4");
-      expect(result.locked).toBe(false);
+      expect(result.locked).toBe(true);
+      expect(result.retryAfterSeconds).toBeGreaterThan(0);
       mockRedis.incr = origIncr;
     });
 

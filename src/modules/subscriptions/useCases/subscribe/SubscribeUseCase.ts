@@ -1,6 +1,7 @@
 import { BRAND_NAME } from '@/config/brand';
 import { inject, injectable } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { MercadoPagoService } from "@/modules/payments/services/MercadoPagoService";
 import { AbacatePayService } from "@/modules/payments/services/AbacatePayService";
 import { AsaasPayment, AsaasService } from "@/modules/payments/services/AsaasService";
@@ -238,12 +239,12 @@ export class SubscribeUseCase {
           description,
         });
         if (data.asaasBillingType === "CREDIT_CARD" && paymentRecord.status === "approved") {
-          await prisma.$transaction([
-            prisma.invoice.update({
+          await rlsTransaction(async (tx) => {
+            await tx.invoice.update({
               where: { id: invoice.id },
               data: { status: "PAID", paidAt: new Date(), paymentMethod: "credit_card" },
-            }),
-            prisma.subscription.update({
+            });
+            await tx.subscription.update({
               where: { id: subscription.id },
               data: {
                 status: "ACTIVE",
@@ -251,8 +252,8 @@ export class SubscribeUseCase {
                   Date.now() + billingPeriodDays(plan.billingCycle) * 86400000
                 ),
               },
-            }),
-          ]);
+            });
+          });
           const { qualifyReferralOnPayment } = await import(
             "@/modules/referrals/services/referralService"
           );
@@ -349,12 +350,12 @@ export class SubscribeUseCase {
         });
 
         if (mpResponse.status === "approved") {
-          await prisma.$transaction([
-            prisma.invoice.update({
+          await rlsTransaction(async (tx) => {
+            await tx.invoice.update({
               where: { id: invoice.id },
               data: { status: "PAID", paidAt: new Date(), paymentMethod },
-            }),
-            prisma.subscription.update({
+            });
+            await tx.subscription.update({
               where: { id: subscription.id },
               data: {
                 status: "ACTIVE",
@@ -362,8 +363,8 @@ export class SubscribeUseCase {
                   Date.now() + billingPeriodDays(plan.billingCycle) * 86400000
                 ),
               },
-            }),
-          ]);
+            });
+          });
           const { qualifyReferralOnPayment } = await import(
             "@/modules/referrals/services/referralService"
           );

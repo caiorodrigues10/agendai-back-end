@@ -20,10 +20,14 @@ export function evolutionNotConfiguredError(): AppError {
   return whatsAppAppError("WhatsApp da plataforma indisponível.", 503, "EVOLUTION_NOT_CONFIGURED");
 }
 
-/** Remove o nome da instância da resposta pública da barbearia. */
-export function toPublicBarbershop<T extends { evolutionInstanceName?: string | null }>(
-  shop: T
-): Omit<T, "evolutionInstanceName"> {
-  const { evolutionInstanceName: _ignored, ...rest } = shop;
+/**
+ * Remove da resposta pública da barbearia tudo que não é dado de vitrine:
+ * o nome da instância Evolution (infra) e o CNPJ (dado sensível).
+ * Usado por GET /barbershops e GET /barbershops/:id, que são rotas sem autenticação.
+ */
+export function toPublicBarbershop<
+  T extends { evolutionInstanceName?: string | null; cnpj?: string | null },
+>(shop: T): Omit<T, "evolutionInstanceName" | "cnpj"> {
+  const { evolutionInstanceName: _ignored, cnpj: _cnpj, ...rest } = shop;
   return rest;
 }

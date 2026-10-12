@@ -266,8 +266,17 @@ function isRefreshRequested(request: FastifyRequest): boolean {
   return query?.refresh === '1' || query?.refresh === 'true';
 }
 
-function isInternalHealthAuthorized(request: FastifyRequest): boolean {
-  if (isLoopbackAddress(peerAddress(request))) return true;
+/**
+ * Loopback sem token, ou token constante-tempo. Exportado para teste: a
+ * autorização não pode depender de `request.ip` (que, com TRUST_PROXY ativo,
+ * vem de X-Forwarded-For — header forjável pelo cliente).
+ */
+export function isInternalHealthAuthorized(request: FastifyRequest): boolean {
+  // Produção: token SEMPRE — sem exceção de loopback (decisão QA 2026-10).
+  // Qualquer processo local (ou SSRF de outro serviço) acessaria o
+  // diagnóstico completo sem segredo se o loopback continuasse isento.
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!isProduction && isLoopbackAddress(peerAddress(request))) return true;
 
   const expected = process.env.INTERNAL_HEALTH_TOKEN;
   if (!expected) return false;
@@ -278,7 +287,11 @@ function isInternalHealthAuthorized(request: FastifyRequest): boolean {
 }
 
 function peerAddress(request: FastifyRequest): string | undefined {
-  return request.raw?.socket?.remoteAddress ?? request.ip;
+  // Somente o peer TCP real (`socket.remoteAddress`). NUNCA `request.ip`:
+  // com TRUST_PROXY ativo ele é derivado de X-Forwarded-For, que o cliente
+  // forja — 127.0.0.1 no header liberaria o diagnóstico detalhado sem token.
+  // Sem peer conhecido → não é loopback → exige token (fail closed).
+  return request.raw?.socket?.remoteAddress;
 }
 
 function isLoopbackAddress(address?: string): boolean {

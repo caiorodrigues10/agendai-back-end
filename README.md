@@ -128,6 +128,31 @@ GCS_KEY_FILE_PATH=/caminho/absoluto/para/agendai-api-xxxx.json
 > ```
 > O servidor sobe normalmente; o erro só ocorre ao tentar fazer upload de logo.
 
+### Trust proxy (X-Forwarded-For)
+
+Quando a API roda atrás de um load balancer (Render, NGINX, ingress…), configure
+`TRUST_PROXY` com o **número de saltos** até o proxy ou com os CIDRs dele:
+
+```env
+# 1 salto (LB direto) — exemplo comum em produção
+TRUST_PROXY=1
+```
+
+- **Padrão (ausente):** `X-Forwarded-For` é ignorado. Correto para execução
+  direta; atrás de LB, `request.ip` passa a ser o IP do proxy e rate limit,
+  brute force de login e audit logs compartilham a cota de todos os clientes.
+  Em produção a API emite aviso no boot quando a variável está ausente.
+- **`TRUST_PROXY=true`:** confia em qualquer `X-Forwarded-For`, ou seja, o
+  cliente pode forjar o próprio IP no rate limit e na auditoria. Evite em
+  produção (a API também avisa no boot).
+- **`TRUST_PROXY=1`, `TRUST_PROXY=2`:** confia nos N últimos saltos; o IP
+  resolvido é o do cliente final. É a forma recomendada.
+- **`TRUST_PROXY=10.0.0.0/8, ...`:** confia apenas nos ranges do proxy.
+- **`TRUST_PROXY=false` / `0`:** desativado (mesmo que a variável ausente).
+
+A variável só afeta `request.ip` (Fastify `trustProxy`); `X-Forwarded-For`
+nunca é lido diretamente no código da aplicação.
+
 ---
 
 ## Como Rodar
@@ -2083,6 +2108,18 @@ http://localhost:3333/docs
 
 > O Swagger é gerado automaticamente pelo `@fastify/swagger` + `@fastify/swagger-ui`.
 
+**Em produção `/docs` e `/docs/json` respondem 404** (a UI lista todas as rotas
+e schemas). Para abrir a documentação em produção, declare explicitamente:
+
+```env
+ENABLE_API_DOCS=true
+# opcional: URL exibida em servers[0].url
+API_DOCS_SERVER_URL=https://api.suaempresa.com
+```
+
+Fora de produção a UI fica ligada por padrão; `ENABLE_API_DOCS=false` a
+desliga também em desenvolvimento.
+
 ---
 
 ## Variáveis de Ambiente — Referência Completa
@@ -2097,6 +2134,9 @@ http://localhost:3333/docs
 | `PORT` | ❌ | Porta do servidor (default: `3333`) |
 | `NODE_ENV` | ❌ | `development` ou `production` |
 | `ALLOWED_ORIGINS` | ❌ | Origens CORS permitidas, separadas por vírgula |
+| `TRUST_PROXY` | ❌ | Nº de saltos do proxy (`1`, `2`, …) ou CIDRs; use hops, nunca `true` em produção |
+| `ENABLE_API_DOCS` | ❌ | `true` mantém `/docs` ligado em produção (fora de produção é ligado por padrão) |
+| `API_DOCS_SERVER_URL` | ❌ | URL de `servers[0].url` no Swagger (default: `http://localhost:3333`) |
 | `MERCADOPAGO_ACCESS_TOKEN` | ✅* | Token do Mercado Pago (necessário para pagamentos) |
 | `MERCADOPAGO_WEBHOOK_SECRET` | ✅* | Segredo HMAC para validar webhooks do MP |
 | `GCS_BUCKET_NAME` | ✅* | Nome do bucket GCS (necessário para upload de logo) |
@@ -2104,5 +2144,15 @@ http://localhost:3333/docs
 | `GCS_KEY_FILE_PATH` | ❌ | Caminho para JSON da service account |
 | `GCS_CREDENTIALS_JSON` | ❌ | JSON da service account (base64 ou string) |
 | `GCS_PUBLIC_BASE_URL` | ❌ | URL base pública do GCS (default automático) |
+| `ASAAS_WEBHOOK_TOKEN` | ✅* | Token de webhook Asaas (>=32 chars; exigido em produção com ASAAS habilitado) |
+| `MERCADOPAGO_WEBHOOK_SECRET` | ✅* | Segredo HMAC do webhook MP (>=32 chars; exigido com MERCADOPAGO habilitado) |
+| `ABACATEPAY_WEBHOOK_SECRET` | ✅* | Segredo do webhook AbacatePay (>=32 chars; exigido com ABACATEPAY habilitado) |
+| `ALLOW_INSECURE_WEBHOOKS` | ❌ | `true` libera webhooks sem assinatura — **só local**; em produção o boot é recusado |
+| `PAYMENT_PROVIDERS_ENABLED` | ❌ | Provedores ativos (ex.: `ASAAS,MERCADOPAGO`); default em produção: `ASAAS` |
 
 > \* Necessário apenas para o respectivo módulo funcionar (Mercado Pago ou GCS). O servidor sobe sem essas variáveis, mas as rotas correspondentes retornarão erro ao serem chamadas.
+
+> **Webhooks em produção:** o boot é recusado se `ALLOW_INSECURE_WEBHOOKS=true`,
+> se o segredo de webhook de um provedor habilitado estiver ausente, ou se
+> algum segredo configurado tiver menos de 32 caracteres. Gere com
+> `openssl rand -base64 32` e nunca coloque o valor em logs ou repositório.

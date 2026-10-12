@@ -1,7 +1,11 @@
 /// <reference types="vitest/globals" />
 
+const holder = vi.hoisted(() => ({ tx: undefined as unknown }));
+const rlsMock = vi.hoisted(() => vi.fn(async (fn: (tx: unknown) => unknown) => fn(holder.tx)));
+
+vi.mock("@/libs/prismaExtensions", () => ({ rlsTransaction: rlsMock }));
+
 const prismaMock = vi.hoisted(() => ({
-  $transaction: vi.fn(),
   queueItem: { findUnique: vi.fn() },
   commissionEntry: { createMany: vi.fn() },
   cashMovement: { findFirst: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
@@ -58,7 +62,8 @@ function setup(row: TxRow, updateCount = 1) {
     cashMovement: prismaMock.cashMovement,
     fiado: prismaMock.fiado,
   };
-  prismaMock.$transaction.mockReset().mockImplementation(async (fn: any) => fn(tx));
+  holder.tx = tx;
+  rlsMock.mockClear();
   prismaMock.commissionEntry.createMany.mockReset().mockResolvedValue({ count: 1 });
   prismaMock.cashMovement.findFirst.mockReset().mockResolvedValue(null);
   prismaMock.cashMovement.create.mockReset().mockResolvedValue({ id: "led-1" });

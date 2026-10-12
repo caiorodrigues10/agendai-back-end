@@ -8,6 +8,7 @@ import websocket from "@fastify/websocket";
 import { registerRoutes } from "./routes";
 import { apiRoutes } from "./routes/api";
 import { realtimeHub } from "@/shared/services/realtimeService";
+import { warmupApiRedis } from "@/shared/infra/queue/redisConnection";
 import { healthRoutes } from "./health";
 import { correlationIdMiddleware } from "./middlewares/correlationId";
 import { resolveCorrelationId } from "@/shared/utils/correlationContext";
@@ -30,8 +31,30 @@ const RATE_LIMIT_ALLOWED_PATHS = new Set([
   "/internal/health",
 ]);
 
+/**
+ * Avisos de configuração insegura de TRUST_PROXY (somente produção).
+ * Só orienta o operador — nunca altera a resolução do trustProxy.
+ */
+export function trustProxyProductionWarnings(raw: string | undefined): string[] {
+  if (process.env.NODE_ENV !== "production") return [];
+  if (!raw) {
+    return [
+      "TRUST_PROXY ausente em produção: atrás de load balancer a API enxerga o IP do proxy, então rate limit, brute force e audit logs compartilham a cota de todos os clientes. Configure o número de hops (ex.: TRUST_PROXY=1).",
+    ];
+  }
+  if (raw.trim().toLowerCase() === "true") {
+    return [
+      "TRUST_PROXY=true em produção: confia em qualquer X-Forwarded-For e permite forjar o IP no rate limit e na auditoria. Use o número de hops (ex.: TRUST_PROXY=1) ou os CIDRs do proxy.",
+    ];
+  }
+  return [];
+}
+
 export function resolveTrustProxy(): boolean | number | string {
   const raw = process.env.TRUST_PROXY?.trim();
+
+  for (const warning of trustProxyProductionWarnings(raw)) logger.warn(warning);
+
   if (!raw) return false;
 
   const normalized = raw.toLowerCase();
@@ -65,8 +88,9 @@ function shopIdFromRequest(request: FastifyRequest): string | null {
 
 export async function buildApp() {
   const app = fastify({
-    // Silencia logs nos testes de inject (NODE_ENV=test)
-    logger: process.env.NODE_ENV !== "test",
+    // Silencia logs nos testes de inject (NODE_ENV=test). Fora disso, o nível
+    // segue o LOG_LEVEL já documentado no .env.example (default: info).
+    logger: process.env.NODE_ENV !== "test" ? { level: process.env.LOG_LEVEL || "info" } : false,
     trustProxy: resolveTrustProxy(),
     // reqId == correlationId: os logs nativos do Fastify ("incoming
     // request", "request completed") saem já correlacionados (B21).
@@ -112,7 +136,10 @@ export async function buildApp() {
           /* ignore invalid origin */
         }
       }
-      cb(new Error("Origin not allowed"), false);
+      // Origem fora da whitelist: 403 explícito. Um Error genérico aqui virava
+      // 500 "Erro interno do servidor" no error handler (falso alarme em
+      // monitoramento e log poluído por requisição cruzada malformada).
+      cb(new AppError("Origem não permitida", 403), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -140,7 +167,11 @@ export async function buildApp() {
     contentSecurityPolicy: isProd ? {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://www.google.com", "https://www.gstatic.com"],
+        // S6: script-src sem 'unsafe-inline' — o backend serve só JSON (o HTML
+        // do front é estático na Render e não passa por aqui); nenhum script
+        // inline precisa da permissão. Se um dia o backend servir páginas com
+        // scripts inline, usar nonce/hash em vez de reabrir unsafe-inline.
+        scriptSrc: ["'self'", "https://www.google.com", "https://www.gstatic.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
@@ -240,6 +271,17 @@ export async function buildApp() {
       });
     } catch (err) {
       request.log.error(err as any, "Failed to create audit log");
+    }
+  });
+
+  // Aquece a conexão Redis de operações de request ANTES de aceitar tráfego.
+  // O cliente nasce lazy e com enableOfflineQueue:false: o 1º comando emitido
+  // durante o handshake é rejeitado ("Stream isn't writeable") e, com o
+  // fail-closed do lockout (B4), viraria 423 no primeiro login de cada boot.
+  app.addHook("onReady", async () => {
+    const ok = await warmupApiRedis();
+    if (!ok && !process.env.VITEST) {
+      app.log.warn("Redis api não ficou pronto no boot — auth permanece fail-closed até reconectar");
     }
   });
 

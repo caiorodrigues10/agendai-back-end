@@ -3,6 +3,8 @@ import { authenticate }       from "../middlewares/authenticate";
 import { authorize }          from "../middlewares/authorize";
 import { checkSubscription }  from "../middlewares/checkSubscription";
 import { setRlsContext }      from "../middlewares/setRlsContext";
+import { validateSchema }     from "../middlewares/validateSchema";
+import { listBarbershopsQuerySchema } from "@/modules/barbershops/schemas/barbershopSchemas";
 import { CreateBarbershopController }  from "@/modules/barbershops/useCases/createBarbershop/CreateBarbershopController";
 import { ListBarbershopsController }   from "@/modules/barbershops/useCases/listBarbershops/ListBarbershopsController";
 import { GetBarbershopController }     from "@/modules/barbershops/useCases/getBarbershop/GetBarbershopController";
@@ -42,7 +44,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.delete("/barbershops/:id", { preHandler: [authenticate, authorize(["MASTER_ADMIN"]), setRlsContext] }, del.handle.bind(del));
 
   // ─── Leitura pública ───────────────────────────────────────────────────────
-  app.get("/barbershops",              list.handle.bind(list));
+  app.get("/barbershops",              { preHandler: [validateSchema(listBarbershopsQuerySchema, "query")] }, list.handle.bind(list));
   app.get("/barbershops/:id",          get.handle.bind(get));
   app.get("/barbershops/:id/schedule", getSchedule.handle.bind(getSchedule));
   app.get("/barbershops/:id/staff",    get.listStaff.bind(get));

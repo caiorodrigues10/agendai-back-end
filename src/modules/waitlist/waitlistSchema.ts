@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WaitlistStatus } from "@prisma/client";
 
 export const createWaitlistEntrySchema = z.object({
   customerName: z.string().min(1).max(200),
@@ -13,7 +14,7 @@ export const createWaitlistEntrySchema = z.object({
 });
 
 export const updateWaitlistEntrySchema = z.object({
-  status: z.enum(["ACTIVE", "OFFERED", "FULFILLED", "EXPIRED", "CANCELLED"]).optional(),
+  status: z.nativeEnum(WaitlistStatus).optional(),
   priority: z.number().min(0).max(10).optional(),
 });
 
@@ -36,7 +37,7 @@ export const publicCreateWaitlistEntrySchema = z.object({
 });
 
 export const waitlistEntryListQuerySchema = z.object({
-  status: z.string().optional(),
+  status: z.nativeEnum(WaitlistStatus).optional(),
   serviceId: z.string().uuid().optional(),
   page: z.coerce.number().min(1).default(1).optional(),
   limit: z.coerce.number().min(1).max(100).default(20).optional(),

@@ -1,14 +1,20 @@
 import { ReputationRepository } from "./reputationRepository";
 import { AppError } from "@/shared/errors/AppError";
+import { assertShopAccess, type RequestingUser } from "@/modules/barbershops/utils/assertShopAccess";
 import type { z } from "zod";
 import type { respondToReviewSchema } from "./reputationSchema";
 
 type RespondInput = z.infer<typeof respondToReviewSchema>;
 
 export class ReputationUseCases {
-  private repo = new ReputationRepository();
+  private repo: ReputationRepository;
 
-  async getReputation(barbershopId: string) {
+  constructor(repo: ReputationRepository = new ReputationRepository()) {
+    this.repo = repo;
+  }
+
+  async getReputation(barbershopId: string, requestingUser: RequestingUser | undefined) {
+    assertShopAccess(requestingUser, barbershopId);
     const reputation = await this.repo.getReputation(barbershopId);
     if (!reputation) {
       return {
@@ -25,7 +31,8 @@ export class ReputationUseCases {
     return reputation;
   }
 
-  async computeReputation(barbershopId: string) {
+  async computeReputation(barbershopId: string, requestingUser: RequestingUser | undefined) {
+    assertShopAccess(requestingUser, barbershopId);
     const reviews = await this.repo.getReviewsForBarbershop(barbershopId);
 
     const totalReviews = reviews.length;
@@ -55,14 +62,24 @@ export class ReputationUseCases {
     });
   }
 
-  async respondToReview(reviewId: string, respondedById: string, data: RespondInput) {
+  async respondToReview(
+    reviewId: string,
+    respondedById: string,
+    data: RespondInput,
+    requestingUser: RequestingUser | undefined,
+  ) {
     const review = await this.repo.getReviewById(reviewId);
     if (!review) throw new AppError("Review não encontrado", 404);
+    assertShopAccess(requestingUser, review.barbershopId);
 
     return this.repo.createReviewResponse(reviewId, respondedById, data);
   }
 
-  async getReviewResponse(reviewId: string) {
+  async getReviewResponse(reviewId: string, requestingUser: RequestingUser | undefined) {
+    const review = await this.repo.getReviewById(reviewId);
+    if (!review) throw new AppError("Review não encontrado", 404);
+    assertShopAccess(requestingUser, review.barbershopId);
+
     const response = await this.repo.getReviewResponse(reviewId);
     if (!response) throw new AppError("Resposta não encontrada", 404);
     return response;

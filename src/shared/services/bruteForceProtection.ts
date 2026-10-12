@@ -28,6 +28,22 @@ const THRESHOLDS: [number, number][] = isDev
 // TTL do counter de tentativas abaixo do threshold (5 min em prod, 30s em dev)
 const SUB_THRESHOLD_TTL = isDev ? 30 : 300;
 
+/**
+ * Janela de memória das falhas DEPOIS de um lockout. Precisa ser MAIOR que o
+ * maior lockout: o contador que expira junto com o lock zera a contagem e os
+ * thresholds seguintes nunca são atingidos — o lockout ficaria eternamente no
+ * primeiro degrau (60s em prod) e a escalação progressiva não existiria.
+ */
+const ATTEMPTS_WINDOW = Math.max(...THRESHOLDS.map(([, duration]) => duration)) * 2;
+
+/**
+ * Política de falha (B4 / P0-13): o Redis é a ÚNICA memória do lockout. Se ele
+ * cair, devolver `{ locked: false }` liberaria o login sem contagem nenhuma —
+ * fail-open exatamente no caminho de autenticação. Aqui a falha fecha o caminho:
+ * o login é recusado por alguns segundos até o Redis voltar.
+ */
+const FAIL_CLOSED_RETRY_AFTER_SECONDS = 60;
+
 const lockTimers = new Map<string, NodeJS.Timeout>();
 
 function getLockDuration(count: number): number {
@@ -65,8 +81,8 @@ export async function checkLock(
     }
     return { locked: false };
   } catch (err) {
-    logger.error({ err, email, ip }, "Redis error in checkLock, allowing login");
-    return { locked: false };
+    logger.error({ err, email, ip }, "Redis error in checkLock, failing closed");
+    return { locked: true, retryAfterSeconds: FAIL_CLOSED_RETRY_AFTER_SECONDS };
   }
 }
 
@@ -85,7 +101,8 @@ export async function recordFailure(
     if (duration > 0) {
       const pipeline = redis.pipeline();
       pipeline.set(lockKey, "1", "EX", duration);
-      pipeline.expire(attemptKey, duration);
+      // O contador vive além do lock: é ele que carrega a escalação.
+      pipeline.expire(attemptKey, ATTEMPTS_WINDOW);
       await pipeline.exec();
 
       const existingTimer = lockTimers.get(email);
@@ -102,8 +119,8 @@ export async function recordFailure(
     await redis.expire(attemptKey, SUB_THRESHOLD_TTL);
     return { locked: false, retryAfterSeconds: 0 };
   } catch (err) {
-    logger.error({ err, email, ip }, "Redis error in recordFailure, allowing login");
-    return { locked: false, retryAfterSeconds: 0 };
+    logger.error({ err, email, ip }, "Redis error in recordFailure, failing closed");
+    return { locked: true, retryAfterSeconds: FAIL_CLOSED_RETRY_AFTER_SECONDS };
   }
 }
 

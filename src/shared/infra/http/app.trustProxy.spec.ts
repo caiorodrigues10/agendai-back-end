@@ -1,10 +1,15 @@
 /// <reference types="vitest/globals" />
 import type { FastifyInstance } from "fastify";
-import { buildApp, resolveTrustProxy } from "./app";
+import { buildApp, resolveTrustProxy, trustProxyProductionWarnings } from "./app";
 
 vi.mock("./routes", () => ({
   registerRoutes: async (app: FastifyInstance) => {
     app.get("/pentest/ip", async (request) => ({ ip: request.ip }));
+    app.get(
+      "/pentest/limited",
+      { config: { rateLimit: { max: 3, timeWindow: "1 minute" } } },
+      async () => ({ ok: true })
+    );
   },
 }));
 
@@ -106,5 +111,58 @@ describe("TRUST_PROXY", () => {
 
     delete process.env.TRUST_PROXY;
     expect(resolveTrustProxy()).toBe(false);
+  });
+
+  it("X-Forwarded-For forjado não cria bucket novo no rate limit", async () => {
+    app = await buildWithTrustProxy(undefined);
+
+    let last: Awaited<ReturnType<typeof app.inject>> | undefined;
+    for (let i = 0; i < 4; i++) {
+      last = await app.inject({
+        method: "GET",
+        url: "/pentest/limited",
+        remoteAddress: "203.0.113.10",
+        headers: { "x-forwarded-for": `198.51.100.${10 + i}` },
+      });
+    }
+
+    // Mesmo IP real com X-Forwarded-For diferente a cada chamada: a cota é do
+    // IP real (4ª chamada estoura o max=3 da rota).
+    expect(last?.statusCode).toBe(429);
+  });
+
+  it("avisa em produção quando TRUST_PROXY está ausente ou é 'true'", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      expect(trustProxyProductionWarnings(undefined)).toEqual([
+        expect.stringContaining("TRUST_PROXY ausente em produção"),
+      ]);
+      expect(trustProxyProductionWarnings("")).toEqual([
+        expect.stringContaining("TRUST_PROXY ausente em produção"),
+      ]);
+      expect(trustProxyProductionWarnings("true")).toEqual([
+        expect.stringContaining("TRUST_PROXY=true em produção"),
+      ]);
+      expect(trustProxyProductionWarnings("TRUE")).toEqual([
+        expect.stringContaining("TRUST_PROXY=true em produção"),
+      ]);
+      expect(trustProxyProductionWarnings("1")).toEqual([]);
+      expect(trustProxyProductionWarnings("10.0.0.0/8, 172.16.0.0/12")).toEqual([]);
+      expect(trustProxyProductionWarnings("false")).toEqual([]);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it("não emite avisos fora de produção", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "development";
+    try {
+      expect(trustProxyProductionWarnings(undefined)).toEqual([]);
+      expect(trustProxyProductionWarnings("true")).toEqual([]);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
   });
 });

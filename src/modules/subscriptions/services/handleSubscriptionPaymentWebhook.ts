@@ -1,5 +1,6 @@
 import { BRAND_NAME } from '@/config/brand';
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { unblockOwnerCpfs } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { invalidateSubscriptionCache } from "@/shared/infra/http/middlewares/subscriptionAccessCache";
 import {
@@ -73,20 +74,20 @@ export async function handleSubscriptionPaymentWebhook(
     const newEndDate = new Date(base);
     newEndDate.setDate(newEndDate.getDate() + periodDays);
 
-    await prisma.$transaction([
-      prisma.invoice.update({
+    await rlsTransaction(async (tx) => {
+      await tx.invoice.update({
         where: { id: invoiceId },
         data: { status: "PAID", paidAt: new Date() },
-      }),
-      prisma.subscription.update({
+      });
+      await tx.subscription.update({
         where: { id: subscriptionId },
         data: {
           status: assertTransition(subscription.status, "PAYMENT_APPROVED"),
           endDate: newEndDate,
           ...(invoicePlan ? { planId: invoicePlan.id } : {}),
         },
-      }),
-    ]);
+      });
+    });
 
     await invalidateSubscriptionCache(subscription.barbershopId);
 
@@ -138,16 +139,16 @@ export async function handleSubscriptionPaymentWebhook(
     });
   } else if (newPaymentStatus === "in_mediation") {
     // Disputa/contestação em análise — suspende acesso imediatamente até a resolução.
-    await prisma.$transaction([
-      prisma.invoice.update({
+    await rlsTransaction(async (tx) => {
+      await tx.invoice.update({
         where: { id: invoiceId },
         data: { status: "PENDING" },
-      }),
-      prisma.subscription.update({
+      });
+      await tx.subscription.update({
         where: { id: subscriptionId },
         data: { status: "UNPAID" },
-      }),
-    ]);
+      });
+    });
 
     await invalidateSubscriptionCache(subscription.barbershopId);
 
@@ -189,25 +190,23 @@ export async function handleSubscriptionPaymentWebhook(
     const wasCanceled = subscription.status === "CANCELED";
     const now = new Date();
 
-    await prisma.$transaction([
-      prisma.invoice.update({
+    await rlsTransaction(async (tx) => {
+      await tx.invoice.update({
         where: { id: invoiceId },
         data: { status: "CANCELLED" },
-      }),
-      ...(wasCanceled
-        ? []
-        : [
-            prisma.subscription.update({
-              where: { id: subscriptionId },
-              data: {
-                status: "CANCELED",
-                cancelDate: now,
-                endDate: now,
-                cancelReason: subscription.cancelReason ?? "chargeback",
-              },
-            }),
-          ]),
-    ]);
+      });
+      if (!wasCanceled) {
+        await tx.subscription.update({
+          where: { id: subscriptionId },
+          data: {
+            status: "CANCELED",
+            cancelDate: now,
+            endDate: now,
+            cancelReason: subscription.cancelReason ?? "chargeback",
+          },
+        });
+      }
+    });
 
     await invalidateSubscriptionCache(subscription.barbershopId);
 
@@ -238,16 +237,16 @@ export async function handleSubscriptionPaymentWebhook(
     });
   } else if (["rejected", "cancelled"].includes(newPaymentStatus)) {
     // Pagamento não efetivado — mantém PAST_DUE (aguardando nova tentativa).
-    await prisma.$transaction([
-      prisma.invoice.update({
+    await rlsTransaction(async (tx) => {
+      await tx.invoice.update({
         where: { id: invoiceId },
         data: { status: "CANCELLED" },
-      }),
-      prisma.subscription.update({
+      });
+      await tx.subscription.update({
         where: { id: subscriptionId },
         data: { status: "PAST_DUE" },
-      }),
-    ]);
+      });
+    });
 
     await invalidateSubscriptionCache(subscription.barbershopId);
 

@@ -1,4 +1,5 @@
 import { prisma, type AppTx } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { IJoinQueueDTO } from "../../dtos/IJoinQueueDTO";
 import { IQueueItemResponseDTO, QueueStatus } from "../../dtos/IQueueItemResponseDTO";
 import { IQueueRepository } from "../../repositories/IQueueRepository";
@@ -141,7 +142,7 @@ export class QueueRepository implements IQueueRepository {
     },
   ): Promise<{ item: IQueueItemResponseDTO; createdFiadoId: string | null }> {
     let createdFiadoId: string | null = null;
-    await prisma.$transaction(async (tx: AppTx) => {
+    await rlsTransaction(async (tx: AppTx) => {
       const queueItem = await tx.queueItem.findUnique({
         where: { id },
         select: {

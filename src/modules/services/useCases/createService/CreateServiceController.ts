@@ -7,7 +7,7 @@ export class CreateServiceController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const data = createServiceSchema.parse(request.body);
     const useCase = container.resolve(CreateServiceUseCase);
-    const service = await useCase.execute(data);
+    const service = await useCase.execute(data, request.user);
     reply.status(201).send({ success: true, data: service });
   }
 }

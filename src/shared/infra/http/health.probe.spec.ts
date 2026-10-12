@@ -198,4 +198,80 @@ describe("health probes", () => {
     });
     expect(valid.statusCode).toBe(200);
   });
+
+  it("X-Forwarded-For forjado não autoriza /internal/health (fail closed)", async () => {
+    const { isInternalHealthAuthorized } = await import("./health");
+
+    // Peer TCP desconhecido (p. ex. atrás de unix socket) e `request.ip`
+    // vindo do X-Forwarded-For forjado como 127.0.0.1 — que é exatamente o
+    // que Fastify devolve quando TRUST_PROXY está ativo. O loopback precisa
+    // vir do peer real, nunca do header.
+    const forged = {
+      raw: { socket: { remoteAddress: undefined } },
+      ip: "127.0.0.1",
+      headers: {},
+    } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+
+    expect(isInternalHealthAuthorized(forged)).toBe(false);
+  });
+
+  it("cliente externo forjando X-Forwarded-For de loopback continua 401", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/internal/health",
+      remoteAddress: "203.0.113.80",
+      headers: { "x-forwarded-for": "127.0.0.1" },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("produção: loopback sem token é recusado (token sempre, sem exceção)", async () => {
+    const { isInternalHealthAuthorized } = await import("./health");
+    const prevEnv = process.env.NODE_ENV;
+    const prevToken = process.env.INTERNAL_HEALTH_TOKEN;
+    process.env.NODE_ENV = "production";
+    try {
+      delete process.env.INTERNAL_HEALTH_TOKEN;
+      const loopbackNoToken = {
+        raw: { socket: { remoteAddress: "::ffff:127.0.0.1" } },
+        headers: {},
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopbackNoToken)).toBe(false);
+
+      process.env.INTERNAL_HEALTH_TOKEN = "internal-health-token-abc123";
+      const loopbackValidToken = {
+        raw: { socket: { remoteAddress: "127.0.0.1" } },
+        headers: { "x-internal-health-token": "internal-health-token-abc123" },
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopbackValidToken)).toBe(true);
+
+      const loopbackWrongToken = {
+        raw: { socket: { remoteAddress: "127.0.0.1" } },
+        headers: { "x-internal-health-token": "errado" },
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopbackWrongToken)).toBe(false);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevToken === undefined) delete process.env.INTERNAL_HEALTH_TOKEN;
+      else process.env.INTERNAL_HEALTH_TOKEN = prevToken;
+    }
+  });
+
+  it("fora de produção: loopback segue isento do token (dev preservado)", async () => {
+    const { isInternalHealthAuthorized } = await import("./health");
+    const prevEnv = process.env.NODE_ENV;
+    const prevToken = process.env.INTERNAL_HEALTH_TOKEN;
+    process.env.NODE_ENV = "test";
+    delete process.env.INTERNAL_HEALTH_TOKEN;
+    try {
+      const loopback = {
+        raw: { socket: { remoteAddress: "127.0.0.1" } },
+        headers: {},
+      } as unknown as Parameters<typeof isInternalHealthAuthorized>[0];
+      expect(isInternalHealthAuthorized(loopback)).toBe(true);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevToken !== undefined) process.env.INTERNAL_HEALTH_TOKEN = prevToken;
+    }
+  });
 });

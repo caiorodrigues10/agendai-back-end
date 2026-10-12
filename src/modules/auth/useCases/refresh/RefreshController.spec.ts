@@ -157,4 +157,45 @@ describe("RefreshController rotation", () => {
     vi.restoreAllMocks();
     vi.resetModules();
   });
+
+  it("duas abas recarregando ao mesmo tempo: as duas renovam e nenhuma é deslogada", async () => {
+    const startToken = sign({ sub: userId }, auth.refreshSecret, { expiresIn: "7d" });
+    const { store, prisma: prismaMock } = tokenStore({
+      token: startToken,
+      userId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      createdAt: new Date(),
+    });
+
+    const controller = await loadRefreshController(prismaMock);
+    const requestWithStartToken = () =>
+      ({ cookies: { refresh_token: startToken }, ip: "127.0.0.1", headers: { "user-agent": "test" } }) as any;
+
+    // As duas abas disparam o refresh com o MESMO cookie: a rotação da aba A
+    // ainda não foi aplicada no jar da aba B.
+    const tabA = replyCapture();
+    await controller.handle(requestWithStartToken(), tabA.reply as any);
+    const tabB = replyCapture();
+    await controller.handle(requestWithStartToken(), tabB.reply as any);
+
+    expect(tabA.state.statusCode).toBe(200);
+    expect(tabB.state.statusCode).toBe(200);
+    expect(tabA.state.body?.accessToken).toBeTypeOf("string");
+    expect(tabB.state.body?.accessToken).toBeTypeOf("string");
+    // A aba B recebe o cookie corrente (o mesmo da aba A) em vez de sessão nova.
+    expect(tabB.state.cookies?.refresh_token).toBe(tabA.state.cookies?.refresh_token);
+
+    // Nenhuma aba ficou sem sessão: o próximo load renova normalmente e
+    // continua existindo exatamente um refresh token vivo.
+    const next = replyCapture();
+    await controller.handle(
+      { cookies: { refresh_token: tabA.state.cookies?.refresh_token }, ip: "127.0.0.1", headers: { "user-agent": "test" } } as any,
+      next.reply as any
+    );
+    expect(next.state.statusCode).toBe(200);
+    expect(store.size).toBe(1);
+
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
 });
