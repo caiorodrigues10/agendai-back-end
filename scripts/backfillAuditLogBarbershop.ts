@@ -1,6 +1,10 @@
 /**
- * Backfill idempotente de `audit_logs.barbershop_id` para linhas criadas
+ * Backfill idempotente de `audit_logs."barbershopId"` para linhas criadas
  * ANTES da coluna real de salão.
+ *
+ * (Nome da coluna: a migration `20261011000000_fix_audit_logs_column_and_id_defaults`
+ * renomeou `barbershop_id` → `barbershopId`, que é o nome que o modelo Prisma
+ * declara. Antes disso este script falhava com P2022.)
  *
  * Regras determinísticas (best-effort, nunca adivinha):
  *   1. `resourceId` é um uuid que existe em `barbershops`
@@ -8,7 +12,7 @@
  *   3. `action` contém um uuid (ex.: rotas /barbershops/<id>/...) que existe
  *      em `barbershops`
  *
- * Linhas sem evidência permanecem com `barbershop_id` NULL (ações globais,
+ * Linhas sem evidência permanecem com `barbershopId` NULL (ações globais,
  * ex.: planos, ou recurso não ligado a um salão).
  *
  * Uso:
