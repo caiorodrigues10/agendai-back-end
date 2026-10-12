@@ -240,11 +240,11 @@ se tiver menos de 32 caracteres.
 
 | # | Item | Resultado | Prova | Status |
 |---|---|---|---|---|
-| 13 | `GET /health` responde 200 | — | curl no ambiente alvo | ⬜ |
+| 13 | `GET /health` responde 200 | **200** ✅ | Fastify real, `NODE_ENV=production`; devolve `{status:"degraded", checks:{...}}` — é liveness, não readiness, então 200 mesmo com Postgres unhealthy | ✅ Local (repetir no alvo) |
 | 14 | `GET /internal/health` **sem** `INTERNAL_HEALTH_TOKEN` em produção → 401 | **401** ✅ | Fastify real em socket, `NODE_ENV=production` | ✅ Local (repetir no alvo) |
 | 15 | `GET /internal/health` **com** token válido → 200 | **200** ✅ | idem; token errado → 401 | ✅ Local (repetir no alvo) |
-| 16 | Boot da API com todas as envs de webhook preenchidas | — | log de startup sem `assertWebhookConfig` | ⬜ |
-| 17 | Boot da API com `ASAAS_WEBHOOK_TOKEN` vazia em produção → **recusado** (esperado) | — | log de startup | ⬜ |
+| 16 | Boot da API com as envs de webhook preenchidas | **sobe** ✅ | `Server listening at http://0.0.0.0:3998`, zero ocorrências de "insegura em produção" (ver §7.1.2) | ✅ Local (repetir no alvo) |
+| 17 | Boot da API com `ASAAS_WEBHOOK_TOKEN` curta em produção → **recusado** (esperado) | exit **1** ✅ | `ASAAS_WEBHOOK_TOKEN muito curto (5 < 32 caracteres)`; idem para secret ausente, `ALLOW_INSECURE_WEBHOOKS=true` e provedor da lista sem segredo (§7.1.2) | ✅ Local (repetir no alvo) |
 | 18 | Login de staff + sessão persiste após refresh | — | navegador real | ⬜ |
 | 19 | Fila: concluir atendimento gera comissão e fiado | — | UI + banco | ⬜ |
 | 20 | Agendamento público cria reserva e envia e-mail | — | fluxo público | ⬜ |
