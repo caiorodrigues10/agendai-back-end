@@ -1,15 +1,18 @@
-export type OperationMode = 'QUEUE_ONLY' | 'APPOINTMENTS_ONLY' | 'HYBRID';
-export type ManualShopStatus = 'AUTO' | 'OPEN' | 'CLOSED';
-export type OpeningMode = 'SCHEDULE' | 'MANUAL';
-export type BusinessSegment =
-  | 'BARBERSHOP'
-  | 'HAIR_SALON'
-  | 'BEAUTY_STUDIO'
-  | 'NAIL_STUDIO'
-  | 'LASH_BROW_STUDIO'
-  | 'AESTHETICS'
-  | 'SPA'
-  | 'OTHER';
+import type {
+  BusinessSegment as PrismaBusinessSegment,
+  ManualShopStatus as PrismaManualShopStatus,
+  OpeningMode as PrismaOpeningMode,
+  OperationMode as PrismaOperationMode,
+  TargetAudience as PrismaTargetAudience,
+} from '@prisma/client';
+
+// Derivados do Prisma de propósito: um union à mão aqui já divergiu do schema
+// (faltava PETSHOP) e quebrava o typecheck assim que o enum crescia.
+export type OperationMode = PrismaOperationMode;
+export type ManualShopStatus = PrismaManualShopStatus;
+export type OpeningMode = PrismaOpeningMode;
+export type BusinessSegment = PrismaBusinessSegment;
+export type TargetAudience = PrismaTargetAudience;
 
 export interface ShopOpenStateDTO {
   open: boolean;
@@ -31,6 +34,7 @@ export interface IBarbershopResponseDTO {
   operationMode: OperationMode;
   openingMode?: OpeningMode;
   businessSegment?: BusinessSegment;
+  targetAudience?: TargetAudience | null;
   manualStatus?: ManualShopStatus;
   createdAt: Date;
   active: boolean;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BusinessSegment, OpeningMode, TargetAudience } from "@prisma/client";
 import { isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
 
 const phoneBR = z
@@ -39,19 +40,11 @@ export const updateBarbershopSchema = z.object({
   city: z.string().max(120).nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
-  openingMode: z.enum(["SCHEDULE", "MANUAL"]).optional(),
-  businessSegment: z
-    .enum([
-      "BARBERSHOP",
-      "HAIR_SALON",
-      "BEAUTY_STUDIO",
-      "NAIL_STUDIO",
-      "LASH_BROW_STUDIO",
-      "AESTHETICS",
-      "SPA",
-      "OTHER",
-    ])
-    .optional(),
+  openingMode: z.nativeEnum(OpeningMode).optional(),
+  // nativeEnum deriva do Prisma: um z.enum listado à mão já ficou para trás
+  // quando PETSHOP entrou no schema.
+  businessSegment: z.nativeEnum(BusinessSegment).optional(),
+  targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
 });
 
 export const scheduleItemSchema = z.object({

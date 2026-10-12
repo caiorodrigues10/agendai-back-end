@@ -271,7 +271,17 @@ enum BusinessSegment {
   LASH_BROW_STUDIO
   AESTHETICS
   SPA
+  /// Banho e tosa de pets.
+  PETSHOP
   OTHER
+}
+
+/// Público atendido pelo estabelecimento. Só faz sentido para segmentos de
+/// beleza (BARBERSHOP, HAIR_SALON e afins); em PETSHOP fica nulo.
+enum TargetAudience {
+  MASCULINO
+  FEMININO
+  UNISSEX
 }
 
 model Barbershop {
@@ -312,8 +322,11 @@ model Barbershop {
   queueClosedAt         DateTime?
   /// SCHEDULE abre pelo horário; MANUAL só abre quando o dono aperta "Abrir salão".
   openingMode           OpeningMode      @default(SCHEDULE)
-  /// Nicho do estabelecimento — só orienta templates; não altera permissões nem URLs.
-  businessSegment       BusinessSegment  @default(OTHER)
+  /// Nicho do estabelecimento — orienta vocabulário, catálogo sugerido e
+  /// textos de onboarding; não altera permissões nem URLs.
+  businessSegment       BusinessSegment  @default(BARBERSHOP)
+  /// Público atendido (só relevante em segmentos de beleza). Nulo em PETSHOP.
+  targetAudience        TargetAudience?
   /// Link público configurado pelo salão para avaliações no Google.
   googleReviewUrl       String?          @db.VarChar(500)
 

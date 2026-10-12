@@ -148,6 +148,39 @@ export const CATALOG_TEMPLATES: Record<BusinessSegment, CatalogTemplate> = {
       { title: "Leve o spa para casa", content: "Óleos, velas e kits de relaxamento prolongam a experiência." },
     ],
   }),
+  PETSHOP: base("PETSHOP", {
+    serviceCategories: [
+      { name: "Banho", icon: "droplet" },
+      { name: "Tosa", icon: "scissors" },
+      { name: "Cuidados", icon: "heart" },
+    ],
+    productCategories: [
+      { name: "Higiene pet", icon: "sparkles", color: "#0F766E" },
+      { name: "Tosa e cuidados", icon: "scissors", color: "#7C3AED" },
+      { name: "Acessórios", icon: "package", color: "#1D4ED8" },
+    ],
+    services: [
+      { name: "Banho", price: 60, avgTimeMinutes: 45, icon: "droplet", categoryName: "Banho" },
+      { name: "Tosa higiênica", price: 45, avgTimeMinutes: 30, icon: "scissors", categoryName: "Tosa" },
+      { name: "Tosa completa", price: 80, avgTimeMinutes: 60, icon: "scissors", categoryName: "Tosa" },
+      { name: "Banho + tosa", price: 110, avgTimeMinutes: 90, icon: "sparkles", categoryName: "Banho" },
+      { name: "Hidratação de pelagem", price: 55, avgTimeMinutes: 30, icon: "droplet", categoryName: "Cuidados" },
+      { name: "Corte de unhas", price: 25, avgTimeMinutes: 15, icon: "scissors", categoryName: "Cuidados" },
+      { name: "Limpeza de ouvidos", price: 20, avgTimeMinutes: 10, icon: "heart", categoryName: "Cuidados" },
+    ],
+    products: [
+      { name: "Shampoo pet", categoryName: "Higiene pet", salePrice: 42, unitLabel: "frasco", type: "BOTH" },
+      { name: "Condicionador pet", categoryName: "Higiene pet", salePrice: 38, unitLabel: "frasco", type: "RETAIL" },
+      { name: "Antipulgas", categoryName: "Higiene pet", salePrice: 69, unitLabel: "unidade", type: "RETAIL" },
+      { name: "Perfume pet", categoryName: "Higiene pet", salePrice: 29, unitLabel: "frasco", type: "RETAIL" },
+      { name: "Escova desembaraçadora", categoryName: "Tosa e cuidados", salePrice: 45, unitLabel: "unidade", type: "RETAIL" },
+      { name: "Cortador de unhas", categoryName: "Tosa e cuidados", salePrice: 34, unitLabel: "unidade", type: "RETAIL" },
+    ],
+    posts: [
+      { title: "Hora do banho", content: "Leve seu pet no dia em que a pelagem pedir — evite esperar o odor aparecer." },
+      { title: "Tosa com conforto", content: "Avisamos na recepção se o pet ficar estressado durante a tosa." },
+    ],
+  }),
   OTHER: base("OTHER", {
     serviceCategories: [{ name: "Serviços", icon: "sparkles" }],
     productCategories: [{ name: "Varejo", icon: "package", color: "#6B7280" }],
