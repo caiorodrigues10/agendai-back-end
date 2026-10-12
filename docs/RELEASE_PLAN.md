@@ -109,7 +109,7 @@ com `The column barbershopId does not exist in the current database.`, agora 2/2
 | R2 | Job `backend` do CI **não roda** (`needs: secrets`) | Alta | Run `38193058581`: `Secret scan` failure → `Backend and migration integrity` skipped | Resolver R1 destrava o job | ⛌ Bloqueado em R1 |
 | R3 | `prisma migrate diff --exit-code` = 2 em banco fresh | Média | Reproduzido antes em `release/backend` e `origin/main` | **Resolvido** por `9f8a7ee` — agora exit 0 | ✅ Resolvido |
 | R4 | `INTERNAL_HEALTH_TOKEN` obrigatória em produção mas fora do `.env.example` | Média | `src/shared/infra/http/health.ts` (`isInternalHealthAuthorized`) | **Resolvido** em `a86d76a` | ✅ Resolvido |
-| R5 | `assertWebhookConfig()` **recusa o boot em produção** com provider habilitado e secret ausente/curto | Alta | `src/config/webhooks.ts`, chamado em `src/shared/infra/http/server.ts` | Conferir envs do provedor **antes** do deploy | ⬜ Ação recomendada |
+| R5 | `assertWebhookConfig()` **recusa o boot em produção** com provider habilitado e secret ausente/curto | Alta | `src/config/webhooks.ts:52` via `src/shared/infra/http/server.ts:52` | Prova viva abaixo — a recusa é real e o caminho seguro sobe. Conferir `PAYMENT_PROVIDERS_ENABLED` e o segredo de cada provedor **antes** do deploy | ✅ Verificado |
 | R6 | `warmupApiRedis()` só loga warning | Baixa | `src/shared/infra/queue/redisConnection.ts` | Nenhuma — é fail-open por design; auth de webhook continua fail-closed | ✅ Aceito |
 | R7 | O workflow do backend só dispara em `push: branches: [main]` e `pull_request: branches: [main]` — **`release/backend` não gera run de CI** | Média | `.github/workflows/ci.yml` (linhas 3–8) | O PR #2 dispara o CI; a evidência local de §7 substitui o run até lá | ✅ Conhecido |
 | R8 | `GET /barbershops` e `GET /barbershops/:id` (sem autenticação) devolviam `evolutionInstanceName` | Alta | `barbershops.routes.ts` + `shopSelect` em `BarbershopRepository.ts` | **Resolvido** em `5bded23`: `publicShopSelect` sem o campo nas rotas públicas | ✅ Resolvido |
@@ -206,6 +206,35 @@ Ambiente de verificação: macOS local, Node 24, Postgres em `localhost:5442`, R
 | `scripts/seed-qa-fixture.spec.ts` | senha `[QA]` só vem de env | 6/6 |
 | `src/tests/integration/publicShopSelect.spec.ts` | rotas públicas sem `evolutionInstanceName`; `findById` preservado | 3/3 |
 | `src/tests/integration/queueConcurrency.spec.ts` | conclusão simultânea não duplica ledger | 2/2 |
+
+### 7.1.2 Prova viva de R5 — recusa de boot em produção
+
+`assertWebhookConfig()` é chamado no **import** de `src/shared/infra/http/server.ts:52`,
+antes de abrir conexão com banco ou fila. Testado contra o entrypoint real
+(`npx tsx src/shared/infra/http/server.ts`), com `NODE_ENV=production`:
+
+| Cenário | exit | Mensagem |
+|---|---|---|
+| `ASAAS` habilitado, token de 5 chars | 1 | `ASAAS_WEBHOOK_TOKEN muito curto (5 < 32 caracteres).` |
+| `MERCADOPAGO` habilitado, secret ausente | 1 | `MERCADOPAGO_WEBHOOK_SECRET ausente em produção (provedor MERCADOPAGO habilitado).` |
+| `ALLOW_INSECURE_WEBHOOKS=true` | 1 | `ALLOW_INSECURE_WEBHOOKS=true em produção — o bypass desliga a validação de assinatura dos webhooks.` |
+| `ASAAS,ABACATEPAY`, só o do ASAAS presente | 1 | `ABACATEPAY_WEBHOOK_SECRET ausente em produção (provedor ABACATEPAY habilitado).` |
+| `ASAAS` habilitado, token ≥ 32, sem bypass | — | **sobe**: `Server listening at http://0.0.0.0:3998`, zero ocorrências de "insegura em produção" |
+
+As mensagens citam o **nome** da variável e o comprimento — nunca o valor.
+A última linha da tabela é o que importa para o deploy: a trava é seletiva,
+não quebra quem está configurado corretamente.
+
+O que o operador precisa ter pronto **antes** de subir com `NODE_ENV=production`:
+
+| Env | Regra |
+|---|---|
+| `PAYMENT_PROVIDERS_ENABLED` | lista dos provedores realmente em uso (`MERCADOPAGO`, `ASAAS`, `ABACATEPAY`) |
+| `MERCADOPAGO_WEBHOOK_SECRET` / `ASAAS_WEBHOOK_TOKEN` / `ABACATEPAY_WEBHOOK_SECRET` | obrigatório para **cada** provedor da lista, ≥ 32 caracteres |
+| `ALLOW_INSECURE_WEBHOOKS` | ausente ou `false` — `true` é sempre recusado |
+
+Qualquer segredo presente, mesmo de provedor desabilitado, também é recusado
+se tiver menos de 32 caracteres.
 
 ### 7.2 Smoke test manual (pré-deploy)
 
