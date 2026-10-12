@@ -32,8 +32,17 @@ export class MockBarbershopRepository implements IBarbershopRepository {
   async findById(id: string): Promise<IBarbershopResponseDTO | null> {
     return this.data.find((b) => b.id === id) ?? null;
   }
+  async findByIdPublic(id: string): Promise<IBarbershopResponseDTO | null> {
+    const shop = this.data.find((b) => b.id === id);
+    return shop ? this.toPublic(shop) : null;
+  }
   async list(): Promise<IBarbershopResponseDTO[]> {
-    return [...this.data];
+    return this.data.map((shop) => this.toPublic(shop));
+  }
+  /** Réplica do `publicShopSelect` do repositório real: sem `evolutionInstanceName`. */
+  private toPublic(shop: IBarbershopResponseDTO): IBarbershopResponseDTO {
+    const { evolutionInstanceName: _evolutionInstanceName, ...rest } = shop;
+    return rest;
   }
   async update(id: string, payload: IUpdateBarbershopDTO): Promise<IBarbershopResponseDTO> {
     const idx = this.data.findIndex((b) => b.id === id);

@@ -24,6 +24,14 @@ const shopSelect = {
   evolutionInstanceName: true,
 } as const;
 
+// Select das rotas PÚBLICAS (GET /barbershops e GET /barbershops/:id), que não
+// exigem autenticação. Sempre sem `evolutionInstanceName`: é o nome da instância
+// Evolution/WhatsApp, identificador interno usado para parear e enviar mensagens
+// (ver WhatsAppConnectionUseCase e enqueueWhatsApp). Vazá-lo permitia que qualquer
+// visitante listasse a instância de todos os salões. O frontend não consome o
+// campo; os fluxos autenticados continuam em `shopSelect` via findById.
+const { evolutionInstanceName: _evolutionInstanceName, ...publicShopSelect } = shopSelect;
+
 export class BarbershopRepository implements IBarbershopRepository {
   async create(data: ICreateBarbershopDTO): Promise<IBarbershopResponseDTO> {
     return prisma.barbershop.create({
@@ -40,7 +48,13 @@ export class BarbershopRepository implements IBarbershopRepository {
   async list(): Promise<IBarbershopResponseDTO[]> {
     return prisma.barbershop.findMany({
       orderBy: { name: "asc" },
-      select: shopSelect
+      select: publicShopSelect
+    });
+  }
+  async findByIdPublic(id: string): Promise<IBarbershopResponseDTO | null> {
+    return prisma.barbershop.findUnique({
+      where: { id },
+      select: publicShopSelect
     });
   }
   async update(id: string, data: IUpdateBarbershopDTO): Promise<IBarbershopResponseDTO> {
