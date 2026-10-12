@@ -130,8 +130,9 @@ export class RegisterUseCase {
           },
         });
 
-        // Serviços e horários iniciais
-        await seedBarbershopDefaults(tx, barbershop.id, data.schedule);
+        // Serviços e horários iniciais. O segmento entra no cadastro (E4);
+        // por ora cai no default BARBERSHOP, como antes.
+        await seedBarbershopDefaults(tx, barbershop.id, undefined, data.schedule);
 
         const created = await tx.user.create({
           data: {

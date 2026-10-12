@@ -23,7 +23,7 @@ describe("seedBarbershopDefaults", () => {
     expect(monday.openTime).toBe("09:00");
     expect(monday.closeTime).toBe("19:00");
 
-    // Categorias de serviço
+    // Categorias de serviço (BARBERSHOP)
     expect(db.serviceCategory.rows).toHaveLength(2);
     const cortes = db.serviceCategory.rows.find((r: any) => r.name === "Cortes");
     const barba = db.serviceCategory.rows.find((r: any) => r.name === "Barba");
@@ -31,16 +31,18 @@ describe("seedBarbershopDefaults", () => {
     expect(barba.icon).toBe("user");
     expect(db.serviceCategory.rows.every((r: any) => r.barbershopId === SHOP)).toBe(true);
 
-    // Serviços vinculados às categorias
-    expect(db.service.rows).toHaveLength(3);
+    // Serviços vinculados às categorias — catálogo completo de barbearia
+    const serviceNames = db.service.rows.map((r: any) => r.name);
+    expect(serviceNames).toEqual(
+      expect.arrayContaining(["Corte", "Barba", "Corte + barba", "Sobrancelha", "Pigmentação de barba"]),
+    );
+    expect(db.service.rows).toHaveLength(5);
     const corte = db.service.rows.find((r: any) => r.name === "Corte");
-    const escova = db.service.rows.find((r: any) => r.name === "Escova");
     const barbaSvc = db.service.rows.find((r: any) => r.name === "Barba");
     expect(corte.price).toBe(45);
-    expect(escova.avgTimeMinutes).toBe(40);
-    expect(barbaSvc.icon).toBe("razor");
+    expect(corte.avgTimeMinutes).toBe(30);
+    expect(barbaSvc.icon).toBe("user");
     expect(corte.categoryId).toBe(cortes.id);
-    expect(escova.categoryId).toBe(cortes.id);
     expect(barbaSvc.categoryId).toBe(barba.id);
 
     // Categorias de despesa do salão
@@ -219,10 +221,143 @@ describe("seedBarbershopDefaults", () => {
       closeTime: "18:00",
     }));
 
-    await seedBarbershopDefaults(db, SHOP, schedule);
+    await seedBarbershopDefaults(db, SHOP, undefined, schedule);
 
     expect(db.schedule.rows).toHaveLength(7);
     expect(db.schedule.rows.find((r: any) => r.dayOfWeek === 1).isOpen).toBe(false);
     expect(db.schedule.rows.find((r: any) => r.dayOfWeek === 2).openTime).toBe("08:00");
+  });
+
+  describe("catálogo por segmento", () => {
+    it("PETSHOP semeia banho, tosa e cuidados", async () => {
+      const { db } = createFakeSeedDb();
+
+      await seedBarbershopDefaults(db, SHOP, "PETSHOP");
+
+      const names = db.service.rows.map((r: any) => r.name);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "Banho",
+          "Tosa higiênica",
+          "Tosa completa",
+          "Banho + tosa",
+          "Hidratação de pelagem",
+          "Corte de unhas",
+          "Limpeza de ouvidos",
+        ]),
+      );
+      const categories = db.serviceCategory.rows.map((r: any) => r.name);
+      expect(categories).toEqual(expect.arrayContaining(["Banho", "Tosa", "Cuidados"]));
+
+      // Categorias de produto do petshop, não as de barbearia
+      const productCategories = db.productCategory.rows.map((r: any) => r.name);
+      expect(productCategories).toEqual(expect.arrayContaining(["Higiene pet", "Tosa e cuidados"]));
+      expect(productCategories).not.toContain("Finalizadores");
+
+      // Petshop abre 08:00 e trabalha sábado
+      const saturday = db.schedule.rows.find((r: any) => r.dayOfWeek === 6);
+      expect(saturday.isOpen).toBe(true);
+      expect(saturday.openTime).toBe("08:00");
+    });
+
+    it("CABELEREIRO semeia corte, coloração e tratamento", async () => {
+      const { db } = createFakeSeedDb();
+
+      await seedBarbershopDefaults(db, SHOP, "HAIR_SALON");
+
+      const names = db.service.rows.map((r: any) => r.name);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "Corte feminino",
+          "Corte masculino",
+          "Escova",
+          "Coloração",
+          "Mechas",
+          "Hidratação",
+          "Progressiva",
+        ]),
+      );
+
+      // Salão de cabelo fecha domingo e sábado
+      const saturday = db.schedule.rows.find((r: any) => r.dayOfWeek === 6);
+      expect(saturday.isOpen).toBe(false);
+    });
+
+    it("NAILS semeia manicure, alongamento e nail art", async () => {
+      const { db } = createFakeSeedDb();
+
+      await seedBarbershopDefaults(db, SHOP, "NAIL_STUDIO");
+
+      const names = db.service.rows.map((r: any) => r.name);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "Manicure",
+          "Pedicure",
+          "Esmaltação em gel",
+          "Alongamento em fibra",
+          "Alongamento em gel",
+          "Nail art",
+          "Remoção",
+        ]),
+      );
+    });
+
+    it("BARBEARIA semeia corte, barba, sobrancelha e pigmentação", async () => {
+      const { db } = createFakeSeedDb();
+
+      await seedBarbershopDefaults(db, SHOP, "BARBERSHOP");
+
+      const names = db.service.rows.map((r: any) => r.name);
+      expect(names).toEqual(
+        expect.arrayContaining(["Corte", "Barba", "Corte + barba", "Sobrancelha", "Pigmentação de barba"]),
+      );
+    });
+
+    it("segmento ausente cai em BARBERSHOP, que é o default do banco", async () => {
+      const { db } = createFakeSeedDb();
+
+      await seedBarbershopDefaults(db, SHOP, null);
+
+      const names = db.service.rows.map((r: any) => r.name);
+      expect(names).toEqual(expect.arrayContaining(["Corte", "Barba"]));
+    });
+
+    it("é idempotente também com segmento informado", async () => {
+      const { db } = createFakeSeedDb();
+
+      await seedBarbershopDefaults(db, SHOP, "PETSHOP");
+      const first = {
+        serviceCategory: db.serviceCategory.rows.length,
+        service: db.service.rows.length,
+        productCategory: db.productCategory.rows.length,
+      };
+
+      await seedBarbershopDefaults(db, SHOP, "PETSHOP");
+
+      expect(db.serviceCategory.rows).toHaveLength(first.serviceCategory);
+      expect(db.service.rows).toHaveLength(first.service);
+      expect(db.productCategory.rows).toHaveLength(first.productCategory);
+    });
+
+    it("não sobrescreve serviço que o dono já criou com o mesmo nome", async () => {
+      const { db } = createFakeSeedDb();
+      db.service.rows.push({
+        id: "svc-banho",
+        barbershopId: SHOP,
+        name: "Banho",
+        price: 999,
+        avgTimeMinutes: 10,
+        icon: "custom",
+        categoryId: null,
+      });
+
+      await seedBarbershopDefaults(db, SHOP, "PETSHOP");
+
+      const banho = db.service.rows.find((r: any) => r.name === "Banho");
+      expect(banho.price).toBe(999);
+      expect(banho.avgTimeMinutes).toBe(10);
+      expect(banho.icon).toBe("custom");
+      expect(db.service.rows.filter((r: any) => r.name === "Banho")).toHaveLength(1);
+    });
   });
 });

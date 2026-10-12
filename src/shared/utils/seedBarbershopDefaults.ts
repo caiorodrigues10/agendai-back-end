@@ -1,36 +1,33 @@
 import type { AppTx } from "@/libs/prismaClient";
+import type { BusinessSegment } from "@prisma/client";
 import { listNotificationPreferences } from "@/modules/notifications/services/notificationRegistry";
+import { CATALOG_TEMPLATES } from "@/modules/products/catalogTemplates";
+import { getSegmentConfig } from "@/shared/segments";
 
 type SeedTx = AppTx;
 
-const DEFAULT_SCHEDULE = [0, 1, 2, 3, 4, 5, 6].map(dayOfWeek => ({
-  dayOfWeek,
-  isOpen: dayOfWeek !== 0,
-  openTime: "09:00",
-  closeTime: "19:00",
-}));
-
-const DEFAULT_SERVICE_CATEGORIES = [
-  { name: "Cortes", icon: "scissors" },
-  { name: "Barba", icon: "user" },
-] as const;
-
-const DEFAULT_SERVICES = [
-  { name: "Corte", price: 45, avgTimeMinutes: 30, icon: "scissors", categoryName: "Cortes" },
-  { name: "Escova", price: 40, avgTimeMinutes: 40, icon: "sparkles", categoryName: "Cortes" },
-  { name: "Barba", price: 30, avgTimeMinutes: 20, icon: "razor", categoryName: "Barba" },
-] as const;
+/** Fallback quando o segmento não vem informado — o default do banco é
+ *  BARBERSHOP, então é o que um create antigo produziria. */
+const FALLBACK_SEGMENT: BusinessSegment = "BARBERSHOP";
 
 const DEFAULT_EXPENSE_CATEGORIES = ["Aluguel", "Salários", "Impostos e taxas", "Marketing"] as const;
 
-const DEFAULT_PRODUCT_CATEGORIES = [
-  { name: "Finalizadores", icon: "droplet", color: "#0F766E" },
-  { name: "Higiene", icon: "sparkles", color: "#1D4ED8" },
-] as const;
-
+/**
+ * Cria o mínimo que um salão novo precisa para funcionar: horário, categorias
+ * e serviços sugeridos, categorias de despesa/produto e as configurações de
+ * policy/e-mail/lucro/fidelidade/notificação.
+ *
+ * Idempotente e não destrutivo: nada aqui sobrescreve o que o dono já criou.
+ * Categorias e serviços são checados por nome antes de criar; os `upsert` das
+ * configurações usam `update: {}`, ou seja, nunca alteram registro existente.
+ *
+ * @param segment escolhe o catálogo e o horário sugeridos. Quando ausente,
+ *                cai em BARBERSHOP, que é o default do banco.
+ */
 export async function seedBarbershopDefaults(
   tx: SeedTx,
   barbershopId: string,
+  segment?: BusinessSegment | null,
   schedule?: Array<{ dayOfWeek: number; isOpen: boolean; openTime: string; closeTime: string }>
 ) {
   // Compatível com RLS em bancos criados via migrate deploy: tabelas como
@@ -39,7 +36,10 @@ export async function seedBarbershopDefaults(
   // set_config(..., TRUE) é local à transação e reverte sozinho no COMMIT/ROLLBACK.
   await tx.$executeRaw`SELECT set_config('app.current_barbershop_id', ${barbershopId}, TRUE)`;
 
-  const scheduleToCreate = schedule?.length === 7 ? schedule : DEFAULT_SCHEDULE;
+  const config = getSegmentConfig(segment ?? FALLBACK_SEGMENT);
+  const { serviceCategories, services } = config.catalog;
+
+  const scheduleToCreate = schedule?.length === 7 ? schedule : config.schedulePreset;
   await tx.schedule.createMany({
     data: scheduleToCreate.map(s => ({
       barbershopId,
@@ -52,7 +52,7 @@ export async function seedBarbershopDefaults(
   });
 
   const categoryIds = new Map<string, string>();
-  for (const category of DEFAULT_SERVICE_CATEGORIES) {
+  for (const category of serviceCategories) {
     const existing = await tx.serviceCategory.findFirst({
       where: { barbershopId, name: category.name },
     });
@@ -66,7 +66,7 @@ export async function seedBarbershopDefaults(
     categoryIds.set(category.name, created.id);
   }
 
-  for (const service of DEFAULT_SERVICES) {
+  for (const service of services) {
     const categoryId = categoryIds.get(service.categoryName);
     const existing = await tx.service.findFirst({
       where: { barbershopId, name: service.name },
@@ -94,8 +94,14 @@ export async function seedBarbershopDefaults(
     }
   }
 
+  // Categorias de produto também variam por segmento (um petshop não vende
+  // "Finalizadores"). O template de catálogo de produtos já é indexado por
+  // segmento e cai em OTHER quando não houver.
   await tx.productCategory.createMany({
-    data: DEFAULT_PRODUCT_CATEGORIES.map(category => ({ barbershopId, ...category })),
+    data: CATALOG_TEMPLATES[config.segment].productCategories.map(category => ({
+      barbershopId,
+      ...category,
+    })),
     skipDuplicates: true,
   });
 

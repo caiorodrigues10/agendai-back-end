@@ -152,7 +152,8 @@ export class RegisterGoogleUseCase {
           },
         });
 
-        await seedBarbershopDefaults(tx, barbershop.id, data.schedule);
+        // O segmento entra no cadastro (E4); por ora cai no default BARBERSHOP.
+        await seedBarbershopDefaults(tx, barbershop.id, undefined, data.schedule);
 
         const created = await tx.user.create({
           data: {

@@ -297,7 +297,7 @@ describe("prisma/seed", () => {
       expect(shop.approvalStatus).toBe("APPROVED");
       expect(shop.active).toBe(true);
       expect(db.schedule.rows).toHaveLength(7);
-      expect(db.service.rows).toHaveLength(3);
+      expect(db.service.rows).toHaveLength(5);
       expect(db.loyaltyProgram.rows).toHaveLength(1);
       expect(db.notificationPreference.rows).toHaveLength(9);
       expect(db.appointmentPolicy.rows).toHaveLength(1);
@@ -313,7 +313,7 @@ describe("prisma/seed", () => {
 
       expect(db.barbershop.rows).toHaveLength(1);
       expect(db.schedule.rows).toHaveLength(7);
-      expect(db.service.rows).toHaveLength(3);
+      expect(db.service.rows).toHaveLength(5);
       expect(db.serviceCategory.rows).toHaveLength(2);
       expect(db.loyaltyProgram.rows).toHaveLength(1);
     });
@@ -337,7 +337,7 @@ describe("prisma/seed", () => {
       await seedTenantDefaults(db, VALID_UUID);
 
       expect(db.schedule.rows).toHaveLength(7);
-      expect(db.service.rows).toHaveLength(3);
+      expect(db.service.rows).toHaveLength(5);
       expect(db.notificationPreference.rows).toHaveLength(9);
       expect(rawValues[0][0]).toBe(VALID_UUID);
     });
