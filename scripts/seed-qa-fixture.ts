@@ -30,7 +30,6 @@ export const QA_OWNER_EMAIL = "qa.owner@agendai.local";
 export const QA_EMPLOYEE_EMAIL = "qa.employee@agendai.local";
 export const QA_CLIENT_NAME = "[QA] Cliente Beta";
 export const QA_CLIENT_WHATSAPP = "11988880001";
-export const DEFAULT_QA_PASSWORD = "qa-fixture-123";
 
 export interface QaFixtureArgs {
 	list: boolean;
@@ -51,7 +50,13 @@ export function parseQaFixtureArgs(argv: string[]): QaFixtureArgs {
 }
 
 function password(envName: string): string {
-	return process.env[envName] ?? DEFAULT_QA_PASSWORD;
+	const value = process.env[envName];
+	if (!value) {
+		throw new Error(
+			`${envName} não definida. A senha do fixture [QA] vem só de variável de ambiente — não há valor fixo no código`,
+		);
+	}
+	return value;
 }
 
 export async function seedQaFixture(
