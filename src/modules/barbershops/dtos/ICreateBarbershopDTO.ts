@@ -1,3 +1,5 @@
+import { BusinessSegment, TargetAudience } from './IBarbershopResponseDTO';
+
 export interface ICreateBarbershopDTO {
   name: string;
   whatsapp: string;
@@ -8,4 +10,6 @@ export interface ICreateBarbershopDTO {
   city?: string;
   latitude?: number;
   longitude?: number;
+  businessSegment?: BusinessSegment;
+  targetAudience?: TargetAudience | null;
 }

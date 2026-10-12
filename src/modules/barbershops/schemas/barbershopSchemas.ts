@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BusinessSegment, OpeningMode, TargetAudience } from "@prisma/client";
 import { isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
+import { segmentAudienceError } from "@/shared/segments";
 
 const phoneBR = z
   .string()
@@ -9,43 +10,61 @@ const phoneBR = z
     message: "WhatsApp inválido (DDD + número com 8 ou 9 dígitos)",
   });
 
-export const createBarbershopSchema = z.object({
-  name: z.string().min(2).max(200),
-  whatsapp: phoneBR,
-  logoUrl: z.string().url().max(500).optional(),
-  googleReviewUrl: z.string().url().max(500).optional(),
-  cnpj: z
-    .string()
-    .optional()
-    .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
-    .transform((v) => (v ? normalizeCnpj(v) : v)),
-  address: z.string().max(500).optional(),
-  city: z.string().max(120).optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-});
+export const createBarbershopSchema = z
+  .object({
+    name: z.string().min(2).max(200),
+    whatsapp: phoneBR,
+    logoUrl: z.string().url().max(500).optional(),
+    googleReviewUrl: z.string().url().max(500).optional(),
+    cnpj: z
+      .string()
+      .optional()
+      .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
+      .transform((v) => (v ? normalizeCnpj(v) : v)),
+    address: z.string().max(500).optional(),
+    city: z.string().max(120).optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    businessSegment: z.nativeEnum(BusinessSegment).optional(),
+    targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const message = segmentAudienceError(data.businessSegment, data.targetAudience);
+    if (message) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAudience"], message });
+    }
+  });
 
-export const updateBarbershopSchema = z.object({
-  name: z.string().min(2).max(200).optional(),
-  whatsapp: phoneBR.optional(),
-  logoUrl: z.string().url().max(500).nullable().optional(),
-  googleReviewUrl: z.string().url().max(500).nullable().optional(),
-  active: z.boolean().optional(),
-  cnpj: z
-    .string()
-    .optional()
-    .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
-    .transform((v) => (v ? normalizeCnpj(v) : v)),
-  address: z.string().max(500).nullable().optional(),
-  city: z.string().max(120).nullable().optional(),
-  latitude: z.number().min(-90).max(90).nullable().optional(),
-  longitude: z.number().min(-180).max(180).nullable().optional(),
-  openingMode: z.nativeEnum(OpeningMode).optional(),
-  // nativeEnum deriva do Prisma: um z.enum listado à mão já ficou para trás
-  // quando PETSHOP entrou no schema.
-  businessSegment: z.nativeEnum(BusinessSegment).optional(),
-  targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
-});
+export const updateBarbershopSchema = z
+  .object({
+    name: z.string().min(2).max(200).optional(),
+    whatsapp: phoneBR.optional(),
+    logoUrl: z.string().url().max(500).nullable().optional(),
+    googleReviewUrl: z.string().url().max(500).nullable().optional(),
+    active: z.boolean().optional(),
+    cnpj: z
+      .string()
+      .optional()
+      .refine((v) => !v || isValidCnpj(v), { message: "CNPJ inválido (dígitos verificadores incorretos)" })
+      .transform((v) => (v ? normalizeCnpj(v) : v)),
+    address: z.string().max(500).nullable().optional(),
+    city: z.string().max(120).nullable().optional(),
+    latitude: z.number().min(-90).max(90).nullable().optional(),
+    longitude: z.number().min(-180).max(180).nullable().optional(),
+    openingMode: z.nativeEnum(OpeningMode).optional(),
+    // nativeEnum deriva do Prisma: um z.enum listado à mão já ficou para trás
+    // quando PETSHOP entrou no schema.
+    businessSegment: z.nativeEnum(BusinessSegment).optional(),
+    targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
+  })
+  // Mesma regra do cadastro: trocar o segmento para PETSHOP não pode deixar
+  // um público antigo colado no registro.
+  .superRefine((data, ctx) => {
+    const message = segmentAudienceError(data.businessSegment, data.targetAudience);
+    if (message) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAudience"], message });
+    }
+  });
 
 export const scheduleItemSchema = z.object({
   dayOfWeek: z.number().min(0).max(6),

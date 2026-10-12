@@ -485,3 +485,19 @@ export function resolveAudienceForSegment(
   if (!audienceAppliesTo(segment)) return null;
   return audience ?? getSegmentConfig(segment).targetAudience.suggested;
 }
+
+/**
+ * Mensagem de erro do par segmento/público, ou null se o par é válido.
+ * Extraído para os schemas de registro, Google, admin e PATCH usarem a mesma
+ * regra — o Zod descarta `.superRefine` em `.omit()`/`.extend()`, e cada cópia
+ * a mais é uma chance de divergir.
+ */
+export function segmentAudienceError(
+  segment: BusinessSegment | null | undefined,
+  audience: TargetAudience | null | undefined
+): string | null {
+  if (audience && segment && !audienceAppliesTo(segment)) {
+    return `Público não se aplica ao segmento ${segment}.`;
+  }
+  return null;
+}

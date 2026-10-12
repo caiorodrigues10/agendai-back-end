@@ -317,7 +317,7 @@ export async function seedDemoData(client: any) {
 				approvalStatus: 'APPROVED',
 			},
 		})
-		await seedBarbershopDefaults(tx, DEMO_BARBERSHOP_ID)
+		await seedBarbershopDefaults(tx, DEMO_BARBERSHOP_ID, 'BARBERSHOP')
 	})
 	console.log(`✅ Salão demo pronto: ${DEMO_BARBERSHOP_ID}`)
 }
@@ -331,7 +331,8 @@ export async function seedTenantDefaults(client: any, barbershopId: string) {
 		throw new Error(`Barbearia não encontrada: ${barbershopId}`)
 	}
 	await client.$transaction(async (tx: any) => {
-		await seedBarbershopDefaults(tx, barbershopId)
+		// Sem o segmento aqui um petshop re-semiado ganhava "Cortes" e "Barba".
+		await seedBarbershopDefaults(tx, barbershopId, barbershop.businessSegment)
 	})
 	console.log(`✅ Defaults aplicados na barbearia ${barbershopId}`)
 }

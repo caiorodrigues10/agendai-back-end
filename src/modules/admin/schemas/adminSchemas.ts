@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BusinessSegment, TargetAudience } from "@prisma/client";
-import { audienceAppliesTo } from "@/shared/segments";
+import { segmentAudienceError } from "@/shared/segments";
 
 const userRoleEnum = z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]);
 
@@ -75,11 +75,12 @@ export const adminCreateBarbershopSchema = z.object({
   /** Público atendido. Em PETSHOP não se aplica e é recusado. */
   targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
 }).strict().superRefine((data, ctx) => {
-  if (data.targetAudience && data.businessSegment && !audienceAppliesTo(data.businessSegment)) {
+  const message = segmentAudienceError(data.businessSegment, data.targetAudience);
+  if (message) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["targetAudience"],
-      message: `Público não se aplica ao segmento ${data.businessSegment}.`,
+      message,
     });
   }
 });

@@ -3,6 +3,7 @@ import { IBarbershopRepository } from "../../repositories/IBarbershopRepository"
 import { IUpdateBarbershopDTO } from "../../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
 import { geocodeCity } from "@/shared/services/geocodeCity";
+import { resolveAudienceForSegment } from "@/shared/segments";
 import { assertShopAccess, type RequestingUser } from "../../utils/assertShopAccess";
 
 @injectable()
@@ -38,6 +39,19 @@ export class UpdateBarbershopUseCase {
             longitude: location.longitude,
           };
         }
+      }
+    }
+
+    // O par segmento/público é normalizado junto: trocar para PETSHOP não pode
+    // deixar um "Masculino" antigo colado, e mandar só o público num petshop
+    // zera em vez de gravar algo que o segmento não usa. Nunca mexe em serviços
+    // já criados — o catálogo só nasce no seed do cadastro.
+    if (data.businessSegment !== undefined || data.targetAudience !== undefined) {
+      const segment = data.businessSegment ?? shop?.businessSegment;
+      const audience =
+        data.targetAudience !== undefined ? data.targetAudience : (shop?.targetAudience ?? null);
+      if (segment) {
+        resolved = { ...resolved, targetAudience: resolveAudienceForSegment(segment, audience) };
       }
     }
 

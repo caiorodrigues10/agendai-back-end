@@ -9,6 +9,7 @@ import {
   getSegmentConfig,
   resolveAudienceForSegment,
   audienceAppliesTo,
+  segmentAudienceError,
 } from "./index";
 
 type ParityFile = {
@@ -56,6 +57,21 @@ describe("getSegmentConfig", () => {
   it("cai no fallback OTHER para valor desconhecido", () => {
     expect(getSegmentConfig(null).segment).toBe("OTHER");
     expect(getSegmentConfig(undefined).segment).toBe("OTHER");
+  });
+});
+
+describe("segmentAudienceError", () => {
+  it("deixa passar par válido e público ausente", () => {
+    expect(segmentAudienceError("BARBERSHOP", "FEMININO")).toBeNull();
+    expect(segmentAudienceError("BARBERSHOP", undefined)).toBeNull();
+    expect(segmentAudienceError("PETSHOP", undefined)).toBeNull();
+    expect(segmentAudienceError(undefined, "MASCULINO")).toBeNull();
+  });
+
+  it("recusa público em PETSHOP com a mensagem usada nas rotas", () => {
+    expect(segmentAudienceError("PETSHOP", "MASCULINO")).toBe(
+      "Público não se aplica ao segmento PETSHOP."
+    );
   });
 });
 

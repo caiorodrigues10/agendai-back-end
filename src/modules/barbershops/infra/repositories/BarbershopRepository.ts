@@ -18,6 +18,9 @@ const shopSelect = {
   operationMode: true,
   openingMode: true,
   businessSegment: true,
+  // Público atendido é informação do vitrine ("Atendemos: feminino"), não dado
+  // interno — entra no select autenticado e no público de propósito.
+  targetAudience: true,
   manualStatus: true,
   createdAt: true,
   active: true,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { BusinessSegment, TargetAudience } from "@prisma/client";
 import { isValidCpf, normalizeCpf, isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
-import { audienceAppliesTo } from "@/shared/segments";
+import { segmentAudienceError } from "@/shared/segments";
 
 const phoneBR = z
   .string()
@@ -83,11 +83,12 @@ function segmentAudienceRefine(
   data: { businessSegment?: BusinessSegment; targetAudience?: TargetAudience | null },
   ctx: z.RefinementCtx
 ) {
-  if (data.targetAudience && data.businessSegment && !audienceAppliesTo(data.businessSegment)) {
+  const message = segmentAudienceError(data.businessSegment, data.targetAudience);
+  if (message) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["targetAudience"],
-      message: `Público não se aplica ao segmento ${data.businessSegment}.`,
+      message,
     });
   }
 }
