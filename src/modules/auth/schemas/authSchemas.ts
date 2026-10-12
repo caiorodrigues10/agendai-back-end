@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { BusinessSegment, TargetAudience } from "@prisma/client";
 import { isValidCpf, normalizeCpf, isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
+import { audienceAppliesTo } from "@/shared/segments";
 
 const phoneBR = z
   .string()
@@ -30,7 +32,7 @@ export const googleLoginSchema = z.object({
   idToken: z.string().min(10, "Google idToken é obrigatório")
 });
 
-export const registerSchema = z.object({
+const registerBaseSchema = z.object({
   ownerName: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
   email: z.string().email(),
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
@@ -40,6 +42,12 @@ export const registerSchema = z.object({
     .transform((v) => normalizeCpf(v))
     .refine((v) => isValidCpf(v), { message: "CPF inválido (dígitos verificadores incorretos)" }),
   barbershopName: z.string().min(3, "Nome do salão deve ter no mínimo 3 caracteres"),
+  // Segmento opcional na API para não quebrar clientes antigos que não enviam;
+  // a tela de cadastro exige antes de avançar. Quando ausente, o backend nasce
+  // como BARBERSHOP, que é o default do banco.
+  businessSegment: z.nativeEnum(BusinessSegment).optional(),
+  // Público só faz sentido em segmentos de beleza; em PETSHOP é ignorado.
+  targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
   whatsapp: phoneBR,
   address: z.string().max(500).optional(),
   city: z.string().max(120).optional(),
@@ -64,11 +72,32 @@ export const registerSchema = z.object({
   schedule: z.array(scheduleItemSchema).min(7).max(7).optional(),
 });
 
-export const registerWithGoogleSchema = registerSchema
+export const registerSchema = registerBaseSchema.superRefine(segmentAudienceRefine);
+
+/**
+ * Público em segmento que não tem público é erro, não algo para ignorar em
+ * silêncio — PETSHOP é o caso real. Extraído porque `.omit()`/`.extend()` do
+ * Zod descartam refinamentos, então o schema do Google precisa reaplicar.
+ */
+function segmentAudienceRefine(
+  data: { businessSegment?: BusinessSegment; targetAudience?: TargetAudience | null },
+  ctx: z.RefinementCtx
+) {
+  if (data.targetAudience && data.businessSegment && !audienceAppliesTo(data.businessSegment)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["targetAudience"],
+      message: `Público não se aplica ao segmento ${data.businessSegment}.`,
+    });
+  }
+}
+
+export const registerWithGoogleSchema = registerBaseSchema
   .omit({ email: true, password: true })
   .extend({
     idToken: z.string().min(10, "Google idToken é obrigatório"),
-  });
+  })
+  .superRefine(segmentAudienceRefine);
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email("E-mail inválido"),

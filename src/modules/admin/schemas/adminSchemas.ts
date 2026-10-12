@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { BusinessSegment, TargetAudience } from "@prisma/client";
+import { audienceAppliesTo } from "@/shared/segments";
 
 const userRoleEnum = z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]);
 
@@ -68,7 +70,19 @@ export const adminCreateBarbershopSchema = z.object({
     .optional(),
   planId: z.string().uuid().optional(),
   trialDays: z.number().int().min(1).max(60).optional(),
-}).strict();
+  /** Segmento do negócio. Opcional p/ compat: sem ele o salão nasce BARBERSHOP. */
+  businessSegment: z.nativeEnum(BusinessSegment).optional(),
+  /** Público atendido. Em PETSHOP não se aplica e é recusado. */
+  targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
+}).strict().superRefine((data, ctx) => {
+  if (data.targetAudience && data.businessSegment && !audienceAppliesTo(data.businessSegment)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["targetAudience"],
+      message: `Público não se aplica ao segmento ${data.businessSegment}.`,
+    });
+  }
+});
 
 /** Motivo obrigatório de toda revogação de sessão (auditoria + diálogo). */
 export const sessionReasonSchema = z

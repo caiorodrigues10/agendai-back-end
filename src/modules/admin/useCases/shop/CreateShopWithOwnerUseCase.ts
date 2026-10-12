@@ -5,6 +5,7 @@ import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
+import { getSegmentConfig, resolveAudienceForSegment } from "@/shared/segments";
 import { hashInviteToken } from "@/shared/utils/tokenHash";
 import { checkCnpjAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
@@ -51,7 +52,12 @@ export class CreateShopWithOwnerUseCase {
       owner,
       planId,
       trialDays,
+      businessSegment,
+      targetAudience,
     } = data;
+
+    const segment = businessSegment ?? "BARBERSHOP";
+    const audience = resolveAudienceForSegment(segment, targetAudience);
 
     if (cnpj) await checkCnpjAccess(cnpj);
 
@@ -94,10 +100,15 @@ export class CreateShopWithOwnerUseCase {
             address: address ?? null,
             active,
             approvalStatus: "APPROVED",
+            businessSegment: segment,
+            ...(audience ? { targetAudience: audience } : {}),
+            ...(businessSegment
+              ? { operationMode: getSegmentConfig(segment).suggestedOperationMode }
+              : {}),
           },
         });
 
-        await seedBarbershopDefaults(tx, shop.id);
+        await seedBarbershopDefaults(tx, shop.id, segment);
 
         let ownerId: string | undefined;
         if (owner && ownerPasswordHash && rawInviteToken) {

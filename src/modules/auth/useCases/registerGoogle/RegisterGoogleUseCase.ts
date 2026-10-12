@@ -18,6 +18,8 @@ import {
 import { validateEmail } from "@/shared/services/emailValidationService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
+import { getSegmentConfig, resolveAudienceForSegment } from "@/shared/segments";
+import type { BusinessSegment, TargetAudience } from "@prisma/client";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { issueAuthSession } from "../../services/issueAuthSession";
 import type { SessionContext } from "../../services/userSessionService";
@@ -31,6 +33,8 @@ export interface IRegisterGoogleDTO {
   cpf: string;
   barbershopName: string;
   whatsapp: string;
+  businessSegment?: BusinessSegment;
+  targetAudience?: TargetAudience | null;
   address?: string;
   city?: string;
   latitude?: number;
@@ -139,11 +143,19 @@ export class RegisterGoogleUseCase {
     let user;
     try {
       user = await prisma.$transaction(async (tx: any) => {
+        const segment = data.businessSegment ?? "BARBERSHOP";
+        const targetAudience = resolveAudienceForSegment(segment, data.targetAudience);
+
         const barbershop = await tx.barbershop.create({
           data: {
             name: data.barbershopName,
             whatsapp: data.whatsapp.replace(/\D/g, ""),
             approvalStatus: "APPROVED",
+            businessSegment: segment,
+            ...(targetAudience ? { targetAudience } : {}),
+            ...(data.businessSegment
+              ? { operationMode: getSegmentConfig(segment).suggestedOperationMode }
+              : {}),
             ...(normalizedCnpj ? { cnpj: normalizedCnpj } : {}),
             ...(data.address ? { address: data.address.trim() } : {}),
             ...(city ? { city } : {}),
@@ -152,8 +164,7 @@ export class RegisterGoogleUseCase {
           },
         });
 
-        // O segmento entra no cadastro (E4); por ora cai no default BARBERSHOP.
-        await seedBarbershopDefaults(tx, barbershop.id, undefined, data.schedule);
+        await seedBarbershopDefaults(tx, barbershop.id, segment, data.schedule);
 
         const created = await tx.user.create({
           data: {

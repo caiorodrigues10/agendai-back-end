@@ -20,6 +20,8 @@ import { validateEmail } from "@/shared/services/emailValidationService";
 import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
+import { getSegmentConfig, resolveAudienceForSegment } from "@/shared/segments";
+import type { BusinessSegment, TargetAudience } from "@prisma/client";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 import {
@@ -37,6 +39,8 @@ export interface IRegisterDTO {
   cpf: string;
   barbershopName: string;
   whatsapp: string;
+  businessSegment?: BusinessSegment;
+  targetAudience?: TargetAudience | null;
   address?: string;
   city?: string;
   latitude?: number;
@@ -117,11 +121,23 @@ export class RegisterUseCase {
     let user;
     try {
       user = await prisma.$transaction(async (tx: any) => {
+        // Público normalizado no backend: PETSHOP zera, o resto cai no
+        // sugerido do segmento quando o usuário não escolheu.
+        const segment = data.businessSegment ?? "BARBERSHOP";
+        const targetAudience = resolveAudienceForSegment(segment, data.targetAudience);
+
         const barbershop = await tx.barbershop.create({
           data: {
             name: data.barbershopName,
             whatsapp: data.whatsapp.replace(/\D/g, ""),
             approvalStatus: "APPROVED",
+            businessSegment: segment,
+            ...(targetAudience ? { targetAudience } : {}),
+            // Só aplicado quando o segmento veio informado: quem cadastrou sem
+            // segmento continua recebendo HYBRID, o default do banco.
+            ...(data.businessSegment
+              ? { operationMode: getSegmentConfig(segment).suggestedOperationMode }
+              : {}),
             ...(normalizedCnpj ? { cnpj: normalizedCnpj } : {}),
             ...(data.address ? { address: data.address.trim() } : {}),
             ...(city ? { city } : {}),
@@ -130,9 +146,8 @@ export class RegisterUseCase {
           },
         });
 
-        // Serviços e horários iniciais. O segmento entra no cadastro (E4);
-        // por ora cai no default BARBERSHOP, como antes.
-        await seedBarbershopDefaults(tx, barbershop.id, undefined, data.schedule);
+        // Catálogo e horário sugeridos do segmento escolhido
+        await seedBarbershopDefaults(tx, barbershop.id, segment, data.schedule);
 
         const created = await tx.user.create({
           data: {
