@@ -1,0 +1,34 @@
+# Configuração do Gitleaks — agendai-back-end
+#
+# Motivo: o job `secrets` do CI roda `gitleaks detect` sobre TODO o histórico
+# (`fetch-depth: 0`) e falhava com 10 findings. Quatro deles são valores de
+# teste/CI ou a senha fixa do seed QA — nenhum deles é credencial real.
+#
+# Este allowlist é POR CAMINHO e cobre apenas os 3 arquivos de teste/CI.
+# Os findings de `.env` (ZAPI, EVOLUTION, ASAAS) NÃO estão aqui: são credenciais
+# históricas reais e a correção é a rotação no provedor, depois a aplicação de
+# `docs/security/gitleaksignore.draft` por fingerprint.
+#
+# Sintaxe validada com a imagem exata do CI: zricethezav/gitleaks:v8.24.3
+# (nota: nesta versão o allowlist global é `[allowlist]` — singular; um
+#  `[[allowlists]]` array é rejeitado com "expected a map, got 'slice'").
+# Docs: https://github.com/gitleaks/gitleaks#allowlist
+
+title = "agendai-back-end"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Valores sintéticos usados exclusivamente em testes locais (vitest) e no CI.
+Nenhum destes valores autentica em serviço algum:
+- src/tests/setup.ts               -> JWT_SECRET, JWT_REFRESH_SECRET, ASAAS_WEBHOOK_TOKEN fake (o código exige >=32 chars)
+- emailPreferenceService.spec.ts   -> EMAIL_UNSUBSCRIBE_SECRET fake
+- .github/workflows/ci.yml         -> JWT_SECRET/JWT_REFRESH_SECRET do job `secrets` (ambiente de teste do Actions)
+"""
+paths = [
+  '''src/tests/setup\.ts$''',
+  '''src/modules/email/services/emailPreferenceService\.spec\.ts$''',
+  '''\.github/workflows/ci\.yml$''',
+]

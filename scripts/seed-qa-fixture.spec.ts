@@ -1,7 +1,6 @@
 /// <reference types="vitest/globals" />
 import { createFakeSeedDb } from "../src/tests/helpers/fakeSeedDb";
 import {
-	DEFAULT_QA_PASSWORD,
 	QA_CLIENT_NAME,
 	QA_EMPLOYEE_EMAIL,
 	QA_OWNER_EMAIL,
@@ -15,13 +14,21 @@ import {
 
 const fakeHash = { hash: async (value: string) => `hashed:${value}` } as any;
 
+const QA_OWNER_PASSWORD = "owner-senha-so-de-env";
+const QA_EMPLOYEE_PASSWORD = "employee-senha-so-de-env";
+
 let savedEnv: Record<string, string | undefined>;
 
 describe("scripts/seed-qa-fixture", () => {
 	beforeEach(() => {
-		savedEnv = { NODE_ENV: process.env.NODE_ENV, SEED_QA_OWNER_PASSWORD: process.env.SEED_QA_OWNER_PASSWORD };
+		savedEnv = {
+			NODE_ENV: process.env.NODE_ENV,
+			SEED_QA_OWNER_PASSWORD: process.env.SEED_QA_OWNER_PASSWORD,
+			SEED_QA_EMPLOYEE_PASSWORD: process.env.SEED_QA_EMPLOYEE_PASSWORD,
+		};
 		delete process.env.NODE_ENV;
-		delete process.env.SEED_QA_OWNER_PASSWORD;
+		process.env.SEED_QA_OWNER_PASSWORD = QA_OWNER_PASSWORD;
+		process.env.SEED_QA_EMPLOYEE_PASSWORD = QA_EMPLOYEE_PASSWORD;
 		vi.spyOn(console, "log").mockImplementation(() => {});
 	});
 
@@ -56,7 +63,10 @@ describe("scripts/seed-qa-fixture", () => {
 		expect(db.user.rows.find((u: any) => u.email === QA_OWNER_EMAIL).role).toBe("OWNER");
 		expect(db.user.rows.find((u: any) => u.email === QA_EMPLOYEE_EMAIL).role).toBe("EMPLOYEE");
 		expect(db.user.rows.find((u: any) => u.email === QA_OWNER_EMAIL).password).toBe(
-			`hashed:${DEFAULT_QA_PASSWORD}`,
+			`hashed:${QA_OWNER_PASSWORD}`,
+		);
+		expect(db.user.rows.find((u: any) => u.email === QA_EMPLOYEE_EMAIL).password).toBe(
+			`hashed:${QA_EMPLOYEE_PASSWORD}`,
 		);
 		expect(db.salonClient.rows.filter((c: any) => c.name === QA_CLIENT_NAME)).toHaveLength(1);
 		expect(db.subscription.rows).toHaveLength(1);
@@ -73,6 +83,17 @@ describe("scripts/seed-qa-fixture", () => {
 		const { db } = createFakeSeedDb();
 		await db.barbershop.create({ data: { id: QA_SHOP_ID, name: "Outro Salão" } });
 		await expect(seedQaFixture(db, fakeHash)).rejects.toThrow(/outro salão/);
+	});
+
+	it("recusa quando a senha do fixture não vem de env (sem default fixo)", async () => {
+		const { db } = createFakeSeedDb();
+		db.plan.create({ data: { id: "plan-essencial", name: "Essencial", price: 14, active: true } });
+		delete process.env.SEED_QA_OWNER_PASSWORD;
+		await expect(seedQaFixture(db, fakeHash)).rejects.toThrow(/SEED_QA_OWNER_PASSWORD não definida/);
+
+		process.env.SEED_QA_OWNER_PASSWORD = QA_OWNER_PASSWORD;
+		delete process.env.SEED_QA_EMPLOYEE_PASSWORD;
+		await expect(seedQaFixture(db, fakeHash)).rejects.toThrow(/SEED_QA_EMPLOYEE_PASSWORD não definida/);
 	});
 
 	it("list só lê; purge sem --confirm é dry-run", async () => {

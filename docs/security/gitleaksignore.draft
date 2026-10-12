@@ -1,0 +1,42 @@
+# Gitleaksignore — RASCUNHO, NÃO APLICADO
+#
+# Este arquivo NÃO é lido pelo gitleaks: o scanner só procura `.gitleaksignore`
+# na raiz do repositório (flag `-i`, default "."). Ele fica aqui como rascunho
+# para ser movido para a raiz DEPOIS da rotação dos segredos.
+#
+# Para aplicar (após rotacionar — ver a tabela abaixo):
+#   git mv docs/security/gitleaksignore.draft .gitleaksignore
+#   git commit -m "ci(secrets): ignora fingerprints historicos ja rotacionados"
+#
+# Formato: uma linha por fingerprint, exatamente como o gitleaks imprime em
+# `Fingerprint:` (comsha completo : arquivo : regra : linha).
+# Validado com zricethezav/gitleaks:v8.24.3 (mesma imagem do CI).
+#
+# ---------------------------------------------------------------------------
+# A) Credenciais HISTÓRICAS reais em .env — exigem ROTAÇÃO no provedor antes
+#    de qualquer ignore. Nenhum valor está descrito aqui, só o nome da env.
+# ---------------------------------------------------------------------------
+# commit                arquivo  env                  provedor      acao
+# 90b2a7ba4075ee0e...   .env:15  ZAPI_INSTANCE_ID     ZAPI          rotacionar
+# 90b2a7ba4075ee0e...   .env:17  ZAPI_CLIENT_TOKEN    ZAPI          rotacionar
+# 7a8c4d80932b5572...   .env:18  EVOLUTION_API_KEY    Evolution API rotacionar
+# af94d4d73079a3f5...   .env:20  ASAAS_WEBHOOK_TOKEN  Asaas         rotacionar
+# af94d4d73079a3f5...   .env:26  ZAPI_INSTANCE_ID     ZAPI          rotacionar (mesmo valor da linha 15)
+# af94d4d73079a3f5...   .env:28  ZAPI_CLIENT_TOKEN    ZAPI          rotacionar (mesmo valor da linha 17)
+#
+# ---------------------------------------------------------------------------
+# B) Valor de FIXTURE já presente no historico — nao ha o que rotacionar
+#    (senha de fixture [QA], guardada por looksLikeProductionEnvironment()).
+#    O codigo foi corrigido no commit 2efb4c5 para ler de env sem default;
+#    o finding historico so sai do scan com ignore ou reescrita de historico
+#    (proibida neste escopo).
+# ---------------------------------------------------------------------------
+# a3005fa7fe659ebf...   scripts/seed-qa-fixture.ts:33  DEFAULT_QA_PASSWORD  fixture local
+
+90b2a7ba4075ee0e727bbb2849b05d7d70a04585:.env:generic-api-key:15
+90b2a7ba4075ee0e727bbb2849b05d7d70a04585:.env:generic-api-key:17
+7a8c4d80932b557272a3755b8b0b001a9af9cc2c:.env:generic-api-key:18
+af94d4d73079a3f57e0fce4bb4f0db0f1310c348:.env:generic-api-key:20
+af94d4d73079a3f57e0fce4bb4f0db0f1310c348:.env:generic-api-key:26
+af94d4d73079a3f57e0fce4bb4f0db0f1310c348:.env:generic-api-key:28
+a3005fa7fe659ebf5d002ba39ec8ea0943a271db:scripts/seed-qa-fixture.ts:generic-api-key:33

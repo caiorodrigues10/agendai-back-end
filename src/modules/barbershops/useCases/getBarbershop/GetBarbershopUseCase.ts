@@ -11,7 +11,8 @@ export class GetBarbershopUseCase {
     private barbershopRepository: IBarbershopRepository
   ) {}
   async execute(id: string): Promise<IBarbershopResponseDTO> {
-    const entity = await this.barbershopRepository.findById(id);
+    // Rota pública: usa o select público, sem `evolutionInstanceName`.
+    const entity = await this.barbershopRepository.findByIdPublic(id);
     if (!entity) throw new AppError("Salão não encontrado", 404);
     const openState = await getShopOpenState(id);
     return { ...entity, openState };
