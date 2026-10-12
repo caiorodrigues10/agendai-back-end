@@ -1,0 +1,225 @@
+{
+  "_generatedBy": "backend/src/shared/segments/index.ts — nao editar na mao",
+  "labelKeys": [
+    "segmentLabel",
+    "shopNoun",
+    "shopNounPlural",
+    "professional",
+    "professionalPlural",
+    "client",
+    "clientPlural",
+    "service",
+    "servicePlural",
+    "queue",
+    "appointment",
+    "staff"
+  ],
+  "allSegments": [
+    "BARBERSHOP",
+    "HAIR_SALON",
+    "NAIL_STUDIO",
+    "PETSHOP",
+    "BEAUTY_STUDIO",
+    "LASH_BROW_STUDIO",
+    "AESTHETICS",
+    "SPA",
+    "OTHER"
+  ],
+  "firstClassSegments": [
+    "BARBERSHOP",
+    "HAIR_SALON",
+    "NAIL_STUDIO",
+    "PETSHOP"
+  ],
+  "segments": {
+    "BARBERSHOP": {
+      "firstClass": true,
+      "labels": {
+        "segmentLabel": "Barbearia",
+        "shopNoun": "barbearia",
+        "shopNounPlural": "barbearias",
+        "professional": "barbeiro",
+        "professionalPlural": "barbeiros",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "atendimento",
+        "servicePlural": "atendimentos",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "MASCULINO"
+      }
+    },
+    "HAIR_SALON": {
+      "firstClass": true,
+      "labels": {
+        "segmentLabel": "Salão de cabelo",
+        "shopNoun": "salão",
+        "shopNounPlural": "salões",
+        "professional": "cabeleireiro(a)",
+        "professionalPlural": "cabeleireiros(as)",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "UNISSEX"
+      }
+    },
+    "NAIL_STUDIO": {
+      "firstClass": true,
+      "labels": {
+        "segmentLabel": "Manicure e nails",
+        "shopNoun": "studio",
+        "shopNounPlural": "studios",
+        "professional": "manicure",
+        "professionalPlural": "manicures",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "FEMININO"
+      }
+    },
+    "PETSHOP": {
+      "firstClass": true,
+      "labels": {
+        "segmentLabel": "Petshop",
+        "shopNoun": "petshop",
+        "shopNounPlural": "petshops",
+        "professional": "tosador(a)",
+        "professionalPlural": "tosadores(as)",
+        "client": "tutor(a)",
+        "clientPlural": "tutores(as)",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "BEAUTY_STUDIO": {
+      "firstClass": false,
+      "labels": {
+        "segmentLabel": "Studio de beleza",
+        "shopNoun": "studio",
+        "shopNounPlural": "studios",
+        "professional": "profissional",
+        "professionalPlural": "profissionais",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "FEMININO"
+      }
+    },
+    "LASH_BROW_STUDIO": {
+      "firstClass": false,
+      "labels": {
+        "segmentLabel": "Cílios e sobrancelhas",
+        "shopNoun": "studio",
+        "shopNounPlural": "studios",
+        "professional": "profissional",
+        "professionalPlural": "profissionais",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "FEMININO"
+      }
+    },
+    "AESTHETICS": {
+      "firstClass": false,
+      "labels": {
+        "segmentLabel": "Estética",
+        "shopNoun": "estética",
+        "shopNounPlural": "estéticas",
+        "professional": "profissional",
+        "professionalPlural": "profissionais",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "sessão",
+        "servicePlural": "sessões",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "FEMININO"
+      }
+    },
+    "SPA": {
+      "firstClass": false,
+      "labels": {
+        "segmentLabel": "Spa",
+        "shopNoun": "spa",
+        "shopNounPlural": "spas",
+        "professional": "profissional",
+        "professionalPlural": "profissionais",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "sessão",
+        "servicePlural": "sessões",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "UNISSEX"
+      }
+    },
+    "OTHER": {
+      "firstClass": false,
+      "labels": {
+        "segmentLabel": "Outro",
+        "shopNoun": "estabelecimento",
+        "shopNounPlural": "estabelecimentos",
+        "professional": "profissional",
+        "professionalPlural": "profissionais",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "UNISSEX"
+      }
+    }
+  }
+}
