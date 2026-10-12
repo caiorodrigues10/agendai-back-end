@@ -639,6 +639,9 @@ model QueueItem {
   archivedAt             DateTime?
   archivedBy             String?     @db.Uuid
   archiveReason          String?     @db.VarChar(200)
+  /// Pet escolhido ao entrar na fila (MVP petshop). petName é snapshot do nome.
+  petId                  String?     @db.Uuid
+  petName                String?     @db.VarChar(120)
 
   barbershop           Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service              Service           @relation(fields: [serviceId], references: [id], onDelete: Restrict)
@@ -727,6 +730,9 @@ model Appointment {
   /// Momento da conclusão — fonte de verdade para receita/caixa por dia (fuso do salão).
   completedAt         DateTime?
   completedBy         String?                        @db.Uuid
+  /// Pet escolhido no agendamento (MVP petshop). petName é snapshot do nome.
+  petId               String?                        @db.Uuid
+  petName             String?                        @db.VarChar(120)
 
   barbershop             Barbershop                      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service                Service                         @relation(fields: [serviceId], references: [id], onDelete: Restrict)

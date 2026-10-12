@@ -23,6 +23,8 @@ export interface IQueueItemResponseDTO {
   completedBy?: string | null;
   finalPrice?: number | null;
   paymentMethod?: string | null;
+  petId?: string | null;
+  petName?: string | null;
   serviceName?: string | null;
   /** Duração média do serviço em minutos (paralista True do service.avgTimeMinutes). */
   serviceAvgTimeMinutes?: number | null;

@@ -7,4 +7,7 @@ export interface IJoinQueueDTO {
   addedByStaff?: boolean;
   responsibleQueueItemId?: string;
   activeIdentityKey?: string;
+  /** Pet escolhido (MVP petshop). O nome é resolvido no backend. */
+  petId?: string | null;
+  petName?: string | null;
 }

@@ -40,6 +40,8 @@ export class MockAppointmentRepository implements IAppointmentRepository {
       status: "CONFIRMED",
       clientId: data.clientId ?? null,
       clientPackageId: data.clientPackageId ?? null,
+      petId: data.petId ?? null,
+      petName: data.petName ?? null,
       reminderSentAt: null,
       createdAt: now,
       updatedAt: now,

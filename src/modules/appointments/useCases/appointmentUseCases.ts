@@ -10,6 +10,7 @@ import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbe
 import { IClientPackageRepository } from "@/modules/packages/repositories/IClientPackageRepository";
 import { debitClientPackageInTx, restoreClientPackageInTx } from "@/modules/packages/utils/clientPackageCredits";
 import { upsertSalonClientRecord } from "@/modules/clients/utils/ensureSalonClient";
+import { resolvePetSnapshot } from "@/modules/clients/utils/resolvePetSnapshot";
 import {
   ICreateAppointmentDTO,
   IUpdateAppointmentDTO,
@@ -154,6 +155,12 @@ async function createAppointmentAtomic(
   data: ICreateAppointmentDTO,
   fallbackRepo: IAppointmentRepository
 ): Promise<IAppointmentResponseDTO> {
+  // Snapshot do pet (MVP petshop): valida no tenant e grava o nome do
+  // banco. Sem petId retorna imediato (não toca no Prisma), então os
+  // testes de unidade existentes seguem sem Postgres.
+  const pet = await resolvePetSnapshot(data.barbershopId, data.petId);
+  data = { ...data, ...pet };
+
   // Unit tests usam MockAppointmentRepository sem Postgres.
   if (process.env.VITEST) {
     const created = await fallbackRepo.create(data);
@@ -238,6 +245,8 @@ async function createAppointmentAtomic(
           status: "CONFIRMED",
           clientId,
           clientPackageId: data.clientPackageId ?? null,
+          petId: data.petId ?? null,
+          petName: data.petName ?? null,
         },
         include: {
           service: { select: { name: true, price: true } },

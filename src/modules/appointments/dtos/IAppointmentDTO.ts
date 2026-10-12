@@ -16,6 +16,9 @@ export interface ICreateAppointmentDTO {
     productId: string;
     quantity: number;
   }>;
+  /** Pet escolhido (MVP petshop). O nome é resolvido no backend. */
+  petId?: string | null;
+  petName?: string | null;
 }
 
 export interface IUpdateAppointmentDTO {
@@ -43,6 +46,8 @@ export interface IAppointmentResponseDTO {
   status: AppointmentStatus;
   clientId?: string | null;
   clientPackageId?: string | null;
+  petId?: string | null;
+  petName?: string | null;
   /** Preenchido após o cron de lembrete diário enviar o WhatsApp */
   reminderSentAt?: Date | null;
   createdAt: Date;

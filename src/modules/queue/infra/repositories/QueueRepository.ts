@@ -54,6 +54,8 @@ export class QueueRepository implements IQueueRepository {
         addedByStaff: data.addedByStaff ?? false,
         responsibleQueueItemId: data.responsibleQueueItemId ?? null,
         activeIdentityKey: data.activeIdentityKey ?? null,
+        petId: data.petId ?? null,
+        petName: data.petName ?? null,
         status:       "WAITING"
       },
       include: { service: true, responsibleQueueItem: { select: { customerName: true, customerId: true } } }
@@ -313,6 +315,8 @@ export class QueueRepository implements IQueueRepository {
       completedBy:     item.completedBy  ?? null,
       finalPrice:      item.finalPrice   ?? null,
       paymentMethod:   item.paymentMethod ?? null,
+      petId:           item.petId        ?? null,
+      petName:         item.petName      ?? null,
       serviceName:     item.service?.name ?? null,
       serviceAvgTimeMinutes: item.service?.avgTimeMinutes ?? null,
     };

@@ -12,6 +12,7 @@ import { notifyCustomerJoinedQueue } from "../notifyQueuePositionUpdates/NotifyQ
 import { ISalonClientRepository } from "@/modules/clients/repositories/ISalonClientRepository";
 import { computeIdentityKey } from "../../utils/identityKey";
 import { publishRealtime } from "@/shared/services/realtimeService";
+import { resolvePetSnapshot } from "@/modules/clients/utils/resolvePetSnapshot";
 
 @injectable()
 export class JoinQueueUseCase {
@@ -56,6 +57,9 @@ export class JoinQueueUseCase {
       throw new AppError("Serviço inválido para este estabelecimento", 400);
     }
 
+    // Snapshot do pet (MVP petshop): valida no tenant e grava o nome do banco.
+    const pet = await resolvePetSnapshot(data.barbershopId, data.petId);
+
     const whatsappDigits = data.whatsapp.replace(/\D/g, "");
     const customerId = data.customerId ?? randomUUID();
     const activeIdentityKey = computeIdentityKey(data.whatsapp, data.customerName, customerId);
@@ -89,6 +93,8 @@ export class JoinQueueUseCase {
         customerId,
         activeIdentityKey,
         addedByStaff: data.addedByStaff ?? false,
+        petId: pet.petId,
+        petName: pet.petName,
       });
     } catch (error: unknown) {
       if (

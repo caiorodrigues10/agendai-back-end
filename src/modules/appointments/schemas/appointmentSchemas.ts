@@ -36,6 +36,8 @@ export const createAppointmentSchema = z.object({
 	time: timeField,
 	clientId: z.string().uuid().optional().nullable(),
 	clientPackageId: z.string().uuid().optional().nullable(),
+	/** Pet escolhido (MVP petshop). O nome é resolvido no backend. */
+	petId: z.string().uuid().optional().nullable(),
 	reservedProducts: z.array(reservedProductSchema).max(10).optional(),
 })
 

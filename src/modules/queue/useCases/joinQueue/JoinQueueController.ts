@@ -23,6 +23,8 @@ export class JoinQueueController {
       sessionId: z.string().uuid().optional(),
       /** Sessão local do responsável quando a entrada é de um dependente. */
       responsibleSessionId: z.string().uuid().optional(),
+      /** Pet escolhido (MVP petshop). O nome é resolvido no backend. */
+      petId: z.string().uuid().optional(),
       // addedByStaff do body é IGNORADO — derivado só de request.user
     });
 
@@ -68,6 +70,7 @@ export class JoinQueueController {
       customerId,
       addedByStaff: isStaff,
       responsibleQueueItemId: responsible?.id,
+      petId: data.petId,
     });
 
     // Cliente recebe confirmação no JoinQueueUseCase. O salão só é avisado
