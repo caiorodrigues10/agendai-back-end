@@ -5,10 +5,12 @@ import { checkSubscription } from "../middlewares/checkSubscription";
 import { setRlsContext } from "../middlewares/setRlsContext";
 import { ClientController } from "@/modules/clients/controllers/ClientController";
 import { ProcedureRecordController } from "@/modules/clients/controllers/ProcedureRecordController";
+import { PetController } from "@/modules/clients/controllers/PetController";
 
 export async function clientsRoutes(app: FastifyInstance) {
   const clients = new ClientController();
   const procedures = new ProcedureRecordController();
+  const pets = new PetController();
   const staffGuard = [
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
@@ -28,4 +30,10 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.post("/clients/:id/procedures", { preHandler: staffGuard }, procedures.create.bind(procedures));
   app.patch("/clients/:id/procedures/:recordId", { preHandler: staffGuard }, procedures.update.bind(procedures));
   app.delete("/clients/:id/procedures/:recordId", { preHandler: staffGuard }, procedures.delete.bind(procedures));
+
+  // Pets (MVP petshop)
+  app.get("/clients/:id/pets", { preHandler: staffGuard }, pets.list.bind(pets));
+  app.post("/clients/:id/pets", { preHandler: staffGuard }, pets.create.bind(pets));
+  app.patch("/clients/:id/pets/:petId", { preHandler: staffGuard }, pets.update.bind(pets));
+  app.delete("/clients/:id/pets/:petId", { preHandler: staffGuard }, pets.delete.bind(pets));
 }

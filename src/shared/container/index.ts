@@ -14,6 +14,9 @@ import { BarbershopRepository } from '@/modules/barbershops/infra/repositories/B
 import { IProcedureRecordRepository } from '@/modules/clients/repositories/ProcedureRecordRepository'
 import { ProcedureRecordRepository } from '@/modules/clients/repositories/ProcedureRecordRepository'
 
+import { IClientPetRepository } from '@/modules/clients/repositories/ClientPetRepository'
+import { ClientPetRepository } from '@/modules/clients/repositories/ClientPetRepository'
+
 import { IQueueRepository } from '@/modules/queue/repositories/IQueueRepository'
 import { QueueRepository } from '@/modules/queue/infra/repositories/QueueRepository'
 
@@ -131,6 +134,7 @@ container.registerSingleton<IProcedureRecordRepository>(
 	'ProcedureRecordRepository',
 	ProcedureRecordRepository,
 )
+container.registerSingleton<IClientPetRepository>('ClientPetRepository', ClientPetRepository)
 container.registerSingleton<ICommissionRepository>('CommissionRepository', CommissionRepository)
 container.registerSingleton<ICrmRepository>('CrmRepository', CrmRepository)
 container.registerSingleton(InventoryEngine)
