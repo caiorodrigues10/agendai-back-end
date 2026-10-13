@@ -1,5 +1,5 @@
 {
-  "_generatedBy": "backend/src/shared/segments/index.ts — nao editar na mao",
+  "_generatedBy": "backend/scripts/generateSegmentParity.ts — nao editar na mao",
   "labelKeys": [
     "segmentLabel",
     "shopNoun",
@@ -83,7 +83,103 @@
       "targetAudience": {
         "applies": true,
         "suggested": "MASCULINO"
-      }
+      },
+      "suggestedOperationMode": "QUEUE_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Cortes",
+            "icon": "scissors"
+          },
+          {
+            "name": "Barba",
+            "icon": "user"
+          }
+        ],
+        "services": [
+          {
+            "name": "Corte",
+            "price": 45,
+            "avgTimeMinutes": 30,
+            "icon": "scissors",
+            "categoryName": "Cortes"
+          },
+          {
+            "name": "Barba",
+            "price": 30,
+            "avgTimeMinutes": 20,
+            "icon": "user",
+            "categoryName": "Barba"
+          },
+          {
+            "name": "Corte + barba",
+            "price": 65,
+            "avgTimeMinutes": 45,
+            "icon": "scissors",
+            "categoryName": "Cortes"
+          },
+          {
+            "name": "Sobrancelha",
+            "price": 20,
+            "avgTimeMinutes": 15,
+            "icon": "sparkles",
+            "categoryName": "Cortes"
+          },
+          {
+            "name": "Pigmentação de barba",
+            "price": 35,
+            "avgTimeMinutes": 30,
+            "icon": "palette",
+            "categoryName": "Barba"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        }
+      ]
     },
     "HAIR_SALON": {
       "firstClass": true,
@@ -105,7 +201,121 @@
       "targetAudience": {
         "applies": true,
         "suggested": "UNISSEX"
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Cabelo",
+            "icon": "scissors"
+          },
+          {
+            "name": "Coloração",
+            "icon": "palette"
+          },
+          {
+            "name": "Tratamento",
+            "icon": "sparkles"
+          }
+        ],
+        "services": [
+          {
+            "name": "Corte feminino",
+            "price": 80,
+            "avgTimeMinutes": 45,
+            "icon": "scissors",
+            "categoryName": "Cabelo"
+          },
+          {
+            "name": "Corte masculino",
+            "price": 60,
+            "avgTimeMinutes": 40,
+            "icon": "scissors",
+            "categoryName": "Cabelo"
+          },
+          {
+            "name": "Escova",
+            "price": 55,
+            "avgTimeMinutes": 40,
+            "icon": "sparkles",
+            "categoryName": "Cabelo"
+          },
+          {
+            "name": "Coloração",
+            "price": 180,
+            "avgTimeMinutes": 120,
+            "icon": "palette",
+            "categoryName": "Coloração"
+          },
+          {
+            "name": "Mechas",
+            "price": 250,
+            "avgTimeMinutes": 150,
+            "icon": "palette",
+            "categoryName": "Coloração"
+          },
+          {
+            "name": "Hidratação",
+            "price": 70,
+            "avgTimeMinutes": 40,
+            "icon": "sparkles",
+            "categoryName": "Tratamento"
+          },
+          {
+            "name": "Progressiva",
+            "price": 220,
+            "avgTimeMinutes": 120,
+            "icon": "sparkles",
+            "categoryName": "Tratamento"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "NAIL_STUDIO": {
       "firstClass": true,
@@ -127,7 +337,121 @@
       "targetAudience": {
         "applies": true,
         "suggested": "FEMININO"
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Unhas naturais",
+            "icon": "sparkles"
+          },
+          {
+            "name": "Alongamento",
+            "icon": "palette"
+          },
+          {
+            "name": "Design",
+            "icon": "heart"
+          }
+        ],
+        "services": [
+          {
+            "name": "Manicure",
+            "price": 40,
+            "avgTimeMinutes": 40,
+            "icon": "sparkles",
+            "categoryName": "Unhas naturais"
+          },
+          {
+            "name": "Pedicure",
+            "price": 45,
+            "avgTimeMinutes": 45,
+            "icon": "sparkles",
+            "categoryName": "Unhas naturais"
+          },
+          {
+            "name": "Esmaltação em gel",
+            "price": 70,
+            "avgTimeMinutes": 60,
+            "icon": "palette",
+            "categoryName": "Unhas naturais"
+          },
+          {
+            "name": "Alongamento em fibra",
+            "price": 150,
+            "avgTimeMinutes": 120,
+            "icon": "palette",
+            "categoryName": "Alongamento"
+          },
+          {
+            "name": "Alongamento em gel",
+            "price": 170,
+            "avgTimeMinutes": 130,
+            "icon": "palette",
+            "categoryName": "Alongamento"
+          },
+          {
+            "name": "Nail art",
+            "price": 35,
+            "avgTimeMinutes": 30,
+            "icon": "heart",
+            "categoryName": "Design"
+          },
+          {
+            "name": "Remoção",
+            "price": 30,
+            "avgTimeMinutes": 30,
+            "icon": "sparkles",
+            "categoryName": "Unhas naturais"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "PETSHOP": {
       "firstClass": true,
@@ -149,7 +473,121 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Banho",
+            "icon": "droplets"
+          },
+          {
+            "name": "Tosa",
+            "icon": "scissors"
+          },
+          {
+            "name": "Cuidados",
+            "icon": "heart"
+          }
+        ],
+        "services": [
+          {
+            "name": "Banho",
+            "price": 60,
+            "avgTimeMinutes": 45,
+            "icon": "droplets",
+            "categoryName": "Banho"
+          },
+          {
+            "name": "Tosa higiênica",
+            "price": 45,
+            "avgTimeMinutes": 30,
+            "icon": "scissors",
+            "categoryName": "Tosa"
+          },
+          {
+            "name": "Tosa completa",
+            "price": 80,
+            "avgTimeMinutes": 60,
+            "icon": "scissors",
+            "categoryName": "Tosa"
+          },
+          {
+            "name": "Banho + tosa",
+            "price": 110,
+            "avgTimeMinutes": 90,
+            "icon": "sparkles",
+            "categoryName": "Banho"
+          },
+          {
+            "name": "Hidratação de pelagem",
+            "price": 55,
+            "avgTimeMinutes": 30,
+            "icon": "droplets",
+            "categoryName": "Cuidados"
+          },
+          {
+            "name": "Corte de unhas",
+            "price": 25,
+            "avgTimeMinutes": 15,
+            "icon": "scissors",
+            "categoryName": "Cuidados"
+          },
+          {
+            "name": "Limpeza de ouvidos",
+            "price": 20,
+            "avgTimeMinutes": 10,
+            "icon": "heart",
+            "categoryName": "Cuidados"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "08:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "08:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "08:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "08:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "08:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "08:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": true,
+          "openTime": "08:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "BEAUTY_STUDIO": {
       "firstClass": true,
@@ -171,7 +609,75 @@
       "targetAudience": {
         "applies": true,
         "suggested": "FEMININO"
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Estética facial",
+            "icon": "smile"
+          },
+          {
+            "name": "Corpo",
+            "icon": "heart"
+          }
+        ],
+        "services": [
+          {
+            "name": "Limpeza de pele",
+            "price": 120,
+            "avgTimeMinutes": 60,
+            "icon": "smile",
+            "categoryName": "Estética facial"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "LASH_BROW_STUDIO": {
       "firstClass": true,
@@ -193,7 +699,82 @@
       "targetAudience": {
         "applies": true,
         "suggested": "FEMININO"
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Cílios",
+            "icon": "eye"
+          },
+          {
+            "name": "Sobrancelhas",
+            "icon": "sparkles"
+          }
+        ],
+        "services": [
+          {
+            "name": "Extensão de cílios",
+            "price": 150,
+            "avgTimeMinutes": 90,
+            "icon": "eye",
+            "categoryName": "Cílios"
+          },
+          {
+            "name": "Design de sobrancelha",
+            "price": 50,
+            "avgTimeMinutes": 30,
+            "icon": "sparkles",
+            "categoryName": "Sobrancelhas"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "AESTHETICS": {
       "firstClass": true,
@@ -215,7 +796,75 @@
       "targetAudience": {
         "applies": true,
         "suggested": "FEMININO"
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Facial",
+            "icon": "smile"
+          },
+          {
+            "name": "Corporal",
+            "icon": "heart"
+          }
+        ],
+        "services": [
+          {
+            "name": "Peeling",
+            "price": 180,
+            "avgTimeMinutes": 50,
+            "icon": "smile",
+            "categoryName": "Facial"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "SPA": {
       "firstClass": true,
@@ -237,7 +886,75 @@
       "targetAudience": {
         "applies": true,
         "suggested": "UNISSEX"
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Massagem",
+            "icon": "heart"
+          },
+          {
+            "name": "Relaxamento",
+            "icon": "sparkles"
+          }
+        ],
+        "services": [
+          {
+            "name": "Massagem relaxante",
+            "price": 160,
+            "avgTimeMinutes": 60,
+            "icon": "heart",
+            "categoryName": "Massagem"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "MAKEUP_STUDIO": {
       "firstClass": true,
@@ -259,7 +976,89 @@
       "targetAudience": {
         "applies": true,
         "suggested": "FEMININO"
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Maquiagem",
+            "icon": "palette"
+          },
+          {
+            "name": "Cabelo",
+            "icon": "scissors"
+          }
+        ],
+        "services": [
+          {
+            "name": "Maquiagem social",
+            "price": 0,
+            "avgTimeMinutes": 60,
+            "icon": "palette",
+            "categoryName": "Maquiagem"
+          },
+          {
+            "name": "Maquiagem noiva",
+            "price": 0,
+            "avgTimeMinutes": 90,
+            "icon": "sparkles",
+            "categoryName": "Maquiagem"
+          },
+          {
+            "name": "Penteado",
+            "price": 0,
+            "avgTimeMinutes": 45,
+            "icon": "scissors",
+            "categoryName": "Cabelo"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "PHYSIOTHERAPY": {
       "firstClass": true,
@@ -281,7 +1080,89 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": "O sistema organiza agenda e relacionamento com clientes. Não é prontuário clínico e não substitui documentação profissional regulada.",
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Sessões",
+            "icon": "heart"
+          },
+          {
+            "name": "Avaliação",
+            "icon": "clipboard"
+          }
+        ],
+        "services": [
+          {
+            "name": "Sessão de fisioterapia",
+            "price": 0,
+            "avgTimeMinutes": 50,
+            "icon": "heart",
+            "categoryName": "Sessões"
+          },
+          {
+            "name": "Sessão de quiropraxia",
+            "price": 0,
+            "avgTimeMinutes": 40,
+            "icon": "sparkles",
+            "categoryName": "Sessões"
+          },
+          {
+            "name": "Avaliação inicial",
+            "price": 0,
+            "avgTimeMinutes": 30,
+            "icon": "clipboard",
+            "categoryName": "Avaliação"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "NUTRITION": {
       "firstClass": true,
@@ -303,7 +1184,82 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": "O sistema organiza agenda e relacionamento com clientes. Não é prontuário clínico e não substitui documentação profissional regulada.",
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Consultas",
+            "icon": "clipboard"
+          },
+          {
+            "name": "Acompanhamento",
+            "icon": "calendar"
+          }
+        ],
+        "services": [
+          {
+            "name": "Consulta de nutrição",
+            "price": 0,
+            "avgTimeMinutes": 45,
+            "icon": "clipboard",
+            "categoryName": "Consultas"
+          },
+          {
+            "name": "Consulta de retorno",
+            "price": 0,
+            "avgTimeMinutes": 30,
+            "icon": "calendar",
+            "categoryName": "Acompanhamento"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "PSYCHOTHERAPY": {
       "firstClass": true,
@@ -325,7 +1281,71 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": "O sistema organiza agenda e relacionamento com clientes. Não é prontuário clínico e não substitui documentação profissional regulada.",
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Sessões",
+            "icon": "heart"
+          }
+        ],
+        "services": [
+          {
+            "name": "Sessão de terapia",
+            "price": 0,
+            "avgTimeMinutes": 50,
+            "icon": "heart",
+            "categoryName": "Sessões"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "VETERINARY": {
       "firstClass": true,
@@ -347,7 +1367,89 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "HYBRID",
+      "complianceNote": null,
+      "auxiliaryProfile": "pet",
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Consultas",
+            "icon": "stethoscope"
+          },
+          {
+            "name": "Procedimentos",
+            "icon": "sparkles"
+          }
+        ],
+        "services": [
+          {
+            "name": "Consulta veterinária",
+            "price": 0,
+            "avgTimeMinutes": 30,
+            "icon": "stethoscope",
+            "categoryName": "Consultas"
+          },
+          {
+            "name": "Vacinação",
+            "price": 0,
+            "avgTimeMinutes": 20,
+            "icon": "sparkles",
+            "categoryName": "Procedimentos"
+          },
+          {
+            "name": "Banho terapêutico",
+            "price": 0,
+            "avgTimeMinutes": 45,
+            "icon": "droplets",
+            "categoryName": "Procedimentos"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        }
+      ]
     },
     "CAR_WASH": {
       "firstClass": true,
@@ -369,7 +1471,89 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "HYBRID",
+      "complianceNote": null,
+      "auxiliaryProfile": "vehicle",
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Lavagem",
+            "icon": "droplets"
+          },
+          {
+            "name": "Estética",
+            "icon": "sparkles"
+          }
+        ],
+        "services": [
+          {
+            "name": "Lavagem simples",
+            "price": 0,
+            "avgTimeMinutes": 30,
+            "icon": "droplets",
+            "categoryName": "Lavagem"
+          },
+          {
+            "name": "Lavagem completa",
+            "price": 0,
+            "avgTimeMinutes": 60,
+            "icon": "sparkles",
+            "categoryName": "Lavagem"
+          },
+          {
+            "name": "Enceramento",
+            "price": 0,
+            "avgTimeMinutes": 45,
+            "icon": "sparkles",
+            "categoryName": "Estética"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        }
+      ]
     },
     "AUTO_REPAIR": {
       "firstClass": true,
@@ -391,7 +1575,89 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": "vehicle",
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Manutenção",
+            "icon": "wrench"
+          },
+          {
+            "name": "Revisão",
+            "icon": "clipboard"
+          }
+        ],
+        "services": [
+          {
+            "name": "Troca de óleo",
+            "price": 0,
+            "avgTimeMinutes": 40,
+            "icon": "wrench",
+            "categoryName": "Manutenção"
+          },
+          {
+            "name": "Revisão periódica",
+            "price": 0,
+            "avgTimeMinutes": 90,
+            "icon": "clipboard",
+            "categoryName": "Revisão"
+          },
+          {
+            "name": "Alinhamento e balanceamento",
+            "price": 0,
+            "avgTimeMinutes": 60,
+            "icon": "wrench",
+            "categoryName": "Manutenção"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "PHOTO_STUDIO": {
       "firstClass": true,
@@ -413,7 +1679,82 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Ensaio",
+            "icon": "camera"
+          },
+          {
+            "name": "Evento",
+            "icon": "star"
+          }
+        ],
+        "services": [
+          {
+            "name": "Ensaio fotográfico",
+            "price": 0,
+            "avgTimeMinutes": 90,
+            "icon": "camera",
+            "categoryName": "Ensaio"
+          },
+          {
+            "name": "Cobertura de evento",
+            "price": 0,
+            "avgTimeMinutes": 180,
+            "icon": "star",
+            "categoryName": "Evento"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "TATTOO_PIERCING": {
       "firstClass": true,
@@ -435,7 +1776,82 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Tatuagem",
+            "icon": "penTool"
+          },
+          {
+            "name": "Piercing",
+            "icon": "sparkles"
+          }
+        ],
+        "services": [
+          {
+            "name": "Sessão de tatuagem",
+            "price": 0,
+            "avgTimeMinutes": 120,
+            "icon": "penTool",
+            "categoryName": "Tatuagem"
+          },
+          {
+            "name": "Aplicação de piercing",
+            "price": 0,
+            "avgTimeMinutes": 30,
+            "icon": "sparkles",
+            "categoryName": "Piercing"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        }
+      ]
     },
     "COACHING": {
       "firstClass": true,
@@ -457,7 +1873,78 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Sessões",
+            "icon": "briefcase"
+          }
+        ],
+        "services": [
+          {
+            "name": "Sessão de consultoria",
+            "price": 0,
+            "avgTimeMinutes": 60,
+            "icon": "briefcase",
+            "categoryName": "Sessões"
+          },
+          {
+            "name": "Sessão de acompanhamento",
+            "price": 0,
+            "avgTimeMinutes": 45,
+            "icon": "calendar",
+            "categoryName": "Sessões"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "PRIVATE_CLASSES": {
       "firstClass": true,
@@ -479,7 +1966,78 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "APPOINTMENTS_ONLY",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Aulas",
+            "icon": "music"
+          }
+        ],
+        "services": [
+          {
+            "name": "Aula particular",
+            "price": 0,
+            "avgTimeMinutes": 60,
+            "icon": "music",
+            "categoryName": "Aulas"
+          },
+          {
+            "name": "Aula experimental",
+            "price": 0,
+            "avgTimeMinutes": 45,
+            "icon": "star",
+            "categoryName": "Aulas"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        }
+      ]
     },
     "TECH_SUPPORT": {
       "firstClass": true,
@@ -501,7 +2059,82 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "HYBRID",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Atendimentos",
+            "icon": "wrench"
+          },
+          {
+            "name": "Entrega",
+            "icon": "package"
+          }
+        ],
+        "services": [
+          {
+            "name": "Atendimento técnico",
+            "price": 0,
+            "avgTimeMinutes": 45,
+            "icon": "wrench",
+            "categoryName": "Atendimentos"
+          },
+          {
+            "name": "Visita técnica",
+            "price": 0,
+            "avgTimeMinutes": 60,
+            "icon": "package",
+            "categoryName": "Atendimentos"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "HOME_SERVICES": {
       "firstClass": true,
@@ -523,7 +2156,78 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "HYBRID",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Serviços",
+            "icon": "home"
+          }
+        ],
+        "services": [
+          {
+            "name": "Diária de limpeza",
+            "price": 0,
+            "avgTimeMinutes": 240,
+            "icon": "home",
+            "categoryName": "Serviços"
+          },
+          {
+            "name": "Visita técnica",
+            "price": 0,
+            "avgTimeMinutes": 90,
+            "icon": "wrench",
+            "categoryName": "Serviços"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "18:00"
+        }
+      ]
     },
     "OTHER": {
       "firstClass": true,
@@ -545,7 +2249,71 @@
       "targetAudience": {
         "applies": false,
         "suggested": null
-      }
+      },
+      "suggestedOperationMode": "HYBRID",
+      "complianceNote": null,
+      "auxiliaryProfile": null,
+      "catalog": {
+        "serviceCategories": [
+          {
+            "name": "Serviços",
+            "icon": "sparkles"
+          }
+        ],
+        "services": [
+          {
+            "name": "Serviço",
+            "price": 0,
+            "avgTimeMinutes": 30,
+            "icon": "sparkles",
+            "categoryName": "Serviços"
+          }
+        ]
+      },
+      "schedulePreset": [
+        {
+          "dayOfWeek": 0,
+          "isOpen": false,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "isOpen": true,
+          "openTime": "09:00",
+          "closeTime": "19:00"
+        }
+      ]
     }
   }
 }

@@ -14,6 +14,7 @@ import {
   normalizeSegmentOther,
   segmentOtherError,
 } from "./index";
+import { buildSegmentParity } from "./parity";
 
 type ParityFile = {
   labelKeys: string[];
@@ -26,6 +27,25 @@ type ParityFile = {
       group: string;
       labels: Record<string, string>;
       targetAudience: { applies: boolean; suggested: string | null };
+      suggestedOperationMode: string;
+      complianceNote: string | null;
+      auxiliaryProfile: string | null;
+      catalog: {
+        serviceCategories: { name: string; icon: string }[];
+        services: {
+          name: string;
+          price: number;
+          avgTimeMinutes: number;
+          icon: string;
+          categoryName: string;
+        }[];
+      };
+      schedulePreset: {
+        dayOfWeek: number;
+        isOpen: boolean;
+        openTime: string;
+        closeTime: string;
+      }[];
     }
   >;
 };
@@ -71,6 +91,67 @@ describe("segmentParity.json", () => {
       expect(parity.segments[segment].targetAudience, `targetAudience de ${segment}`).toEqual(
         config.targetAudience
       );
+    }
+  });
+
+  it("é idêntico ao que a config central produz hoje (JSON desatualizado falha aqui)", () => {
+    expect(parity).toEqual(buildSegmentParity());
+  });
+
+  it("espelha modo sugerido, aviso de saúde, ficha auxiliar, catálogo e horário", () => {
+    for (const segment of ALL_SEGMENTS) {
+      const config = SEGMENT_CONFIGS[segment];
+      const mirror = parity.segments[segment];
+      expect(mirror.suggestedOperationMode, `${segment}: suggestedOperationMode`).toBe(
+        config.suggestedOperationMode
+      );
+      expect(mirror.complianceNote ?? null, `${segment}: complianceNote`).toBe(
+        config.complianceNote ?? null
+      );
+      expect(mirror.auxiliaryProfile ?? null, `${segment}: auxiliaryProfile`).toBe(
+        config.auxiliaryProfile ?? null
+      );
+      expect(mirror.catalog, `${segment}: catalog`).toEqual(config.catalog);
+      expect(mirror.schedulePreset, `${segment}: schedulePreset`).toEqual(config.schedulePreset);
+    }
+  });
+
+  it("catálogo do JSON é utilizável: sem duplicatas, duração válida e categoria existente", () => {
+    for (const segment of ALL_SEGMENTS) {
+      const { serviceCategories, services } = parity.segments[segment].catalog;
+      const categoryNames = serviceCategories.map((c) => c.name);
+      expect(new Set(categoryNames).size, `${segment}: categorias duplicadas`).toBe(
+        categoryNames.length
+      );
+      const serviceNames = services.map((s) => s.name);
+      expect(new Set(serviceNames).size, `${segment}: serviços duplicados`).toBe(serviceNames.length);
+      for (const service of services) {
+        expect(service.avgTimeMinutes, `${segment}/${service.name}: duração`).toBeGreaterThan(0);
+        expect(service.price, `${segment}/${service.name}: preço`).toBeGreaterThanOrEqual(0);
+        expect(
+          categoryNames.includes(service.categoryName),
+          `${segment}/${service.name}: categoria "${service.categoryName}" inexistente`
+        ).toBe(true);
+        expect(service.icon, `${segment}/${service.name}: ícone`).toMatch(/^[a-z][a-zA-Z0-9]*$/);
+      }
+      for (const category of serviceCategories) {
+        expect(category.icon, `${segment}/${category.name}: ícone`).toMatch(/^[a-z][a-zA-Z0-9]*$/);
+      }
+    }
+  });
+
+  it("preset de horário cobre os 7 dias da semana", () => {
+    for (const segment of ALL_SEGMENTS) {
+      const preset = parity.segments[segment].schedulePreset;
+      expect(preset.map((d) => d.dayOfWeek), `${segment}: dias`).toEqual([0, 1, 2, 3, 4, 5, 6]);
+      for (const day of preset) {
+        if (!day.isOpen) continue;
+        expect(day.openTime, `${segment}/dia ${day.dayOfWeek}: abertura`).toMatch(/^\d{2}:\d{2}$/);
+        expect(day.closeTime, `${segment}/dia ${day.dayOfWeek}: fechamento`).toMatch(/^\d{2}:\d{2}$/);
+        expect(day.closeTime > day.openTime, `${segment}/dia ${day.dayOfWeek}: fecha após abrir`).toBe(
+          true
+        );
+      }
     }
   });
 });
