@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BusinessSegment } from "@prisma/client";
 import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
 
 export const retailPaymentMethodSchema = z.enum(["cash", "pix", "credit_card", "debit_card", "fiado"]);
@@ -194,17 +195,16 @@ export const reportsQuerySchema = z.object({
   to: z.coerce.date().optional(),
 });
 
-export const installTemplateSchema = z.object({
-  segment: z.enum([
-    "BARBERSHOP",
-    "HAIR_SALON",
-    "BEAUTY_STUDIO",
-    "NAIL_STUDIO",
-    "LASH_BROW_STUDIO",
-    "AESTHETICS",
-    "SPA",
-    "OTHER",
-  ]).optional(),
+/**
+ * Segmento do template de catálogo. Espelha o enum Prisma inteiro: um valor
+ * hardcoded envelhece a cada segmento novo (PETSHOP e os 14 de 2026-10 já
+ * foram perdidos assim) e devolve 400 para quem tenta "Ver sugestões".
+ */
+export const catalogTemplateSegmentSchema = z.object({
+  segment: z.nativeEnum(BusinessSegment).optional(),
+});
+
+export const installTemplateSchema = catalogTemplateSegmentSchema.extend({
   include: z.object({
     serviceCategories: z.boolean().optional(),
     productCategories: z.boolean().optional(),

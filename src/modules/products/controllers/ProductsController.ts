@@ -9,6 +9,7 @@ import {
 } from "@/shared/config/upload";
 import {
   adjustmentSchema,
+  catalogTemplateSegmentSchema,
   createProductSchema,
   createReceiptSchema,
   createRetailSaleSchema,
@@ -181,8 +182,8 @@ export class ProductsController {
 
   async previewTemplate(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
-    const query = request.query as { segment?: string };
-    const data = await this.useCase().previewTemplate(id, request.user!, query.segment as never);
+    const { segment } = catalogTemplateSegmentSchema.parse(request.query ?? {});
+    const data = await this.useCase().previewTemplate(id, request.user!, segment);
     reply.send({ success: true, data });
   }
 

@@ -270,16 +270,16 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
     suggestedOperationMode: "APPOINTMENTS_ONLY",
     catalog: {
       serviceCategories: [
-        { name: "Banho", icon: "droplet" },
+        { name: "Banho", icon: "droplets" },
         { name: "Tosa", icon: "scissors" },
         { name: "Cuidados", icon: "heart" },
       ],
       services: [
-        { name: "Banho", price: 60, avgTimeMinutes: 45, icon: "droplet", categoryName: "Banho" },
+        { name: "Banho", price: 60, avgTimeMinutes: 45, icon: "droplets", categoryName: "Banho" },
         { name: "Tosa higiênica", price: 45, avgTimeMinutes: 30, icon: "scissors", categoryName: "Tosa" },
         { name: "Tosa completa", price: 80, avgTimeMinutes: 60, icon: "scissors", categoryName: "Tosa" },
         { name: "Banho + tosa", price: 110, avgTimeMinutes: 90, icon: "sparkles", categoryName: "Banho" },
-        { name: "Hidratação de pelagem", price: 55, avgTimeMinutes: 30, icon: "droplet", categoryName: "Cuidados" },
+        { name: "Hidratação de pelagem", price: 55, avgTimeMinutes: 30, icon: "droplets", categoryName: "Cuidados" },
         { name: "Corte de unhas", price: 25, avgTimeMinutes: 15, icon: "scissors", categoryName: "Cuidados" },
         { name: "Limpeza de ouvidos", price: 20, avgTimeMinutes: 10, icon: "heart", categoryName: "Cuidados" },
       ],
@@ -752,11 +752,11 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
     suggestedOperationMode: "APPOINTMENTS_ONLY",
     catalog: {
       serviceCategories: [
-        { name: "Tatuagem", icon: "pen" },
+        { name: "Tatuagem", icon: "penTool" },
         { name: "Piercing", icon: "sparkles" },
       ],
       services: [
-        { name: "Sessão de tatuagem", price: 0, avgTimeMinutes: 120, icon: "pen", categoryName: "Tatuagem" },
+        { name: "Sessão de tatuagem", price: 0, avgTimeMinutes: 120, icon: "penTool", categoryName: "Tatuagem" },
         { name: "Aplicação de piercing", price: 0, avgTimeMinutes: 30, icon: "sparkles", categoryName: "Piercing" },
       ],
     },
