@@ -268,6 +268,9 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
     // atendido. A coluna fica nula.
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
+    // O MVP de pets nasceu aqui: o petshop abre a ficha de pet, como a
+    // veterinária (antes só a veterinária tinha a ficha ligada).
+    auxiliaryProfile: "pet",
     catalog: {
       serviceCategories: [
         { name: "Banho", icon: "droplets" },

@@ -476,7 +476,7 @@
       },
       "suggestedOperationMode": "APPOINTMENTS_ONLY",
       "complianceNote": null,
-      "auxiliaryProfile": null,
+      "auxiliaryProfile": "pet",
       "catalog": {
         "serviceCategories": [
           {
