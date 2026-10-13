@@ -6,11 +6,13 @@ import { setRlsContext } from "../middlewares/setRlsContext";
 import { ClientController } from "@/modules/clients/controllers/ClientController";
 import { ProcedureRecordController } from "@/modules/clients/controllers/ProcedureRecordController";
 import { PetController } from "@/modules/clients/controllers/PetController";
+import { VehicleController } from "@/modules/clients/controllers/VehicleController";
 
 export async function clientsRoutes(app: FastifyInstance) {
   const clients = new ClientController();
   const procedures = new ProcedureRecordController();
   const pets = new PetController();
+  const vehicles = new VehicleController();
   const staffGuard = [
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
@@ -36,4 +38,10 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.post("/clients/:id/pets", { preHandler: staffGuard }, pets.create.bind(pets));
   app.patch("/clients/:id/pets/:petId", { preHandler: staffGuard }, pets.update.bind(pets));
   app.delete("/clients/:id/pets/:petId", { preHandler: staffGuard }, pets.delete.bind(pets));
+
+  // Veículos (MVP automotivo: lava jato e oficina)
+  app.get("/clients/:id/vehicles", { preHandler: staffGuard }, vehicles.list.bind(vehicles));
+  app.post("/clients/:id/vehicles", { preHandler: staffGuard }, vehicles.create.bind(vehicles));
+  app.patch("/clients/:id/vehicles/:vehicleId", { preHandler: staffGuard }, vehicles.update.bind(vehicles));
+  app.delete("/clients/:id/vehicles/:vehicleId", { preHandler: staffGuard }, vehicles.delete.bind(vehicles));
 }

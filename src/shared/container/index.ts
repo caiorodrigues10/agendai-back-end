@@ -17,6 +17,9 @@ import { ProcedureRecordRepository } from '@/modules/clients/repositories/Proced
 import { IClientPetRepository } from '@/modules/clients/repositories/ClientPetRepository'
 import { ClientPetRepository } from '@/modules/clients/repositories/ClientPetRepository'
 
+import { IClientVehicleRepository } from '@/modules/clients/repositories/ClientVehicleRepository'
+import { ClientVehicleRepository } from '@/modules/clients/repositories/ClientVehicleRepository'
+
 import { IQueueRepository } from '@/modules/queue/repositories/IQueueRepository'
 import { QueueRepository } from '@/modules/queue/infra/repositories/QueueRepository'
 
@@ -135,6 +138,7 @@ container.registerSingleton<IProcedureRecordRepository>(
 	ProcedureRecordRepository,
 )
 container.registerSingleton<IClientPetRepository>('ClientPetRepository', ClientPetRepository)
+container.registerSingleton<IClientVehicleRepository>('ClientVehicleRepository', ClientVehicleRepository)
 container.registerSingleton<ICommissionRepository>('CommissionRepository', CommissionRepository)
 container.registerSingleton<ICrmRepository>('CrmRepository', CrmRepository)
 container.registerSingleton(InventoryEngine)

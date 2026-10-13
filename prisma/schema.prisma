@@ -469,6 +469,7 @@ model Barbershop {
   aiIntentLogs                   AiIntentLog[]
   procedureRecords               ClientProcedureRecord[]
   pets                           ClientPet[]
+  vehicles                       ClientVehicle[]
   fiscalConfig                   FiscalConfig?
   nfeRecords                     NfeRecord[]
   integrations                   Integration[]
@@ -870,6 +871,7 @@ model SalonClient {
   formResponses           FormResponse[]
   procedureRecords        ClientProcedureRecord[]
   pets                    ClientPet[]
+  vehicles                ClientVehicle[]
   npsSurveys              NpsSurvey[]
 
   @@unique([barbershopId, normalizedWhatsapp])
@@ -931,6 +933,30 @@ model ClientPet {
 
   @@index([barbershopId, clientId])
   @@map("client_pets")
+}
+
+/// Veículo do cliente (MVP automotivo): placa + modelo, para lava jato e
+/// oficina. Ano, cor de fabricação, FIPE e valor de tabela são pendência.
+model ClientVehicle {
+  id           String   @id @default(uuid()) @db.Uuid
+  barbershopId String   @db.Uuid
+  clientId     String   @db.Uuid
+  /// Placa normalizada (Mercosul ou antiga, maiúscula, sem espaço/hífen).
+  plate        String   @db.VarChar(8)
+  /// Marca e modelo (ex.: "Honda CG 160", "Gol 1.6").
+  vehicleModel String   @db.VarChar(120)
+  color        String?  @db.VarChar(40)
+  notes        String?  @db.Text
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client     SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId, clientId, plate])
+  @@index([barbershopId, clientId])
+  @@map("client_vehicles")
 }
 
 /// Catálogo de pacote pré-pago vendido pelo salão (ex.: 5 cortes).
