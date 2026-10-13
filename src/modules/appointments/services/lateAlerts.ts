@@ -127,13 +127,16 @@ export interface LateMessageContext {
 
 /** Mensagem do CLIENTE por nível; `impatient` só faz sentido em L1/L2. */
 export function buildLateClientMessage(level: 1 | 2 | 3, ctx: LateMessageContext, impatient: boolean): string {
-  const shop = ctx.shopName.trim() || "o salão";
+  const shop = ctx.shopName.trim();
   const service = ctx.serviceName.trim() || "atendimento";
+  // Sem nome o trecho do local some: nada de chamar de "salão" um negócio
+  // que pode ser oficina, clínica, estúdio ou petshop.
+  const shopPlace = shop ? ` na *${shop}*` : "";
 
   if (level === 3) {
     return (
       `Oi, ${ctx.customerName}. 😔\n\n` +
-      `O *${shop}* acabou de fechar o expediente e seu horário das *${ctx.scheduledTime}* (${service}) ficou para trás.\n\n` +
+      `${shop ? `O *${shop}* acabou de fechar o expediente` : "O expediente acabou de fechar"} e seu horário das *${ctx.scheduledTime}* (${service}) ficou para trás.\n\n` +
       `Remarque em um toque, sem precisar ligar:\n${ctx.manageUrl}\n\n` +
       `Te esperamos na próxima!`
     );
@@ -142,14 +145,14 @@ export function buildLateClientMessage(level: 1 | 2 | 3, ctx: LateMessageContext
   if (level === 1) {
     if (impatient) {
       return (
-        `${ctx.customerName}, seu horário das *${ctx.scheduledTime}* na *${shop}* já passou.\n\n` +
-        `Precisamos de você na cadeira agora — o salão fecha às *${ctx.closeTime}* e a agenda vai rodando. ` +
+        `${ctx.customerName}, seu horário das *${ctx.scheduledTime}*${shopPlace} já passou.\n\n` +
+        `Precisamos de você agora — o expediente fecha às *${ctx.closeTime}* e a agenda vai rodando. ` +
         `Se não vier, sua vaga pode ser reorganizada.`
       );
     }
     return (
       `Olá, ${ctx.customerName}! ⏰\n\n` +
-      `Notamos um atraso no seu horário das *${ctx.scheduledTime}* na *${shop}* (${service}). ` +
+      `Notamos um atraso no seu horário das *${ctx.scheduledTime}*${shopPlace} (${service}). ` +
       `Se ainda vier, chegue nos próximos minutos para manter seu atendimento.`
     );
   }
@@ -158,11 +161,11 @@ export function buildLateClientMessage(level: 1 | 2 | 3, ctx: LateMessageContext
   if (impatient) {
     return (
       `${ctx.customerName}, são *${ctx.lateMinutes} min* de atraso e fechamos às *${ctx.closeTime}*.\n\n` +
-      `Sem sua confirmação agora, precisaremos reorganizar a sua vaga na *${shop}*.`
+      `Sem sua confirmação agora, precisaremos reorganizar a sua vaga${shopPlace}.`
     );
   }
   return (
-    `${ctx.customerName}, já são *${ctx.lateMinutes} min* de atraso na *${shop}* (${service}).\n\n` +
+    `${ctx.customerName}, já são *${ctx.lateMinutes} min* de atraso${shopPlace} (${service}).\n\n` +
     `Para não perder a vaga, confirme que está chegando. A partir daí vamos precisar reorganizar a agenda.`
   );
 }

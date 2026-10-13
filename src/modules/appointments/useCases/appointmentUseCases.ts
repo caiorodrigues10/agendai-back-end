@@ -691,12 +691,12 @@ export function buildReminderMessage(
   _estimate: QueueWaitEstimate,
   _now: Date = new Date()
 ): string {
-  const shopLabel = appt.barbershopName?.trim() || "a barbearia";
+  const shopLabel = appt.barbershopName?.trim() || "";
   const serviceLabel = appt.serviceName?.trim() || "atendimento";
 
   return (
     `Olá, ${appt.customerName}! 💈\n\n` +
-    `Seu horário na *${shopLabel}* está confirmado para hoje às *${appt.time}* (${serviceLabel}).\n\n` +
+    `Seu horário${shopLabel ? ` na *${shopLabel}*` : ""} está confirmado para hoje às *${appt.time}* (${serviceLabel}).\n\n` +
     `Até já!`
   );
 }

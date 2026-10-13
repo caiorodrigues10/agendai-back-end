@@ -7,11 +7,15 @@ import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
 
 const logger = getModuleLogger('queue:notify');
 
-/** Mensagem ao chamar o cliente (cadeira) — mesmo texto da posição 1. */
+/**
+ * Mensagem ao chamar o cliente (cadeira) — mesmo texto da posição 1.
+ * `shopLabel` é o nome do salão sem aspas; sem nome a frase sai sem o local
+ * (nada de inventar "a barbearia" num negócio que pode ser oficina ou clínica).
+ */
 export function buildQueueCalledMessage(customerName: string, shopLabel: string): string {
   return (
     `Chegou sua vez, ${customerName}! 🎉\n\n` +
-    `Você é o próximo a ser atendido na *${shopLabel}*. ` +
+    `Você é o próximo a ser atendido${shopLabel ? ` na *${shopLabel}*` : ""}. ` +
     `Pode se aproximar do balcão/recepção.\n\nAté já! 💈`
   );
 }
@@ -25,12 +29,12 @@ export function buildQueueJoinedMessage(
 ): string {
   if (position <= 1) {
     return (
-      `Olá ${customerName}! Você entrou na fila da *${shopLabel}* e é o próximo.\n\n` +
-      `Aguarde ser chamado no salão — avisamos por aqui. 💈`
+      `Olá ${customerName}! Você entrou na fila${shopLabel ? ` da *${shopLabel}*` : ""} e é o próximo.\n\n` +
+      `Aguarde ser chamado — avisamos por aqui. 💈`
     );
   }
   return (
-    `Olá ${customerName}! Você entrou na fila da *${shopLabel}*.\n\n` +
+    `Olá ${customerName}! Você entrou na fila${shopLabel ? ` da *${shopLabel}*` : ""}.\n\n` +
     `Posição: *${position}ª*\n` +
     `⏱️ Tempo médio estimado: ${estimatedWaitMinutes} min\n\n` +
     `Assim que chegar sua vez, avisamos por aqui. 💈`
@@ -40,8 +44,8 @@ export function buildQueueJoinedMessage(
 /** Aviso ao cliente quando o staff cancela o lugar na fila. */
 export function buildQueueCancelledMessage(customerName: string, shopLabel: string): string {
   return (
-    `Olá ${customerName}, seu lugar na fila da *${shopLabel}* foi cancelado.\n\n` +
-    `Se quiser voltar, é só entrar de novo pelo link do salão.`
+    `Olá ${customerName}, seu lugar na fila${shopLabel ? ` da *${shopLabel}*` : ""} foi cancelado.\n\n` +
+    `Se quiser voltar, é só entrar de novo pelo link do estabelecimento.`
   );
 }
 
@@ -72,7 +76,7 @@ export async function notifyCustomerJoinedQueue(
     estimatedWaitMinutes += Number(waiting[j].serviceAvgTimeMinutes) || 0;
   }
 
-  const shopLabel = shop?.name?.trim() || "a barbearia";
+  const shopLabel = shop?.name?.trim() || "";
   await enqueueWhatsApp({
     phone: item.whatsapp,
     message: buildQueueJoinedMessage(
@@ -98,7 +102,7 @@ export interface NotifyQueuePositionResult {
 }
 
 /**
- * Percorre toda a fila WAITING de uma barbearia (ordem joinedAt ASC) e, para
+ * Percorre toda a fila WAITING do estabelecimento (ordem joinedAt ASC) e, para
  * cada item cuja posição mudou desde a última notificação (campo
  * `lastNotifiedPosition`), envia uma mensagem de WhatsApp atualizando a posição
  * do cliente. Após o envio bem-sucedido, grava a nova posição em
@@ -106,13 +110,13 @@ export interface NotifyQueuePositionResult {
  *
  * Mensagem para posição 1 ("chegou a vez"):
  *   Chegou sua vez, {customerName}! 🎉
- *   Você é o próximo a ser atendido na *{barbershopName}*.
+ *   Você é o próximo a ser atendido na *{barbershopName}* (sem nome, sem o trecho).
  *   Pode se aproximar do balcão/recepção.
  *   Até já! 💈
  *
  * Mensagem para posição > 1 ("atualização"):
  *   📋 Atualização de fila, {customerName}!
- *   Você agora está na posição *{posicao}ª* da fila em *{barbershopName}*.
+ *   Você agora está na posição *{posicao}ª* da fila em *{barbershopName}* (sem nome, sem o trecho).
  *   ⏱️ Tempo médio estimado até seu atendimento: {tempoEstimado} min
  *   Assim que estiver perto, avisamos de novo!
  */
@@ -130,7 +134,7 @@ export class NotifyQueuePositionUpdatesUseCase {
     if (waiting.length === 0) return { notified: 0, failed: 0 };
 
     const shop = await this.barbershopRepository.findById(barbershopId);
-    const shopLabel = shop?.name?.trim() || "a barbearia";
+    const shopLabel = shop?.name?.trim() || "";
     const instanceName = shop?.evolutionInstanceName?.trim();
     if (!instanceName) return { notified: 0, failed: 0 };
 
@@ -206,7 +210,7 @@ export class NotifyQueuePositionUpdatesUseCase {
   ): string {
     return (
       `📋 Atualização de fila, ${customerName}!\n\n` +
-      `Você agora está na posição *${position}ª* da fila em *${shopLabel}*.\n` +
+      `Você agora está na posição *${position}ª* da fila${shopLabel ? ` em *${shopLabel}*` : ""}.\n` +
       `⏱️ Tempo médio estimado até seu atendimento: ${estimatedWaitMinutes} min\n\n` +
       `Assim que estiver perto, avisamos de novo!`
     );

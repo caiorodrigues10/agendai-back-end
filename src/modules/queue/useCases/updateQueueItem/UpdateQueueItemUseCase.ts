@@ -212,8 +212,8 @@ export class UpdateQueueItemUseCase {
           await enqueueWhatsApp({
             phone: item.whatsapp,
             message: called
-              ? buildQueueCalledMessage(item.customerName, shop?.name?.trim() || "a barbearia")
-              : buildQueueCancelledMessage(item.customerName, shop?.name?.trim() || "a barbearia"),
+              ? buildQueueCalledMessage(item.customerName, shop?.name?.trim() || "")
+              : buildQueueCancelledMessage(item.customerName, shop?.name?.trim() || ""),
             instanceName,
             deduplicationKey: called ? `call:${item.id}` : `cancel:${item.id}`,
             notificationType: called ? "QUEUE_CALLED" : "QUEUE_CANCELED",
