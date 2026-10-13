@@ -11,5 +11,6 @@ export interface ICreateBarbershopDTO {
   latitude?: number;
   longitude?: number;
   businessSegment?: BusinessSegment;
+  businessSegmentOther?: string | null;
   targetAudience?: TargetAudience | null;
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { BusinessSegment, OpeningMode, TargetAudience } from "@prisma/client";
 import { isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
-import { segmentAudienceError } from "@/shared/segments";
+import { segmentAudienceError, segmentOtherError } from "@/shared/segments";
 
 const phoneBR = z
   .string()
@@ -26,12 +26,18 @@ export const createBarbershopSchema = z
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
     businessSegment: z.nativeEnum(BusinessSegment).optional(),
+    // Texto livre "Qual é o seu tipo de negócio?" — só faz sentido em OTHER.
+    businessSegmentOther: z.string().max(80).optional(),
     targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
   })
   .superRefine((data, ctx) => {
     const message = segmentAudienceError(data.businessSegment, data.targetAudience);
     if (message) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAudience"], message });
+    }
+    const otherMessage = segmentOtherError(data.businessSegment, data.businessSegmentOther);
+    if (otherMessage) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["businessSegmentOther"], message: otherMessage });
     }
   });
 
@@ -55,6 +61,7 @@ export const updateBarbershopSchema = z
     // nativeEnum deriva do Prisma: um z.enum listado à mão já ficou para trás
     // quando PETSHOP entrou no schema.
     businessSegment: z.nativeEnum(BusinessSegment).optional(),
+    businessSegmentOther: z.string().max(80).optional(),
     targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
   })
   // Mesma regra do cadastro: trocar o segmento para PETSHOP não pode deixar
@@ -63,6 +70,10 @@ export const updateBarbershopSchema = z
     const message = segmentAudienceError(data.businessSegment, data.targetAudience);
     if (message) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAudience"], message });
+    }
+    const otherMessage = segmentOtherError(data.businessSegment, data.businessSegmentOther);
+    if (otherMessage) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["businessSegmentOther"], message: otherMessage });
     }
   });
 

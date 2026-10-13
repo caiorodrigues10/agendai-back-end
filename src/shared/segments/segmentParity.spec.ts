@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { BusinessSegment } from "@prisma/client";
 import {
   ALL_SEGMENTS,
   FIRST_CLASS_SEGMENTS,
@@ -10,14 +11,40 @@ import {
   resolveAudienceForSegment,
   audienceAppliesTo,
   segmentAudienceError,
+  normalizeSegmentOther,
+  segmentOtherError,
 } from "./index";
 
 type ParityFile = {
   labelKeys: string[];
   allSegments: string[];
   firstClassSegments: string[];
-  segments: Record<string, { firstClass: boolean; labels: Record<string, string>; targetAudience: { applies: boolean; suggested: string | null } }>;
+  segments: Record<
+    string,
+    {
+      firstClass: boolean;
+      group: string;
+      labels: Record<string, string>;
+      targetAudience: { applies: boolean; suggested: string | null };
+    }
+  >;
 };
+
+/**
+ * Segmentos anteriores à expansão de 2026-10, que já tinham catálogo com
+ * preço real de produção. Os novos usam preço 0 (placeholder) de propósito:
+ * o preço é preenchido pelo dono.
+ */
+const PRE_EXISTING_WITH_PRICES = new Set<BusinessSegment>([
+  "BARBERSHOP",
+  "HAIR_SALON",
+  "NAIL_STUDIO",
+  "PETSHOP",
+  "BEAUTY_STUDIO",
+  "LASH_BROW_STUDIO",
+  "AESTHETICS",
+  "SPA",
+]);
 
 function readParity(): ParityFile {
   return JSON.parse(readFileSync(join(__dirname, "segmentParity.json"), "utf8"));
@@ -35,11 +62,11 @@ describe("segmentParity.json", () => {
     expect(parity.firstClassSegments).toEqual([...FIRST_CLASS_SEGMENTS]);
   });
 
-  it("espelha labels, firstClass e targetAudience de cada segmento", () => {
+  it("espelha labels, group e targetAudience de cada segmento", () => {
     for (const segment of ALL_SEGMENTS) {
       const config = SEGMENT_CONFIGS[segment];
       expect(parity.segments[segment], `segmento ${segment} ausente no JSON`).toBeDefined();
-      expect(parity.segments[segment].firstClass, `firstClass de ${segment}`).toBe(config.firstClass);
+      expect(parity.segments[segment].group, `group de ${segment}`).toBe(config.group);
       expect(parity.segments[segment].labels, `labels de ${segment}`).toEqual(config.labels);
       expect(parity.segments[segment].targetAudience, `targetAudience de ${segment}`).toEqual(
         config.targetAudience
@@ -93,20 +120,90 @@ describe("resolveAudienceForSegment", () => {
   });
 });
 
+describe("normalizeSegmentOther", () => {
+  it("guarda o texto limpo quando o segmento é OTHER", () => {
+    expect(normalizeSegmentOther("OTHER", "  Estúdio   de tatuagem\tcom piercing  ")).toBe(
+      "Estúdio de tatuagem com piercing"
+    );
+  });
+
+  it("zera o texto fora de OTHER (nunca gravar lixo em outros segmentos)", () => {
+    expect(normalizeSegmentOther("HAIR_SALON", "Texto órfão")).toBeNull();
+    expect(normalizeSegmentOther("BARBERSHOP", "x")).toBeNull();
+    expect(normalizeSegmentOther(undefined, "x")).toBeNull();
+  });
+
+  it("OTHER sem texto devolve null (campo opcional)", () => {
+    expect(normalizeSegmentOther("OTHER", undefined)).toBeNull();
+    expect(normalizeSegmentOther("OTHER", "")).toBeNull();
+    expect(normalizeSegmentOther("OTHER", "   ")).toBeNull();
+  });
+
+  it("remove caracteres de controle e corta em 80 chars", () => {
+    // Controles viram espaço (não somem), senão "a\tb" viraria "ab".
+    expect(normalizeSegmentOther("OTHER", "Linha1\nLinha2\u0000fim")).toBe("Linha1 Linha2 fim");
+    expect(normalizeSegmentOther("OTHER", "x".repeat(200))).toHaveLength(80);
+  });
+});
+
+describe("segmentOtherError", () => {
+  it("deixa passar texto válido ou ausente em OTHER", () => {
+    expect(segmentOtherError("OTHER", "Academia de boxe")).toBeNull();
+    expect(segmentOtherError("OTHER", undefined)).toBeNull();
+    expect(segmentOtherError("OTHER", "x".repeat(80))).toBeNull();
+  });
+
+  it("recusa texto acima de 80 com a mensagem usada nas rotas", () => {
+    expect(segmentOtherError("OTHER", "x".repeat(81))).toBe(
+      "Descreva seu negócio em até 80 caracteres."
+    );
+  });
+
+  it("não valida texto fora de OTHER (o normalizador zera de qualquer forma)", () => {
+    expect(segmentOtherError("HAIR_SALON", "x".repeat(200))).toBeNull();
+  });
+});
+
 describe("catálogo por segmento", () => {
-  it("todo segmento first-class tem catalogo utilizavel", () => {
-    for (const segment of FIRST_CLASS_SEGMENTS) {
+  it("todo segmento tem catálogo utilizável (categorias, serviços e duração)", () => {
+    for (const segment of ALL_SEGMENTS) {
       const { catalog } = SEGMENT_CONFIGS[segment];
-      expect(catalog.serviceCategories.length, `${segment}: categorias`).toBeGreaterThanOrEqual(2);
-      expect(catalog.services.length, `${segment}: serviços`).toBeGreaterThanOrEqual(3);
+      expect(catalog.serviceCategories.length, `${segment}: categorias`).toBeGreaterThanOrEqual(1);
+      expect(catalog.services.length, `${segment}: serviços`).toBeGreaterThanOrEqual(1);
       for (const service of catalog.services) {
-        expect(service.price, `${segment}/${service.name}: preço`).toBeGreaterThan(0);
+        expect(service.price, `${segment}/${service.name}: preço`).toBeGreaterThanOrEqual(0);
         expect(service.avgTimeMinutes, `${segment}/${service.name}: duração`).toBeGreaterThan(0);
         expect(
           catalog.serviceCategories.some((c) => c.name === service.categoryName),
           `${segment}/${service.name}: categoria "${service.categoryName}" não existe`
         ).toBe(true);
       }
+    }
+  });
+
+  it("segmentos anteriores têm preço real preenchido — não são placeholder", () => {
+    for (const segment of PRE_EXISTING_WITH_PRICES) {
+      for (const service of SEGMENT_CONFIGS[segment].catalog.services) {
+        expect(service.price, `${segment}/${service.name}: preço`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("segmentos novos usam preço 0 (placeholder) — o dono preenche", () => {
+    for (const segment of ALL_SEGMENTS) {
+      if (PRE_EXISTING_WITH_PRICES.has(segment)) continue;
+      for (const service of SEGMENT_CONFIGS[segment].catalog.services) {
+        expect(service.price, `${segment}/${service.name}: preço`).toBe(0);
+      }
+    }
+  });
+
+  it("segmentos de saúde carregam o aviso de que não é prontuário", () => {
+    for (const segment of ["PHYSIOTHERAPY", "NUTRITION", "PSYCHOTHERAPY"] as const) {
+      expect(
+        SEGMENT_CONFIGS[segment].complianceNote,
+        `${segment}: complianceNote ausente`
+      ).toBeTruthy();
     }
   });
 

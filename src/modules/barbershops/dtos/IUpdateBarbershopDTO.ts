@@ -13,6 +13,7 @@ export interface IUpdateBarbershopDTO {
   operationMode?: OperationMode;
   openingMode?: OpeningMode;
   businessSegment?: BusinessSegment;
+  businessSegmentOther?: string | null;
   targetAudience?: TargetAudience | null;
   /** Nome da instância Evolution — gravado pelo pairing, não pelo PATCH genérico. */
   evolutionInstanceName?: string | null;

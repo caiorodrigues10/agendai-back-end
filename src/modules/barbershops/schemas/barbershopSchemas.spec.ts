@@ -59,3 +59,33 @@ describe("createBarbershopSchema — segmento e público", () => {
     expect(parsed.businessSegment).toBeUndefined();
   });
 });
+
+describe("texto livre de OTHER (businessSegmentOther)", () => {
+  it("aceita OTHER com texto até 80 caracteres", () => {
+    const parsed = updateBarbershopSchema.parse({
+      businessSegment: "OTHER",
+      businessSegmentOther: "Academia de boxe com aulas",
+    });
+    expect(parsed.businessSegmentOther).toBe("Academia de boxe com aulas");
+  });
+
+  it("recusa texto com mais de 80 caracteres", () => {
+    const result = updateBarbershopSchema.safeParse({
+      businessSegment: "OTHER",
+      businessSegmentOther: "x".repeat(81),
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual(["businessSegmentOther"]);
+    }
+  });
+
+  it("createBarbershopSchema aplica a mesma regra", () => {
+    const result = createBarbershopSchema.safeParse({
+      ...base,
+      businessSegment: "OTHER",
+      businessSegmentOther: "y".repeat(81),
+    });
+    expect(result.success).toBe(false);
+  });
+});

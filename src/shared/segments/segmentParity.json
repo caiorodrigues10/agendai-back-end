@@ -23,17 +23,49 @@
     "LASH_BROW_STUDIO",
     "AESTHETICS",
     "SPA",
+    "MAKEUP_STUDIO",
+    "PHYSIOTHERAPY",
+    "NUTRITION",
+    "PSYCHOTHERAPY",
+    "VETERINARY",
+    "CAR_WASH",
+    "AUTO_REPAIR",
+    "PHOTO_STUDIO",
+    "TATTOO_PIERCING",
+    "COACHING",
+    "PRIVATE_CLASSES",
+    "TECH_SUPPORT",
+    "HOME_SERVICES",
     "OTHER"
   ],
   "firstClassSegments": [
     "BARBERSHOP",
     "HAIR_SALON",
     "NAIL_STUDIO",
-    "PETSHOP"
+    "BEAUTY_STUDIO",
+    "LASH_BROW_STUDIO",
+    "AESTHETICS",
+    "MAKEUP_STUDIO",
+    "SPA",
+    "PHYSIOTHERAPY",
+    "NUTRITION",
+    "PSYCHOTHERAPY",
+    "PETSHOP",
+    "VETERINARY",
+    "CAR_WASH",
+    "AUTO_REPAIR",
+    "PHOTO_STUDIO",
+    "TATTOO_PIERCING",
+    "COACHING",
+    "PRIVATE_CLASSES",
+    "TECH_SUPPORT",
+    "HOME_SERVICES",
+    "OTHER"
   ],
   "segments": {
     "BARBERSHOP": {
       "firstClass": true,
+      "group": "beauty",
       "labels": {
         "segmentLabel": "Barbearia",
         "shopNoun": "barbearia",
@@ -55,6 +87,7 @@
     },
     "HAIR_SALON": {
       "firstClass": true,
+      "group": "beauty",
       "labels": {
         "segmentLabel": "Salão de cabelo",
         "shopNoun": "salão",
@@ -76,6 +109,7 @@
     },
     "NAIL_STUDIO": {
       "firstClass": true,
+      "group": "beauty",
       "labels": {
         "segmentLabel": "Manicure e nails",
         "shopNoun": "studio",
@@ -97,6 +131,7 @@
     },
     "PETSHOP": {
       "firstClass": true,
+      "group": "pet",
       "labels": {
         "segmentLabel": "Petshop",
         "shopNoun": "petshop",
@@ -117,7 +152,8 @@
       }
     },
     "BEAUTY_STUDIO": {
-      "firstClass": false,
+      "firstClass": true,
+      "group": "beauty",
       "labels": {
         "segmentLabel": "Studio de beleza",
         "shopNoun": "studio",
@@ -138,7 +174,8 @@
       }
     },
     "LASH_BROW_STUDIO": {
-      "firstClass": false,
+      "firstClass": true,
+      "group": "beauty",
       "labels": {
         "segmentLabel": "Cílios e sobrancelhas",
         "shopNoun": "studio",
@@ -159,7 +196,8 @@
       }
     },
     "AESTHETICS": {
-      "firstClass": false,
+      "firstClass": true,
+      "group": "beauty",
       "labels": {
         "segmentLabel": "Estética",
         "shopNoun": "estética",
@@ -180,9 +218,10 @@
       }
     },
     "SPA": {
-      "firstClass": false,
+      "firstClass": true,
+      "group": "wellness",
       "labels": {
-        "segmentLabel": "Spa",
+        "segmentLabel": "Spa e massagem",
         "shopNoun": "spa",
         "shopNounPlural": "spas",
         "professional": "profissional",
@@ -200,8 +239,295 @@
         "suggested": "UNISSEX"
       }
     },
+    "MAKEUP_STUDIO": {
+      "firstClass": true,
+      "group": "beauty",
+      "labels": {
+        "segmentLabel": "Maquiagem e penteado",
+        "shopNoun": "estúdio",
+        "shopNounPlural": "estúdios",
+        "professional": "maquiador(a)",
+        "professionalPlural": "maquiadores",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "atendimento",
+        "servicePlural": "atendimentos",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": true,
+        "suggested": "FEMININO"
+      }
+    },
+    "PHYSIOTHERAPY": {
+      "firstClass": true,
+      "group": "health",
+      "labels": {
+        "segmentLabel": "Fisioterapia e quiropraxia",
+        "shopNoun": "consultório",
+        "shopNounPlural": "consultórios",
+        "professional": "fisioterapeuta",
+        "professionalPlural": "fisioterapeutas",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "sessão",
+        "servicePlural": "sessões",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "NUTRITION": {
+      "firstClass": true,
+      "group": "health",
+      "labels": {
+        "segmentLabel": "Nutrição",
+        "shopNoun": "consultório",
+        "shopNounPlural": "consultórios",
+        "professional": "nutricionista",
+        "professionalPlural": "nutricionistas",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "consulta",
+        "servicePlural": "consultas",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "PSYCHOTHERAPY": {
+      "firstClass": true,
+      "group": "health",
+      "labels": {
+        "segmentLabel": "Psicologia e terapia",
+        "shopNoun": "consultório",
+        "shopNounPlural": "consultórios",
+        "professional": "terapeuta",
+        "professionalPlural": "terapeutas",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "sessão",
+        "servicePlural": "sessões",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "VETERINARY": {
+      "firstClass": true,
+      "group": "pet",
+      "labels": {
+        "segmentLabel": "Veterinária",
+        "shopNoun": "clínica",
+        "shopNounPlural": "clínicas",
+        "professional": "veterinário(a)",
+        "professionalPlural": "veterinários",
+        "client": "tutor(a)",
+        "clientPlural": "tutores",
+        "service": "consulta",
+        "servicePlural": "consultas",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "CAR_WASH": {
+      "firstClass": true,
+      "group": "automotive",
+      "labels": {
+        "segmentLabel": "Lava jato",
+        "shopNoun": "lava jato",
+        "shopNounPlural": "lava jatos",
+        "professional": "profissional",
+        "professionalPlural": "profissionais",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "AUTO_REPAIR": {
+      "firstClass": true,
+      "group": "automotive",
+      "labels": {
+        "segmentLabel": "Mecânica e oficina",
+        "shopNoun": "oficina",
+        "shopNounPlural": "oficinas",
+        "professional": "mecânico(a)",
+        "professionalPlural": "mecânicos",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "PHOTO_STUDIO": {
+      "firstClass": true,
+      "group": "services",
+      "labels": {
+        "segmentLabel": "Fotografia",
+        "shopNoun": "estúdio",
+        "shopNounPlural": "estúdios",
+        "professional": "fotógrafo(a)",
+        "professionalPlural": "fotógrafos",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "sessão",
+        "servicePlural": "sessões",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "TATTOO_PIERCING": {
+      "firstClass": true,
+      "group": "services",
+      "labels": {
+        "segmentLabel": "Tatuagem e piercing",
+        "shopNoun": "estúdio",
+        "shopNounPlural": "estúdios",
+        "professional": "tatuador(a)",
+        "professionalPlural": "tatuadores",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "sessão",
+        "servicePlural": "sessões",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "COACHING": {
+      "firstClass": true,
+      "group": "services",
+      "labels": {
+        "segmentLabel": "Consultoria e coaching",
+        "shopNoun": "consultório",
+        "shopNounPlural": "consultórios",
+        "professional": "consultor(a)",
+        "professionalPlural": "consultores",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "sessão",
+        "servicePlural": "sessões",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "PRIVATE_CLASSES": {
+      "firstClass": true,
+      "group": "services",
+      "labels": {
+        "segmentLabel": "Aulas particulares",
+        "shopNoun": "espaço",
+        "shopNounPlural": "espaços",
+        "professional": "professor(a)",
+        "professionalPlural": "professores",
+        "client": "aluno(a)",
+        "clientPlural": "alunos",
+        "service": "aula",
+        "servicePlural": "aulas",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "TECH_SUPPORT": {
+      "firstClass": true,
+      "group": "services",
+      "labels": {
+        "segmentLabel": "Assistência técnica",
+        "shopNoun": "assistência",
+        "shopNounPlural": "assistências",
+        "professional": "técnico(a)",
+        "professionalPlural": "técnicos",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "atendimento",
+        "servicePlural": "atendimentos",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
+    "HOME_SERVICES": {
+      "firstClass": true,
+      "group": "services",
+      "labels": {
+        "segmentLabel": "Serviços domiciliares",
+        "shopNoun": "empresa",
+        "shopNounPlural": "empresas",
+        "professional": "profissional",
+        "professionalPlural": "profissionais",
+        "client": "cliente",
+        "clientPlural": "clientes",
+        "service": "serviço",
+        "servicePlural": "serviços",
+        "queue": "fila",
+        "appointment": "agenda",
+        "staff": "equipe"
+      },
+      "targetAudience": {
+        "applies": false,
+        "suggested": null
+      }
+    },
     "OTHER": {
-      "firstClass": false,
+      "firstClass": true,
+      "group": "other",
       "labels": {
         "segmentLabel": "Outro",
         "shopNoun": "estabelecimento",
@@ -217,8 +543,8 @@
         "staff": "equipe"
       },
       "targetAudience": {
-        "applies": true,
-        "suggested": "UNISSEX"
+        "applies": false,
+        "suggested": null
       }
     }
   }

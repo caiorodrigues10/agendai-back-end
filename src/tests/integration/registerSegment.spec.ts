@@ -18,7 +18,8 @@ import { randomUUID } from "node:crypto";
 import { vi } from "vitest";
 import { prisma } from "@/libs/prismaClient";
 import { RegisterUseCase } from "@/modules/auth/useCases/register/RegisterUseCase";
-import { SEGMENT_CONFIGS } from "@/shared/segments";
+import { ALL_SEGMENTS, SEGMENT_CONFIGS } from "@/shared/segments";
+import type { BusinessSegment } from "@/modules/barbershops/dtos/IBarbershopResponseDTO";
 
 vi.mock("@/shared/services/emailValidationService", () => ({
   validateEmail: vi.fn(async () => ({ valid: true })),
@@ -46,7 +47,11 @@ const useCase = new RegisterUseCase({
   compare: async () => true,
 } as never);
 
-async function register(segment?: string, targetAudience?: string | null) {
+async function register(
+  segment?: string,
+  targetAudience?: string | null,
+  businessSegmentOther?: string
+) {
   return useCase.execute({
     ownerName: `Dono ${segment ?? "sem-seg"}`,
     email: `${(segment ?? "sem").toLowerCase()}-${SUFFIX}-${++seq}@exemplo.com`,
@@ -60,6 +65,7 @@ async function register(segment?: string, targetAudience?: string | null) {
     lgpdConsent: true,
     ...(segment ? { businessSegment: segment as never } : {}),
     ...(targetAudience !== undefined ? { targetAudience: targetAudience as never } : {}),
+    ...(businessSegmentOther !== undefined ? { businessSegmentOther } : {}),
   });
 }
 
@@ -73,13 +79,12 @@ describe("cadastro com segmento (Postgres real)", () => {
     await prisma.barbershop.deleteMany({ where: { id: shops } });
   });
 
-  it.each([
-    ["BARBERSHOP", "MASCULINO"],
-    ["HAIR_SALON", "UNISSEX"],
-    ["NAIL_STUDIO", "FEMININO"],
-  ])(
+  // Um salão em CADA segmento do enum. Cobre os antigos e os adicionados em
+  // 2026-10; segmentos novos que esquecerem de catálogo ou público caem aqui.
+  it.each(ALL_SEGMENTS.map((s) => [s] as const))(
     "%s grava o segmento, aplica o público sugerido e semeia o catálogo",
-    async (segment, expectedAudience) => {
+    async (segment) => {
+      const config = SEGMENT_CONFIGS[segment as BusinessSegment];
       const result = await register(segment);
       createdBarbershopIds.push(result.user.barbershopId!);
       createdUserIds.push(result.user.id);
@@ -89,23 +94,45 @@ describe("cadastro com segmento (Postgres real)", () => {
       });
 
       expect(shop.businessSegment).toBe(segment);
-      expect(shop.targetAudience).toBe(expectedAudience);
-      expect(shop.operationMode).toBe(
-        SEGMENT_CONFIGS[segment as keyof typeof SEGMENT_CONFIGS].suggestedOperationMode
+      // Público: aplicável → sugerido do config; não aplicável (PETSHOP,
+      // saúde, automotivo, serviços gerais, OTHER) → null.
+      expect(shop.targetAudience).toBe(
+        config.targetAudience.applies ? config.targetAudience.suggested : null
       );
+      expect(shop.operationMode).toBe(config.suggestedOperationMode);
 
       const services = await prisma.service.findMany({
         where: { barbershopId: shop.id },
         select: { name: true },
       });
       const names = services.map((s) => s.name);
-      const expected = SEGMENT_CONFIGS[segment as keyof typeof SEGMENT_CONFIGS].catalog.services.map(
-        (s) => s.name
-      );
+      const expected = config.catalog.services.map((s) => s.name);
       expect(names.sort()).toEqual([...expected].sort());
       expect(names.length).toBeGreaterThan(0);
     }
   );
+
+  it("OTHER guarda o texto livre businessSegmentOther", async () => {
+    const result = await register("OTHER", undefined, "Estúdio de tatuagem");
+    createdBarbershopIds.push(result.user.barbershopId!);
+
+    const shop = await prisma.barbershop.findUniqueOrThrow({
+      where: { id: result.user.barbershopId! },
+    });
+    expect(shop.businessSegment).toBe("OTHER");
+    expect(shop.businessSegmentOther).toBe("Estúdio de tatuagem");
+    expect(shop.targetAudience).toBeNull();
+  });
+
+  it("segmento que não é OTHER descarta o texto livre (nunca grava lixo)", async () => {
+    const result = await register("HAIR_SALON", undefined, "Texto que não deveria ficar");
+    createdBarbershopIds.push(result.user.barbershopId!);
+
+    const shop = await prisma.barbershop.findUniqueOrThrow({
+      where: { id: result.user.barbershopId! },
+    });
+    expect(shop.businessSegmentOther).toBeNull();
+  });
 
   it("PETSHOP não recebe público e o catálogo não tem 'Barba'", async () => {
     const result = await register("PETSHOP");

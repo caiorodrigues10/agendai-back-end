@@ -20,7 +20,7 @@ import { validateEmail } from "@/shared/services/emailValidationService";
 import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
-import { getSegmentConfig, resolveAudienceForSegment } from "@/shared/segments";
+import { getSegmentConfig, resolveAudienceForSegment, normalizeSegmentOther } from "@/shared/segments";
 import type { BusinessSegment, TargetAudience } from "@prisma/client";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
@@ -41,6 +41,7 @@ export interface IRegisterDTO {
   whatsapp: string;
   businessSegment?: BusinessSegment;
   targetAudience?: TargetAudience | null;
+  businessSegmentOther?: string;
   address?: string;
   city?: string;
   latitude?: number;
@@ -125,6 +126,7 @@ export class RegisterUseCase {
         // sugerido do segmento quando o usuário não escolheu.
         const segment = data.businessSegment ?? "BARBERSHOP";
         const targetAudience = resolveAudienceForSegment(segment, data.targetAudience);
+        const segmentOther = normalizeSegmentOther(data.businessSegment, data.businessSegmentOther);
 
         const barbershop = await tx.barbershop.create({
           data: {
@@ -133,6 +135,7 @@ export class RegisterUseCase {
             approvalStatus: "APPROVED",
             businessSegment: segment,
             ...(targetAudience ? { targetAudience } : {}),
+            ...(segmentOther ? { businessSegmentOther: segmentOther } : {}),
             // Só aplicado quando o segmento veio informado: quem cadastrou sem
             // segmento continua recebendo HYBRID, o default do banco.
             ...(data.businessSegment

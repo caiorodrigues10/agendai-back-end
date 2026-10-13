@@ -3,7 +3,7 @@ import { IBarbershopRepository } from "../../repositories/IBarbershopRepository"
 import { IUpdateBarbershopDTO } from "../../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
 import { geocodeCity } from "@/shared/services/geocodeCity";
-import { resolveAudienceForSegment } from "@/shared/segments";
+import { resolveAudienceForSegment, normalizeSegmentOther } from "@/shared/segments";
 import { assertShopAccess, type RequestingUser } from "../../utils/assertShopAccess";
 
 @injectable()
@@ -52,6 +52,27 @@ export class UpdateBarbershopUseCase {
         data.targetAudience !== undefined ? data.targetAudience : (shop?.targetAudience ?? null);
       if (segment) {
         resolved = { ...resolved, targetAudience: resolveAudienceForSegment(segment, audience) };
+      }
+    }
+
+    // Texto livre de OTHER: só persiste quando o segmento efetivo é OTHER;
+    // trocar de segmento zera o texto antigo, e voltar para OTHER não recupera
+    // o que foi digitado antes (deliberado — o texto descreve o segmento).
+    if (
+      data.businessSegment !== undefined ||
+      data.targetAudience !== undefined ||
+      data.businessSegmentOther !== undefined
+    ) {
+      const segment = data.businessSegment ?? shop?.businessSegment;
+      if (segment) {
+        const incoming =
+          data.businessSegmentOther !== undefined
+            ? data.businessSegmentOther
+            : (shop?.businessSegmentOther ?? null);
+        resolved = {
+          ...resolved,
+          businessSegmentOther: normalizeSegmentOther(segment, incoming),
+        };
       }
     }
 

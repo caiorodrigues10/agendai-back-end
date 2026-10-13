@@ -18,6 +18,9 @@ const shopSelect = {
   operationMode: true,
   openingMode: true,
   businessSegment: true,
+  // Texto livre "Qual é o seu tipo de negócio?" (OTHER) — informação de
+  // configuração interna do dono, não da vitrine: fica fora do select público.
+  businessSegmentOther: true,
   // Público atendido é informação do vitrine ("Atendemos: feminino"), não dado
   // interno — entra no select autenticado e no público de propósito.
   targetAudience: true,
@@ -33,7 +36,8 @@ const shopSelect = {
 // (ver WhatsAppConnectionUseCase e enqueueWhatsApp). Vazá-lo permitia que qualquer
 // visitante listasse a instância de todos os salões. O frontend não consome o
 // campo; os fluxos autenticados continuam em `shopSelect` via findById.
-const { evolutionInstanceName: _evolutionInstanceName, ...publicShopSelect } = shopSelect;
+// `businessSegmentOther` também fica de fora: texto livre interno do dono.
+const { evolutionInstanceName: _evolutionInstanceName, businessSegmentOther: _businessSegmentOther, ...publicShopSelect } = shopSelect;
 
 export class BarbershopRepository implements IBarbershopRepository {
   async create(data: ICreateBarbershopDTO): Promise<IBarbershopResponseDTO> {

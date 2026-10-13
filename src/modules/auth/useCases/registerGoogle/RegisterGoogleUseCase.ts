@@ -18,7 +18,7 @@ import {
 import { validateEmail } from "@/shared/services/emailValidationService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
-import { getSegmentConfig, resolveAudienceForSegment } from "@/shared/segments";
+import { getSegmentConfig, resolveAudienceForSegment, normalizeSegmentOther } from "@/shared/segments";
 import type { BusinessSegment, TargetAudience } from "@prisma/client";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { issueAuthSession } from "../../services/issueAuthSession";
@@ -35,6 +35,7 @@ export interface IRegisterGoogleDTO {
   whatsapp: string;
   businessSegment?: BusinessSegment;
   targetAudience?: TargetAudience | null;
+  businessSegmentOther?: string;
   address?: string;
   city?: string;
   latitude?: number;
@@ -145,6 +146,7 @@ export class RegisterGoogleUseCase {
       user = await prisma.$transaction(async (tx: any) => {
         const segment = data.businessSegment ?? "BARBERSHOP";
         const targetAudience = resolveAudienceForSegment(segment, data.targetAudience);
+        const segmentOther = normalizeSegmentOther(data.businessSegment, data.businessSegmentOther);
 
         const barbershop = await tx.barbershop.create({
           data: {
@@ -153,6 +155,7 @@ export class RegisterGoogleUseCase {
             approvalStatus: "APPROVED",
             businessSegment: segment,
             ...(targetAudience ? { targetAudience } : {}),
+            ...(segmentOther ? { businessSegmentOther: segmentOther } : {}),
             ...(data.businessSegment
               ? { operationMode: getSegmentConfig(segment).suggestedOperationMode }
               : {}),

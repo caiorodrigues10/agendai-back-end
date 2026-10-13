@@ -273,6 +273,33 @@ enum BusinessSegment {
   SPA
   /// Banho e tosa de pets.
   PETSHOP
+  /// Maquiagem e penteado para eventos.
+  MAKEUP_STUDIO
+  /// Fisioterapia e quiropraxia (agenda e relacionamento; não prontuário).
+  PHYSIOTHERAPY
+  /// Nutrição (agenda e relacionamento; não prontuário).
+  NUTRITION
+  /// Psicologia e terapia (agenda e relacionamento; não prontuário).
+  PSYCHOTHERAPY
+  /// Veterinária com agendamento de consultas (cadastro de pet, sem prontuário).
+  VETERINARY
+  /// Lava-jato e estética automotiva.
+  CAR_WASH
+  /// Mecânica/oficina com agendamento de serviços.
+  AUTO_REPAIR
+  /// Estúdio de fotografia.
+  PHOTO_STUDIO
+  /// Tatuagem e piercing.
+  TATTOO_PIERCING
+  /// Consultoria e coaching (atendimento individual).
+  COACHING
+  /// Aulas particulares (música, idiomas, reforço, yoga/pilates individual).
+  PRIVATE_CLASSES
+  /// Assistência técnica (visitas/agendamentos de conserto).
+  TECH_SUPPORT
+  /// Serviços domiciliares (diarista, técnico em campo).
+  HOME_SERVICES
+  /// Segmento genérico escolhido pelo usuário — app no modo padrão.
   OTHER
 }
 
@@ -340,8 +367,12 @@ model Barbershop {
   /// Nicho do estabelecimento — orienta vocabulário, catálogo sugerido e
   /// textos de onboarding; não altera permissões nem URLs.
   businessSegment       BusinessSegment  @default(BARBERSHOP)
-  /// Público atendido (só relevante em segmentos de beleza). Nulo em PETSHOP.
+  /// Público atendido (só relevante em segmentos de beleza). Nulo em PETSHOP
+  /// e nos demais segmentos que não perguntam público.
   targetAudience        TargetAudience?
+  /// Texto livre do usuário quando o segmento é OTHER (máx. 80 chars).
+  /// Nulo/ausente nos demais segmentos.
+  businessSegmentOther  String?          @db.VarChar(80)
   /// Link público configurado pelo salão para avaliações no Google.
   googleReviewUrl       String?          @db.VarChar(500)
 

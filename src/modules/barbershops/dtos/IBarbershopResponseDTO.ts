@@ -34,6 +34,8 @@ export interface IBarbershopResponseDTO {
   operationMode: OperationMode;
   openingMode?: OpeningMode;
   businessSegment?: BusinessSegment;
+  /** Texto livre do dono quando o segmento é OTHER. Só no fluxo autenticado. */
+  businessSegmentOther?: string | null;
   targetAudience?: TargetAudience | null;
   manualStatus?: ManualShopStatus;
   createdAt: Date;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { BusinessSegment, TargetAudience } from "@prisma/client";
 import { isValidCpf, normalizeCpf, isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
-import { segmentAudienceError } from "@/shared/segments";
+import { segmentAudienceError, segmentOtherError } from "@/shared/segments";
 
 const phoneBR = z
   .string()
@@ -46,6 +46,8 @@ const registerBaseSchema = z.object({
   // a tela de cadastro exige antes de avançar. Quando ausente, o backend nasce
   // como BARBERSHOP, que é o default do banco.
   businessSegment: z.nativeEnum(BusinessSegment).optional(),
+  // Texto livre "Qual é o seu tipo de negócio?" — só faz sentido em OTHER.
+  businessSegmentOther: z.string().max(80).optional(),
   // Público só faz sentido em segmentos de beleza; em PETSHOP é ignorado.
   targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
   whatsapp: phoneBR,
@@ -80,7 +82,11 @@ export const registerSchema = registerBaseSchema.superRefine(segmentAudienceRefi
  * Zod descartam refinamentos, então o schema do Google precisa reaplicar.
  */
 function segmentAudienceRefine(
-  data: { businessSegment?: BusinessSegment; targetAudience?: TargetAudience | null },
+  data: {
+    businessSegment?: BusinessSegment;
+    targetAudience?: TargetAudience | null;
+    businessSegmentOther?: string;
+  },
   ctx: z.RefinementCtx
 ) {
   const message = segmentAudienceError(data.businessSegment, data.targetAudience);
@@ -89,6 +95,14 @@ function segmentAudienceRefine(
       code: z.ZodIssueCode.custom,
       path: ["targetAudience"],
       message,
+    });
+  }
+  const otherMessage = segmentOtherError(data.businessSegment, data.businessSegmentOther);
+  if (otherMessage) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["businessSegmentOther"],
+      message: otherMessage,
     });
   }
 }

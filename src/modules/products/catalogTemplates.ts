@@ -26,6 +26,23 @@ function base(segment: BusinessSegment, extra: Omit<CatalogTemplate, "version" |
   return { version: CATALOG_TEMPLATE_VERSION, segment, expenseCategories: [STOCK_EXPENSE], ...extra };
 }
 
+/** Template dos segmentos ampliados: só serviços de exemplo (preço 0) e
+ *  categorias — sem produtos/posts inventados. */
+function minimal(
+  segment: BusinessSegment,
+  extra: Pick<CatalogTemplate, "serviceCategories" | "services">
+): CatalogTemplate {
+  return {
+    version: CATALOG_TEMPLATE_VERSION,
+    segment,
+    expenseCategories: [STOCK_EXPENSE],
+    productCategories: [],
+    products: [],
+    posts: [],
+    ...extra,
+  };
+}
+
 export const CATALOG_TEMPLATES: Record<BusinessSegment, CatalogTemplate> = {
   BARBERSHOP: base("BARBERSHOP", {
     serviceCategories: [{ name: "Cortes", icon: "scissors" }, { name: "Barba", icon: "user" }],
@@ -181,10 +198,91 @@ export const CATALOG_TEMPLATES: Record<BusinessSegment, CatalogTemplate> = {
       { title: "Tosa com conforto", content: "Avisamos na recepção se o pet ficar estressado durante a tosa." },
     ],
   }),
+  // Segmentos ampliados (2026-10): template mínimo — categorias e um serviço
+  // de exemplo sem preço (o dono preenche). Sem produtos/posts inventados.
+  MAKEUP_STUDIO: minimal("MAKEUP_STUDIO", {
+    serviceCategories: [{ name: "Maquiagem", icon: "palette" }, { name: "Cabelo", icon: "scissors" }],
+    services: [
+      { name: "Maquiagem social", price: 0, avgTimeMinutes: 60, icon: "palette", categoryName: "Maquiagem" },
+      { name: "Penteado", price: 0, avgTimeMinutes: 45, icon: "scissors", categoryName: "Cabelo" },
+    ],
+  }),
+  PHYSIOTHERAPY: minimal("PHYSIOTHERAPY", {
+    serviceCategories: [{ name: "Sessões", icon: "heart" }],
+    services: [
+      { name: "Sessão de fisioterapia", price: 0, avgTimeMinutes: 50, icon: "heart", categoryName: "Sessões" },
+    ],
+  }),
+  NUTRITION: minimal("NUTRITION", {
+    serviceCategories: [{ name: "Consultas", icon: "clipboard" }],
+    services: [
+      { name: "Consulta de nutrição", price: 0, avgTimeMinutes: 45, icon: "clipboard", categoryName: "Consultas" },
+    ],
+  }),
+  PSYCHOTHERAPY: minimal("PSYCHOTHERAPY", {
+    serviceCategories: [{ name: "Sessões", icon: "heart" }],
+    services: [
+      { name: "Sessão de terapia", price: 0, avgTimeMinutes: 50, icon: "heart", categoryName: "Sessões" },
+    ],
+  }),
+  VETERINARY: minimal("VETERINARY", {
+    serviceCategories: [{ name: "Consultas", icon: "stethoscope" }],
+    services: [
+      { name: "Consulta veterinária", price: 0, avgTimeMinutes: 30, icon: "stethoscope", categoryName: "Consultas" },
+    ],
+  }),
+  CAR_WASH: minimal("CAR_WASH", {
+    serviceCategories: [{ name: "Lavagem", icon: "droplets" }],
+    services: [
+      { name: "Lavagem simples", price: 0, avgTimeMinutes: 30, icon: "droplets", categoryName: "Lavagem" },
+    ],
+  }),
+  AUTO_REPAIR: minimal("AUTO_REPAIR", {
+    serviceCategories: [{ name: "Manutenção", icon: "wrench" }],
+    services: [
+      { name: "Troca de óleo", price: 0, avgTimeMinutes: 40, icon: "wrench", categoryName: "Manutenção" },
+    ],
+  }),
+  PHOTO_STUDIO: minimal("PHOTO_STUDIO", {
+    serviceCategories: [{ name: "Ensaio", icon: "camera" }],
+    services: [
+      { name: "Ensaio fotográfico", price: 0, avgTimeMinutes: 90, icon: "camera", categoryName: "Ensaio" },
+    ],
+  }),
+  TATTOO_PIERCING: minimal("TATTOO_PIERCING", {
+    serviceCategories: [{ name: "Tatuagem", icon: "pen" }],
+    services: [
+      { name: "Sessão de tatuagem", price: 0, avgTimeMinutes: 120, icon: "pen", categoryName: "Tatuagem" },
+    ],
+  }),
+  COACHING: minimal("COACHING", {
+    serviceCategories: [{ name: "Sessões", icon: "briefcase" }],
+    services: [
+      { name: "Sessão de consultoria", price: 0, avgTimeMinutes: 60, icon: "briefcase", categoryName: "Sessões" },
+    ],
+  }),
+  PRIVATE_CLASSES: minimal("PRIVATE_CLASSES", {
+    serviceCategories: [{ name: "Aulas", icon: "music" }],
+    services: [
+      { name: "Aula particular", price: 0, avgTimeMinutes: 60, icon: "music", categoryName: "Aulas" },
+    ],
+  }),
+  TECH_SUPPORT: minimal("TECH_SUPPORT", {
+    serviceCategories: [{ name: "Atendimentos", icon: "wrench" }],
+    services: [
+      { name: "Atendimento técnico", price: 0, avgTimeMinutes: 45, icon: "wrench", categoryName: "Atendimentos" },
+    ],
+  }),
+  HOME_SERVICES: minimal("HOME_SERVICES", {
+    serviceCategories: [{ name: "Serviços", icon: "home" }],
+    services: [
+      { name: "Diária de limpeza", price: 0, avgTimeMinutes: 240, icon: "home", categoryName: "Serviços" },
+    ],
+  }),
   OTHER: base("OTHER", {
     serviceCategories: [{ name: "Serviços", icon: "sparkles" }],
     productCategories: [{ name: "Varejo", icon: "package", color: "#6B7280" }],
-    services: [{ name: "Atendimento", price: 50, avgTimeMinutes: 30, icon: "sparkles", categoryName: "Serviços" }],
+    services: [{ name: "Serviço", price: 0, avgTimeMinutes: 30, icon: "sparkles", categoryName: "Serviços" }],
     products: [
       { name: "Produto de varejo", categoryName: "Varejo", salePrice: 40, unitLabel: "unidade", type: "RETAIL" },
     ],

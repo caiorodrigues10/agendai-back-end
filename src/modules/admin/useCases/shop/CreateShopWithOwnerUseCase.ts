@@ -5,7 +5,7 @@ import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
-import { getSegmentConfig, resolveAudienceForSegment } from "@/shared/segments";
+import { getSegmentConfig, resolveAudienceForSegment, normalizeSegmentOther } from "@/shared/segments";
 import { hashInviteToken } from "@/shared/utils/tokenHash";
 import { checkCnpjAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
@@ -53,11 +53,13 @@ export class CreateShopWithOwnerUseCase {
       planId,
       trialDays,
       businessSegment,
+      businessSegmentOther,
       targetAudience,
     } = data;
 
     const segment = businessSegment ?? "BARBERSHOP";
     const audience = resolveAudienceForSegment(segment, targetAudience);
+    const segmentOther = normalizeSegmentOther(businessSegment, businessSegmentOther);
 
     if (cnpj) await checkCnpjAccess(cnpj);
 
@@ -102,6 +104,7 @@ export class CreateShopWithOwnerUseCase {
             approvalStatus: "APPROVED",
             businessSegment: segment,
             ...(audience ? { targetAudience: audience } : {}),
+            ...(segmentOther ? { businessSegmentOther: segmentOther } : {}),
             ...(businessSegment
               ? { operationMode: getSegmentConfig(segment).suggestedOperationMode }
               : {}),

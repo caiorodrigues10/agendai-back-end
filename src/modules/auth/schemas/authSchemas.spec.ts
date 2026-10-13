@@ -57,6 +57,37 @@ describe("registerSchema — segmento e público", () => {
     }
   });
 
+  it("aceita TODOS os valores do enum (incluindo os ampliados de 2026-10)", () => {
+    const allSegments = [
+      "BARBERSHOP",
+      "HAIR_SALON",
+      "BEAUTY_STUDIO",
+      "NAIL_STUDIO",
+      "LASH_BROW_STUDIO",
+      "AESTHETICS",
+      "SPA",
+      "PETSHOP",
+      "MAKEUP_STUDIO",
+      "PHYSIOTHERAPY",
+      "NUTRITION",
+      "PSYCHOTHERAPY",
+      "VETERINARY",
+      "CAR_WASH",
+      "AUTO_REPAIR",
+      "PHOTO_STUDIO",
+      "TATTOO_PIERCING",
+      "COACHING",
+      "PRIVATE_CLASSES",
+      "TECH_SUPPORT",
+      "HOME_SERVICES",
+      "OTHER",
+    ] as const;
+    for (const businessSegment of allSegments) {
+      const parsed = registerSchema.safeParse({ ...base, businessSegment });
+      expect(parsed.success, `segmento ${businessSegment} recusado`).toBe(true);
+    }
+  });
+
   it("aceita sem segmento (compat) e mantém o default BARBERSHOP do banco", () => {
     const parsed = registerSchema.safeParse(base);
     expect(parsed.success).toBe(true);
@@ -111,6 +142,42 @@ describe("registerSchema — segmento e público", () => {
       targetAudience: "TODOS",
     });
     expect(parsed.success).toBe(false);
+  });
+});
+
+describe("registerSchema — texto livre de OTHER", () => {
+  it("aceita OTHER com texto até 80 caracteres", () => {
+    const parsed = registerSchema.safeParse({
+      ...base,
+      businessSegment: "OTHER",
+      businessSegmentOther: "Estúdio de fotografia de produtos",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("aceita OTHER sem texto (campo opcional)", () => {
+    expect(registerSchema.safeParse({ ...base, businessSegment: "OTHER" }).success).toBe(true);
+  });
+
+  it("recusa texto com mais de 80 caracteres", () => {
+    const parsed = registerSchema.safeParse({
+      ...base,
+      businessSegment: "OTHER",
+      businessSegmentOther: "x".repeat(81),
+    });
+    expect(parsed.success).toBe(false);
+    expect(paths(parsed.error)).toContain("businessSegmentOther:custom");
+  });
+
+  it("ignora o texto quando o segmento não é OTHER (não grava fora de OTHER)", () => {
+    // O schema aceita (compat com clientes antigos); quem zera é o
+    // normalizeSegmentOther no use case — aqui só garantimos que não é erro.
+    const parsed = registerSchema.safeParse({
+      ...base,
+      businessSegment: "HAIR_SALON",
+      businessSegmentOther: "Texto órfão",
+    });
+    expect(parsed.success).toBe(true);
   });
 });
 

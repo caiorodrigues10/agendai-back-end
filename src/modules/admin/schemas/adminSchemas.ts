@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BusinessSegment, TargetAudience } from "@prisma/client";
-import { segmentAudienceError } from "@/shared/segments";
+import { segmentAudienceError, segmentOtherError } from "@/shared/segments";
 
 const userRoleEnum = z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]);
 
@@ -72,6 +72,8 @@ export const adminCreateBarbershopSchema = z.object({
   trialDays: z.number().int().min(1).max(60).optional(),
   /** Segmento do negócio. Opcional p/ compat: sem ele o salão nasce BARBERSHOP. */
   businessSegment: z.nativeEnum(BusinessSegment).optional(),
+  /** Texto livre "Qual é o seu tipo de negócio?" — só faz sentido em OTHER. */
+  businessSegmentOther: z.string().max(80).optional(),
   /** Público atendido. Em PETSHOP não se aplica e é recusado. */
   targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
 }).strict().superRefine((data, ctx) => {
@@ -81,6 +83,14 @@ export const adminCreateBarbershopSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["targetAudience"],
       message,
+    });
+  }
+  const otherMessage = segmentOtherError(data.businessSegment, data.businessSegmentOther);
+  if (otherMessage) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["businessSegmentOther"],
+      message: otherMessage,
     });
   }
 });
