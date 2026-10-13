@@ -90,4 +90,36 @@ describe("troca de segmento do salão (Postgres real)", () => {
     const shop = await prisma.barbershop.findUniqueOrThrow({ where: { id: shopId } });
     expect(shop.businessSegment).toBe("BARBERSHOP");
   });
+
+  it("OTHER guarda o texto livre normalizado; trocar de segmento zera", async () => {
+    await useCase.execute(
+      shopId,
+      { businessSegment: "OTHER", businessSegmentOther: "  Estúdio   de tatuagem\tcom piercing  " },
+      owner
+    );
+
+    const withOther = await prisma.barbershop.findUniqueOrThrow({ where: { id: shopId } });
+    expect(withOther.businessSegment).toBe("OTHER");
+    expect(withOther.businessSegmentOther).toBe("Estúdio de tatuagem com piercing");
+
+    // Sair de OTHER zera o texto — não fica lixo de um segmento antigo.
+    await useCase.execute(shopId, { businessSegment: "HAIR_SALON" }, owner);
+    const left = await prisma.barbershop.findUniqueOrThrow({ where: { id: shopId } });
+    expect(left.businessSegment).toBe("HAIR_SALON");
+    expect(left.businessSegmentOther).toBeNull();
+  });
+
+  it("a leitura pública NÃO expõe businessSegmentOther (só interna)", async () => {
+    await useCase.execute(
+      shopId,
+      { businessSegment: "OTHER", businessSegmentOther: "Segredo do dono" },
+      owner
+    );
+
+    const publicShop = await repo.findByIdPublic(shopId);
+    expect(publicShop).not.toHaveProperty("businessSegmentOther");
+
+    const internalShop = await repo.findById(shopId);
+    expect(internalShop?.businessSegmentOther).toBe("Segredo do dono");
+  });
 });
