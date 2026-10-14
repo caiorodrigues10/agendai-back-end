@@ -6,6 +6,7 @@ import { IUserResponseDTO }  from "../../dtos/IUserResponseDTO";
 import { AppError }          from "@/shared/errors/AppError";
 import { assertCpfNotBlocked } from "@/shared/services/blockedEntityService";
 import { normalizeCpf }      from "@/shared/utils/cpfUtils";
+import { mapUniqueConstraintError } from "@/shared/utils/prismaErrors";
 import { enqueueEmail }      from "@/shared/infra/queue/emailQueue";
 import { prisma }            from "@/libs/prismaClient";
 import { getModuleLogger }   from "@/shared/utils/logger";
@@ -53,13 +54,20 @@ export class CreateUserUseCase {
     // 4. Hash da senha
     const hashedPassword = await this.hashProvider.hash(data.password);
 
-    // 5. Cria o usuário
-    const user = await this.userRepository.create({
-      ...data,
-      role,
-      cpf: normalizedCpf,   // undefined quando não informado (compatível com ICreateUserDTO)
-      password: hashedPassword
-    });
+    // 5. Cria o usuário — o `findByCpf`/`findByEmail` acima não são atômicos:
+    // duas requisições simultâneas passam na checagem e o índice único do
+    // banco barra a segunda. O P2002 vira 409, não 500.
+    let user: IUserResponseDTO;
+    try {
+      user = await this.userRepository.create({
+        ...data,
+        role,
+        cpf: normalizedCpf,   // undefined quando não informado (compatível com ICreateUserDTO)
+        password: hashedPassword
+      });
+    } catch (error) {
+      throw mapUniqueConstraintError(error) ?? error;
+    }
 
     // 6. E-mail de boas-vindas da equipe (não o dono — não é cliente final).
     if (role === "EMPLOYEE" && data.barbershopId) {

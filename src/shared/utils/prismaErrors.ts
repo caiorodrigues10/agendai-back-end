@@ -75,19 +75,24 @@ function uniqueConstraintTarget(error: unknown): string {
   }
 }
 
-/** Maps Prisma P2002 (unique constraint) to a domain AppError, or null if not P2002. */
+/**
+ * Maps Prisma P2002 (unique constraint) to a domain AppError, or null if not P2002.
+ *
+ * Conflitos de unicidade são 409 (o recurso já existe), não 400 (payload
+ * malformado) — assim o front distingue "dados inválidos" de "já cadastrado".
+ */
 export function mapUniqueConstraintError(error: unknown): AppError | null {
   if (!isUniqueConstraintError(error)) return null;
 
   const target = uniqueConstraintTarget(error);
   if (target.includes("email")) {
-    return new AppError(UNIQUE_FIELD_MESSAGES.email, 400);
+    return new AppError(UNIQUE_FIELD_MESSAGES.email, 409);
   }
   if (target.includes("googlesub")) {
-    return new AppError(UNIQUE_FIELD_MESSAGES.googleSub, 400);
+    return new AppError(UNIQUE_FIELD_MESSAGES.googleSub, 409);
   }
   if (target.includes("cpf")) {
-    return new AppError(UNIQUE_FIELD_MESSAGES.cpf, 400);
+    return new AppError(UNIQUE_FIELD_MESSAGES.cpf, 409);
   }
   return new AppError("Registro duplicado", 409);
 }

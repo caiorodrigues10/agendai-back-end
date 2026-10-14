@@ -83,7 +83,7 @@ export class RegisterUseCase {
 
     const existingCpf = await prisma.user.findFirst({ where: { cpf: normalizedCpf } });
     if (existingCpf) {
-      throw new AppError("CPF já cadastrado", 400);
+      throw new AppError("CPF já cadastrado", 409);
     }
 
     await assertCpfNotBlocked(normalizedCpf);

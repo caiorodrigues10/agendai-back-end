@@ -3,6 +3,7 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { hash } from "bcryptjs";
 import { isValidCpf, normalizeCpf } from "@/shared/utils/cpfUtils";
+import { mapUniqueConstraintError } from "@/shared/utils/prismaErrors";
 import { adminCreateUserSchema, adminUpdateUserSchema, adminListUsersQuerySchema } from "../schemas/adminSchemas";
 
 export class AdminUserController {
@@ -83,7 +84,7 @@ export class AdminUserController {
       if (!isValidCpf(cpf)) throw new AppError("CPF inválido (dígitos verificadores incorretos)", 400);
       normalizedCpf = normalizeCpf(cpf);
       const cpfInUse = await prisma.user.findFirst({ where: { cpf: normalizedCpf } });
-      if (cpfInUse) throw new AppError("CPF já cadastrado", 400);
+      if (cpfInUse) throw new AppError("CPF já cadastrado", 409);
     }
 
     if (!password) {
@@ -91,10 +92,15 @@ export class AdminUserController {
     }
     const passwordHash = await hash(password, 8);
 
-    const user = await prisma.user.create({
-      data: { name, email, password: passwordHash, role, barbershopId: sanitizedBarbershopId, active, cpf: normalizedCpf },
-      select: { id: true, name: true, email: true, role: true, active: true, barbershopId: true, cpf: true }
-    });
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: { name, email, password: passwordHash, role, barbershopId: sanitizedBarbershopId, active, cpf: normalizedCpf },
+        select: { id: true, name: true, email: true, role: true, active: true, barbershopId: true, cpf: true }
+      });
+    } catch (error) {
+      throw mapUniqueConstraintError(error) ?? error;
+    }
 
     if (request.user) {
       await prisma.auditLog.create({
@@ -142,22 +148,27 @@ export class AdminUserController {
         if (!isValidCpf(cpf)) throw new AppError("CPF inválido (dígitos verificadores incorretos)", 400);
         normalizedCpf = normalizeCpf(cpf);
         const cpfInUse = await prisma.user.findFirst({ where: { cpf: normalizedCpf, id: { not: id } } });
-        if (cpfInUse) throw new AppError("CPF já cadastrado por outro usuário", 400);
+        if (cpfInUse) throw new AppError("CPF já cadastrado por outro usuário", 409);
       }
     }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(email && { email }),
-        ...(role && { role }),
-        ...(active !== undefined && { active }),
-        ...(barbershopId !== undefined && { barbershopId: sanitizedBarbershopId }),
-        ...(normalizedCpf !== undefined && { cpf: normalizedCpf })
-      },
-      select: { id: true, name: true, email: true, role: true, active: true, cpf: true, barbershopId: true }
-    });
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(email && { email }),
+          ...(role && { role }),
+          ...(active !== undefined && { active }),
+          ...(barbershopId !== undefined && { barbershopId: sanitizedBarbershopId }),
+          ...(normalizedCpf !== undefined && { cpf: normalizedCpf })
+        },
+        select: { id: true, name: true, email: true, role: true, active: true, cpf: true, barbershopId: true }
+      });
+    } catch (error) {
+      throw mapUniqueConstraintError(error) ?? error;
+    }
 
     if (request.user) {
       await prisma.auditLog.create({

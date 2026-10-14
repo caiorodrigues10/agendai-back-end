@@ -3,6 +3,7 @@ import { LoginController, validateLogin } from "@/modules/auth/useCases/login/Lo
 import { RefreshController, validateRefresh } from "@/modules/auth/useCases/refresh/RefreshController";
 import { MeController, mePreHandler } from "@/modules/auth/useCases/me/MeController";
 import { RegisterController, validateRegister } from "@/modules/auth/useCases/register/RegisterController";
+import { CheckCpfController, validateCheckCpf } from "@/modules/auth/useCases/checkCpf/CheckCpfController";
 import { RegisterGoogleController, validateRegisterWithGoogle } from "@/modules/auth/useCases/registerGoogle/RegisterGoogleController";
 import { VerifyEmailController } from "@/modules/auth/controllers/VerifyEmailController";
 import { GoogleLoginController, validateGoogleLogin } from "@/modules/auth/useCases/googleLogin/GoogleLoginController";
@@ -30,6 +31,7 @@ export async function authRoutes(app: FastifyInstance) {
   const refresh = new RefreshController();
   const me = new MeController();
   const register = new RegisterController();
+  const checkCpf = new CheckCpfController();
   const registerGoogle = new RegisterGoogleController();
   const verifyEmail = new VerifyEmailController();
   const googleLogin = new GoogleLoginController();
@@ -44,6 +46,9 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/login", { ...authRateLimit, preHandler: [validateLogin, verifyRecaptcha] }, login.handle.bind(login));
   app.post("/auth/register", { ...authRateLimit, preHandler: [validateRegister, verifyRecaptcha] }, register.handle.bind(register));
   app.post("/auth/register-google", { ...authRateLimit, preHandler: [validateRegisterWithGoogle, verifyRecaptcha] }, registerGoogle.handle.bind(registerGoogle));
+  // Checagem leve de unicidade do CPF para o front (etapa 1 do cadastro).
+  // Rate limit + resposta genérica ({ available }) evitam enumerar contas.
+  app.get("/auth/check-cpf", { ...authRateLimit, preHandler: [validateCheckCpf] }, checkCpf.handle.bind(checkCpf));
   // Refresh tem teto próprio (mais alto, por sessão): ver `refreshRateLimit`.
   app.post("/auth/refresh", { ...refreshRateLimit, preHandler: [validateRefresh] }, refresh.handle.bind(refresh));
   app.get("/auth/me", { preHandler: [mePreHandler] }, me.handle.bind(me));

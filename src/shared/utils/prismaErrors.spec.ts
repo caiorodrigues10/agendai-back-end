@@ -40,7 +40,7 @@ describe("mapUniqueConstraintError", () => {
     const mapped = mapUniqueConstraintError(p2002(["email"]));
     expect(mapped).toBeInstanceOf(AppError);
     expect(mapped?.message).toBe("E-mail já cadastrado");
-    expect(mapped?.statusCode).toBe(400);
+    expect(mapped?.statusCode).toBe(409); // conflito de unicidade, não payload inválido
   });
 
   it("maps users_email_key constraint name", () => {
@@ -51,7 +51,7 @@ describe("mapUniqueConstraintError", () => {
   it("maps googleSub constraint (case-insensitive)", () => {
     const mapped = mapUniqueConstraintError(p2002(["googleSub"]));
     expect(mapped?.message).toBe("Esta conta Google já está cadastrada");
-    expect(mapped?.statusCode).toBe(400);
+    expect(mapped?.statusCode).toBe(409);
   });
 
   it("maps users_googlesub_key constraint name", () => {
@@ -62,7 +62,7 @@ describe("mapUniqueConstraintError", () => {
   it("maps cpf constraint to CPF já cadastrado", () => {
     const mapped = mapUniqueConstraintError(p2002(["cpf"]));
     expect(mapped?.message).toBe("CPF já cadastrado");
-    expect(mapped?.statusCode).toBe(400);
+    expect(mapped?.statusCode).toBe(409);
   });
 
   it("maps unknown unique target to generic 409", () => {

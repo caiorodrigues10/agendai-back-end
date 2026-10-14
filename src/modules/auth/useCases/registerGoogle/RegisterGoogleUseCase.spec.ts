@@ -208,4 +208,50 @@ describe("RegisterGoogleUseCase", () => {
 
     await expect(useCase.execute(BASE_INPUT)).rejects.toThrow("CPF já cadastrado");
   });
+  it("rejeita CPF já cadastrado com máscara (409)", async () => {
+    mockFindFirst
+      .mockResolvedValueOnce(null) // email
+      .mockResolvedValueOnce(null) // googleSub
+      .mockResolvedValueOnce({ id: "existing-cpf" });
+
+    const err: any = await useCase
+      .execute({ ...BASE_INPUT, cpf: "453.178.297-09" })
+      .catch((e) => e);
+
+    expect(err.message).toBe("CPF já cadastrado");
+    expect(err.statusCode).toBe(409);
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("corrida: P2002 (cpf) no create vira 409, não 500", async () => {
+    mockFindFirst.mockResolvedValue(null);
+    mockTransaction.mockImplementation(async (fn: any) => {
+      const tx = {
+        $executeRaw: vi.fn().mockResolvedValue(0),
+        barbershop: { create: vi.fn().mockResolvedValue({ id: "barbershop-1", name: "Barber Test" }) },
+        serviceCategory: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({ id: "sc-1" }) },
+        service: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}) },
+        schedule: { createMany: vi.fn().mockResolvedValue({}) },
+        expenseCategory: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({}) },
+        productCategory: { createMany: vi.fn().mockResolvedValue({}) },
+        appointmentPolicy: { upsert: vi.fn().mockResolvedValue({}) },
+        barbershopEmailSettings: { upsert: vi.fn().mockResolvedValue({}) },
+        notificationPreference: { createMany: vi.fn().mockResolvedValue({}) },
+        profitSettings: { upsert: vi.fn().mockResolvedValue({}) },
+        loyaltyProgram: { upsert: vi.fn().mockResolvedValue({}) },
+        user: {
+          create: vi.fn().mockRejectedValue({
+            code: "P2002",
+            meta: { target: ["cpf"] },
+          }),
+        },
+      };
+      return fn(tx);
+    });
+
+    const err: any = await useCase.execute(BASE_INPUT).catch((e) => e);
+
+    expect(err.message).toBe("CPF já cadastrado");
+    expect(err.statusCode).toBe(409);
+  });
 });
