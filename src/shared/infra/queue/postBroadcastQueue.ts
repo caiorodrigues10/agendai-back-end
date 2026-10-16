@@ -4,6 +4,7 @@
  */
 import { Queue, QueueEvents } from "bullmq";
 import { getRedisConnection } from "./redisConnection";
+import { toBullJobId } from "./jobId";
 import { getCorrelationId } from "@/shared/utils/correlationContext";
 
 export interface PostBroadcastJobData {
@@ -76,7 +77,7 @@ export async function enqueuePostBroadcast(
   if (!data.instanceName?.trim()) return;
   const { ensurePostBroadcastWorker } = await import("./postBroadcastWorker");
   await ensurePostBroadcastWorker();
-  const jobId = data.deduplicationKey || undefined;
+  const jobId = toBullJobId(data.deduplicationKey);
   await getQueue().add(
     "send-media",
     { ...data, correlationId: data.correlationId ?? getCorrelationId() },

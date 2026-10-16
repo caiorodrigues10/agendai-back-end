@@ -1,5 +1,6 @@
 import { Queue, QueueEvents } from "bullmq";
 import { getRedisConnection } from "./redisConnection";
+import { toBullJobId } from "./jobId";
 import type { EmailTemplateId } from "@/shared/container/providers/EmailProvider/IEmailProvider";
 import { getModuleLogger } from "@/shared/utils/logger";
 import {
@@ -352,7 +353,7 @@ async function enqueueLegacy(data: EmailJobData): Promise<void> {
   await getQueue().add(
     data.kind as EmailTemplateId,
     { ...data, correlationId: data.correlationId ?? getCorrelationId() },
-    { jobId: data.deduplicationKey || undefined },
+    { jobId: toBullJobId(data.deduplicationKey) },
   );
 }
 

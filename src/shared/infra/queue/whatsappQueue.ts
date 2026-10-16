@@ -4,6 +4,7 @@
  */
 import { Queue, QueueEvents } from "bullmq";
 import { getRedisConnection } from "./redisConnection";
+import { toBullJobId } from "./jobId";
 import { getModuleLogger } from "@/shared/utils/logger";
 import {
   getNotificationV2Mode,
@@ -124,7 +125,7 @@ async function enqueueLegacy(data: WhatsAppJobData): Promise<void> {
   if (!data.platform && !data.instanceName?.trim()) return;
   const { ensureWhatsAppWorker } = await import("./whatsappWorker");
   await ensureWhatsAppWorker();
-  const jobId = data.deduplicationKey || undefined;
+  const jobId = toBullJobId(data.deduplicationKey);
   await getQueue().add(
     "send",
     { ...data, correlationId: data.correlationId ?? getCorrelationId() },
