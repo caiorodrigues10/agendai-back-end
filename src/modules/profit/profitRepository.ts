@@ -211,6 +211,10 @@ export class ProfitRepository {
         barbershopId,
         status: "COMPLETED",
         completedAt: { gte: range.start, lte: range.end },
+        NOT: {
+          appointmentId: { not: null },
+          appointment: { status: "COMPLETED" },
+        },
       },
       select: {
         id: true,

@@ -27,7 +27,11 @@ export class ProfitUseCases {
     const period = this.parsePeriod(periodStr);
     const entries = await this.repo.getEntriesByPeriod(barbershopId, period);
 
-    const totals = entries.reduce(
+    const totalRow = entries.find(
+      (entry: { serviceId: string | null; staffId: string | null }) =>
+        entry.serviceId === null && entry.staffId === null
+    );
+    const totals = (totalRow ? [totalRow] : entries).reduce(
       (acc: { revenue: number; directCosts: number; overheadCosts: number; operationalCosts: number; taxAmount: number; commissionAmt: number; netProfit: number }, e: { revenue: unknown; directCosts: unknown; overheadCosts: unknown; operationalCosts?: unknown; taxAmount: unknown; commissionAmt: unknown; netProfit: unknown }) => ({
         revenue: acc.revenue + Number(e.revenue),
         directCosts: acc.directCosts + Number(e.directCosts),

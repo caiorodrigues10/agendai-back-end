@@ -239,6 +239,52 @@ describe("ProfitUseCases", () => {
     });
   });
 
+  describe("getPeriodProfit", () => {
+    const row = (serviceId: string | null, staffId: string | null, revenue: number) => ({
+      id: `${serviceId ?? "total"}-${staffId ?? "none"}`,
+      barbershopId: "shop-1",
+      period: new Date(2026, 8, 1),
+      serviceId,
+      staffId,
+      revenue,
+      directCosts: 0,
+      overheadCosts: 0,
+      operationalCosts: 0,
+      taxAmount: 0,
+      commissionAmt: 0,
+      netProfit: revenue,
+      marginPercent: 100,
+      computedAt: new Date(),
+    });
+
+    it("usa a linha de total do periodo como totais em vez de somar as quebras", async () => {
+      mockRepo.getEntriesByPeriod.mockResolvedValue([
+        row("s1", null, 100),
+        row("s2", null, 50),
+        row(null, "p1", 150),
+        { ...row(null, null, 180), directCosts: 20, commissionAmt: 12, netProfit: 148 },
+      ]);
+
+      const result = await useCases.getPeriodProfit("shop-1", "2026-09");
+
+      expect(result.entries).toHaveLength(4);
+      expect(result.totals.revenue).toBe(180);
+      expect(result.totals.directCosts).toBe(20);
+      expect(result.totals.commissionAmt).toBe(12);
+      expect(result.totals.netProfit).toBe(148);
+      expect(result.totals.marginPercent).toBeCloseTo((148 / 180) * 100, 5);
+    });
+
+    it("sem linha de total, soma as entradas existentes", async () => {
+      mockRepo.getEntriesByPeriod.mockResolvedValue([row("s1", null, 100), row("s2", null, 50)]);
+
+      const result = await useCases.getPeriodProfit("shop-1", "2026-09");
+
+      expect(result.totals.revenue).toBe(150);
+      expect(result.totals.netProfit).toBe(150);
+    });
+  });
+
   describe("parsePeriod (via getPeriodProfit)", () => {
     it("accepts valid YYYY-MM period", async () => {
       const result = await useCases.getPeriodProfit("shop-1", "2026-09");
