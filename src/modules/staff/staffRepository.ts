@@ -34,7 +34,7 @@ const serviceSelect = {
   isActive: true,
   createdAt: true,
   staff: { select: { id: true, name: true, email: true } },
-  service: { select: { id: true, name: true, price: true, durationMinutes: true } },
+  service: { select: { id: true, name: true, price: true, avgTimeMinutes: true } },
 } as const;
 
 const timeOffSelect = {
