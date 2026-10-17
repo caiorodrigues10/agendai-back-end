@@ -40,9 +40,9 @@ describe("GetLogoUploadUrlUseCase", () => {
     );
 
     expect(result.uploadUrl).toContain("mock");
-    expect(result.publicUrl).toContain("logos/");
+    expect(result.publicUrl).toContain("agendaja/");
     expect(result.publicUrl).toContain(shop.id);
-    expect(result.objectName).toMatch(/^logos\/barbershop-.+\.jpg$/);
+    expect(result.objectName).toBe(`agendaja/${shop.id}/logo/logo`);
     expect(result.expiresInSeconds).toBe(900);
     expect(storageProvider.generatedUrls).toHaveLength(1);
   });
@@ -59,7 +59,8 @@ describe("GetLogoUploadUrlUseCase", () => {
       ADMIN
     );
 
-    expect(result.objectName).toMatch(/\.png$/);
+    expect(result.objectName).toBe(`agendaja/${shop.id}/logo/logo`);
+    expect(result.uploadUrl).toContain("mock");
   });
 
   it("lança 400 para mimeType não permitido", async () => {
@@ -128,6 +129,7 @@ describe("ConfirmLogoUseCase", () => {
     const shop = await barbershopRepo.create({ name: "B", whatsapp: "55" });
     const useCase = new ConfirmLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -150,6 +152,7 @@ describe("ConfirmLogoUseCase", () => {
 
     const useCase = new ConfirmLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -164,6 +167,7 @@ describe("ConfirmLogoUseCase", () => {
     const shop = await barbershopRepo.create({ name: "B", whatsapp: "55" });
     const useCase = new ConfirmLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -179,6 +183,7 @@ describe("ConfirmLogoUseCase", () => {
     const shop = await barbershopRepo.create({ name: "B", whatsapp: "55" });
     const useCase = new ConfirmLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -193,6 +198,7 @@ describe("ConfirmLogoUseCase", () => {
     const shop = await barbershopRepo.create({ name: "B", whatsapp: "55" });
     const useCase = new ConfirmLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -213,6 +219,7 @@ describe("DeleteLogoUseCase", () => {
 
     const useCase = new DeleteLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -227,6 +234,7 @@ describe("DeleteLogoUseCase", () => {
     const shop = await barbershopRepo.create({ name: "B", whatsapp: "55" });
     const useCase = new DeleteLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -242,6 +250,7 @@ describe("DeleteLogoUseCase", () => {
 
     const useCase = new DeleteLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 
@@ -253,6 +262,7 @@ describe("DeleteLogoUseCase", () => {
   it("lança 404 para barbearia inexistente", async () => {
     const useCase = new DeleteLogoUseCase(
       barbershopRepo as any,
+      storageProvider as any,
       storageProvider as any
     );
 

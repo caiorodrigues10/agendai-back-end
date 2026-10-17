@@ -8,6 +8,8 @@ export interface IUpdateBarbershopDTO {
   latitude?: number | null;
   longitude?: number | null;
   logoUrl?: string | null;
+  /** public_id do Cloudinary da logo (determinístico), para deleção futura. */
+  logoPublicId?: string | null;
   googleReviewUrl?: string | null;
   active?: boolean;
   operationMode?: OperationMode;

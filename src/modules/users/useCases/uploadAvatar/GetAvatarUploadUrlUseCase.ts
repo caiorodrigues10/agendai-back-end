@@ -17,7 +17,7 @@ export class GetAvatarUploadUrlUseCase {
   constructor(
     @inject("UserRepository")
     private userRepository: IUserRepository,
-    @inject("StorageProvider")
+    @inject("ImageStorageProvider")
     private storageProvider: IStorageProvider
   ) {}
 

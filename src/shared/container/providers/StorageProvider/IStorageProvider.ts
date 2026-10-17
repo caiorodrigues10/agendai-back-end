@@ -18,6 +18,17 @@ export interface IUploadBufferResult {
   size: number;
 }
 
+export interface IUploadBufferOptions {
+  /** Sobrescreve o objeto se já existir (public_id determinístico no Cloudinary). */
+  overwrite?: boolean;
+  /** Invalida CDN do Cloudinary após o upload. */
+  invalidate?: boolean;
+  /** public_id completo (sem extensão) no lugar de folder/fileName. */
+  publicId?: string;
+  /** Cache-Control do objeto (padrão do provider). */
+  cacheControl?: string;
+}
+
 export interface IStorageProvider {
   /**
    * Gera uma signed URL de upload (PUT).
@@ -43,12 +54,14 @@ export interface IStorageProvider {
    * @param fileName  Nome do arquivo
    * @param buffer    Conteúdo do arquivo em Buffer
    * @param mimeType  MIME type do arquivo
+   * @param options   Opções do provedor (overwrite/publicId no Cloudinary)
    */
   uploadBuffer(
     folder: string,
     fileName: string,
     buffer: Buffer,
-    mimeType: string
+    mimeType: string,
+    options?: IUploadBufferOptions
   ): Promise<IUploadBufferResult>;
 
   /**

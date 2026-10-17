@@ -5,6 +5,7 @@ import { AppError } from '@/shared/errors/AppError'
 import {
 	IStorageProvider,
 	ISignedUploadUrlResult,
+	IUploadBufferOptions,
 	IUploadBufferResult,
 } from '../IStorageProvider'
 
@@ -257,6 +258,7 @@ export class GcsStorageProvider implements IStorageProvider {
 		fileName: string,
 		buffer: Buffer,
 		mimeType: string,
+		_options?: IUploadBufferOptions,
 	): Promise<IUploadBufferResult> {
 		try {
 			const objectName = `${folder}/${fileName}`

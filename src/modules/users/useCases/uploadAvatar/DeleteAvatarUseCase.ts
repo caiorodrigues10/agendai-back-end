@@ -10,7 +10,9 @@ export class DeleteAvatarUseCase {
     @inject("UserRepository")
     private userRepository: IUserRepository,
     @inject("StorageProvider")
-    private storageProvider: IStorageProvider
+    private storageProvider: IStorageProvider,
+    @inject("StorageProvider")
+    private legacyStorageProvider: IStorageProvider
   ) {}
 
   async execute(
@@ -34,9 +36,11 @@ export class DeleteAvatarUseCase {
       throw new AppError("Este usuário não possui foto cadastrada", 404);
     }
 
-    const objectName = this.storageProvider.extractObjectName(user.avatarUrl);
+    const objectName =
+      this.storageProvider.extractObjectName(user.avatarUrl) ??
+      this.legacyStorageProvider.extractObjectName(user.avatarUrl);
     if (objectName) {
-      await this.storageProvider.deleteObject(objectName);
+      await this.legacyStorageProvider.deleteObject(objectName);
     }
 
     await prisma.user.update({

@@ -17,5 +17,7 @@ container.registerSingleton<IDateProvider>   ("DateProvider",    DayjsDateProvid
 container.registerSingleton("GcsStorageProvider", GcsStorageProvider);
 container.registerSingleton("CloudinaryStorageProvider", CloudinaryStorageProvider);
 container.registerSingleton<IStorageProvider>("StorageProvider", FallbackStorageProvider);
+// Imagens (logo, capa, avatar, produtos, posts) usam Cloudinary explícito (sem fallback GCS).
+container.registerSingleton<IStorageProvider>("ImageStorageProvider", CloudinaryStorageProvider);
 container.registerSingleton<IEmailProvider>  ("EmailProvider",   ResendEmailProvider);
 container.registerSingleton<IWeatherProvider>("WeatherProvider",  CachedWeatherProvider);

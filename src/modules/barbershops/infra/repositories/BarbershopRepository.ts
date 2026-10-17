@@ -2,13 +2,18 @@ import { prisma } from "@/libs/prismaClient";
 import { ICreateBarbershopDTO } from "../../dtos/ICreateBarbershopDTO";
 import { IUpdateBarbershopDTO } from "../../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
-import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
+import {
+  IBarbershopRepository,
+  IPageThemeDTO,
+  IUpdatePageThemeDTO,
+} from "../../repositories/IBarbershopRepository";
 
 const shopSelect = {
   id: true,
   name: true,
   whatsapp: true,
   logoUrl: true,
+  logoPublicId: true,
   googleReviewUrl: true,
   cnpj: true,
   address: true,
@@ -37,7 +42,7 @@ const shopSelect = {
 // visitante listasse a instância de todos os salões. O frontend não consome o
 // campo; os fluxos autenticados continuam em `shopSelect` via findById.
 // `businessSegmentOther` também fica de fora: texto livre interno do dono.
-const { evolutionInstanceName: _evolutionInstanceName, businessSegmentOther: _businessSegmentOther, ...publicShopSelect } = shopSelect;
+const { evolutionInstanceName: _evolutionInstanceName, businessSegmentOther: _businessSegmentOther, logoPublicId: _logoPublicId, ...publicShopSelect } = shopSelect;
 
 export class BarbershopRepository implements IBarbershopRepository {
   async create(data: ICreateBarbershopDTO): Promise<IBarbershopResponseDTO> {
@@ -95,5 +100,17 @@ export class BarbershopRepository implements IBarbershopRepository {
         data: schedule.map((s) => ({ barbershopId, ...s }))
       })
     ]);
+  }
+
+  async findPageTheme(barbershopId: string): Promise<IPageThemeDTO | null> {
+    return prisma.barbershopPageTheme.findUnique({ where: { barbershopId } });
+  }
+
+  async upsertPageTheme(barbershopId: string, data: IUpdatePageThemeDTO): Promise<IPageThemeDTO> {
+    return prisma.barbershopPageTheme.upsert({
+      where: { barbershopId },
+      create: { barbershopId, ...data },
+      update: { ...data },
+    });
   }
 }

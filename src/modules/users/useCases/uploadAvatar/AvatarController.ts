@@ -135,14 +135,17 @@ export class AvatarController {
     const { prisma } = await import("@/libs/prismaClient");
     const { randomUUID } = await import("node:crypto");
 
-    const storageProvider = container.resolve("StorageProvider") as IStorageProvider;
+    const storageProvider = container.resolve("ImageStorageProvider") as IStorageProvider;
+    const legacyStorageProvider = container.resolve("StorageProvider") as IStorageProvider;
 
     // Delete old avatar
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
     if (user?.avatarUrl) {
-      const oldObjectName = storageProvider.extractObjectName(user.avatarUrl);
+      const oldObjectName =
+        legacyStorageProvider.extractObjectName(user.avatarUrl) ??
+        storageProvider.extractObjectName(user.avatarUrl);
       if (oldObjectName) {
-        storageProvider.deleteObject(oldObjectName).catch(() => {});
+        legacyStorageProvider.deleteObject(oldObjectName).catch(() => {});
       }
     }
 

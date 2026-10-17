@@ -3,6 +3,7 @@ import { AppError } from '@/shared/errors/AppError'
 import {
   IStorageProvider,
   ISignedUploadUrlResult,
+  IUploadBufferOptions,
   IUploadBufferResult,
 } from '../IStorageProvider'
 
@@ -92,10 +93,13 @@ export class CloudinaryStorageProvider implements IStorageProvider {
     const publicId = `${folder}/${fileName.replace(/\.[^.]+$/, '')}`
     const timestamp = Math.floor(Date.now() / 1000)
 
+    // public_id é o caminho absoluto (sem `folder` separado) — enviar os dois
+    // faria o Cloudinary aninhar agendaja/.../agendaja/....
     const paramsToSign: Record<string, string | number> = {
       timestamp,
-      folder,
       public_id: publicId,
+      overwrite: 1,
+      invalidate: 1,
       expiration: expiresInSeconds,
     }
     const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET!)
@@ -104,8 +108,9 @@ export class CloudinaryStorageProvider implements IStorageProvider {
       `https://api.cloudinary.com/v1_1/${this.cloudName}/image/upload` +
       `?api_key=${process.env.CLOUDINARY_API_KEY}` +
       `&timestamp=${timestamp}` +
-      `&folder=${encodeURIComponent(folder)}` +
       `&public_id=${encodeURIComponent(publicId)}` +
+      `&overwrite=1` +
+      `&invalidate=1` +
       `&expiration=${expiresInSeconds}` +
       `&signature=${encodeURIComponent(signature)}`
 
@@ -119,19 +124,23 @@ export class CloudinaryStorageProvider implements IStorageProvider {
     fileName: string,
     buffer: Buffer,
     mimeType: string,
+    options?: IUploadBufferOptions,
   ): Promise<IUploadBufferResult> {
     await this.assertConfigured()
     const cloudinary = await this.getCloudinary()
+
+    const publicId = options?.publicId ?? `${folder}/${fileName.replace(/\.[^.]+$/, '')}`
 
     const result = await new Promise<Record<string, unknown>>(
       (resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           {
-            folder,
-            public_id: fileName.replace(/\.[^.]+$/, ''),
+            public_id: publicId,
             resource_type: mimeType.startsWith('video/') ? 'video' : 'image',
             type: 'upload',
-            cache_control: 'public, max-age=31536000',
+            cache_control: options?.cacheControl ?? 'public, max-age=31536000',
+            overwrite: options?.overwrite ?? false,
+            invalidate: options?.invalidate ?? false,
           },
           (error, result) => {
             if (error) reject(error)

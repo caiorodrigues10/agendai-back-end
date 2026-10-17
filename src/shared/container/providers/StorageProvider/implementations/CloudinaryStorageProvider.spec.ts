@@ -19,7 +19,7 @@ describe("Cloudinary post media", () => {
 
   it("uploads videos as video rather than image", async () => {
     await new CloudinaryStorageProvider().uploadBuffer("posts", "video-test.mp4", Buffer.from("fixture"), "video/mp4");
-    expect(mocks.upload).toHaveBeenCalledWith(expect.objectContaining({ resource_type: "video", folder: "posts" }), expect.any(Function));
+    expect(mocks.upload).toHaveBeenCalledWith(expect.objectContaining({ resource_type: "video", public_id: "posts/video-test", type: "upload" }), expect.any(Function));
   });
 
   it("preserves image upload behavior", async () => {

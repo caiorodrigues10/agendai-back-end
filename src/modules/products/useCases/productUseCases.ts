@@ -73,7 +73,7 @@ type ReservedMap = Map<string, ReservedEntry>;
 export class ProductCatalogUseCase {
   constructor(
     @inject(InventoryEngine) private engine: InventoryEngine,
-    @inject("StorageProvider") private storage: IStorageProvider,
+    @inject("ImageStorageProvider") private storage: IStorageProvider,
   ) {}
 
   /**

@@ -13,6 +13,8 @@ import { DeleteBarbershopController }  from "@/modules/barbershops/useCases/dele
 import { GetScheduleController }       from "@/modules/barbershops/useCases/getSchedule/GetScheduleController";
 import { UpdateScheduleController }    from "@/modules/barbershops/useCases/updateSchedule/UpdateScheduleController";
 import { LogoController }              from "@/modules/barbershops/useCases/uploadLogo/LogoController";
+import { PageThemeController }          from "@/modules/barbershops/useCases/pageTheme/PageThemeController";
+import { pageThemeIdParamsSchema }      from "@/modules/barbershops/schemas/pageThemeSchemas";
 import { WhatsAppConnectionController } from "@/modules/barbershops/useCases/whatsappConnection/WhatsAppConnectionController";
 import { ChangeOperationModeController } from "@/modules/barbershops/useCases/changeOperationMode/ChangeOperationModeController";
 import { ShopStatusController } from "@/modules/barbershops/useCases/shopStatus/ShopStatusController";
@@ -31,6 +33,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const getSchedule    = new GetScheduleController();
   const updateSchedule = new UpdateScheduleController();
   const logo           = new LogoController();
+  const pageTheme      = new PageThemeController();
   const whatsapp       = new WhatsAppConnectionController();
   const changeMode     = new ChangeOperationModeController();
   const shopStatus     = new ShopStatusController();
@@ -155,5 +158,48 @@ export async function barbershopsRoutes(app: FastifyInstance) {
     "/barbershops/:id/logo",
     { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
     logo.deleteLogo.bind(logo)
+  );
+
+  // ─── Tema da página pública (aparência) ───────────────────────────────────
+  //
+  // GET    /barbershops/:id/page-theme  (público, cache 60s; data null = padrão)
+  // PUT    /barbershops/:id/page-theme  (dono; valida contraste WCAG AA)
+  // POST   /barbershops/:id/page-theme/cover  (multipart campo "cover")
+  // DELETE /barbershops/:id/page-theme/cover
+  app.get(
+    "/barbershops/:id/page-theme",
+    { preHandler: [validateSchema(pageThemeIdParamsSchema, "params")] },
+    pageTheme.getPublic.bind(pageTheme)
+  );
+
+  const ownerPageThemeGuard = [
+    authenticate,
+    authorize(["MASTER_ADMIN", "OWNER"]),
+    checkSubscription,
+    setRlsContext,
+  ];
+  app.put(
+    "/barbershops/:id/page-theme",
+    {
+      preHandler: [...ownerPageThemeGuard, validateSchema(pageThemeIdParamsSchema, "params")],
+      config: { rateLimit: { max: 30, timeWindow: "10 minutes" } },
+    },
+    pageTheme.update.bind(pageTheme)
+  );
+  app.post(
+    "/barbershops/:id/page-theme/cover",
+    {
+      preHandler: [...ownerPageThemeGuard, validateSchema(pageThemeIdParamsSchema, "params")],
+      config: { rateLimit: { max: 10, timeWindow: "10 minutes" } },
+    },
+    pageTheme.uploadCover.bind(pageTheme)
+  );
+  app.delete(
+    "/barbershops/:id/page-theme/cover",
+    {
+      preHandler: [...ownerPageThemeGuard, validateSchema(pageThemeIdParamsSchema, "params")],
+      config: { rateLimit: { max: 10, timeWindow: "10 minutes" } },
+    },
+    pageTheme.deleteCover.bind(pageTheme)
   );
 }

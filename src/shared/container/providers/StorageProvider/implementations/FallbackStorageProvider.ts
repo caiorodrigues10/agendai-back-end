@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe'
 import {
   IStorageProvider,
   ISignedUploadUrlResult,
+  IUploadBufferOptions,
   IUploadBufferResult,
 } from '../IStorageProvider'
 
@@ -108,11 +109,12 @@ export class FallbackStorageProvider implements IStorageProvider {
     fileName: string,
     buffer: Buffer,
     mimeType: string,
+    options?: IUploadBufferOptions,
   ): Promise<IUploadBufferResult> {
     return this.tryFallback(
       'uploadBuffer',
-      () => this.primary.uploadBuffer(folder, fileName, buffer, mimeType),
-      () => this.fallback.uploadBuffer(folder, fileName, buffer, mimeType),
+      () => this.primary.uploadBuffer(folder, fileName, buffer, mimeType, options),
+      () => this.fallback.uploadBuffer(folder, fileName, buffer, mimeType, options),
     )
   }
 

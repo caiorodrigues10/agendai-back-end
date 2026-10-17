@@ -1,6 +1,7 @@
 import {
   IStorageProvider,
   ISignedUploadUrlResult,
+  IUploadBufferOptions,
   IUploadBufferResult,
 } from "../IStorageProvider";
 
@@ -21,6 +22,7 @@ export class MockStorageProvider implements IStorageProvider {
     publicUrl: string;
     size: number;
     mimeType: string;
+    options?: IUploadBufferOptions;
   }> = [];
 
   private bucketName = "mock-bucket";
@@ -31,7 +33,8 @@ export class MockStorageProvider implements IStorageProvider {
     mimeType: string,
     expiresInSeconds = 900
   ): Promise<ISignedUploadUrlResult> {
-    const objectName = `${folder}/${fileName}`;
+    // Imita o Cloudinary: public_id determinístico sem extensão (agendaja/{id}/logo/logo).
+    const objectName = `${folder}/${fileName.replace(/\.[^.]+$/, "")}`;
     const publicUrl  = `https://storage.googleapis.com/${this.bucketName}/${objectName}`;
 
     this.generatedUrls.push({ objectName, publicUrl });
@@ -48,12 +51,14 @@ export class MockStorageProvider implements IStorageProvider {
     folder: string,
     fileName: string,
     buffer: Buffer,
-    mimeType: string
+    mimeType: string,
+    options?: IUploadBufferOptions
   ): Promise<IUploadBufferResult> {
-    const objectName = `${folder}/${fileName}`;
+    const objectName =
+      options?.publicId ?? `${folder}/${fileName.replace(/\.[^.]+$/, "")}`;
     const publicUrl  = `https://storage.googleapis.com/${this.bucketName}/${objectName}`;
 
-    this.uploadedBuffers.push({ objectName, publicUrl, size: buffer.byteLength, mimeType });
+    this.uploadedBuffers.push({ objectName, publicUrl, size: buffer.byteLength, mimeType, options });
 
     return {
       publicUrl,

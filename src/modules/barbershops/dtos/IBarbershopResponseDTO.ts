@@ -25,6 +25,8 @@ export interface IBarbershopResponseDTO {
   name: string;
   whatsapp: string;
   logoUrl?: string | null;
+  /** public_id do Cloudinary da logo (interno; fora das rotas públicas). */
+  logoPublicId?: string | null;
   googleReviewUrl?: string | null;
   cnpj?: string | null;
   address?: string | null;

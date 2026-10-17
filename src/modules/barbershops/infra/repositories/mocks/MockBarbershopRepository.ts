@@ -1,4 +1,4 @@
-import { IBarbershopRepository } from "@/modules/barbershops/repositories/IBarbershopRepository";
+import { IBarbershopRepository, IPageThemeDTO, IUpdatePageThemeDTO } from "@/modules/barbershops/repositories/IBarbershopRepository";
 import { ICreateBarbershopDTO } from "@/modules/barbershops/dtos/ICreateBarbershopDTO";
 import { IUpdateBarbershopDTO } from "@/modules/barbershops/dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "@/modules/barbershops/dtos/IBarbershopResponseDTO";
@@ -8,6 +8,7 @@ type ScheduleItem = { dayOfWeek: number; isOpen: boolean; openTime: string; clos
 export class MockBarbershopRepository implements IBarbershopRepository {
   private data: IBarbershopResponseDTO[] = [];
   private schedules: Record<string, ScheduleItem[]> = {};
+  private pageThemes: Map<string, IPageThemeDTO> = new Map();
   private seq = 1;
 
   async create(payload: ICreateBarbershopDTO): Promise<IBarbershopResponseDTO> {
@@ -72,5 +73,28 @@ export class MockBarbershopRepository implements IBarbershopRepository {
   }
   async updateSchedule(barbershopId: string, schedule: ScheduleItem[]): Promise<void> {
     this.schedules[barbershopId] = [...schedule];
+  }
+  async findPageTheme(barbershopId: string): Promise<IPageThemeDTO | null> {
+    return this.pageThemes.get(barbershopId) ?? null;
+  }
+  async upsertPageTheme(barbershopId: string, data: IUpdatePageThemeDTO): Promise<IPageThemeDTO> {
+    const existing = this.pageThemes.get(barbershopId);
+    const theme: IPageThemeDTO = {
+      id: existing?.id ?? `theme-${barbershopId}`,
+      barbershopId,
+      presetKey: data.presetKey ?? null,
+      accentColor: data.accentColor,
+      backgroundColor: data.backgroundColor,
+      surfaceColor: data.surfaceColor,
+      textColor: data.textColor,
+      textMutedColor: data.textMutedColor,
+      radiusStyle: data.radiusStyle,
+      buttonStyle: data.buttonStyle,
+      coverUrl: data.coverUrl ?? null,
+      coverPublicId: data.coverPublicId ?? null,
+      coverOverlay: data.coverOverlay,
+    };
+    this.pageThemes.set(barbershopId, theme);
+    return theme;
   }
 }

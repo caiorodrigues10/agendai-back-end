@@ -14,8 +14,10 @@ export class ConfirmAvatarUseCase {
   constructor(
     @inject("UserRepository")
     private userRepository: IUserRepository,
+    @inject("ImageStorageProvider")
+    private storageProvider: IStorageProvider,
     @inject("StorageProvider")
-    private storageProvider: IStorageProvider
+    private legacyStorageProvider: IStorageProvider
   ) {}
 
   async execute(
@@ -35,8 +37,10 @@ export class ConfirmAvatarUseCase {
       throw new AppError("Usuário não encontrado", 404);
     }
 
-    // Validate URL belongs to our bucket
-    const objectName = this.storageProvider.extractObjectName(data.avatarUrl);
+    // Validate URL belongs to our bucket (Cloudinary ou GCS legado)
+    const objectName =
+      this.storageProvider.extractObjectName(data.avatarUrl) ??
+      this.legacyStorageProvider.extractObjectName(data.avatarUrl);
     if (!objectName) {
       throw new AppError(
         "avatarUrl inválida: a URL deve pertencer ao bucket de assets da plataforma",
@@ -53,9 +57,11 @@ export class ConfirmAvatarUseCase {
 
     // Delete old avatar fire-and-forget
     if (user.avatarUrl) {
-      const oldObjectName = this.storageProvider.extractObjectName(user.avatarUrl);
+      const oldObjectName =
+        this.legacyStorageProvider.extractObjectName(user.avatarUrl) ??
+        this.storageProvider.extractObjectName(user.avatarUrl);
       if (oldObjectName) {
-        this.storageProvider.deleteObject(oldObjectName).catch((err) =>
+        this.legacyStorageProvider.deleteObject(oldObjectName).catch((err) =>
           console.warn(`[ConfirmAvatar] Falha ao deletar avatar antigo (${oldObjectName}):`, err?.message)
         );
       }

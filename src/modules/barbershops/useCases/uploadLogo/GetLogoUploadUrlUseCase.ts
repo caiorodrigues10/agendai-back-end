@@ -1,11 +1,9 @@
 import { inject, injectable } from "tsyringe";
-import { randomUUID } from "node:crypto";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider, ISignedUploadUrlResult } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
 import { ALLOWED_LOGO_MIME_TYPES } from "@/shared/config/upload";
-
-const LOGO_FOLDER = "logos";
+import { LOGO_IMAGE_SPEC, imageSpecFolder } from "@/shared/constants/imageSpecs";
 
 export interface IGetLogoUploadUrlDTO {
   barbershopId: string;
@@ -21,7 +19,7 @@ export class GetLogoUploadUrlUseCase {
   constructor(
     @inject("BarbershopRepository")
     private barbershopRepository: IBarbershopRepository,
-    @inject("StorageProvider")
+    @inject("ImageStorageProvider")
     private storageProvider: IStorageProvider
   ) {}
 
@@ -29,7 +27,6 @@ export class GetLogoUploadUrlUseCase {
     data: IGetLogoUploadUrlDTO,
     requestingUser: { role: string; barbershopId?: string }
   ): Promise<IGetLogoUploadUrlResult> {
-    // Autorização: OWNER só pode alterar a própria barbearia
     if (
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
@@ -50,14 +47,12 @@ export class GetLogoUploadUrlUseCase {
       throw new AppError("Salão não encontrado", 404);
     }
 
-    // Nome único: logos/barbershop-{uuid}-{timestamp}-{random}.{ext}
-    const fileName = `barbershop-${data.barbershopId}-${Date.now()}-${randomUUID().slice(0, 8)}.${extension}`;
-
+    // public_id determinístico: agendaja/{id}/logo/logo (sobrescreve a anterior)
     const result = await this.storageProvider.generateSignedUploadUrl(
-      LOGO_FOLDER,
-      fileName,
+      imageSpecFolder(data.barbershopId, LOGO_IMAGE_SPEC),
+      `${LOGO_IMAGE_SPEC.cloudinaryPublicId}.${extension}`,
       data.mimeType,
-      900 // 15 minutos
+      900
     );
 
     return { ...result, barbershopId: data.barbershopId };

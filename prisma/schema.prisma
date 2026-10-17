@@ -331,6 +331,8 @@ model Barbershop {
   name                  String           @db.VarChar(200)
   whatsapp              String           @db.VarChar(20)
   logoUrl               String?          @db.VarChar(500)
+  /// public_id determinístico da logo no Cloudinary (agendaja/{id}/logo/logo).
+  logoPublicId          String?          @db.VarChar(300)
   cnpj                  String?          @db.VarChar(20)
   address               String?          @db.Text
   city                  String?          @db.VarChar(120)
@@ -480,11 +482,39 @@ model Barbershop {
   tickets                        Ticket[]
   tasks                          Task[]
   npsSurveys                     NpsSurvey[]
+  pageTheme                     BarbershopPageTheme?
 
   @@index([approvalStatus])
   @@index([active])
   @@index([referredByCodeId])
   @@map("barbershops")
+}
+
+/// Tema de aparência da página pública do salão (1:1).
+/// Cores em hex #RRGGBB; sem linha = aparência padrão atual do app.
+model BarbershopPageTheme {
+  id              String    @id @default(uuid()) @db.Uuid
+  barbershopId    String    @unique @db.Uuid
+  /// Chave do preset escolhido no painel (custom quando editado à mão).
+  presetKey       String?   @db.VarChar(40)
+  accentColor     String    @default("#2CB58A") @db.VarChar(9)
+  backgroundColor String    @default("#0F1110") @db.VarChar(9)
+  surfaceColor    String    @default("#1B1F1D") @db.VarChar(9)
+  textColor       String    @default("#F2F5F3") @db.VarChar(9)
+  textMutedColor  String    @default("#8B9990") @db.VarChar(9)
+  /// squared | rounded | pill
+  radiusStyle     String    @default("rounded") @db.VarChar(20)
+  /// filled | outline
+  buttonStyle     String    @default("filled") @db.VarChar(20)
+  coverUrl        String?   @db.VarChar(500)
+  coverPublicId   String?   @db.VarChar(300)
+  /// Overlay escuro sobre a capa (0–80, porcentagem).
+  coverOverlay    Int       @default(40)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  barbershop      Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@map("barbershop_page_themes")
 }
 
 model BarbershopOnboarding {

@@ -201,7 +201,7 @@ export class ProductsController {
     const barbershopId = shopId(request);
     const ext = mimeType === "image/jpg" ? "jpg" : mimeType.split("/")[1];
     const objectName = `products/${barbershopId}/${id || "new"}_${Date.now()}.${ext}`;
-    const storage = container.resolve("StorageProvider") as { generateSignedUploadUrl: Function };
+    const storage = container.resolve("ImageStorageProvider") as { generateSignedUploadUrl: Function };
     const result = await storage.generateSignedUploadUrl("products", objectName, mimeType, 600);
     reply.send({ success: true, data: { uploadUrl: result.uploadUrl, publicUrl: result.publicUrl, objectName: result.objectName } });
   }

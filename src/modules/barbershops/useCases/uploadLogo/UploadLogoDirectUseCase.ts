@@ -1,5 +1,4 @@
 import { inject, injectable } from "tsyringe";
-import { randomUUID } from "node:crypto";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
@@ -9,8 +8,12 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   validateMagicBytes,
 } from "@/shared/config/upload";
-
-const LOGO_FOLDER = "logos";
+import {
+  LOGO_IMAGE_SPEC,
+  imageSpecFolder,
+  imageSpecPublicId,
+} from "@/shared/constants/imageSpecs";
+import { validateAndNormalizeImage } from "@/shared/utils/imageValidation";
 
 export interface IUploadLogoDirectDTO {
   barbershopId: string;
@@ -24,15 +27,16 @@ export class UploadLogoDirectUseCase {
   constructor(
     @inject("BarbershopRepository")
     private barbershopRepository: IBarbershopRepository,
+    @inject("ImageStorageProvider")
+    private storageProvider: IStorageProvider,
     @inject("StorageProvider")
-    private storageProvider: IStorageProvider
+    private legacyStorageProvider: IStorageProvider,
   ) {}
 
   async execute(
     data: IUploadLogoDirectDTO,
     requestingUser: { role: string; barbershopId?: string }
   ): Promise<IBarbershopResponseDTO> {
-    // Autorização: OWNER só pode alterar a própria barbearia
     if (
       requestingUser.role !== "MASTER_ADMIN" &&
       data.barbershopId !== requestingUser.barbershopId
@@ -63,41 +67,45 @@ export class UploadLogoDirectUseCase {
       );
     }
 
-    // Verifica se a barbearia existe
     const barbershop = await this.barbershopRepository.findById(data.barbershopId);
     if (!barbershop) {
       throw new AppError("Salão não encontrado", 404);
     }
 
-    // Nome único para evitar colisões e invalidar cache automaticamente
-    const fileName = `barbershop-${data.barbershopId}-${Date.now()}-${randomUUID().slice(0, 8)}.${extension}`;
+    const validated = await validateAndNormalizeImage({
+      buffer: data.buffer,
+      declaredMimeType: data.mimeType,
+      spec: LOGO_IMAGE_SPEC,
+    });
 
-    // Se já tinha logo, deleta do GCS (fire-and-forget)
-    if (barbershop.logoUrl) {
-      const oldObjectName = this.storageProvider.extractObjectName(barbershop.logoUrl);
-      if (oldObjectName) {
-        this.storageProvider
-          .deleteObject(oldObjectName)
-          .catch((err) =>
-            console.warn(
-              `[UploadLogoDirect] Falha ao deletar logo antiga (${oldObjectName}):`,
-              err?.message
-            )
-          );
-      }
-    }
+    const publicId = imageSpecPublicId(data.barbershopId, LOGO_IMAGE_SPEC);
 
-    // Upload do buffer para o GCS
     const uploaded = await this.storageProvider.uploadBuffer(
-      LOGO_FOLDER,
-      fileName,
-      data.buffer,
-      data.mimeType
+      imageSpecFolder(data.barbershopId, LOGO_IMAGE_SPEC),
+      LOGO_IMAGE_SPEC.cloudinaryPublicId,
+      validated.buffer,
+      validated.mimeType,
+      { overwrite: true, invalidate: true, publicId },
     );
 
-    // Salva a URL pública no banco
+    const previousObjectName =
+      barbershop.logoPublicId ??
+      this.legacyStorageProvider.extractObjectName(barbershop.logoUrl ?? "") ??
+      null;
+    if (previousObjectName && previousObjectName !== uploaded.objectName) {
+      this.legacyStorageProvider
+        .deleteObject(previousObjectName)
+        .catch((err) =>
+          console.warn(
+            `[UploadLogoDirect] Falha ao deletar logo antiga (${previousObjectName}):`,
+            err?.message
+          )
+        );
+    }
+
     return this.barbershopRepository.update(data.barbershopId, {
       logoUrl: uploaded.publicUrl,
+      logoPublicId: uploaded.objectName,
     });
   }
 }

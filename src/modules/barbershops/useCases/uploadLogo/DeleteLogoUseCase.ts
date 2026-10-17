@@ -8,15 +8,16 @@ export class DeleteLogoUseCase {
   constructor(
     @inject("BarbershopRepository")
     private barbershopRepository: IBarbershopRepository,
+    @inject("ImageStorageProvider")
+    private storageProvider: IStorageProvider,
     @inject("StorageProvider")
-    private storageProvider: IStorageProvider
+    private legacyStorageProvider: IStorageProvider
   ) { }
 
   async execute(
     barbershopId: string,
     requestingUser: { role: string; barbershopId?: string }
   ): Promise<void> {
-    // Autorização: OWNER só pode alterar a própria barbearia
     if (
       requestingUser.role !== "MASTER_ADMIN" &&
       barbershopId !== requestingUser.barbershopId
@@ -32,17 +33,21 @@ export class DeleteLogoUseCase {
       throw new AppError("Salão não encontrado", 404);
     }
 
-    if (!barbershop.logoUrl) {
+    if (!barbershop.logoUrl && !barbershop.logoPublicId) {
       throw new AppError("Este salão não possui logo cadastrada", 404);
     }
 
-    // Deleta o objeto do GCS
-    const objectName = this.storageProvider.extractObjectName(barbershop.logoUrl);
+    const objectName =
+      barbershop.logoPublicId ??
+      this.storageProvider.extractObjectName(barbershop.logoUrl ?? "") ??
+      this.legacyStorageProvider.extractObjectName(barbershop.logoUrl ?? "");
     if (objectName) {
-      await this.storageProvider.deleteObject(objectName);
+      await this.legacyStorageProvider.deleteObject(objectName);
     }
 
-    // Limpa o campo no banco
-    await this.barbershopRepository.update(barbershopId, { logoUrl: null });
+    await this.barbershopRepository.update(barbershopId, {
+      logoUrl: null,
+      logoPublicId: null,
+    });
   }
 }

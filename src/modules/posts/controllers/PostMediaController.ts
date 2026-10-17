@@ -31,7 +31,7 @@ export class PostMediaController {
     if (!extension) throw new AppError("Formato inválido. Envie JPG, PNG ou WebP.", 400);
     const buffer = await data.toBuffer();
     if (!validateMagicBytes(buffer, mimeType)) throw new AppError("A imagem parece corrompida.", 400);
-    const storage = container.resolve<IStorageProvider>("StorageProvider");
+    const storage = container.resolve<IStorageProvider>("ImageStorageProvider");
     const uploaded = await storage.uploadBuffer("posts-media", `media-${barbershopId}-${randomUUID()}.${extension}`, buffer, mimeType);
     const media = await prisma.postMedia.create({ data: { barbershopId, uploadedById: request.user!.id, url: uploaded.publicUrl, objectName: uploaded.objectName, mimeType, size: buffer.byteLength }, select: { id: true, url: true, mimeType: true, size: true, createdAt: true } });
     return reply.status(201).send({ success: true, data: media });
@@ -44,6 +44,7 @@ export class PostMediaController {
     ensureTenant(request, media.barbershopId);
     const inUse = await prisma.feedPost.count({ where: { OR: [{ primaryMediaId: id }, { secondaryMediaId: id }], status: { notIn: ["PUBLISHED"] } } });
     if (inUse > 0) throw new AppError("Remova a imagem dos rascunhos ou posts agendados antes de excluir.", 409);
+    // Fallback (GCS→Cloudinary) cobre objectNames legados do GCS e os novos do Cloudinary
     await container.resolve<IStorageProvider>("StorageProvider").deleteObject(media.objectName);
     await prisma.postMedia.delete({ where: { id } });
     return reply.send({ success: true });
