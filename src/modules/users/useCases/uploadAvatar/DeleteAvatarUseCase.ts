@@ -3,14 +3,15 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IUserRepository } from "../../repositories/IUserRepository";
+import { deleteImageAsset } from "@/shared/utils/imageAssetDeletion";
 
 @injectable()
 export class DeleteAvatarUseCase {
   constructor(
     @inject("UserRepository")
     private userRepository: IUserRepository,
-    @inject("StorageProvider")
-    private storageProvider: IStorageProvider,
+    @inject("ImageStorageProvider")
+    private imageStorageProvider: IStorageProvider,
     @inject("StorageProvider")
     private legacyStorageProvider: IStorageProvider
   ) {}
@@ -36,12 +37,12 @@ export class DeleteAvatarUseCase {
       throw new AppError("Este usuário não possui foto cadastrada", 404);
     }
 
-    const objectName =
-      this.storageProvider.extractObjectName(user.avatarUrl) ??
-      this.legacyStorageProvider.extractObjectName(user.avatarUrl);
-    if (objectName) {
-      await this.legacyStorageProvider.deleteObject(objectName);
-    }
+    await deleteImageAsset({
+      imageProvider: this.imageStorageProvider,
+      legacyProvider: this.legacyStorageProvider,
+      publicUrl: user.avatarUrl,
+      context: "DeleteAvatar",
+    });
 
     await prisma.user.update({
       where: { id: userId },

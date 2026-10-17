@@ -141,12 +141,13 @@ export class AvatarController {
     // Delete old avatar
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
     if (user?.avatarUrl) {
-      const oldObjectName =
-        legacyStorageProvider.extractObjectName(user.avatarUrl) ??
-        storageProvider.extractObjectName(user.avatarUrl);
-      if (oldObjectName) {
-        legacyStorageProvider.deleteObject(oldObjectName).catch(() => {});
-      }
+      const { deleteImageAsset } = await import("@/shared/utils/imageAssetDeletion");
+      void deleteImageAsset({
+        imageProvider: storageProvider,
+        legacyProvider: legacyStorageProvider,
+        publicUrl: user.avatarUrl,
+        context: "AvatarUploadDirect",
+      });
     }
 
     const ext = ALLOWED_LOGO_MIME_TYPES[mimeType];

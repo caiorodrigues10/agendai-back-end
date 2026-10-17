@@ -2,6 +2,7 @@ import { inject, injectable } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
+import { deleteImageAsset } from "@/shared/utils/imageAssetDeletion";
 
 @injectable()
 export class DeleteLogoUseCase {
@@ -9,7 +10,7 @@ export class DeleteLogoUseCase {
     @inject("BarbershopRepository")
     private barbershopRepository: IBarbershopRepository,
     @inject("ImageStorageProvider")
-    private storageProvider: IStorageProvider,
+    private imageStorageProvider: IStorageProvider,
     @inject("StorageProvider")
     private legacyStorageProvider: IStorageProvider
   ) { }
@@ -37,13 +38,13 @@ export class DeleteLogoUseCase {
       throw new AppError("Este salão não possui logo cadastrada", 404);
     }
 
-    const objectName =
-      barbershop.logoPublicId ??
-      this.storageProvider.extractObjectName(barbershop.logoUrl ?? "") ??
-      this.legacyStorageProvider.extractObjectName(barbershop.logoUrl ?? "");
-    if (objectName) {
-      await this.legacyStorageProvider.deleteObject(objectName);
-    }
+    await deleteImageAsset({
+      imageProvider: this.imageStorageProvider,
+      legacyProvider: this.legacyStorageProvider,
+      publicId: barbershop.logoPublicId,
+      publicUrl: barbershop.logoUrl,
+      context: "DeleteLogo",
+    });
 
     await this.barbershopRepository.update(barbershopId, {
       logoUrl: null,

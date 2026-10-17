@@ -18,6 +18,15 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - `authorize(roles)` + permissões de employee onde aplicável.
 - `setRlsContext` para isolamento; não assumir que todo endpoint já aplica RLS — verificar rota.
 
+## Imagens & página pública (Cloudinary)
+
+- **Todo upload de imagem é Cloudinary** via DI token `ImageStorageProvider` (logo, capa, avatar, produtos, posts/mídia); token legado `StorageProvider` (GCS→Cloudinary) só cobre **deletes de objects antigos** e vídeo legado. Env obrigatória: `CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET` (sem ela, upload → 503).
+- Spec única de imagens em `shared/constants/imageSpecs.ts` (espelhada no front por `npm run theme:mirror`/`theme:check`): capa 16:9 (recomendado 1920×1080, mín. 1600×900, ≤5 MB) e logo 1:1 exata (recomendado 512×512, mín. 400×400, ≤2 MB); JPEG/PNG/WebP. Validação em 3 camadas: front (instantânea), back (`validateAndNormalizeImage` com sharp: magic bytes, dimensões, proporção, EXIF removido) e Cloudinary.
+- `public_id` determinístico e sobrescrito: `agendaja/{barbershopId}/logo/logo` e `agendaja/{barbershopId}/cover/cover` (`overwrite` + `invalidate`); falha de DB após upload apaga o asset (sem órfão). Deletes roteiam pela origem (`shared/utils/imageAssetDeletion.ts`): URL/publicId do Cloudinary → `ImageStorageProvider`; URL do GCS legado → `StorageProvider`.
+- Migração sob demanda de imagens GCS → Cloudinary: `npm run images:migrate-cloudinary` (dry-run; `--apply [--barbershop=<uuid>] [--limit=N] [--delete-source]`).
+- Tema da página pública (`BarbershopPageTheme`, 1:1): cores hex + radius + botão + overlay 0–80; **contraste WCAG AA validado no back** (par reprovado → 400); `PUT` exige OWNER do tenant (ou MASTER_ADMIN); rotas de upload/tema com rate limit próprio.
+- Cartão OG da página pública: `GET /barbershops/:id/page-theme/og-image` gera PNG 1200×630 (cores do tema + nome do salão via sharp/SVG; fonte `font-noto-sans` no Dockerfile), cache 1h.
+
 ## Fila / agenda / híbrido
 
 - Modos de operação do salão restringem join/booking (`shopOpenState`, WhatsApp obrigatório em alguns fluxos).

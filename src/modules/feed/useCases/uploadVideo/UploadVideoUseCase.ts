@@ -25,7 +25,7 @@ export class UploadVideoUseCase {
   constructor(
     @inject("BarbershopRepository")
     private barbershopRepository: IBarbershopRepository,
-    @inject("StorageProvider")
+    @inject("ImageStorageProvider")
     private storageProvider: IStorageProvider
   ) {}
 

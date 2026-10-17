@@ -13,6 +13,7 @@ import {
   updatePageThemeBodySchema,
 } from "../../schemas/pageThemeSchemas";
 import { GetPageThemeUseCase } from "./GetPageThemeUseCase";
+import { GetPageThemeOgImageUseCase } from "./GetPageThemeOgImageUseCase";
 import { UpdatePageThemeUseCase } from "./UpdatePageThemeUseCase";
 import { UploadPageThemeCoverUseCase } from "./UploadPageThemeCoverUseCase";
 import { DeletePageThemeCoverUseCase } from "./DeletePageThemeCoverUseCase";
@@ -28,6 +29,17 @@ export class PageThemeController {
     const theme = await useCase.execute(id);
     reply.header("Cache-Control", "public, max-age=60");
     reply.send({ success: true, data: theme });
+  }
+
+  /** PNG 1200×630 do cartão Open Graph da página pública (cores do tema + nome). */
+  async getOgImage(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { id } = pageThemeIdParamsSchema.parse(request.params);
+    const useCase = container.resolve(GetPageThemeOgImageUseCase);
+    const png = await useCase.execute(id);
+    reply
+      .header("Content-Type", "image/png")
+      .header("Cache-Control", "public, max-age=3600")
+      .send(png);
   }
 
   async update(request: FastifyRequest, reply: FastifyReply): Promise<void> {

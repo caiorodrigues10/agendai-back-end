@@ -3,6 +3,7 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IUserRepository } from "../../repositories/IUserRepository";
+import { deleteImageAsset } from "@/shared/utils/imageAssetDeletion";
 
 export interface IConfirmAvatarDTO {
   userId: string;
@@ -57,14 +58,12 @@ export class ConfirmAvatarUseCase {
 
     // Delete old avatar fire-and-forget
     if (user.avatarUrl) {
-      const oldObjectName =
-        this.legacyStorageProvider.extractObjectName(user.avatarUrl) ??
-        this.storageProvider.extractObjectName(user.avatarUrl);
-      if (oldObjectName) {
-        this.legacyStorageProvider.deleteObject(oldObjectName).catch((err) =>
-          console.warn(`[ConfirmAvatar] Falha ao deletar avatar antigo (${oldObjectName}):`, err?.message)
-        );
-      }
+      void deleteImageAsset({
+        imageProvider: this.storageProvider,
+        legacyProvider: this.legacyStorageProvider,
+        publicUrl: user.avatarUrl,
+        context: "ConfirmAvatar",
+      });
     }
 
     const updated = await prisma.user.update({

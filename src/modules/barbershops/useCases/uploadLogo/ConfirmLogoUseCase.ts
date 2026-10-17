@@ -3,6 +3,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { IStorageProvider } from "@/shared/container/providers/StorageProvider/IStorageProvider";
 import { IBarbershopRepository } from "../../repositories/IBarbershopRepository";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
+import { deleteImageAsset } from "@/shared/utils/imageAssetDeletion";
 
 export interface IConfirmLogoDTO {
   barbershopId: string;
@@ -70,14 +71,13 @@ export class ConfirmLogoUseCase {
       this.legacyStorageProvider.extractObjectName(barbershop.logoUrl ?? "") ??
       null;
     if (previousObjectName && previousObjectName !== objectName) {
-      this.legacyStorageProvider
-        .deleteObject(previousObjectName)
-        .catch((err) =>
-          console.warn(
-            `[ConfirmLogo] Falha ao deletar logo antiga (${previousObjectName}):`,
-            err?.message
-          )
-        );
+      void deleteImageAsset({
+        imageProvider: this.storageProvider,
+        legacyProvider: this.legacyStorageProvider,
+        publicId: barbershop.logoPublicId,
+        publicUrl: barbershop.logoUrl,
+        context: "ConfirmLogo",
+      });
     }
 
     return this.barbershopRepository.update(data.barbershopId, {

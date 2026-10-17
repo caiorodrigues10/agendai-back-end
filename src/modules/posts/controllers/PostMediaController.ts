@@ -44,8 +44,14 @@ export class PostMediaController {
     ensureTenant(request, media.barbershopId);
     const inUse = await prisma.feedPost.count({ where: { OR: [{ primaryMediaId: id }, { secondaryMediaId: id }], status: { notIn: ["PUBLISHED"] } } });
     if (inUse > 0) throw new AppError("Remova a imagem dos rascunhos ou posts agendados antes de excluir.", 409);
-    // Fallback (GCS→Cloudinary) cobre objectNames legados do GCS e os novos do Cloudinary
-    await container.resolve<IStorageProvider>("StorageProvider").deleteObject(media.objectName);
+    // Roteia pela origem do asset: URL do Cloudinary → ImageStorageProvider; GCS legado → StorageProvider
+    const { deleteImageAsset } = await import("@/shared/utils/imageAssetDeletion");
+    await deleteImageAsset({
+      imageProvider: container.resolve<IStorageProvider>("ImageStorageProvider"),
+      legacyProvider: container.resolve<IStorageProvider>("StorageProvider"),
+      publicUrl: media.url,
+      context: "PostMediaRemove",
+    });
     await prisma.postMedia.delete({ where: { id } });
     return reply.send({ success: true });
   }

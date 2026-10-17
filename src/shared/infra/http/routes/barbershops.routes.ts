@@ -115,48 +115,58 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   app.patch("/barbershops/:id/manual-status", { preHandler: ownerFloorGuard }, shopStatus.setManualStatus.bind(shopStatus));
   app.patch("/barbershops/:id/queue-status", { preHandler: ownerFloorGuard }, shopStatus.setQueueStatus.bind(shopStatus));
 
-  // ─── Logo — Fluxo 1: Signed URL (upload direto cliente → GCS) ─────────────
+  // ─── Logo — Fluxo 1: Signed URL (upload direto cliente → Cloudinary) ──────
   //
   // GET  /barbershops/:id/logo/upload-url?mimeType=image/jpeg
   //   → Retorna { uploadUrl, publicUrl, objectName, expiresInSeconds }
+  //     (assinatura Cloudinary; public_id determinístico agendaja/{id}/logo/logo)
   //
-  // PUT  {uploadUrl}   ← feito pelo cliente diretamente no GCS
+  // PUT  {uploadUrl}   ← feito pelo cliente diretamente no Cloudinary
   //   Content-Type: image/jpeg
   //
   // PATCH /barbershops/:id/logo
   //   Body: { logoUrl: "<publicUrl retornado acima>" }
   //   → Confirma e salva no banco
+  const ownerLogoGuard = [
+    authenticate,
+    authorize(["MASTER_ADMIN", "OWNER"]),
+    checkSubscription,
+    setRlsContext,
+  ];
+  const logoUploadRateLimit = { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } };
+
   app.get(
     "/barbershops/:id/logo/upload-url",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
+    { preHandler: ownerLogoGuard, ...logoUploadRateLimit },
     logo.getUploadUrl.bind(logo)
   );
 
   app.patch(
     "/barbershops/:id/logo",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
+    { preHandler: ownerLogoGuard, ...logoUploadRateLimit },
     logo.confirmLogo.bind(logo)
   );
 
-  // ─── Logo — Fluxo 2: Upload direto via multipart (cliente → backend → GCS) ─
+  // ─── Logo — Fluxo 2: Upload direto via multipart (cliente → backend → Cloudinary) ─
   //
   // POST /barbershops/:id/logo/upload
   //   Content-Type: multipart/form-data
-  //   Body: campo "logo" com o arquivo (JPEG, PNG ou WebP, max 5 MB)
-  //   → Faz upload no GCS e salva logoUrl no banco em uma única requisição
+  //   Body: campo "logo" com o arquivo (JPEG, PNG ou WebP, max 2 MB, 1:1)
+  //   → Valida magic bytes + sharp (dimensões/proporção), sobe no Cloudinary
+  //     (public_id determinístico agendaja/{id}/logo/logo) e grava logoUrl.
   app.post(
     "/barbershops/:id/logo/upload",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
+    { preHandler: ownerLogoGuard, ...logoUploadRateLimit },
     logo.uploadDirect.bind(logo)
   );
 
   // ─── Logo — Remoção ────────────────────────────────────────────────────────
   //
   // DELETE /barbershops/:id/logo
-  //   → Remove do GCS e limpa logoUrl no banco
+  //   → Apaga do Cloudinary (e legado GCS, best-effort) e limpa logoUrl
   app.delete(
     "/barbershops/:id/logo",
-    { preHandler: [authenticate, authorize(["MASTER_ADMIN", "OWNER"]), checkSubscription, setRlsContext] },
+    { preHandler: ownerLogoGuard, ...logoUploadRateLimit },
     logo.deleteLogo.bind(logo)
   );
 
@@ -170,6 +180,13 @@ export async function barbershopsRoutes(app: FastifyInstance) {
     "/barbershops/:id/page-theme",
     { preHandler: [validateSchema(pageThemeIdParamsSchema, "params")] },
     pageTheme.getPublic.bind(pageTheme)
+  );
+
+  // GET /barbershops/:id/page-theme/og-image (público; PNG 1200×630 cacheado 1h)
+  app.get(
+    "/barbershops/:id/page-theme/og-image",
+    { preHandler: [validateSchema(pageThemeIdParamsSchema, "params")] },
+    pageTheme.getOgImage.bind(pageTheme)
   );
 
   const ownerPageThemeGuard = [

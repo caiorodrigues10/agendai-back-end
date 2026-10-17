@@ -15,7 +15,8 @@ RUN npm run build
 # Production stage
 FROM node:22-alpine AS runner
 
-RUN apk add --no-cache openssl ca-certificates wget && \
+# font-noto-sans: sharp renderiza o cartão OG (SVG→PNG) com texto do nome do salão
+RUN apk add --no-cache openssl ca-certificates wget font-noto-sans && \
     addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 -G nodejs
 

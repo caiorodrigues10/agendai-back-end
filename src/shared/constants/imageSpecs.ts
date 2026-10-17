@@ -1,3 +1,16 @@
+/**
+ * SPEC ÚNICA DE IMAGENS — fonte única de verdade (backend).
+ * Espelhada no frontend por `npm run theme:mirror`
+ * (frontend/scripts/generate-shop-theme-mirror.mjs); `npm run theme:check` falha
+ * se o espelho estiver desatualizado.
+ *
+ * | Imagem | Dimensões aceitas                  | Proporção     | Formatos       | Peso máx |
+ * |--------|------------------------------------|---------------|----------------|----------|
+ * | Capa   | 1600–4096 (recomendado 1920×1080)  | 16:9 (±1%)    | JPG, PNG, WebP | 5 MB     |
+ * | Logo   | 400–2048 (recomendado 512×512)     | 1:1 EXATA     | JPG, PNG, WebP | 2 MB     |
+ *
+ * Alterar valores aqui SEM rodar o espelho reprova `theme:check` no front.
+ */
 export interface ImageSpec {
   key: "cover" | "logo";
   label: string;
@@ -11,7 +24,7 @@ export interface ImageSpec {
   ratioTolerance: number;
   maxBytes: number;
   allowedMimeTypes: Record<string, string>;
-  allowedFormats: Array<"jpeg" | "png" | "webp">;
+  allowedFormats: ("jpeg" | "png" | "webp")[];
   cloudinaryFolderSegment: string;
   cloudinaryPublicId: string;
   ratioLabel: string;
@@ -52,7 +65,7 @@ export const LOGO_IMAGE_SPEC: ImageSpec = {
   maxWidth: 2048,
   maxHeight: 2048,
   ratio: 1,
-  ratioTolerance: 0.01,
+  ratioTolerance: 0,
   maxBytes: 2 * 1024 * 1024,
   allowedMimeTypes: IMAGE_MIME_TYPES,
   allowedFormats: ["jpeg", "png", "webp"],

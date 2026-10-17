@@ -14,6 +14,7 @@ import {
   imageSpecPublicId,
 } from "@/shared/constants/imageSpecs";
 import { validateAndNormalizeImage } from "@/shared/utils/imageValidation";
+import { deleteImageAsset } from "@/shared/utils/imageAssetDeletion";
 
 export interface IUploadLogoDirectDTO {
   barbershopId: string;
@@ -93,14 +94,13 @@ export class UploadLogoDirectUseCase {
       this.legacyStorageProvider.extractObjectName(barbershop.logoUrl ?? "") ??
       null;
     if (previousObjectName && previousObjectName !== uploaded.objectName) {
-      this.legacyStorageProvider
-        .deleteObject(previousObjectName)
-        .catch((err) =>
-          console.warn(
-            `[UploadLogoDirect] Falha ao deletar logo antiga (${previousObjectName}):`,
-            err?.message
-          )
-        );
+      void deleteImageAsset({
+        imageProvider: this.storageProvider,
+        legacyProvider: this.legacyStorageProvider,
+        publicId: barbershop.logoPublicId,
+        publicUrl: barbershop.logoUrl,
+        context: "UploadLogoDirect",
+      });
     }
 
     return this.barbershopRepository.update(data.barbershopId, {
