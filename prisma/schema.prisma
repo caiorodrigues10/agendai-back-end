@@ -506,6 +506,11 @@ model BarbershopPageTheme {
   radiusStyle     String    @default("rounded") @db.VarChar(20)
   /// filled | outline
   buttonStyle     String    @default("filled") @db.VarChar(20)
+  /// AUTO (segue o sistema) | LIGHT | DARK
+  mode            String    @default("AUTO") @db.VarChar(20)
+  /// Variantes completas (JSON). Colunas planas acima = espelho legado do darkColors.
+  lightColors     Json?
+  darkColors      Json?
   coverUrl        String?   @db.VarChar(500)
   coverPublicId   String?   @db.VarChar(300)
   /// Overlay escuro sobre a capa (0–80, porcentagem).
