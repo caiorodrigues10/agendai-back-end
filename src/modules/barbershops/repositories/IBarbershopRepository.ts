@@ -2,6 +2,15 @@ import { ICreateBarbershopDTO } from "../dtos/ICreateBarbershopDTO";
 import { IUpdateBarbershopDTO } from "../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../dtos/IBarbershopResponseDTO";
 
+/** Type alias (não interface) de propósito: precisa de index signature implícito para casar com `InputJsonValue` do Prisma. */
+export type PageThemeVariantColorsDTO = {
+  accentColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  textMutedColor: string;
+};
+
 export interface IPageThemeDTO {
   id: string;
   barbershopId: string;
@@ -13,6 +22,11 @@ export interface IPageThemeDTO {
   textMutedColor: string;
   radiusStyle: string;
   buttonStyle: string;
+  /// AUTO | LIGHT | DARK (ausente em linhas antigas = AUTO).
+  mode: string;
+  /// Variantes completas; darkColors nulo = legado (usa as colunas planas acima).
+  lightColors: PageThemeVariantColorsDTO | null;
+  darkColors: PageThemeVariantColorsDTO | null;
   coverUrl: string | null;
   coverPublicId: string | null;
   coverOverlay: number;
@@ -27,6 +41,9 @@ export interface IUpdatePageThemeDTO {
   textMutedColor: string;
   radiusStyle: string;
   buttonStyle: string;
+  mode?: string;
+  lightColors?: PageThemeVariantColorsDTO | null;
+  darkColors?: PageThemeVariantColorsDTO | null;
   coverUrl?: string | null;
   coverPublicId?: string | null;
   coverOverlay: number;

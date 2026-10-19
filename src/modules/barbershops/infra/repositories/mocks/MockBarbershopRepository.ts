@@ -79,6 +79,13 @@ export class MockBarbershopRepository implements IBarbershopRepository {
   }
   async upsertPageTheme(barbershopId: string, data: IUpdatePageThemeDTO): Promise<IPageThemeDTO> {
     const existing = this.pageThemes.get(barbershopId);
+    const darkColors = data.darkColors ?? {
+      accentColor: data.accentColor,
+      backgroundColor: data.backgroundColor,
+      surfaceColor: data.surfaceColor,
+      textColor: data.textColor,
+      textMutedColor: data.textMutedColor,
+    };
     const theme: IPageThemeDTO = {
       id: existing?.id ?? `theme-${barbershopId}`,
       barbershopId,
@@ -90,6 +97,9 @@ export class MockBarbershopRepository implements IBarbershopRepository {
       textMutedColor: data.textMutedColor,
       radiusStyle: data.radiusStyle,
       buttonStyle: data.buttonStyle,
+      mode: data.mode ?? existing?.mode ?? "AUTO",
+      lightColors: data.lightColors !== undefined ? data.lightColors : existing?.lightColors ?? null,
+      darkColors,
       coverUrl: data.coverUrl ?? null,
       coverPublicId: data.coverPublicId ?? null,
       coverOverlay: data.coverOverlay,

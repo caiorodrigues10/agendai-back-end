@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { Prisma, type BarbershopPageTheme } from "@prisma/client";
 import { ICreateBarbershopDTO } from "../../dtos/ICreateBarbershopDTO";
 import { IUpdateBarbershopDTO } from "../../dtos/IUpdateBarbershopDTO";
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
@@ -6,7 +7,9 @@ import {
   IBarbershopRepository,
   IPageThemeDTO,
   IUpdatePageThemeDTO,
+  PageThemeVariantColorsDTO,
 } from "../../repositories/IBarbershopRepository";
+import { isHexColor, normalizeHexColor } from "../../utils/pageThemeContrast";
 
 const shopSelect = {
   id: true,
@@ -43,6 +46,70 @@ const shopSelect = {
 // campo; os fluxos autenticados continuam em `shopSelect` via findById.
 // `businessSegmentOther` também fica de fora: texto livre interno do dono.
 const { evolutionInstanceName: _evolutionInstanceName, businessSegmentOther: _businessSegmentOther, logoPublicId: _logoPublicId, ...publicShopSelect } = shopSelect;
+
+const VARIANT_COLOR_FIELDS = [
+  "accentColor",
+  "backgroundColor",
+  "surfaceColor",
+  "textColor",
+  "textMutedColor",
+] as const;
+
+/** JSON do Prisma (`JsonValue`) → DTO estruturado; shape inválido/corrompido = null. */
+function toVariantColors(value: unknown): PageThemeVariantColorsDTO | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const colors = {} as PageThemeVariantColorsDTO;
+  for (const field of VARIANT_COLOR_FIELDS) {
+    const hex = record[field];
+    if (typeof hex !== "string" || !isHexColor(hex)) return null;
+    colors[field] = normalizeHexColor(hex);
+  }
+  return colors;
+}
+
+/** DTO → input de JSON do Prisma: `undefined` mantém a linha; `null` limpa a coluna. */
+function toPrismaJson(
+  value: PageThemeVariantColorsDTO | null | undefined,
+): typeof Prisma.DbNull | PageThemeVariantColorsDTO | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  return value;
+}
+
+/**
+ * Row → DTO (mapeamento explícito): `lightColors`/`darkColors` são `JsonValue`
+ * no client do Prisma e não casam estruturalmente com o DTO. `darkColors`
+ * nulo (linha antiga) cai nas colunas planas, que são o espelho legado.
+ */
+function mapPageThemeRow(row: BarbershopPageTheme): IPageThemeDTO {
+  const darkColors =
+    toVariantColors(row.darkColors) ?? {
+      accentColor: normalizeHexColor(row.accentColor),
+      backgroundColor: normalizeHexColor(row.backgroundColor),
+      surfaceColor: normalizeHexColor(row.surfaceColor),
+      textColor: normalizeHexColor(row.textColor),
+      textMutedColor: normalizeHexColor(row.textMutedColor),
+    };
+  return {
+    id: row.id,
+    barbershopId: row.barbershopId,
+    presetKey: row.presetKey,
+    accentColor: row.accentColor,
+    backgroundColor: row.backgroundColor,
+    surfaceColor: row.surfaceColor,
+    textColor: row.textColor,
+    textMutedColor: row.textMutedColor,
+    radiusStyle: row.radiusStyle,
+    buttonStyle: row.buttonStyle,
+    mode: row.mode,
+    lightColors: toVariantColors(row.lightColors),
+    darkColors,
+    coverUrl: row.coverUrl,
+    coverPublicId: row.coverPublicId,
+    coverOverlay: row.coverOverlay,
+  };
+}
 
 export class BarbershopRepository implements IBarbershopRepository {
   async create(data: ICreateBarbershopDTO): Promise<IBarbershopResponseDTO> {
@@ -103,14 +170,26 @@ export class BarbershopRepository implements IBarbershopRepository {
   }
 
   async findPageTheme(barbershopId: string): Promise<IPageThemeDTO | null> {
-    return prisma.barbershopPageTheme.findUnique({ where: { barbershopId } });
+    const row = await prisma.barbershopPageTheme.findUnique({ where: { barbershopId } });
+    return row ? mapPageThemeRow(row) : null;
   }
 
   async upsertPageTheme(barbershopId: string, data: IUpdatePageThemeDTO): Promise<IPageThemeDTO> {
-    return prisma.barbershopPageTheme.upsert({
+    const { lightColors, darkColors, ...rest } = data;
+    const row = await prisma.barbershopPageTheme.upsert({
       where: { barbershopId },
-      create: { barbershopId, ...data },
-      update: { ...data },
+      create: {
+        barbershopId,
+        ...rest,
+        lightColors: toPrismaJson(lightColors),
+        darkColors: toPrismaJson(darkColors),
+      },
+      update: {
+        ...rest,
+        lightColors: toPrismaJson(lightColors),
+        darkColors: toPrismaJson(darkColors),
+      },
     });
+    return mapPageThemeRow(row);
   }
 }
