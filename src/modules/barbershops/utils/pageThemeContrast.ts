@@ -215,3 +215,64 @@ export function evaluateThemeContrast(colors: PageThemeColorsInput): ContrastChe
 export function failingContrastChecks(checks: ContrastCheck[]): ContrastCheck[] {
   return checks.filter(check => !check.ok);
 }
+
+export type PageThemeVariant = "light" | "dark";
+
+export type PageThemeVariantColors = PageThemeColorsInput;
+
+export const PAGE_THEME_VARIANT_BASE: Record<
+  PageThemeVariant,
+  Omit<PageThemeColorsInput, "accentColor">
+> = {
+  light: {
+    backgroundColor: "#F6F8F7",
+    surfaceColor: "#FFFFFF",
+    textColor: "#0F1110",
+    textMutedColor: "#5B6661",
+  },
+  dark: {
+    backgroundColor: "#0F1110",
+    surfaceColor: "#1B1F1D",
+    textColor: "#F2F5F3",
+    textMutedColor: "#8B9990",
+  },
+};
+
+/**
+ * Ajusta o accent até garantir ≥3:1 contra fundo e superfície (componentes de
+ * UI exigem 3:1 na variante alvo). Claro escurece até o preto; escuro clareia
+ * até o branco — sempre ≥3:1 ao extremo, então o laço sempre converge.
+ */
+function ensureVariantAccentContrast(
+  accentColor: string,
+  variant: PageThemeVariant
+): string {
+  const base = PAGE_THEME_VARIANT_BASE[variant];
+  const passes = (candidate: string) =>
+    contrastRatio(candidate, base.backgroundColor) >= 3 &&
+    contrastRatio(candidate, base.surfaceColor) >= 3;
+  if (passes(accentColor)) return accentColor;
+  const target = variant === "light" ? "#000000" : "#FFFFFF";
+  let last = accentColor;
+  for (let step = 0.05; step <= 1; step += 0.05) {
+    const candidate = mixToward(accentColor, target, step);
+    last = candidate;
+    if (passes(candidate)) return candidate;
+  }
+  return last;
+}
+
+/**
+ * Gera as cores completas de uma variante a partir do accent.
+ * Garante os pares AA do texto/muted (fixos na base) e o ≥3:1 do accent.
+ */
+export function generateVariantColors(
+  accentColor: string,
+  variant: PageThemeVariant
+): PageThemeVariantColors {
+  const accent = ensureVariantAccentContrast(normalizeHexColor(accentColor), variant);
+  return {
+    accentColor: accent,
+    ...PAGE_THEME_VARIANT_BASE[variant],
+  };
+}

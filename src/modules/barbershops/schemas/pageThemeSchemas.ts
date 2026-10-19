@@ -8,6 +8,14 @@ export const pageThemeIdParamsSchema = z.object({
   id: z.string().uuid("id do salão inválido"),
 });
 
+const pageThemeVariantColors = z.object({
+  accentColor: hexColor,
+  backgroundColor: hexColor,
+  surfaceColor: hexColor,
+  textColor: hexColor,
+  textMutedColor: hexColor,
+});
+
 export const updatePageThemeBodySchema = z.object({
   presetKey: z.string().max(40).nullable().optional(),
   accentColor: hexColor,
@@ -15,6 +23,14 @@ export const updatePageThemeBodySchema = z.object({
   surfaceColor: hexColor,
   textColor: hexColor,
   textMutedColor: hexColor,
+  /// AUTO (segue o sistema) | LIGHT | DARK. Ausente = legado = AUTO.
+  mode: z.enum(["AUTO", "LIGHT", "DARK"], {
+    errorMap: () => ({ message: "mode inválido. Aceitos: AUTO, LIGHT, DARK" }),
+  }).optional(),
+  /// Variante escura. Ausente = usa as cores planas acima (formato legado).
+  darkColors: pageThemeVariantColors.optional(),
+  /// Variante clara. null/ausente = ainda não materializada (gerada no front).
+  lightColors: pageThemeVariantColors.nullable().optional(),
   radiusStyle: z.enum(["squared", "rounded", "pill"], {
     errorMap: () => ({ message: "radiusStyle inválido. Aceitos: squared, rounded, pill" }),
   }),

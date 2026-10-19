@@ -8,6 +8,7 @@ import {
   evaluateThemeContrast,
   failingContrastChecks,
   normalizeHexColor,
+  type PageThemeVariantColors,
 } from "../../utils/pageThemeContrast";
 import { assertOwnerShop } from "./GetPageThemeUseCase";
 import { UpdatePageThemeBody } from "../../schemas/pageThemeSchemas";
@@ -39,16 +40,49 @@ export class UpdatePageThemeUseCase {
       textMutedColor: normalizeHexColor(data.textMutedColor),
     };
 
-    const failing = failingContrastChecks(evaluateThemeContrast(colors));
-    if (failing.length > 0) {
-      const detail = failing
-        .map(
-          check =>
-            `${check.leftLabel} × ${check.rightLabel}: ${check.ratio} (mínimo ${check.minRatio})`,
-        )
-        .join("; ");
-      throw new AppError(`Cores com contraste insuficiente — ${detail}.`, 400);
-    }
+    // Colunas planas = espelho legado do darkColors (formato antigo mapeado
+    // para a variante escura). lightColors ausente = ainda não materializada.
+    const darkColors: PageThemeVariantColors = data.darkColors
+      ? {
+          accentColor: normalizeHexColor(data.darkColors.accentColor),
+          backgroundColor: normalizeHexColor(data.darkColors.backgroundColor),
+          surfaceColor: normalizeHexColor(data.darkColors.surfaceColor),
+          textColor: normalizeHexColor(data.darkColors.textColor),
+          textMutedColor: normalizeHexColor(data.darkColors.textMutedColor),
+        }
+      : colors;
+    const lightColors: PageThemeVariantColors | null = data.lightColors
+      ? {
+          accentColor: normalizeHexColor(data.lightColors.accentColor),
+          backgroundColor: normalizeHexColor(data.lightColors.backgroundColor),
+          surfaceColor: normalizeHexColor(data.lightColors.surfaceColor),
+          textColor: normalizeHexColor(data.lightColors.textColor),
+          textMutedColor: normalizeHexColor(data.lightColors.textMutedColor),
+        }
+      : null;
+    const mode = data.mode ?? "AUTO";
+
+    const assertVariantContrast = (
+      variantColors: PageThemeVariantColors,
+      variantLabel: "escura" | "clara",
+    ): void => {
+      const failing = failingContrastChecks(evaluateThemeContrast(variantColors));
+      if (failing.length > 0) {
+        const detail = failing
+          .map(
+            check =>
+              `${check.leftLabel} × ${check.rightLabel}: ${check.ratio} (mínimo ${check.minRatio})`,
+          )
+          .join("; ");
+        throw new AppError(
+          `Cores com contraste insuficiente (variante ${variantLabel}) — ${detail}.`,
+          400,
+        );
+      }
+    };
+
+    assertVariantContrast(darkColors, "escura");
+    if (lightColors) assertVariantContrast(lightColors, "clara");
 
     let coverUrl = existing?.coverUrl ?? null;
     let coverPublicId = existing?.coverPublicId ?? null;
@@ -69,9 +103,17 @@ export class UpdatePageThemeUseCase {
 
     return this.barbershopRepository.upsertPageTheme(barbershopId, {
       presetKey: data.presetKey ?? null,
-      ...colors,
+      // Colunas planas: espelho legado do darkColors (og-image e leitores antigos).
+      accentColor: darkColors.accentColor,
+      backgroundColor: darkColors.backgroundColor,
+      surfaceColor: darkColors.surfaceColor,
+      textColor: darkColors.textColor,
+      textMutedColor: darkColors.textMutedColor,
       radiusStyle: data.radiusStyle,
       buttonStyle: data.buttonStyle,
+      mode,
+      lightColors,
+      darkColors,
       coverOverlay: data.coverOverlay,
       coverUrl,
       coverPublicId,
