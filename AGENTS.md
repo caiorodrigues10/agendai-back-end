@@ -61,6 +61,20 @@ npm run test:unit
 npm run docs:check
 ```
 
+**Testes durante o desenvolvimento (não pesar a máquina):**
+
+```bash
+npm run test:changed   # só arquivos alterados vs. HEAD (vitest --changed)
+npm run test:related   # testes relacionados aos arquivos informados (vitest related)
+```
+
+Suíte completa (`npm test` = unit, sem integração) **só no CI**. Integração/containers
+(`test:integration*`) e pentest rodam por script dedicado, com `maxWorkers=1` e sem
+paralelismo de arquivos — Testcontainers só sob `USE_TESTCONTAINERS=1` explícito.
+`vitest.config.mts`: `pool: 'forks'` (max 2), `fileParallelism: false`,
+`reporters: ['dot']`, `clearMocks`/`restoreMocks`, coverage desligado por padrão;
+scripts de teste usam `NODE_OPTIONS=--max-old-space-size=2048`.
+
 Scripts que **alteram banco:** `prisma:migrate*`, `db:push`, `prisma:seed`, `prisma:seed:demo`, `prisma:seed:tenant`, `start:prod`, `security:audit-logs`. Ver [SCRIPTS.md](docs/agents/SCRIPTS.md).
 
 `test:coverage` **não** configura provider de coverage no `vitest.config.mts` — não afirmar geração de relatório de cobertura.

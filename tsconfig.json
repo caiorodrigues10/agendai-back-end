@@ -15,6 +15,8 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "baseUrl": "./src",
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
     "paths": {
       "@/*": ["./*"],
       "@modules/*": ["modules/*"],
