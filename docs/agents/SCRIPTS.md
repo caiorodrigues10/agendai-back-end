@@ -15,13 +15,15 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `start` | `node dist/.../server.js` | runtime | build | Sobe API compilada |
 | `start:prod` | `prisma migrate deploy && node …` | **altera banco** + runtime | build, `DATABASE_URL` | Migra e sobe |
 | `typecheck` | `tsc --noEmit` | leitura | `npm install` | TypeScript |
-| `test` | `vitest` | testes | setup | Vitest (modo interativo/padrão do CLI) |
-| `test:unit` | `vitest run --exclude "src/tests/integration/**"` | testes | — | Unitários (exclui integration; aspas obrigatórias — sem elas o shell expande o glob e a suíte inteira não roda) |
-| `test:integration` | `dotenv-cli` + vitest integration | testes | Postgres `:5442`, Redis | Integration contra DB local |
+| `test` | `NODE_OPTIONS=--max-old-space-size=2048 vitest run --exclude "src/tests/integration/**" --maxWorkers=2` | testes | `npm install` | Unitários (sem integration; 2 workers). Suíte completa só no CI |
+| `test:unit` | `vitest run --exclude "src/tests/integration/**" --maxWorkers=2` | testes | — | Unitários (exclui integration; aspas obrigatórias — sem elas o shell expande o glob e a suíte inteira não roda) |
+| `test:changed` | `NODE_OPTIONS=… vitest run --changed --maxWorkers=2` | testes | `npm install` + git | Só testes afetados pelos arquivos alterados — preferir durante o desenvolvimento |
+| `test:related` | `NODE_OPTIONS=… vitest related --maxWorkers=2` | testes | `npm install` + git | Testes relacionados aos arquivos informados (`-- <arquivos>`) — preferir durante o desenvolvimento |
+| `test:integration` | `dotenv-cli` + vitest integration (`--maxWorkers=1 --no-file-parallelism`) | testes | Postgres `:5442`, Redis | Integration contra DB local, serializada |
 | `test:integration:containers` | vitest + testcontainers | testes | Docker | Integration com containers |
 | `test:pentest` | vitest pentest | testes | Docker / env pentest | Suite de segurança |
 | `test:security` | vitest arquivos de security | testes | — | Subconjunto segurança |
-| `test:watch` | `vitest --watch` | testes | — | Watch |
+| `test:watch` | `NODE_OPTIONS=… vitest --pool=forks --maxWorkers=2` | testes | — | Watch (limitado) |
 | `test:coverage` | `vitest run --exclude integration` | testes | — | **Não** configura `coverage` em `vitest.config.mts`; não gera relatório de cobertura sozinho |
 | `test:all` | `test:unit` + `test:integration` | testes | DB/Redis | Suite ampla |
 | `prisma:migrate` | `prisma migrate dev` | **altera banco** | Postgres | Cria/aplica migration em dev |
