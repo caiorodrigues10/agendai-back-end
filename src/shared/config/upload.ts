@@ -1,9 +1,15 @@
 /**
  * Upload constraints — single source of truth.
  * Used by LogoController, use-cases, and app.ts multipart config.
+ *
+ * Peso: o multipart global limita a 5 MB por arquivo (teto de memória do
+ * back); rotas podem sobrescrever por chamada — vídeo 25 MB
+ * (`MAX_VIDEO_SIZE_BYTES`) e mídia de post 5 MB (`POST_MEDIA_MAX_BYTES`).
+ * Imagens ainda passam pela checagem de `spec.maxBytes` ANTES do decode
+ * (`validateAndNormalizeImage` → 413), para não decodificar o que já estourou.
  */
 
-/** 5 MB */
+/** 5 MB — limite global do multipart (imagens; rotas podem sobrescrever) */
 export const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
 
 /** MIME types allowed for logo uploads */

@@ -3,10 +3,7 @@ import { container } from "tsyringe";
 import { z } from "zod";
 import { AppError } from "@/shared/errors/AppError";
 import { ProductCatalogUseCase } from "../useCases/productUseCases";
-import {
-  ALLOWED_LOGO_MIME_TYPES,
-  MAX_UPLOAD_SIZE_BYTES,
-} from "@/shared/config/upload";
+import { ALLOWED_LOGO_MIME_TYPES } from "@/shared/config/upload";
 import {
   adjustmentSchema,
   catalogTemplateSegmentSchema,
@@ -211,7 +208,7 @@ export class ProductsController {
     const allowedMimes = new Set(Object.keys(ALLOWED_LOGO_MIME_TYPES));
 
     const data = await (request as any).file({
-      limits: { fileSize: MAX_UPLOAD_SIZE_BYTES, files: 1, fields: 0 },
+      limits: { files: 1, fields: 0 },
     });
     if (!data) throw new AppError("Nenhum arquivo enviado. Use o campo 'file' no form-data.", 400);
 
@@ -225,9 +222,6 @@ export class ProductsController {
     try {
       buffer = await data.toBuffer();
     } catch (err: any) {
-      if (err?.code === "FST_REQ_FILE_TOO_LARGE" || err?.statusCode === 413) {
-        throw new AppError("Arquivo muito grande. Máximo permitido: 5 MB", 413);
-      }
       throw new AppError(`Erro ao processar arquivo: ${err?.message ?? "desconhecido"}`, 500);
     }
 

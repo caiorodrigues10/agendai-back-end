@@ -30,6 +30,12 @@ export interface IPageThemeDTO {
   coverUrl: string | null;
   coverPublicId: string | null;
   coverOverlay: number;
+  /// Ponto focal do recorte 16:9 (0–100); ausente em linha legada = 50.
+  coverFocalX?: number;
+  coverFocalY?: number;
+  /// Dimensões originais da capa (undefined = nunca enviada).
+  coverWidth?: number | null;
+  coverHeight?: number | null;
 }
 
 export interface IUpdatePageThemeDTO {
@@ -47,6 +53,10 @@ export interface IUpdatePageThemeDTO {
   coverUrl?: string | null;
   coverPublicId?: string | null;
   coverOverlay: number;
+  coverFocalX?: number;
+  coverFocalY?: number;
+  coverWidth?: number | null;
+  coverHeight?: number | null;
 }
 
 export interface IBarbershopRepository {

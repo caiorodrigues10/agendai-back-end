@@ -52,6 +52,7 @@
 | `pino-pretty` | `^13.1.3` | Logs | Pretty print | dev |
 | `reflect-metadata` | `^0.2.2` | DI | Metadata TSyringe | container |
 | `resend` | `^6.18.1` | E-mail | Envio transacional | ResendEmailProvider |
+| `satori` | `0.63.2` | Mídia | Layout → SVG (glifos em path) do motor de camadas | posts/templates/_engine/render.ts |
 | `sharp` | `^0.35.5` | Mídia | Decodificação/validação de imagens (dimensões, EXIF) | shared/utils/imageValidation.ts |
 | `tsconfig-paths` | `^4.2.0` | Build | Aliases runtime | tsx/dev |
 | `tsyringe` | `^4.8.0` | DI | Injeção de dependências | shared/container |

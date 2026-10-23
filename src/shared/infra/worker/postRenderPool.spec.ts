@@ -2,15 +2,38 @@
 import os from "node:os";
 import { AppError } from "@/shared/errors/AppError";
 import { renderSvgToPngSync } from "@/modules/posts/services/postSvgRenderer";
+import type { RenderSpec } from "@/modules/posts/templates/_engine/types";
 import {
   closePostRenderPool,
   postRenderPoolSize,
   postRenderTimeoutMs,
+  postRenderWarmStats,
+  renderPostSpec,
   renderSvgToPng,
 } from "./postRenderPool";
 
 const tinySvg =
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#0B0F19"/></svg>';
+
+/** Spec v2 mínimo: camada vetorial pura (sem foto → PNG). */
+const tinySpec: RenderSpec = {
+  width: 64,
+  height: 64,
+  bg: "#0B0F19",
+  layers: [
+    {
+      kind: "vector",
+      node: {
+        type: "div",
+        props: {
+          style: { width: "64px", height: "64px", fontFamily: "Inter", fontSize: 20, color: "#ffffff" },
+          children: ["OK"],
+        },
+      },
+    },
+  ],
+  output: "png",
+};
 
 const PNG_MAGIC = "89504e470d0a1a0a";
 
@@ -42,6 +65,7 @@ describe("postRenderPool", () => {
   afterEach(async () => {
     delete process.env.POST_RENDER_WORKERS;
     delete process.env.POST_RENDER_TIMEOUT_MS;
+    delete process.env.POST_RENDER_WARM;
   });
 
   afterAll(async () => {
@@ -109,5 +133,59 @@ describe("postRenderPool", () => {
     expect(postRenderTimeoutMs()).toBe(120_000);
     process.env.POST_RENDER_TIMEOUT_MS = "abc";
     expect(postRenderTimeoutMs()).toBe(15_000);
+  });
+
+  it("renderiza RenderSpec (v2) dentro do worker com metadados", async () => {
+    const result = await renderPostSpec(tinySpec);
+    expect(result.buffer.subarray(0, 8).toString("hex")).toBe(PNG_MAGIC);
+    expect(result.mimeType).toBe("image/png");
+    expect(result.bytes).toBe(result.buffer.length);
+    expect(result.timings.totalMs).toBeGreaterThan(0);
+  });
+
+  it("spec malformado vira AppError POST_RENDER_FAILED e o pool segue utilizável", async () => {
+    const badSpec: RenderSpec = { ...tinySpec, width: 0 };
+    const err = await expectAppError(renderPostSpec(badSpec), "POST_RENDER_FAILED");
+    expect(err.statusCode).toBe(500);
+
+    // pool segue utilizável
+    const ok = await renderPostSpec(tinySpec);
+    expect(ok.buffer.subarray(0, 8).toString("hex")).toBe(PNG_MAGIC);
+  });
+
+  it("falha de foto (host proibido) não derruba o job: segue sem a camada", async () => {
+    const photoSpec: RenderSpec = {
+      ...tinySpec,
+      layers: [
+        { kind: "photo", src: "https://evil.example.com/x.jpg", rect: { x: 0, y: 0, w: 64, h: 64 } },
+      ],
+    };
+    const result = await renderPostSpec(photoSpec);
+    expect(result.bytes).toBeGreaterThan(0);
+    expect(result.timings.totalMs).toBeGreaterThan(0);
+
+    // e nem o fallback de segmento (quando existe) falha o job
+    const withFallback: RenderSpec = {
+      ...tinySpec,
+      layers: [
+        {
+          kind: "photo",
+          src: "http://127.0.0.1:1/x.jpg",
+          fallbackSrc: "barber-editorial",
+          rect: { x: 0, y: 0, w: 64, h: 64 },
+        },
+      ],
+    };
+    const ok = await renderPostSpec(withFallback);
+    expect(ok.bytes).toBeGreaterThan(0);
+  });
+
+  it("aquecimento por worker: ready + warmMs medido (boot + 1º render)", async () => {
+    await renderSvgToPng(tinySvg);
+    const stats = postRenderWarmStats();
+    expect(stats.workers).toBeGreaterThanOrEqual(1);
+    expect(stats.ready).toBeGreaterThanOrEqual(1);
+    expect(stats.ready).toBeLessThanOrEqual(stats.workers);
+    for (const ms of stats.warmMs) expect(ms).toBeGreaterThan(0);
   });
 });

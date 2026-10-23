@@ -3,7 +3,9 @@
  *
  * Escopo: users.avatarUrl, barbershops.logoUrl/logoPublicId,
  * barbershop_page_theme.cover_url/cover_public_id, products.imageUrl,
- * post_media.url/objectName e feed_posts.imageUrl/videoUrl.
+ * post_media.url/objectName e feed_posts.imageUrl/imageAssetName/videoUrl
+ * (o public_id do asset também é gravado em imageAssetName p/ não deixar órfão
+ * ao editar/excluir o post).
  * URLs que já são do Cloudinary (res.cloudinary.com) ou data-URLs são puladas.
  *
  * Download pelo URL pública do objeto (bucket legado precisa ser legível);
@@ -63,7 +65,7 @@ type Asset = {
   fileName: string;
   mimeType: string;
   /** atualiza o banco apontando também o campo de public_id, quando existir */
-  setPublicIdField?: "logoPublicId" | "coverPublicId" | "objectName";
+  setPublicIdField?: "logoPublicId" | "coverPublicId" | "objectName" | "imageAssetName";
 };
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -207,6 +209,7 @@ async function collectAssets(barbershopId?: string): Promise<Asset[]> {
         folder: `agendaja/${post.barbershopId}/posts/${post.id}`,
         fileName: "image",
         mimeType: guessMime(post.imageUrl, "image/jpeg"),
+        setPublicIdField: "imageAssetName",
       });
     }
     if (post.videoUrl && !isCloudinaryUrl(post.videoUrl) && !isDataUrl(post.videoUrl)) {
@@ -261,7 +264,10 @@ async function updateDb(asset: Asset, newUrl: string, objectName: string): Promi
       });
       return;
     case "post-image":
-      await prisma.feedPost.update({ where: { id: asset.id }, data: { imageUrl: newUrl } });
+      await prisma.feedPost.update({
+        where: { id: asset.id },
+        data: { imageUrl: newUrl, imageAssetName: objectName },
+      });
       return;
     case "post-video":
       await prisma.feedPost.update({ where: { id: asset.id }, data: { videoUrl: newUrl } });

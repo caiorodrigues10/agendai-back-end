@@ -5,6 +5,34 @@ import { enqueuePostBroadcast } from "@/shared/infra/queue/postBroadcastQueue";
 
 const logger = getModuleLogger("posts:broadcast");
 
+/** Teto do download de arte hospedada (posts-art no Cloudinary). */
+const MAX_REMOTE_IMAGE_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Resolve a imagem do post para base64 cru (sem prefixo data:), como a fila
+ * de broadcast exige. Aceita data-URL (legado) e URL http(s) (arte em
+ * `posts-art` — baixa com timeout). Retorna null quando não dá para obter a
+ * imagem e o broadcast deve ser abortado.
+ */
+async function resolveBroadcastImage(postId: string, imageUrl: string): Promise<string | null> {
+  if (imageUrl.startsWith("data:image")) {
+    return imageUrl.replace(/^data:image\/[\w.+-]+;base64,/, "");
+  }
+  if (!/^https?:\/\//.test(imageUrl)) return null;
+  try {
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.startsWith("image/")) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length === 0 || buffer.length > MAX_REMOTE_IMAGE_BYTES) return null;
+    return buffer.toString("base64");
+  } catch (err) {
+    logger.warn({ postId, err: err instanceof Error ? err.message : String(err) }, "Falha ao baixar imagem do post p/ broadcast");
+    return null;
+  }
+}
+
 /**
  * Enfileira jobs de broadcast de post via WhatsApp para todos os clientes
  * da barbearia. Chamado APENAS pela ação explícita "Enviar pelo WhatsApp"
@@ -62,12 +90,11 @@ export async function broadcastPostToClients(
       return 0;
     }
 
-    if (!post.imageUrl.startsWith("data:image")) {
-      logger.warn({ postId }, "Post imageUrl is not a data URL — broadcast aborted");
+    const imageBase64 = await resolveBroadcastImage(postId, post.imageUrl);
+    if (!imageBase64) {
+      logger.warn({ postId }, "Post image could not be resolved — broadcast aborted");
       return 0;
     }
-
-    const imageBase64 = post.imageUrl.replace(/^data:image\/\w+;base64,/, "");
     const resolvedTitle = title || post.title || "Novo post";
     const resolvedCta = ctaText || post.ctaText || null;
     const caption = [resolvedTitle, resolvedCta].filter(Boolean).join("\n\n");

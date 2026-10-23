@@ -13,6 +13,10 @@ export class SocialController {
     const { salonId } = salonParamsSchema.parse(req.params);
     return reply.send({ success: true, data: await this.useCases.stories(salonId) });
   }
+  async gallery(req: FastifyRequest, reply: FastifyReply) {
+    const { salonId } = salonParamsSchema.parse(req.params);
+    return reply.send({ success: true, data: await this.useCases.gallery(salonId) });
+  }
   async comments(req: FastifyRequest, reply: FastifyReply) {
     const { salonId, postId } = socialPostParamsSchema.parse(req.params);
     const { page } = commentQuerySchema.parse(req.query);

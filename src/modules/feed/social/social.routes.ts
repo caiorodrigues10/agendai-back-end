@@ -14,6 +14,7 @@ export async function socialRoutes(app: FastifyInstance) {
   const base = "/salons/:salonId";
   app.get(`${base}/posts/:postId`, controller.post.bind(controller));
   app.get(`${base}/stories`, controller.stories.bind(controller));
+  app.get(`${base}/gallery`, controller.gallery.bind(controller));
   app.get(`${base}/posts/:postId/comments`, controller.comments.bind(controller));
   app.post(`${base}/posts/:postId/comments`, {
     preHandler: [authenticateSocialActor], config: { rateLimit: { max: 10, timeWindow: "1 minute" } },

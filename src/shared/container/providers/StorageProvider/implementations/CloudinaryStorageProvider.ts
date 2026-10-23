@@ -141,10 +141,17 @@ export class CloudinaryStorageProvider implements IStorageProvider {
             cache_control: options?.cacheControl ?? 'public, max-age=31536000',
             overwrite: options?.overwrite ?? false,
             invalidate: options?.invalidate ?? false,
+            ...(options?.transformation?.length ? { transformation: options.transformation } : {}),
           },
           (error, result) => {
-            if (error) reject(error)
-            else resolve(result as Record<string, unknown>)
+            if (error) {
+              // Normaliza o erro cru do SDK ({ message, http_code }) em Error com
+              // mensagem legível para o chamador mapear (ex.: "Invalid image file").
+              const message = (error as { message?: string })?.message ?? 'upload failed'
+              const wrapped = new Error(message) as Error & { http_code?: number }
+              wrapped.http_code = (error as { http_code?: number })?.http_code
+              reject(wrapped)
+            } else resolve(result as Record<string, unknown>)
           },
         )
         uploadStream.end(buffer)
@@ -184,7 +191,12 @@ export class CloudinaryStorageProvider implements IStorageProvider {
       const segments = url.pathname.split('/').filter(Boolean)
       if (url.protocol !== 'https:' || url.hostname !== 'res.cloudinary.com' || segments[0] !== this.cloudName || !['image', 'video'].includes(segments[1]) || segments[2] !== 'upload') return null
       const objectName = segments.slice(3).join('/').replace(/^v\d+\//, '')
-      return objectName ? decodeURIComponent(objectName) : null
+      if (!objectName) return null
+      // O public_id do Cloudinary não carrega extensão de arquivo; a URL sim
+      // (ex.: /upload/v1/folder/id.png → public_id "folder/id"). Destroy com a
+      // extensão retorna "not found" e deixa o asset órfão.
+      const decoded = decodeURIComponent(objectName).replace(/\.(jpe?g|png|webp|gif|avif|svg|bmp|mp4|mov|webm)$/i, '')
+      return decoded || null
     } catch {
       return null
     }

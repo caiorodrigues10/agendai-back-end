@@ -52,6 +52,12 @@ export class SocialUseCases {
     return (await this.repo.stories(salonId)).map(toPublicPost);
   }
 
+  async gallery(salonId: string) {
+    const { withCloudinaryDelivery } = await import("@/modules/posts/controllers/PostMediaController");
+    const rows = await this.repo.gallery(salonId);
+    return rows.map(row => ({ ...row, url: withCloudinaryDelivery(row.url) }));
+  }
+
   async comments(salonId: string, postId: string, page: number) {
     await this.publishedPost(salonId, postId);
     const limit = 20;

@@ -165,3 +165,80 @@ describe("broadcastPostToClients", () => {
     expect(mockEnqueue).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fase 1.5 — arte hospedada em posts-art (URL) na fila de broadcast
+// ---------------------------------------------------------------------------
+describe("hosted art resolution (posts-art)", () => {
+  const HOSTED_URL = "https://res.cloudinary.com/test/image/upload/posts-art/art.png";
+
+  function setupPost(imageUrl: string) {
+    mockFindUnique.mockImplementation((args: { where?: { id?: string } }) => {
+      if (args?.where?.id === BARBERSHOP_ID) {
+        return { id: BARBERSHOP_ID, evolutionInstanceName: "my-instance" };
+      }
+      if (args?.where?.id === POST_ID) {
+        return { imageUrl, title: "Promo", ctaText: null };
+      }
+      return null;
+    });
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("downloads hosted art and enqueues its raw base64", async () => {
+    setupPost(HOSTED_URL);
+    setupClients([{ id: "c1", whatsapp: "11999998888" }]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: (h: string) => (h.toLowerCase() === "content-type" ? "image/png" : null) },
+        arrayBuffer: async () => Uint8Array.from([1, 2, 3]).buffer,
+      }),
+    );
+
+    const queued = await broadcastPostToClients(BARBERSHOP_ID, POST_ID, "Promo", null);
+
+    expect(queued).toBe(1);
+    expect(mockEnqueue).toHaveBeenCalledTimes(1);
+    expect(mockEnqueue.mock.calls[0][0].imageBase64).toBe(Buffer.from([1, 2, 3]).toString("base64"));
+  });
+
+  it("aborts when the hosted image cannot be downloaded", async () => {
+    setupPost(HOSTED_URL);
+    setupClients([{ id: "c1", whatsapp: "11999998888" }]);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("net down")));
+
+    const queued = await broadcastPostToClients(BARBERSHOP_ID, POST_ID, "Promo", null);
+
+    expect(queued).toBe(0);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("aborts when the URL does not return an image", async () => {
+    setupPost(HOSTED_URL);
+    setupClients([{ id: "c1", whatsapp: "11999998888" }]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => "text/html" },
+        arrayBuffer: async () => new ArrayBuffer(0),
+      }),
+    );
+
+    expect(await broadcastPostToClients(BARBERSHOP_ID, POST_ID, "Promo", null)).toBe(0);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("aborts on URLs that are not http(s)", async () => {
+    setupPost("javascript:alert(1)");
+    setupClients([{ id: "c1", whatsapp: "11999998888" }]);
+
+    expect(await broadcastPostToClients(BARBERSHOP_ID, POST_ID, "Promo", null)).toBe(0);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+});

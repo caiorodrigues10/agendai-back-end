@@ -5,6 +5,10 @@ import {
   pngToDataUrl,
   renderPostSvgToPng,
 } from "@/modules/posts/services/postImageService";
+import {
+  persistPostImage,
+  deletePostImage,
+} from "@/modules/posts/services/postImageStorageService";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { withCronLock, spMinuteKey, type CronLockContext } from "@/shared/infra/redis/cronLock";
 import { withCronCorrelation } from "@/shared/utils/correlationContext";
@@ -164,22 +168,34 @@ async function runPostPublisherTick(log: CronLogger, ctx: CronLockContext) {
         ctaText,
         title,
       });
-      const imageUrl = pngToDataUrl(await renderPostSvgToPng(svg));
+      const art = await persistPostImage(
+        shop.id,
+        pngToDataUrl(await renderPostSvgToPng(svg)),
+      );
 
-      const createdPost = await prisma.feedPost.create({
-        data: {
-          barbershopId: shop.id,
-          authorId: null,
-          type: "ANNOUNCEMENT",
-          title,
-          content: "",
-          imageUrl,
-          status: "PUBLISHED",
-          postMode: "BOTH",
-          ctaText,
-          publishedAt: new Date(),
-        },
-      });
+      let createdPost;
+      try {
+        createdPost = await prisma.feedPost.create({
+          data: {
+            barbershopId: shop.id,
+            authorId: null,
+            type: "ANNOUNCEMENT",
+            title,
+            content: "",
+            imageUrl: art.imageUrl,
+            imageAssetName: art.imageAssetName,
+            status: "PUBLISHED",
+            postMode: "BOTH",
+            ctaText,
+            publishedAt: new Date(),
+          },
+        });
+      } catch (err) {
+        // Compensação: arte subiu mas o post não foi gravado — remove o asset
+        // órfão e deixa o catch externo logar (nunca regrava base64 aqui).
+        if (art.imageAssetName) await deletePostImage(art.imageAssetName);
+        throw err;
+      }
 
       void createdPost; // WhatsApp não é disparado: envio é ação explícita.
 

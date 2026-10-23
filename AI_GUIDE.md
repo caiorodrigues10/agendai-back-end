@@ -764,7 +764,7 @@ Após criar um repositório, registrá-lo em `src/shared/container/index.ts` é 
 
 - Ao criar uma barbearia com CNPJ já cadastrado, verifica-se se a barbearia existente tem assinatura ativa. Se não tiver, retorna 402.
 - Logo é armazenada no Google Cloud Storage. Ao trocar a logo, a antiga é deletada do GCS automaticamente.
-- Upload de logo tem dois fluxos: Signed URL (cliente → GCS direto) e Multipart (cliente → API → GCS). Ambos têm limite de 5 MB e aceitam JPEG, PNG, WebP.
+- Upload de imagem não tem limite de peso no app (o Cloudinary aplica o limite do plano). Fluxos: upload direto assinado (`POST /barbershops/:id/uploads/sign` + confirmação) e multipart legado (cliente → API → Cloudinary). Ambos aceitam JPEG, PNG, WebP.
 
 ### 13.6 Pagamentos
 

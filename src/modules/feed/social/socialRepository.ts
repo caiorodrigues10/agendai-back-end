@@ -44,6 +44,16 @@ export class SocialRepository {
     });
   }
 
+  /** Galeria pública do perfil ("Fotos"): post_media marcadas com inGallery. */
+  gallery(salonId: string) {
+    return prisma.postMedia.findMany({
+      where: { barbershopId: salonId, inGallery: true, barbershop: { active: true } },
+      select: { id: true, url: true, mimeType: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
+  }
+
   async comments(postId: string, page: number, limit: number) {
     const where = { postId };
     const [data, total] = await Promise.all([

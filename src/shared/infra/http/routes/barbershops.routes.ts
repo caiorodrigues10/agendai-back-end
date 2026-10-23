@@ -14,6 +14,7 @@ import { GetScheduleController }       from "@/modules/barbershops/useCases/getS
 import { UpdateScheduleController }    from "@/modules/barbershops/useCases/updateSchedule/UpdateScheduleController";
 import { LogoController }              from "@/modules/barbershops/useCases/uploadLogo/LogoController";
 import { PageThemeController }          from "@/modules/barbershops/useCases/pageTheme/PageThemeController";
+import { SignImageUploadController }    from "@/modules/barbershops/useCases/signImageUpload/SignImageUploadController";
 import { pageThemeIdParamsSchema }      from "@/modules/barbershops/schemas/pageThemeSchemas";
 import { WhatsAppConnectionController } from "@/modules/barbershops/useCases/whatsappConnection/WhatsAppConnectionController";
 import { ChangeOperationModeController } from "@/modules/barbershops/useCases/changeOperationMode/ChangeOperationModeController";
@@ -34,6 +35,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const updateSchedule = new UpdateScheduleController();
   const logo           = new LogoController();
   const pageTheme      = new PageThemeController();
+  const signImageUpload = new SignImageUploadController();
   const whatsapp       = new WhatsAppConnectionController();
   const changeMode     = new ChangeOperationModeController();
   const shopStatus     = new ShopStatusController();
@@ -151,7 +153,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   //
   // POST /barbershops/:id/logo/upload
   //   Content-Type: multipart/form-data
-  //   Body: campo "logo" com o arquivo (JPEG, PNG ou WebP, max 2 MB, 1:1)
+  //   Body: campo "logo" com o arquivo (JPEG, PNG ou WebP, 1:1)
   //   → Valida magic bytes + sharp (dimensões/proporção), sobe no Cloudinary
   //     (public_id determinístico agendaja/{id}/logo/logo) e grava logoUrl.
   app.post(
@@ -174,7 +176,9 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   //
   // GET    /barbershops/:id/page-theme  (público, cache 60s; data null = padrão)
   // PUT    /barbershops/:id/page-theme  (dono; valida contraste WCAG AA)
-  // POST   /barbershops/:id/page-theme/cover  (multipart campo "cover")
+  // POST   /barbershops/:id/page-theme/cover  (multipart campo "cover"; legado/fallback)
+  // POST   /barbershops/:id/uploads/sign      (dono; credenciais p/ upload direto ao Cloudinary)
+  // POST   /barbershops/:id/page-theme/cover/confirm (dono; valida recurso no Cloudinary e grava)
   // DELETE /barbershops/:id/page-theme/cover
   app.get(
     "/barbershops/:id/page-theme",
@@ -218,5 +222,36 @@ export async function barbershopsRoutes(app: FastifyInstance) {
       config: { rateLimit: { max: 10, timeWindow: "10 minutes" } },
     },
     pageTheme.deleteCover.bind(pageTheme)
+  );
+
+  // ─── Upload assinado de imagem (cliente → Cloudinary direto) ───────────────
+  //
+  // POST /barbershops/:id/uploads/sign
+  //   Body: { kind: "cover" | "logo" }
+  //   → { cloudName, apiKey, uploadUrl, folder, publicId, timestamp, signature,
+  //       expiresInSeconds, params } — assinatura server-side; o cliente envia
+  //       FormData (params + arquivo) direto para uploadUrl.
+  //   Sem limite de peso no app: o Cloudinary aplica o limite do plano.
+  app.post(
+    "/barbershops/:id/uploads/sign",
+    {
+      preHandler: [...ownerPageThemeGuard, validateSchema(pageThemeIdParamsSchema, "params")],
+      config: { rateLimit: { max: 20, timeWindow: "10 minutes" } },
+    },
+    signImageUpload.handle.bind(signImageUpload)
+  );
+
+  // POST /barbershops/:id/page-theme/cover/confirm
+  //   Body: { publicId: string, version?: number }
+  //   → back consulta o recurso no Cloudinary (autoridade): pasta/formato
+  //     precisam bater com COVER_IMAGE_SPEC (dimensões livres); asset fora →
+  //     destroy + 400. Grava coverWidth/Height p/ o front recortar sem ampliar.
+  app.post(
+    "/barbershops/:id/page-theme/cover/confirm",
+    {
+      preHandler: [...ownerPageThemeGuard, validateSchema(pageThemeIdParamsSchema, "params")],
+      config: { rateLimit: { max: 20, timeWindow: "10 minutes" } },
+    },
+    pageTheme.confirmCover.bind(pageTheme)
   );
 }

@@ -515,6 +515,12 @@ model BarbershopPageTheme {
   coverPublicId   String?   @db.VarChar(300)
   /// Overlay escuro sobre a capa (0–80, porcentagem).
   coverOverlay    Int       @default(40)
+  /// Ponto focal do recorte 16:9 (0–100, porcentagem do original).
+  coverFocalX     Int       @default(50)
+  coverFocalY     Int       @default(50)
+  /// Dimensões originais da capa (informadas no upload/confirmação).
+  coverWidth      Int?
+  coverHeight     Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   barbershop      Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
@@ -1056,8 +1062,12 @@ model FeedPost {
   type             FeedType
   title            String?        @db.VarChar(200)
   content          String         @db.Text
-  // Text: o front envia data-URLs base64 (até migrar para upload GCS)
+  // Text: o front envia data-URLs base64; no salvar/publicar o backend converte
+  // em asset no Cloudinary (pasta posts-art) e guarda a URL pública aqui.
   imageUrl         String?        @db.Text
+  /// public_id do asset da arte final no Cloudinary (pasta posts-art).
+  /// NULL = legado base64/URL externa — não há asset a destruir.
+  imageAssetName   String?        @db.VarChar(255)
   /// URL do vídeo no GCS (pasta posts/).
   videoUrl         String?        @db.Text
   likes            Int            @default(0)
@@ -1141,6 +1151,7 @@ model PostMedia {
   objectName     String     @db.Text
   mimeType       String     @db.VarChar(80)
   size           Int
+  inGallery      Boolean    @default(false)
   createdAt      DateTime   @default(now())
   barbershop     Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   uploadedBy     User?      @relation("PostMediaUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
@@ -1148,6 +1159,7 @@ model PostMedia {
   secondaryPosts FeedPost[] @relation("SecondaryPostMedia")
 
   @@index([barbershopId, createdAt])
+  @@index([barbershopId, inGallery, createdAt])
   @@map("post_media")
 }
 

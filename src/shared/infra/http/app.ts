@@ -16,6 +16,12 @@ import { setupSwagger } from "@/config/swagger";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { RedisRateLimitStore } from "./redisRateLimitStore";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/shared/config/upload";
+import {
+  globalRateLimitKey,
+  globalRateLimitMax,
+  globalRateLimitWindowMs,
+} from "./authRateLimit";
 import { buildSafeAuditDetails, sanitizeSensitiveText } from "@/shared/utils/securitySanitization";
 import { formatZodIssues, isZodError } from "@/shared/utils/zodValidation";
 import { isPrismaInvalidUuidError } from "@/shared/utils/prismaErrors";
@@ -197,18 +203,28 @@ export async function buildApp() {
   } as any);
 
   // Rate-limit global — Redis store em produção, in-memory em testes
-  const rateLimitWindowMs = 60_000; // 1 minute
+  const rateLimitWindowMs = globalRateLimitWindowMs();
   const rateLimitConfig: Record<string, unknown> = {
     global: true,
-    max: 400,
+    max: globalRateLimitMax(),
     timeWindow: rateLimitWindowMs,
+    keyGenerator: globalRateLimitKey,
     allowList: (req: { url?: string }) =>
       RATE_LIMIT_ALLOWED_PATHS.has((req.url ?? "").split("?")[0]),
-    errorResponseBuilder: () => ({
-      statusCode: 429,
-      success: false,
-      message: "Muitas requisições. Tente novamente em alguns instantes.",
-    }),
+    errorResponseBuilder: (_req: unknown, context: { ttl?: number }) => {
+      const retryAfter =
+        typeof context?.ttl === "number" && context.ttl > 0
+          ? Math.ceil(context.ttl / 1000)
+          : null;
+      return {
+        statusCode: 429,
+        success: false,
+        message: retryAfter
+          ? `Muitas requisições. Tente novamente em ${retryAfter} segundos.`
+          : "Muitas requisições. Tente novamente em alguns instantes.",
+        retryAfter,
+      };
+    },
   };
   if (!process.env.VITEST) {
     rateLimitConfig.store = RedisRateLimitStore.withDefaults({
@@ -220,7 +236,8 @@ export async function buildApp() {
   // Suporte a upload multipart/form-data
   await app.register(multipart, {
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5 MB máximo por arquivo
+      // Teto de memória por arquivo (rotas sobrescrevem por chamada: vídeo 25 MB)
+      fileSize: MAX_UPLOAD_SIZE_BYTES,
       files: 1,
       fields: 5,
     },
@@ -396,14 +413,15 @@ async function handleAppError(error: FastifyError, request: FastifyRequest, repl
       }
       // Rate limit errors do @fastify/rate-limit
       if ((error as any).statusCode === 429) {
-        const retryAfter = (error as any).headers?.["retry-after"];
-        const retrySeconds = retryAfter ? Math.ceil(Number(retryAfter)) : null;
+        const retryAfter =
+          (error as any).retryAfter ?? (error as any).headers?.["retry-after"];
+        const retrySeconds = retryAfter != null ? Math.ceil(Number(retryAfter)) : null;
         reply.status(429).send({
           success: false,
-          message: retrySeconds
+          message: Number.isFinite(retrySeconds) && retrySeconds
             ? `Muitas requisições. Tente novamente em ${retrySeconds} segundos.`
             : "Muitas requisições. Tente novamente em alguns instantes.",
-          retryAfter: retrySeconds,
+          retryAfter: Number.isFinite(retrySeconds) && retrySeconds ? retrySeconds : null,
           correlationId: request.correlationId,
         });
         return;

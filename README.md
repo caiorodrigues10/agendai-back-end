@@ -715,7 +715,7 @@ Confirma o upload e salva a URL no banco.
 Envia o arquivo diretamente pela API (uma requisição só).
 
 - **Content-Type:** `multipart/form-data`
-- **Campo:** `logo` (arquivo JPEG, PNG ou WebP, máx 5 MB)
+- **Campo:** `logo` (arquivo JPEG, PNG ou WebP, 1:1)
 
 **Resposta 200:**
 ```json
@@ -2064,7 +2064,7 @@ Dois fluxos disponíveis:
 
 **Restrições:**
 - Formatos aceitos: JPEG, PNG, WebP
-- Tamanho máximo: 5 MB
+- Sem limite de peso no app (o Cloudinary aplica o limite do plano da conta)
 - A logo antiga é deletada automaticamente do GCS ao enviar uma nova
 
 ---

@@ -36,6 +36,14 @@ vi.mock("@/modules/posts/services/postImageService", () => ({
   pngToDataUrl: vi.fn().mockReturnValue("data:image/png;base64,aWNv"),
 }));
 
+// --- Mock postImageStorageService (Fase 1.5: arte em posts-art) ---
+const mockPersistPostImage = vi.fn();
+const mockDeletePostImage = vi.fn();
+vi.mock("@/modules/posts/services/postImageStorageService", () => ({
+  persistPostImage: (...a: unknown[]) => mockPersistPostImage(...a),
+  deletePostImage: (...a: unknown[]) => mockDeletePostImage(...a),
+}));
+
 // --- Mock distributed lock ---
 let lockHeld = true;
 const mockWithCronLock = vi.fn(async (...args: unknown[]) => {
@@ -70,6 +78,11 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     lockHeld = true;
+    mockPersistPostImage.mockImplementation(async () => ({
+      imageUrl: "https://res.cloudinary.com/test/image/upload/posts-art/auto.png",
+      imageAssetName: "posts-art/auto",
+    }));
+    mockDeletePostImage.mockResolvedValue(undefined);
 
     // Mock node-cron to capture the handler
     vi.doMock("node-cron", () => ({
@@ -162,10 +175,13 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
 
     await handler();
 
+    expect(mockPersistPostImage).toHaveBeenCalledTimes(1);
     expect(mockFeedPostCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         barbershopId: BARBERSHOP_ID,
         status: "PUBLISHED",
+        imageUrl: "https://res.cloudinary.com/test/image/upload/posts-art/auto.png",
+        imageAssetName: "posts-art/auto",
       }),
     });
     expect(mockBarbershopUpdate).toHaveBeenCalledWith(
@@ -173,6 +189,37 @@ describe("runPostPublisherTick (via schedulePostPublisher)", () => {
         data: { autoPostLastDate: expect.any(Date) },
       })
     );
+
+    vi.useRealTimers();
+  });
+
+  it("skips the auto-post when the art upload fails — never falls back to base64", async () => {
+    mockFeedPostFindMany.mockResolvedValue([]);
+    mockBarbershopFindMany.mockResolvedValue([
+      {
+        id: BARBERSHOP_ID,
+        name: "Barber Shop",
+        logoUrl: null,
+        autoPostLastDate: null,
+      },
+    ]);
+    mockScheduleFindFirst.mockResolvedValue({
+      isOpen: true,
+      openTime: "09:00",
+      closeTime: "19:00",
+    });
+    mockServiceFindMany.mockResolvedValue([{ name: "Corte", price: 45 }]);
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-28T12:00:00Z")); // 09:00 BRT
+    mockPersistPostImage.mockRejectedValue(new Error("cloudinary down"));
+
+    await handler();
+
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+    // autoPostLastDate não avança → o próximo tick tenta de novo.
+    expect(mockBarbershopUpdate).not.toHaveBeenCalled();
+    expect(log.error).toHaveBeenCalled();
 
     vi.useRealTimers();
   });

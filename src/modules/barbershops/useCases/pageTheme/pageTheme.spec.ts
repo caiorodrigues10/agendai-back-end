@@ -51,6 +51,14 @@ describe("updatePageThemeBodySchema", () => {
   it("rejeita coverOverlay fora de 0–80", () => {
     expect(updatePageThemeBodySchema.safeParse({ ...validBody, coverOverlay: 90 }).success).toBe(false);
   });
+
+  it("aceita coverFocalX/Y em 0–100 e rejeita fora da faixa", () => {
+    expect(
+      updatePageThemeBodySchema.parse({ ...validBody, coverFocalX: 46, coverFocalY: 4 })
+    ).toMatchObject({ coverFocalX: 46, coverFocalY: 4 });
+    expect(updatePageThemeBodySchema.safeParse({ ...validBody, coverFocalX: 101 }).success).toBe(false);
+    expect(updatePageThemeBodySchema.safeParse({ ...validBody, coverFocalY: -1 }).success).toBe(false);
+  });
 });
 
 describe("UpdatePageThemeUseCase", () => {
@@ -63,6 +71,21 @@ describe("UpdatePageThemeUseCase", () => {
     expect(theme.accentColor).toBe("#2CB58A");
     expect(theme.coverOverlay).toBe(40);
     expect(await repo.findPageTheme(shopId)).not.toBeNull();
+  });
+
+  it("persiste o ponto focal (coverFocalX/Y) e o devolve no DTO", async () => {
+    const { repo, shopId, owner } = await createRepoWithShop();
+    const useCase = new UpdatePageThemeUseCase(repo);
+
+    const theme = await useCase.execute(
+      shopId,
+      { ...validBody, coverFocalX: 46, coverFocalY: 4 },
+      owner
+    );
+
+    expect(theme.coverFocalX).toBe(46);
+    expect(theme.coverFocalY).toBe(4);
+    expect(await repo.findPageTheme(shopId)).toMatchObject({ coverFocalX: 46, coverFocalY: 4 });
   });
 
   it("rejeita contraste reprovado com 400 e não grava", async () => {
@@ -146,18 +169,37 @@ describe("UploadPageThemeCoverUseCase", () => {
     expect(theme.coverPublicId).toBe(upload.objectName);
   });
 
-  it("rejeita imagem fora das dimensões antes de tocar o storage", async () => {
+  it("recusa arquivo que não é imagem antes de tocar o storage", async () => {
     const { repo, shopId, owner } = await createRepoWithShop();
     const storage = new MockStorageProvider();
     const useCase = new UploadPageThemeCoverUseCase(repo, storage);
 
     await expect(
       useCase.execute(
-        { barbershopId: shopId, buffer: await coverBuffer(800, 450), mimeType: "image/png" },
+        {
+          barbershopId: shopId,
+          buffer: Buffer.from("#!/bin/sh\necho nao sou imagem"),
+          mimeType: "image/png",
+        },
         owner
       )
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(storage.uploadedBuffers).toHaveLength(0);
+  });
+
+  it("aceita capa 800×450 (qualquer medida) e grava coverWidth/coverHeight no tema", async () => {
+    const { repo, shopId, owner } = await createRepoWithShop();
+    const storage = new MockStorageProvider();
+    const useCase = new UploadPageThemeCoverUseCase(repo, storage);
+
+    const theme = await useCase.execute(
+      { barbershopId: shopId, buffer: await coverBuffer(800, 450), mimeType: "image/png" },
+      owner
+    );
+
+    expect(storage.uploadedBuffers).toHaveLength(1);
+    expect(theme.coverWidth).toBe(800);
+    expect(theme.coverHeight).toBe(450);
   });
 
   it("falha do storage propaga 502 sem gravar no banco", async () => {
@@ -226,6 +268,42 @@ describe("DeletePageThemeCoverUseCase", () => {
     expect(storage.deletedObjects).toContain(`agendaja/${shopId}/cover/cover`);
     expect(theme?.coverUrl).toBeNull();
     expect(theme?.coverPublicId).toBeNull();
+  });
+
+  it("não destrói asset quando o coverPublicId da linha pertence a outro salão", async () => {
+    const { repo, shopId, owner } = await createRepoWithShop();
+    const storage = new MockStorageProvider();
+    // Linha corrompida (ex.: dado injetado fora do app) apontando para o
+    // publicId de OUTRO salão — o delete NÃO pode apagar a capa vizinha.
+    await repo.upsertPageTheme(shopId, {
+      ...validBody,
+      coverUrl:
+        "https://res.cloudinary.com/dev/image/upload/v1/agendaja/other-shop/cover/cover.jpg",
+      coverPublicId: "agendaja/other-shop/cover/cover",
+    });
+
+    const deleteUseCase = new DeletePageThemeCoverUseCase(repo, storage);
+    const theme = await deleteUseCase.execute(shopId, owner);
+
+    expect(storage.deletedObjects).toHaveLength(0);
+    expect(theme?.coverUrl).toBeNull();
+    expect(theme?.coverPublicId).toBeNull();
+  });
+
+  it("remover a capa reseta o enquadramento para 50% · 50%", async () => {
+    const { repo, shopId, owner } = await createRepoWithShop();
+    const storage = new MockStorageProvider();
+    await new UpdatePageThemeUseCase(repo).execute(
+      shopId,
+      { ...validBody, coverFocalX: 46, coverFocalY: 4 },
+      owner
+    );
+
+    const deleteUseCase = new DeletePageThemeCoverUseCase(repo, storage);
+    const theme = await deleteUseCase.execute(shopId, owner);
+
+    expect(theme).toMatchObject({ coverFocalX: 50, coverFocalY: 50, coverUrl: null });
+    expect(await repo.findPageTheme(shopId)).toMatchObject({ coverFocalX: 50, coverFocalY: 50 });
   });
 
   it("é seguro quando não há tema salvo", async () => {

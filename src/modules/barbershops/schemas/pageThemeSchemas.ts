@@ -44,6 +44,19 @@ export const updatePageThemeBodySchema = z.object({
     .max(80, "coverOverlay máximo: 80"),
   coverUrl: z.string().url("coverUrl deve ser uma URL válida").max(500).nullable().optional(),
   coverPublicId: z.string().max(300).nullable().optional(),
+  /// Ponto focal do recorte 16:9 (0–100). Ausente = mantém o atual (50/50).
+  coverFocalX: z
+    .number()
+    .int("coverFocalX deve ser um inteiro")
+    .min(0, "coverFocalX mínimo: 0")
+    .max(100, "coverFocalX máximo: 100")
+    .optional(),
+  coverFocalY: z
+    .number()
+    .int("coverFocalY deve ser um inteiro")
+    .min(0, "coverFocalY mínimo: 0")
+    .max(100, "coverFocalY máximo: 100")
+    .optional(),
 });
 
 export type UpdatePageThemeBody = z.infer<typeof updatePageThemeBodySchema>;

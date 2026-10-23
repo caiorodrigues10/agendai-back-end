@@ -22,3 +22,6 @@ agendai-render-*
 
 # Diagnóstico local (gera JWT a partir do JWT_SECRET) — nunca versionar
 scripts/diag*.ts
+
+# Referências visuais de design (inspiração) — nunca versionar
+docs/post-references/

@@ -27,6 +27,36 @@ export const designOptionsSchema = z.object({
   overlay: z.number().min(0).max(100).optional(),
 }).optional();
 
+/** Item da lista de preços do modelo `price-split` (nome + preço flexível). */
+const priceSplitItemSchema = z.object({
+  name: z.string().max(100).default(""),
+  price: z.union([z.number().min(0).max(1_000_000), z.string().max(16)]).nullable().optional(),
+});
+
+/**
+ * Dados do modelo "Tabela de valores · Foto + painel" (até 8 itens — limite
+ * do contrato do template). Vazio/pausado é normalizado no controller:
+ * prévia mostra placeholder; salvar exige ao menos 1 serviço com nome.
+ */
+export const priceSplitSchema = z.object({
+  items: z.array(priceSplitItemSchema).max(8).default([]),
+  businessName: z.string().max(120).optional(),
+  whatsapp: z.string().max(20).optional().nullable(),
+  instagram: z.string().max(40).optional().nullable(),
+});
+
+/**
+ * Na query GET o `priceSplit` viaja como string JSON (URLSearchParams não
+ * aninha objetos); JSON inválido vira `undefined` em vez de quebrar a prévia.
+ */
+const priceSplitQuerySchema = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "string") {
+    try { return JSON.parse(value); } catch { return undefined; }
+  }
+  return value;
+}, priceSplitSchema.optional());
+
 /** Paleta validada contra o catálogo `postPalettes` (sem seletor livre). */
 export const paletteKeySchema = z
   .string()
@@ -45,6 +75,7 @@ export const previewPostQuerySchema = z.object({
   secondaryMediaId: z.string().uuid().optional().nullable(),
   paletteKey: paletteKeySchema.default("brand"),
   designOptions: designOptionsSchema,
+  priceSplit: priceSplitQuerySchema,
 });
 
 /** status "draft" salva rascunho; "scheduled" exige scheduledFor futuro. */
@@ -64,6 +95,7 @@ export const createPostSchema = z.object({
   postMode: postModeSchema.optional().default("both"),
   scheduledFor: z.string().datetime().optional().nullable(),
   status: z.enum(["draft"]).optional(),
+  priceSplit: priceSplitSchema.optional(),
 });
 
 /** Edição de conteúdo/mídia/visual. Transições de status ficam nas rotas de ação. */
@@ -79,6 +111,7 @@ export const updatePostSchema = z.object({
   primaryMediaId: z.string().uuid().optional().nullable(),
   secondaryMediaId: z.string().uuid().optional().nullable(),
   designOptions: designOptionsSchema,
+  priceSplit: priceSplitSchema.optional(),
 });
 
 export const schedulePostSchema = z.object({
@@ -116,4 +149,14 @@ export const generatePostSchema = z.object({
 
 export const postParamsSchema = z.object({
   id: z.string().uuid(),
+});
+
+/** Biblioteca de mídia: filtro da listagem e toggle da galeria pública. */
+export const listMediaQuerySchema = z.object({
+  barbershopId: z.string().uuid(),
+  inGallery: z.enum(["true", "false"]).optional(),
+});
+
+export const updateMediaBodySchema = z.object({
+  inGallery: z.boolean(),
 });

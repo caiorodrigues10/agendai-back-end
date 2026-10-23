@@ -1,12 +1,12 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { container } from "tsyringe";
+import { z } from "zod";
 import { AppError } from "@/shared/errors/AppError";
 import {
   ALLOWED_LOGO_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
   validateMagicBytes,
 } from "@/shared/config/upload";
-import { COVER_IMAGE_SPEC } from "@/shared/constants/imageSpecs";
 import { getModuleLogger } from "@/shared/utils/logger";
 import {
   pageThemeIdParamsSchema,
@@ -16,11 +16,17 @@ import { GetPageThemeUseCase } from "./GetPageThemeUseCase";
 import { GetPageThemeOgImageUseCase } from "./GetPageThemeOgImageUseCase";
 import { UpdatePageThemeUseCase } from "./UpdatePageThemeUseCase";
 import { UploadPageThemeCoverUseCase } from "./UploadPageThemeCoverUseCase";
+import { ConfirmPageThemeCoverUseCase } from "./ConfirmPageThemeCoverUseCase";
 import { DeletePageThemeCoverUseCase } from "./DeletePageThemeCoverUseCase";
 
 const logger = getModuleLogger("barbershops:page-theme");
 
 const ALLOWED_MIME_SET = new Set(Object.keys(ALLOWED_LOGO_MIME_TYPES));
+
+const confirmCoverBodySchema = z.object({
+  publicId: z.string().min(1, "publicId é obrigatório"),
+  version: z.number().int("version deve ser um inteiro").optional(),
+});
 
 export class PageThemeController {
   async getPublic(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -77,7 +83,7 @@ export class PageThemeController {
     } catch (err: any) {
       if (err?.code === "FST_REQ_FILE_TOO_LARGE" || err?.statusCode === 413) {
         throw new AppError(
-          `Arquivo muito grande. Máximo permitido: ${COVER_IMAGE_SPEC.maxBytes / 1024 / 1024} MB`,
+          `Arquivo muito grande. Máximo permitido: ${MAX_UPLOAD_SIZE_BYTES / 1024 / 1024} MB`,
           413,
         );
       }
@@ -98,6 +104,24 @@ export class PageThemeController {
     );
 
     reply.send({ success: true, message: "Capa enviada com sucesso", data: theme });
+  }
+
+  /**
+   * POST /barbershops/:id/page-theme/cover/confirm
+   * Body: { publicId: string, version?: number }
+   * Confirma capa enviada DIRETO ao Cloudinary (o back valida o recurso).
+   */
+  async confirmCover(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { id } = pageThemeIdParamsSchema.parse(request.params);
+    const body = confirmCoverBodySchema.parse(request.body);
+
+    const useCase = container.resolve(ConfirmPageThemeCoverUseCase);
+    const theme = await useCase.execute(
+      { barbershopId: id, publicId: body.publicId, version: body.version },
+      request.user!,
+    );
+
+    reply.send({ success: true, message: "Capa confirmada com sucesso", data: theme });
   }
 
   async deleteCover(request: FastifyRequest, reply: FastifyReply): Promise<void> {

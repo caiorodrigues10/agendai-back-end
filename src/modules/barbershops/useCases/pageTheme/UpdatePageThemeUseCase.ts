@@ -117,6 +117,12 @@ export class UpdatePageThemeUseCase {
       coverOverlay: data.coverOverlay,
       coverUrl,
       coverPublicId,
+      // Dimensões originais são do servidor (upload/confirmação) — aqui só
+      // preservam. Focal vem do body (0–100); ausente = mantém o atual/50.
+      coverWidth: existing?.coverWidth ?? null,
+      coverHeight: existing?.coverHeight ?? null,
+      coverFocalX: data.coverFocalX ?? existing?.coverFocalX ?? 50,
+      coverFocalY: data.coverFocalY ?? existing?.coverFocalY ?? 50,
     });
   }
 }

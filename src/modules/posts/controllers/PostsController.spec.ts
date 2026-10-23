@@ -13,6 +13,9 @@ const mockFeedPostCount = vi.fn();
 const mockFeedPostFindMany = vi.fn();
 const mockSalonClientCount = vi.fn();
 const mockPostMediaFindFirst = vi.fn();
+const mockFeedPostDelete = vi.fn();
+const mockPersistPostImage = vi.fn();
+const mockDeletePostImage = vi.fn();
 
 vi.mock("@/libs/prismaClient", () => ({
   prisma: {
@@ -28,6 +31,7 @@ vi.mock("@/libs/prismaClient", () => ({
       updateMany: (...a: unknown[]) => mockFeedPostUpdateMany(...a),
       count: (...a: unknown[]) => mockFeedPostCount(...a),
       findMany: (...a: unknown[]) => mockFeedPostFindMany(...a),
+      delete: (...a: unknown[]) => mockFeedPostDelete(...a),
     },
     salonClient: { count: (...a: unknown[]) => mockSalonClientCount(...a) },
     postMedia: { findFirst: (...a: unknown[]) => mockPostMediaFindFirst(...a) },
@@ -53,6 +57,12 @@ vi.mock("../services/postImageService", () => ({
   pngToDataUrl: vi.fn().mockReturnValue("data:image/png;base64,aWNv"),
 }));
 
+// --- Mock postImageStorageService (Fase 1.5: arte final em posts-art) ---
+vi.mock("../services/postImageStorageService", () => ({
+  persistPostImage: (...a: unknown[]) => mockPersistPostImage(...a),
+  deletePostImage: (...a: unknown[]) => mockDeletePostImage(...a),
+}));
+
 vi.mock("tsyringe", async importOriginal => ({
   ...(await importOriginal<typeof import("tsyringe")>()),
   container: { resolve: () => ({ extractObjectName: (url: string) => url.startsWith("https://storage.example/") ? url.slice("https://storage.example/".length) : null }) },
@@ -61,6 +71,14 @@ vi.mock("tsyringe", async importOriginal => ({
 // --- Mock logger ---
 vi.mock("@/shared/utils/logger", () => ({
   getModuleLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+}));
+
+// --- Mock do pool de render (motor de camadas v2 / price-split) ---
+const mockRenderPostSpec = vi.fn();
+vi.mock("@/shared/infra/worker/postRenderPool", () => ({
+  renderPostSpec: (...a: unknown[]) => mockRenderPostSpec(...a),
+  renderSvgToPng: vi.fn().mockResolvedValue(Buffer.from("png")),
+  postRenderWarmStats: vi.fn(() => ({ workers: 0, ready: 0, warmMs: [] as number[] })),
 }));
 
 // --- Mock fetch para loadMediaDataUrl ---
@@ -119,6 +137,15 @@ beforeEach(() => {
   mockServiceFindMany.mockResolvedValue([]);
   mockScheduleFindFirst.mockResolvedValue(null);
   mockRedisSet.mockResolvedValue("OK");
+  // Data-URL vira asset em posts-art; URL http legada passa adiante sem asset.
+  mockPersistPostImage.mockImplementation(async (_barbershopId: string, imageUrl: string) =>
+    imageUrl.startsWith("data:")
+      ? {
+          imageUrl: "https://res.cloudinary.com/test/image/upload/posts-art/art.png",
+          imageAssetName: "posts-art/art",
+        }
+      : { imageUrl, imageAssetName: null },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -460,6 +487,312 @@ describe("PostsController.list — paginated by status", () => {
         success: true,
         data: expect.arrayContaining([expect.objectContaining({ id: POST_ID })]),
         meta: expect.objectContaining({ total: 2, page: 1, limit: 12 }),
+      })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fase 1.5 — arte final vira asset em posts-art (Cloudinary)
+// ---------------------------------------------------------------------------
+describe("PostsController image persistence — posts-art (Fase 1.5)", () => {
+  function createRequest() {
+    return {
+      body: { barbershopId: BARBERSHOP_ID, type: "announcement", postMode: "both", title: "Post teste" },
+      user: fakeUser(),
+    } as unknown as FastifyRequest;
+  }
+
+  function updateExisting(overrides: Record<string, unknown> = {}) {
+    return {
+      id: POST_ID,
+      barbershopId: BARBERSHOP_ID,
+      status: "DRAFT",
+      title: "Post teste",
+      ctaText: "Agende agora",
+      postMode: "BOTH",
+      templateKey: "agenda-aberta",
+      format: "SQUARE",
+      paletteKey: "brand",
+      designOptions: null,
+      primaryMediaId: null,
+      secondaryMediaId: null,
+      imageAssetName: "posts-art/old",
+      ...overrides,
+    };
+  }
+
+  it("uploads generated art and persists imageUrl + imageAssetName", async () => {
+    mockFeedPostCreate.mockResolvedValue(makeDraftRow());
+
+    await new PostsController().create(createRequest(), fakeReply());
+
+    expect(mockPersistPostImage).toHaveBeenCalledWith(BARBERSHOP_ID, "data:image/png;base64,aWNv");
+    expect(mockFeedPostCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          imageUrl: "https://res.cloudinary.com/test/image/upload/posts-art/art.png",
+          imageAssetName: "posts-art/art",
+        }),
+      }),
+    );
+    expect(mockDeletePostImage).not.toHaveBeenCalled();
+  });
+
+  it("removes the uploaded asset when the post cannot be saved (compensação)", async () => {
+    mockFeedPostCreate.mockRejectedValue(new Error("db down"));
+
+    await expect(new PostsController().create(createRequest(), fakeReply())).rejects.toThrow("db down");
+
+    expect(mockDeletePostImage).toHaveBeenCalledWith("posts-art/art");
+  });
+
+  it("regenerating art on update destroys the previous asset", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(updateExisting());
+    mockFeedPostUpdate.mockResolvedValue(makeDraftRow());
+    const request = {
+      params: { id: POST_ID },
+      body: { title: "Novo título" },
+      user: fakeUser(),
+    } as unknown as FastifyRequest;
+
+    await new PostsController().update(request, fakeReply());
+
+    expect(mockPersistPostImage).toHaveBeenCalledWith(BARBERSHOP_ID, expect.stringMatching(/^data:image\/png/));
+    expect(mockFeedPostUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          imageUrl: "https://res.cloudinary.com/test/image/upload/posts-art/art.png",
+          imageAssetName: "posts-art/art",
+        }),
+      }),
+    );
+    expect(mockDeletePostImage).toHaveBeenCalledWith("posts-art/old");
+  });
+
+  it("legacy base64 post (imageAssetName null) never destroys assets on update", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(updateExisting({ imageAssetName: null }));
+    mockFeedPostUpdate.mockResolvedValue(makeDraftRow());
+    const request = {
+      params: { id: POST_ID },
+      body: { title: "Novo título" },
+      user: fakeUser(),
+    } as unknown as FastifyRequest;
+
+    await new PostsController().update(request, fakeReply());
+
+    expect(mockDeletePostImage).not.toHaveBeenCalled();
+  });
+
+  it("keeps the previous asset when regeneration fails after upload (compensação)", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(updateExisting());
+    mockFeedPostUpdate.mockRejectedValue(new Error("db down"));
+    const request = {
+      params: { id: POST_ID },
+      body: { title: "Novo título" },
+      user: fakeUser(),
+    } as unknown as FastifyRequest;
+
+    await expect(new PostsController().update(request, fakeReply())).rejects.toThrow("db down");
+
+    // O asset novo (recém-subido) é removido; o antigo não é tocado.
+    expect(mockDeletePostImage).toHaveBeenCalledTimes(1);
+    expect(mockDeletePostImage).toHaveBeenCalledWith("posts-art/art");
+  });
+
+  it("destroys the stored asset when deleting a draft", async () => {
+    mockFeedPostFindUnique.mockResolvedValue({
+      id: POST_ID,
+      barbershopId: BARBERSHOP_ID,
+      status: "DRAFT",
+      imageAssetName: "posts-art/art",
+    });
+    mockFeedPostDelete.mockResolvedValue({});
+    const request = {
+      params: { id: POST_ID },
+      user: fakeUser(),
+    } as unknown as FastifyRequest;
+
+    await new PostsController().delete(request, fakeReply());
+
+    expect(mockFeedPostDelete).toHaveBeenCalledWith({ where: { id: POST_ID } });
+    expect(mockDeletePostImage).toHaveBeenCalledWith("posts-art/art");
+  });
+
+  it("does not touch storage when deleting a legacy base64 post", async () => {
+    mockFeedPostFindUnique.mockResolvedValue({
+      id: POST_ID,
+      barbershopId: BARBERSHOP_ID,
+      status: "DRAFT",
+      imageAssetName: null,
+    });
+    mockFeedPostDelete.mockResolvedValue({});
+    const request = {
+      params: { id: POST_ID },
+      user: fakeUser(),
+    } as unknown as FastifyRequest;
+
+    await new PostsController().delete(request, fakeReply());
+
+    expect(mockFeedPostDelete).toHaveBeenCalled();
+    expect(mockDeletePostImage).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// price-split — modelo v2 no catálogo (flag) + render pelo motor de camadas
+// ---------------------------------------------------------------------------
+describe("PostsController price-split — modelo por flag + motor v2", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function sentPayload(reply: FastifyReply) {
+    const send = reply.send as unknown as { mock: { calls: unknown[][] } };
+    return send.mock.calls.at(-1)?.[0];
+  }
+
+  function templateKeys(reply: ReturnType<typeof fakeReply>) {
+    const payload = sentPayload(reply) as { data: { key: string }[] };
+    return payload.data.map(item => item.key);
+  }
+
+  it("exibe o modelo no catálogo apenas com POST_PRICE_SPLIT=1", async () => {
+    const controller = new PostsController();
+
+    const off = fakeReply();
+    await controller.templates({} as FastifyRequest, off);
+    expect(templateKeys(off)).not.toContain("price-split");
+
+    vi.stubEnv("POST_PRICE_SPLIT", "1");
+    const on = fakeReply();
+    await controller.templates({} as FastifyRequest, on);
+    const keys = templateKeys(on);
+    expect(keys).toContain("price-split");
+    // flag não vaza os demais modelos
+    expect(keys).toContain("agenda-aberta");
+  });
+
+  it("prévia price-split renderiza pelo pool v2 (preview 540) e não pelo SVG", async () => {
+    vi.stubEnv("POST_PRICE_SPLIT", "1");
+    mockRenderPostSpec.mockResolvedValue({
+      buffer: Buffer.from("jpeg"),
+      mimeType: "image/jpeg",
+      bytes: 4,
+      timings: { photoMs: 1, vectorMs: 1, composeMs: 1, totalMs: 3 },
+    });
+    const reply = fakeReply();
+    await new PostsController().preview(
+      {
+        query: {
+          barbershopId: BARBERSHOP_ID,
+          templateKey: "price-split",
+          format: "portrait",
+          title: "TABELA DE VALORES",
+          priceSplit: JSON.stringify({ items: [{ name: "Corte", price: 45 }], businessName: "Barber Test" }),
+        },
+        user: fakeUser(),
+      } as unknown as FastifyRequest,
+      reply
+    );
+
+    expect(mockRenderPostSpec).toHaveBeenCalledTimes(1);
+    expect(mockRenderPostSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        width: 1080,
+        height: 1350,
+        preview: true,
+        bg: expect.stringMatching(/^#/),
+        layers: expect.arrayContaining([expect.objectContaining({ kind: "photo" })]),
+      })
+    );
+    const sent = sentPayload(reply) as { data: { imageUrl: string } };
+    expect(sent.data.imageUrl.startsWith("data:image/jpeg;base64,")).toBe(true);
+  });
+
+  it("criar sem serviço na lista falha antes de gerar a arte", async () => {
+    await expect(
+      new PostsController().create(
+        {
+          body: { barbershopId: BARBERSHOP_ID, type: "announcement", templateKey: "price-split", priceSplit: { items: [] } },
+          user: fakeUser(),
+        } as unknown as FastifyRequest,
+        fakeReply()
+      )
+    ).rejects.toMatchObject({ statusCode: 400, message: "Adicione ao menos um serviço à lista de preços" });
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+    expect(mockRenderPostSpec).not.toHaveBeenCalled();
+  });
+
+  it("criar com itens renderiza pelo pool e grava priceSplit em designOptions", async () => {
+    vi.stubEnv("POST_PRICE_SPLIT", "1");
+    mockRenderPostSpec.mockResolvedValue({
+      buffer: Buffer.from("jpeg"),
+      mimeType: "image/jpeg",
+      bytes: 4,
+      timings: { photoMs: 1, vectorMs: 1, composeMs: 1, totalMs: 3 },
+    });
+    const priceSplit = {
+      items: [
+        { name: "Corte", price: 45 },
+        { name: "Barba", price: "30,50" },
+      ],
+      businessName: "Barber Test",
+    };
+    mockFeedPostCreate.mockResolvedValue(makeDraftRow({ templateKey: "price-split" }));
+
+    await new PostsController().create(
+      {
+        body: { barbershopId: BARBERSHOP_ID, type: "announcement", templateKey: "price-split", format: "portrait", priceSplit },
+        user: fakeUser(),
+      } as unknown as FastifyRequest,
+      fakeReply()
+    );
+
+    expect(mockRenderPostSpec).toHaveBeenCalledWith(expect.objectContaining({ height: 1350 }));
+    // salvar gera a arte final (sem flag de prévia)
+    expect((mockRenderPostSpec.mock.calls[0]?.[0] as { preview?: boolean }).preview).toBeUndefined();
+    expect(mockPersistPostImage).toHaveBeenCalledWith(
+      BARBERSHOP_ID,
+      expect.stringMatching(/^data:image\/jpeg;base64,/)
+    );
+    expect(mockFeedPostCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          templateKey: "price-split",
+          designOptions: expect.objectContaining({ priceSplit }),
+        }),
+      })
+    );
+  });
+
+  it("editar só o focal preserva a lista de preços já gravada e re-renderiza", async () => {
+    const storedPriceSplit = { items: [{ name: "Corte", price: 45 }], businessName: "Barber Test" };
+    mockFeedPostFindUnique.mockResolvedValue(
+      makeDraftRow({ templateKey: "price-split", designOptions: { priceSplit: storedPriceSplit } })
+    );
+    mockFeedPostUpdate.mockResolvedValue(makeDraftRow({ templateKey: "price-split" }));
+    mockRenderPostSpec.mockResolvedValue({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+      bytes: 4,
+      timings: { photoMs: 1, vectorMs: 1, composeMs: 1, totalMs: 3 },
+    });
+
+    await new PostsController().update(
+      { params: { id: POST_ID }, body: { designOptions: { focalX: 60, focalY: 40 } }, user: fakeUser() } as unknown as FastifyRequest,
+      fakeReply()
+    );
+
+    expect(mockRenderPostSpec).toHaveBeenCalledTimes(1);
+    expect(mockFeedPostUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          designOptions: expect.objectContaining({
+            focalX: 60,
+            priceSplit: storedPriceSplit,
+          }),
+        }),
       })
     );
   });

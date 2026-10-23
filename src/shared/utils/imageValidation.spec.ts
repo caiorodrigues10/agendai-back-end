@@ -48,18 +48,21 @@ describe("validateAndNormalizeImage", () => {
     expect(result.width).toBe(512);
   });
 
-  it("rejeita capa com dimensões fora da especificação (1200×800)", async () => {
+  it("aceita capa 1200×800 (qualquer medida) e devolve as dimensões originais", async () => {
     const buffer = await pngBuffer(1200, 800);
-    await expect(
-      validateAndNormalizeImage({ buffer, spec: COVER_IMAGE_SPEC })
-    ).rejects.toThrowError(/1200×800/);
+    const result = await validateAndNormalizeImage({ buffer, spec: COVER_IMAGE_SPEC });
+
+    expect(result.width).toBe(1200);
+    expect(result.height).toBe(800);
+    expect(result.format).toBe("png");
   });
 
-  it("rejeita capa com proporção errada (1920×1200, fora de 16:9 ±1%)", async () => {
+  it("aceita capa com proporção fora de 16:9 (1920×1200) — o recorte é aplicado na entrega", async () => {
     const buffer = await pngBuffer(1920, 1200);
-    await expect(
-      validateAndNormalizeImage({ buffer, spec: COVER_IMAGE_SPEC })
-    ).rejects.toThrowError(AppError);
+    const result = await validateAndNormalizeImage({ buffer, spec: COVER_IMAGE_SPEC });
+
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1200);
   });
 
   it("rejeita logo quadrado fora da tolerância (500×501)", async () => {
@@ -69,10 +72,13 @@ describe("validateAndNormalizeImage", () => {
     ).rejects.toThrowError(/500×501/);
   });
 
-  it("rejeita arquivo acima do peso máximo com 413", async () => {
+  it("rejeita arquivo acima do peso máximo com 413 — ANTES de decodificar", async () => {
+    // buffer maior que maxBytes e nem é imagem: se a checagem viesse depois do
+    // decode, o erro seria 400 "arquivo corrompido" em vez de 413.
     const oversized = Buffer.alloc(COVER_IMAGE_SPEC.maxBytes + 1, 7);
     const attempt = validateAndNormalizeImage({ buffer: oversized, spec: COVER_IMAGE_SPEC });
     await expect(attempt).rejects.toMatchObject({ statusCode: 413 });
+    await expect(attempt).rejects.toThrowError(/Arquivo muito grande/);
   });
 
   it("rejeita buffer que não é imagem (arquivo renomeado)", async () => {

@@ -103,7 +103,7 @@ docker compose up --build
 ### 6. Smoke test
 
 1. Login como OWNER no front (`/app/settings` ou aba Configurações).
-2. Escolher imagem JPEG/PNG/WebP (até 5 MB no fluxo multipart; signed URL usa o MIME informado).
+2. Escolher imagem JPEG/PNG/WebP (até 5 MB, validado no back antes do decode → 413; signed URL usa o MIME informado).
 3. A logo deve aparecer em:
 
 `https://storage.googleapis.com/<GCS_BUCKET_NAME>/logos/barbershop-...`

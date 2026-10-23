@@ -103,6 +103,10 @@ export class MockBarbershopRepository implements IBarbershopRepository {
       coverUrl: data.coverUrl ?? null,
       coverPublicId: data.coverPublicId ?? null,
       coverOverlay: data.coverOverlay,
+      coverWidth: data.coverWidth ?? null,
+      coverHeight: data.coverHeight ?? null,
+      coverFocalX: data.coverFocalX ?? existing?.coverFocalX ?? 50,
+      coverFocalY: data.coverFocalY ?? existing?.coverFocalY ?? 50,
     };
     this.pageThemes.set(barbershopId, theme);
     return theme;

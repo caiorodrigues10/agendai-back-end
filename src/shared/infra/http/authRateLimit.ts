@@ -2,6 +2,15 @@ import { createHash } from "node:crypto";
 import { verify, Secret } from "jsonwebtoken";
 import auth from "@/config/auth";
 
+function bearerFromHeader(authorization: unknown): string | null {
+  if (typeof authorization !== "string") return null;
+  const [scheme, token, ...rest] = authorization.trim().split(/\s+/);
+  if (!scheme || scheme.toLowerCase() !== "bearer" || !token || rest.length > 0) {
+    return null;
+  }
+  return token;
+}
+
 const DEFAULT_AUTH_RATE_LIMIT_MAX = 10;
 
 /**
@@ -87,3 +96,42 @@ export const refreshRateLimit = {
     },
   },
 };
+
+export const GLOBAL_RATE_LIMIT_MAX = 400;
+
+export function globalRateLimitMax(env: NodeJS.ProcessEnv = process.env): number {
+  if (env.NODE_ENV !== "development" && env.NODE_ENV !== "test") {
+    return GLOBAL_RATE_LIMIT_MAX;
+  }
+  const raw = Number(env.RATE_LIMIT_MAX);
+  if (!Number.isInteger(raw) || raw < 1) return GLOBAL_RATE_LIMIT_MAX;
+  return raw;
+}
+
+export const GLOBAL_RATE_LIMIT_WINDOW_MS = 60_000;
+
+export function globalRateLimitWindowMs(env: NodeJS.ProcessEnv = process.env): number {
+  if (env.NODE_ENV !== "development" && env.NODE_ENV !== "test") {
+    return GLOBAL_RATE_LIMIT_WINDOW_MS;
+  }
+  const raw = Number(env.RATE_LIMIT_WINDOW);
+  if (!Number.isInteger(raw) || raw < 1000) return GLOBAL_RATE_LIMIT_WINDOW_MS;
+  return raw;
+}
+
+export function globalRateLimitKey(request: {
+  ip: string;
+  headers?: Record<string, unknown>;
+}): string {
+  const token = bearerFromHeader(request.headers?.authorization);
+  if (token) {
+    try {
+      const decoded = verify(token, auth.secret as Secret) as { sub?: unknown };
+      if (typeof decoded.sub === "string" && decoded.sub) {
+        return `user:${createHash("sha256").update(decoded.sub).digest("hex")}`;
+      }
+    } catch {
+    }
+  }
+  return `ip:${request.ip}`;
+}

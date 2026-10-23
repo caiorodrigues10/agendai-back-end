@@ -108,6 +108,10 @@ function mapPageThemeRow(row: BarbershopPageTheme): IPageThemeDTO {
     coverUrl: row.coverUrl,
     coverPublicId: row.coverPublicId,
     coverOverlay: row.coverOverlay,
+    coverFocalX: row.coverFocalX,
+    coverFocalY: row.coverFocalY,
+    coverWidth: row.coverWidth,
+    coverHeight: row.coverHeight,
   };
 }
 

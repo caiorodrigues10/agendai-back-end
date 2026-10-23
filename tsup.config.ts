@@ -30,7 +30,7 @@ export default defineConfig({
     };
   },
   async onSuccess() {
-    const { copyFileSync, mkdirSync, existsSync, readdirSync } = await import("fs");
+    const { copyFileSync, mkdirSync, existsSync, readdirSync, cpSync } = await import("fs");
     const { join } = await import("path");
     const src = join("src", "modules", "posts", "fonts", "OpenSans-Bold.ttf");
     const destDir = join("dist", "modules", "posts", "fonts");
@@ -45,6 +45,15 @@ export default defineConfig({
       for (const asset of readdirSync(sourceAssetsDir).filter((name) => name.endsWith(".png"))) {
         copyFileSync(join(sourceAssetsDir, asset), join(assetsDir, asset));
       }
+    }
+    // Motor de camadas (1.3): fontes TTF do satori + stocks JPEG do sharp.
+    // O resvg usa loadSystemFonts:false e o satori lê do registry — os dois
+    // resolvem por estes caminhos em dist/modules/posts/templates/assets.
+    const templateAssets = join("src", "modules", "posts", "templates", "assets");
+    if (existsSync(templateAssets)) {
+      cpSync(templateAssets, join("dist", "modules", "posts", "templates", "assets"), {
+        recursive: true,
+      });
     }
   },
 });

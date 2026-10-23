@@ -29,8 +29,15 @@ describe("Cloudinary post media", () => {
 
   it("recognizes versioned video URLs and rejects foreign origins/clouds", () => {
     const storage = new CloudinaryStorageProvider();
-    expect(storage.extractObjectName("https://res.cloudinary.com/salon-assets/video/upload/v123/posts/video-test.mp4")).toBe("posts/video-test.mp4");
+    expect(storage.extractObjectName("https://res.cloudinary.com/salon-assets/video/upload/v123/posts/video-test.mp4")).toBe("posts/video-test");
     expect(storage.extractObjectName("https://res.cloudinary.com/other/video/upload/posts/video-test.mp4")).toBeNull();
     expect(storage.extractObjectName("https://evil.example/?url=https://res.cloudinary.com/salon-assets/image/upload/posts/photo.png")).toBeNull();
+  });
+
+  it("remove a extensão do arquivo: public_id do Cloudinary não a possui (destroy com extensão dá 'not found')", () => {
+    const storage = new CloudinaryStorageProvider();
+    expect(storage.extractObjectName("https://res.cloudinary.com/salon-assets/image/upload/v9/posts-media/media-abc.png")).toBe("posts-media/media-abc");
+    expect(storage.extractObjectName("https://res.cloudinary.com/salon-assets/image/upload/posts-media/media-abc.jpg")).toBe("posts-media/media-abc");
+    expect(storage.extractObjectName("https://res.cloudinary.com/salon-assets/image/upload/f_auto,q_auto/v9/posts-media/media-abc.webp")).toBe("f_auto,q_auto/v9/posts-media/media-abc");
   });
 });

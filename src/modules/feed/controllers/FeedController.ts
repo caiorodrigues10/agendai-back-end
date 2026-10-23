@@ -8,6 +8,11 @@ import {
   listFeedQuerySchema,
 } from "../schemas/feedSchemas";
 import { publishedPostWhere } from "../social/socialRepository";
+import {
+  persistPostImage,
+  deletePostImage,
+  type PersistedPostImage,
+} from "@/modules/posts/services/postImageStorageService";
 
 const feedSelect = {
   id: true,
@@ -108,21 +113,33 @@ export class FeedController {
 
     assertSameBarbershop(user, body.barbershopId);
 
-    const post = await prisma.feedPost.create({
-      data: {
-        barbershopId: body.barbershopId,
-        authorId: user.id,
-        type: FEED_TYPE_MAP[body.type],
-        title: body.title ?? null,
-        content: body.content,
-        imageUrl: body.imageUrl ?? null,
-        videoUrl: body.videoUrl ?? null,
-        // Posts criados pelo formulário antigo continuam públicos
-        status: "PUBLISHED",
-        publishedAt: new Date(),
-      },
-      select: feedSelect,
-    });
+    const art: PersistedPostImage | null = body.imageUrl
+      ? await persistPostImage(body.barbershopId, body.imageUrl)
+      : null;
+
+    let post;
+    try {
+      post = await prisma.feedPost.create({
+        data: {
+          barbershopId: body.barbershopId,
+          authorId: user.id,
+          type: FEED_TYPE_MAP[body.type],
+          title: body.title ?? null,
+          content: body.content,
+          imageUrl: art?.imageUrl ?? null,
+          imageAssetName: art?.imageAssetName ?? null,
+          videoUrl: body.videoUrl ?? null,
+          // Posts criados pelo formulário antigo continuam públicos
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+        },
+        select: feedSelect,
+      });
+    } catch (err) {
+      // Compensação: arte subiu mas o post não foi gravado — remove o asset órfão.
+      if (art?.imageAssetName) await deletePostImage(art.imageAssetName);
+      throw err;
+    }
 
     return reply.status(201).send({ success: true, data: toResponse(post) });
   }
@@ -134,7 +151,7 @@ export class FeedController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, likes: true, status: true },
+      select: { id: true, barbershopId: true, likes: true, status: true, imageUrl: true, imageAssetName: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
 
@@ -153,21 +170,51 @@ export class FeedController {
     }
     if (onlyLikes && existing.status !== "PUBLISHED") throw new AppError("Publicação não encontrada", 404);
 
-    const post = await prisma.feedPost.update({
-      where: { id },
-      data: {
-        ...(body.type && { type: FEED_TYPE_MAP[body.type] }),
-        ...(body.title !== undefined && { title: body.title ?? null }),
-        ...(body.content !== undefined && { content: body.content }),
-        ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl ?? null }),
-        ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl ?? null }),
-        // Curtidas: aceita apenas incremento de +1 por request (anti-abuso simples)
-        ...(body.likes !== undefined && {
-          likes: { increment: 1 },
-        }),
-      },
-      select: feedSelect,
-    });
+    // Regra de imagem (Fase 1.5): data-URL vira asset em `posts-art`; null/
+    // URL externa nova não controlam asset; reenvio da URL atual é idempotente.
+    let art: PersistedPostImage | undefined;
+    let dropPreviousAsset = false;
+    const imagePatch: { imageUrl?: string | null; imageAssetName?: string | null } = {};
+    if (body.imageUrl !== undefined) {
+      if (typeof body.imageUrl === "string" && body.imageUrl.startsWith("data:")) {
+        art = await persistPostImage(existing.barbershopId, body.imageUrl);
+        imagePatch.imageUrl = art.imageUrl;
+        imagePatch.imageAssetName = art.imageAssetName;
+        dropPreviousAsset = existing.imageAssetName !== null && existing.imageAssetName !== art.imageAssetName;
+      } else if (body.imageUrl !== existing.imageUrl) {
+        imagePatch.imageUrl = body.imageUrl;
+        imagePatch.imageAssetName = null;
+        dropPreviousAsset = existing.imageAssetName !== null;
+      }
+    }
+
+    let post;
+    try {
+      post = await prisma.feedPost.update({
+        where: { id },
+        data: {
+          ...(body.type && { type: FEED_TYPE_MAP[body.type] }),
+          ...(body.title !== undefined && { title: body.title ?? null }),
+          ...(body.content !== undefined && { content: body.content }),
+          ...imagePatch,
+          ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl ?? null }),
+          // Curtidas: aceita apenas incremento de +1 por request (anti-abuso simples)
+          ...(body.likes !== undefined && {
+            likes: { increment: 1 },
+          }),
+        },
+        select: feedSelect,
+      });
+    } catch (err) {
+      // Compensação: arte subiu mas a gravação falhou — remove o asset novo
+      // (o antigo continua referenciado pelo banco).
+      if (art?.imageAssetName) await deletePostImage(art.imageAssetName);
+      throw err;
+    }
+
+    // Asset anterior deixou de ser referenciado (removido ou substituído).
+    // `imageAssetName` nulo (legado base64/URL externa) não destrói nada.
+    if (dropPreviousAsset) await deletePostImage(existing.imageAssetName);
 
     return reply.status(200).send({ success: true, data: toResponse(post) });
   }
@@ -178,13 +225,15 @@ export class FeedController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true },
+      select: { id: true, barbershopId: true, imageAssetName: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
 
     assertSameBarbershop(user, existing.barbershopId);
 
     await prisma.feedPost.delete({ where: { id } });
+    // Limpeza best-effort do asset (nulo no legado base64 = no-op).
+    if (existing.imageAssetName) await deletePostImage(existing.imageAssetName);
 
     return reply.status(200).send({ success: true, message: "Post removido com sucesso" });
   }

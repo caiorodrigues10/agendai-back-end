@@ -23,6 +23,7 @@ export async function postsRoutes(app: FastifyInstance) {
   app.get("/posts/palettes", { preHandler: staffGuard }, posts.palettes.bind(posts));
   app.get("/posts/media", { preHandler: staffGuard }, media.list.bind(media));
   app.post("/posts/media/:barbershopId", { preHandler: staffGuard }, media.upload.bind(media));
+  app.patch("/posts/media/:id", { preHandler: staffGuard }, media.update.bind(media));
   app.delete("/posts/media/:id", { preHandler: staffGuard }, media.remove.bind(media));
   app.post("/posts/generate", { preHandler: staffGuard }, posts.generate.bind(posts));
 

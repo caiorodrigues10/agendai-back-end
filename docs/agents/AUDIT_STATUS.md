@@ -84,3 +84,16 @@ Smoke autenticado (6 etapas de `DELIVERY_CHECKS.md`) continua **OPEN em homologa
 | ID | Tema | Status | Notas |
 |---|---|---|---|
 | — | Remover rota `POST /api/webhooks/resend` | FIXED | Decisão do produto: **sem webhook Resend**. Controller, service, rota e registro removidos (26/09); `RESEND_WEBHOOK_SECRET` removido de `.env.example` e `docs/MVP_PUBLIC_OPERATIONS.md`. Envio de email continua normal com `RESEND_API_KEY` + `EMAIL_FROM`. |
+
+## npm audit (dependências) — decisão 2026-10-23
+
+Baseline: **48** no HEAD da 1.2 → **50** agora (44 moderate, 6 high). Nada de `npm audit fix --force` (quebra majors: `satori` cairia p/ 0.32.0, `@fastify/swagger-ui` p/ 6.1.2, OpenTelemetry p/ exporter 0.300).
+
+| ID | Tema | Status | Notas |
+|---|---|---|---|
+| GHSA-px8p-9vwx-vf98 | `fflate` `unzipSync` em ZIP64 malformado (moderate, via `satori`) | WONTFIX | Só atinge `unzipSync`; o bundle do `satori` (`node_modules/satori/dist/*`) **não contém** `unzipSync` (só `inflateSync`) e o código do projeto não importa `fflate`. Risco prático: nenhum. |
+| GHSA-8pvw-jcv7-9cmj / GHSA-83w8-p2f5-377r | `@fastify/static` ≤10.1.1 (high, via `@fastify/swagger-ui`) | WONTFIX | Superfície = UI do Swagger (`API_DOCS_*`); correção exige major do `swagger-ui`. Manter docs desligados fora de dev/staging. |
+| — | `@google-cloud/storage` → `retry-request`/`teeny-request` (moderate) | WONTFIX | Transitive do SDK GCS; sem versão corrigida compatível. |
+| — | `@opentelemetry/*` (moderate) | WONTFIX | Transitive do Sentry/SDK; correção é major do exporter stack. |
+
+Reavaliar quando: `satori` publicar versão com `fflate` ≥0.7.5 (ou remover `unzipSync` do bundle) e `@fastify/swagger-ui` publicar major com `@fastify/static` >10.1.1.

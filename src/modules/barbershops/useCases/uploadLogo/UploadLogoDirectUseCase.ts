@@ -5,7 +5,6 @@ import { IBarbershopRepository } from "../../repositories/IBarbershopRepository"
 import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
 import {
   ALLOWED_LOGO_MIME_TYPES,
-  MAX_UPLOAD_SIZE_BYTES,
   validateMagicBytes,
 } from "@/shared/config/upload";
 import {
@@ -50,14 +49,6 @@ export class UploadLogoDirectUseCase {
       throw new AppError(
         `Tipo de arquivo não permitido: ${data.mimeType}. Aceitos: JPEG, PNG, WebP`,
         400
-      );
-    }
-
-    if (data.buffer.byteLength > MAX_UPLOAD_SIZE_BYTES) {
-      const sizeMb = (data.buffer.byteLength / 1024 / 1024).toFixed(2);
-      throw new AppError(
-        `Arquivo muito grande (${sizeMb} MB). Máximo permitido: 5 MB`,
-        413
       );
     }
 

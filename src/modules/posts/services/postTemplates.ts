@@ -1,4 +1,15 @@
+import { PRICE_SPLIT_MANIFEST } from "../templates/price-split/manifest";
+
 export const TEMPLATE_VERSION = 2;
+
+/**
+ * Rollout do modelo "Tabela de valores · Foto + painel" (price-split).
+ * Flag lida em runtime (mesmo padrão de POST_IMAGE_ALLOW_LOOPBACK): sem `1`
+ * o catálogo volta ao v2 legado e o modelo nem aparece no editor.
+ */
+export function priceSplitEnabled(): boolean {
+  return process.env.POST_PRICE_SPLIT === "1";
+}
 
 export type PostTemplateGroup = "agenda" | "ofertas" | "resultados" | "equipe" | "depoimentos" | "editorial";
 export type PostTemplatePhotoMode = "none" | "optional" | "required";
@@ -76,7 +87,7 @@ export const POST_TEMPLATES: PostTemplate[] = [
 ];
 
 export function listPostTemplates() {
-  return POST_TEMPLATES.map(({ key, name, description, requiredMedia, group, photoMode, stockImageKey }) => ({
+  const list = POST_TEMPLATES.map(({ key, name, description, requiredMedia, group, photoMode, stockImageKey }) => ({
     key,
     name,
     description,
@@ -88,4 +99,23 @@ export function listPostTemplates() {
     previewUrl: `/api/posts/templates/${key}/preview`,
     templateVersion: TEMPLATE_VERSION,
   }));
+  if (priceSplitEnabled()) list.push(priceSplitTemplate());
+  return list;
+}
+
+/** Entrada do catálogo v2 derivada do manifesto (fonte única dos campos). */
+function priceSplitTemplate() {
+  const key = PRICE_SPLIT_MANIFEST.key;
+  return {
+    key,
+    name: PRICE_SPLIT_MANIFEST.name,
+    description: PRICE_SPLIT_MANIFEST.description,
+    /** Lista de preços dispensa foto obrigatória (stock do segmento na falta). */
+    requiredMedia: 0 as const,
+    group: "ofertas" as const,
+    photoMode: PRICE_SPLIT_MANIFEST.photoMode,
+    formats: ["square", "portrait", "story"],
+    previewUrl: `/api/posts/templates/${key}/preview`,
+    templateVersion: TEMPLATE_VERSION,
+  };
 }

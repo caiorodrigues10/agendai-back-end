@@ -71,6 +71,10 @@ export class UploadPageThemeCoverUseCase {
         coverOverlay: existing?.coverOverlay ?? PAGE_THEME_DEFAULTS.coverOverlay,
         coverUrl: uploaded.publicUrl,
         coverPublicId: uploaded.objectName,
+        coverWidth: validated.width,
+        coverHeight: validated.height,
+        coverFocalX: existing?.coverFocalX ?? 50,
+        coverFocalY: existing?.coverFocalY ?? 50,
       });
     } catch (err) {
       await this.storageProvider

@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
+import type { Prisma } from "@prisma/client";
 import { AppError } from "@/shared/errors/AppError";
 import { FEED_TYPE_MAP } from "@/modules/feed/schemas/feedSchemas";
 import {
@@ -25,13 +26,23 @@ import {
   DailyLimitExceededError,
 } from "../services/postAiService";
 import { broadcastPostToClients } from "../services/postBroadcastService";
+import {
+  persistPostImage,
+  deletePostImage,
+  type PersistedPostImage,
+} from "../services/postImageStorageService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
 import { listPostTemplates } from "../services/postTemplates";
 import { loadPostStockImage } from "../services/postStockImages";
 import { assertOwnedPostVideo } from "../services/postVideoOwnership";
-import { listPostPalettes } from "../services/postPalettes";
+import { POST_PALETTES, listPostPalettes } from "../services/postPalettes";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { priceSplitLayers, type PriceSplitData } from "../templates/price-split/template";
+import type { PriceSplitSizeKey } from "../templates/price-split/manifest";
+import { resolveTokens, type PostTokens } from "../templates/_engine/tokens";
+import type { RenderSpec } from "../templates/_engine/types";
+import { renderPostSpec } from "@/shared/infra/worker/postRenderPool";
 
 const logger = getModuleLogger("posts:controller");
 
@@ -145,7 +156,7 @@ async function assertShopWhatsAppConnected(barbershopId: string): Promise<void> 
 async function loadPostContext(barbershopId: string) {
   const barbershop = await prisma.barbershop.findUnique({
     where: { id: barbershopId },
-    select: { id: true, name: true, logoUrl: true },
+    select: { id: true, name: true, logoUrl: true, whatsapp: true, businessSegment: true },
   });
   if (!barbershop) throw new AppError("Barbearia não encontrada", 404);
 
@@ -205,6 +216,135 @@ async function assertRequiredPostMedia(post: { barbershopId: string; templateKey
   ]);
 }
 
+type PriceSplitInput = {
+  items: { name: string; price?: number | string | null }[];
+  businessName?: string;
+  whatsapp?: string | null;
+  instagram?: string | null;
+};
+
+/** Formato do post → tamanho do manifesto price-split (portrait = 4:5). */
+const PRICE_SPLIT_SIZE: Record<"square" | "portrait" | "story", PriceSplitSizeKey> = {
+  square: "square",
+  portrait: "feed-4x5",
+  story: "story",
+};
+
+/** Preço flexível do editor ("45", "45,90", 45) → número ou null. */
+function toPrice(value: number | string | null | undefined): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(",", ".").trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+/** Normaliza a lista do editor: trim, preço numérico e descarta nome vazio. */
+function normalizePriceItems(items: PriceSplitInput["items"]): { name: string; price: number | null }[] {
+  return items
+    .map(item => ({ name: item.name.trim(), price: toPrice(item.price) }))
+    .filter(item => item.name);
+}
+
+/** Lê a lista price-split gravada em designOptions (edição de post existente). */
+function readPriceSplit(designOptions: unknown): PriceSplitInput | undefined {
+  if (typeof designOptions !== "object" || designOptions === null) return undefined;
+  const value = (designOptions as { priceSplit?: unknown }).priceSplit;
+  return value && typeof value === "object" ? (value as PriceSplitInput) : undefined;
+}
+
+/**
+ * designOptions é o JSON único do post (foco/overlay + priceSplit). A lista
+ * gravada só muda quando `priceSplit` vem no payload — trocar só o focal ou
+ * uma foto não pode apagar os serviços já salvos.
+ */
+function mergeDesignOptions(
+  current: unknown,
+  designOptions: { focalX?: number; focalY?: number; overlay?: number } | null | undefined,
+  priceSplit: PriceSplitInput | undefined
+): Prisma.InputJsonValue | undefined {
+  const currentObject = typeof current === "object" && current !== null ? (current as Record<string, unknown>) : undefined;
+  const hasDesign = typeof designOptions === "object" && designOptions !== null;
+  if (priceSplit === undefined && !hasDesign && !currentObject) return undefined;
+  if (priceSplit === undefined && !hasDesign) return currentObject as Prisma.InputJsonValue | undefined;
+  const base: Record<string, unknown> = hasDesign
+    ? { ...(designOptions as Record<string, unknown>) }
+    : { ...(currentObject ?? {}) };
+  if (priceSplit !== undefined) base.priceSplit = priceSplit;
+  else if (currentObject?.priceSplit !== undefined && base.priceSplit === undefined) {
+    base.priceSplit = currentObject.priceSplit;
+  }
+  return base as Prisma.InputJsonValue;
+}
+
+/** Tokens do motor de camadas a partir da mesma paleta do catálogo v2. */
+function priceSplitTokens(paletteKey?: string): PostTokens {
+  const palette = POST_PALETTES.find(item => item.key === (paletteKey ?? "brand")) ?? POST_PALETTES[0];
+  return resolveTokens({
+    bg: palette.background,
+    // painel = fundo: o fade da foto usa tokens.panel e precisa casar com o canvas.
+    panel: palette.background,
+    accent: palette.accent,
+    text: palette.foreground,
+    muted: palette.muted,
+  });
+}
+
+/**
+ * Renderiza o modelo price-split pelo motor de camadas (pool v2) e devolve
+ * data-URL — mesma saída do fluxo SVG, então persistPostImage/consumidores
+ * não mudam. Vazio na prévia vira placeholder; em salvar, 400.
+ */
+async function buildPriceSplitImage(
+  barbershopId: string,
+  opts: {
+    title?: string | null;
+    format?: "square" | "portrait" | "story";
+    paletteKey?: string;
+    designOptions?: { focalX?: number; focalY?: number } | undefined;
+    priceSplit?: PriceSplitInput;
+    primaryMediaId?: string | null;
+    allowEmptyPriceItems?: boolean;
+    renderPreview?: boolean;
+  },
+  ctx: Awaited<ReturnType<typeof loadPostContext>>,
+  primaryImageUrl: string | null,
+  logoDataUrl: string | null
+) {
+  const items = normalizePriceItems(opts.priceSplit?.items ?? []);
+  if (!items.length && !opts.allowEmptyPriceItems) {
+    throw new AppError("Adicione ao menos um serviço à lista de preços", 400);
+  }
+  const data: PriceSplitData = {
+    title: opts.title ?? undefined,
+    items: items.length ? items : [{ name: "Adicione seus serviços", price: null }],
+    businessName: opts.priceSplit?.businessName?.trim() || ctx.barbershop.name,
+    photoUrl: primaryImageUrl,
+    logoUrl: logoDataUrl,
+    whatsapp: opts.priceSplit?.whatsapp !== undefined ? opts.priceSplit.whatsapp : (ctx.barbershop.whatsapp || null),
+    instagram: opts.priceSplit?.instagram ?? null,
+    segment: ctx.barbershop.businessSegment,
+    focal:
+      opts.designOptions?.focalX !== undefined && opts.designOptions?.focalY !== undefined
+        ? { x: opts.designOptions.focalX / 100, y: opts.designOptions.focalY / 100 }
+        : undefined,
+  };
+  const size = PRICE_SPLIT_SIZE[opts.format ?? "portrait"];
+  const tokens = priceSplitTokens(opts.paletteKey);
+  const layers = priceSplitLayers(data, tokens, size);
+  const spec: RenderSpec = {
+    width: size === "story" ? 1080 : 1080,
+    height: size === "story" ? 1920 : size === "square" ? 1080 : 1350,
+    bg: tokens.bg,
+    layers,
+    // Saída decide sozinha (foto → JPEG q90; só tipografia → PNG).
+    ...(opts.renderPreview ? { preview: true } : {}),
+  };
+  const result = await renderPostSpec(spec);
+  return `data:${result.mimeType};base64,${result.buffer.toString("base64")}`;
+}
+
 /** Gera a imagem (SVG → PNG → data-URL) com os defaults de título e CTA. */
 async function buildPostImage(
   barbershopId: string,
@@ -218,6 +358,12 @@ async function buildPostImage(
     designOptions?: { focalX?: number; focalY?: number; overlay?: number };
     primaryMediaId?: string | null;
     secondaryMediaId?: string | null;
+    /** Lista de preços do modelo price-split (contrato items[] ≤ 8). */
+    priceSplit?: PriceSplitInput;
+    /** Prévia aceita lista vazia (placeholder); salvar exige serviço. */
+    allowEmptyPriceItems?: boolean;
+    /** Prévia em 540/q78 (jpeg) em vez da arte final. */
+    renderPreview?: boolean;
   }
 ) {
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
@@ -229,6 +375,10 @@ async function buildPostImage(
     // Fetch shop logo URL and convert to data URL for the renderer
     barbershop.logoUrl ? loadExternalImageUrl(barbershop.logoUrl) : Promise.resolve(null),
   ]);
+  // price-split: motor de camadas (pool v2), não o fluxo SVG legado.
+  if (opts.templateKey === "price-split") {
+    return buildPriceSplitImage(barbershopId, opts, { barbershop, services, schedule }, primaryImageUrl, logoDataUrl);
+  }
   const template = listPostTemplates().find(item => item.key === (opts.templateKey ?? "agenda-aberta")) as { stockImageKey?: string } | undefined;
   const stockImageUrl = primaryImageUrl ? null : loadPostStockImage(template?.stockImageKey);
   const illustrativeBackground = Boolean(stockImageUrl && template?.stockImageKey?.startsWith("promo-"));
@@ -257,7 +407,10 @@ export class PostsController {
     if (!listPostTemplates().some(template => template.key === key)) throw new AppError("Modelo não encontrado", 404);
     const query = previewPostQuerySchema.parse({ ...(request.query as object), templateKey: key });
     assertSameBarbershop(request.user!, query.barbershopId);
-    return reply.send({ success: true, data: { imageUrl: await buildPostImage(query.barbershopId, query) } });
+    return reply.send({
+      success: true,
+      data: { imageUrl: await buildPostImage(query.barbershopId, { ...query, allowEmptyPriceItems: true, renderPreview: true }) },
+    });
   }
   async templates(_request: FastifyRequest, reply: FastifyReply) {
     return reply.status(200).send({ success: true, data: listPostTemplates() });
@@ -281,6 +434,9 @@ export class PostsController {
       primaryMediaId: query.primaryMediaId,
       secondaryMediaId: query.secondaryMediaId,
       designOptions: query.designOptions,
+      priceSplit: query.priceSplit,
+      allowEmptyPriceItems: true,
+      renderPreview: true,
     });
     return reply.status(200).send({ success: true, data: { imageUrl } });
   }
@@ -337,41 +493,54 @@ export class PostsController {
       primaryMediaId: body.primaryMediaId ?? null, secondaryMediaId: body.secondaryMediaId ?? null,
     });
 
-    const imageUrl = await buildPostImage(body.barbershopId, {
-      title: body.title,
-      ctaText: body.ctaText,
-      postMode: body.postMode,
-      templateKey: body.templateKey ?? "agenda-aberta",
-      format: body.format ?? "square",
-      paletteKey: body.paletteKey ?? "brand",
-      designOptions: body.designOptions ?? undefined,
-      primaryMediaId: body.primaryMediaId,
-      secondaryMediaId: body.secondaryMediaId,
-    });
-
-    const post = await prisma.feedPost.create({
-      data: {
-        barbershopId: body.barbershopId,
-        authorId: user.id,
-        type: FEED_TYPE_MAP[body.type],
-        title: body.title ?? "Vem pra cá hoje!",
-        content: body.content,
-        imageUrl,
-        videoUrl: body.videoUrl ?? null,
-        status,
-        postMode: POST_MODE_MAP[body.postMode],
-        ctaText: body.ctaText ?? defaultCtaText(body.postMode),
+    const art = await persistPostImage(
+      body.barbershopId,
+      await buildPostImage(body.barbershopId, {
+        title: body.title,
+        ctaText: body.ctaText,
+        postMode: body.postMode,
         templateKey: body.templateKey ?? "agenda-aberta",
-        format: (body.format ?? "square").toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
+        format: body.format ?? "square",
         paletteKey: body.paletteKey ?? "brand",
-        designOptions: body.designOptions,
-        primaryMediaId: body.primaryMediaId ?? null,
-        secondaryMediaId: body.secondaryMediaId ?? null,
-        scheduledFor: parsedScheduledFor,
-        publishedAt: null,
-      },
-      select: postSelect,
-    });
+        designOptions: body.designOptions ?? undefined,
+        primaryMediaId: body.primaryMediaId,
+        secondaryMediaId: body.secondaryMediaId,
+        priceSplit: body.priceSplit,
+      }),
+    );
+
+    let post;
+    try {
+      post = await prisma.feedPost.create({
+        data: {
+          barbershopId: body.barbershopId,
+          authorId: user.id,
+          type: FEED_TYPE_MAP[body.type],
+          title: body.title ?? "Vem pra cá hoje!",
+          content: body.content,
+          imageUrl: art.imageUrl,
+          imageAssetName: art.imageAssetName,
+          videoUrl: body.videoUrl ?? null,
+          status,
+          postMode: POST_MODE_MAP[body.postMode],
+          ctaText: body.ctaText ?? defaultCtaText(body.postMode),
+          templateKey: body.templateKey ?? "agenda-aberta",
+          format: (body.format ?? "square").toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
+          paletteKey: body.paletteKey ?? "brand",
+          designOptions: mergeDesignOptions(undefined, body.designOptions, body.priceSplit),
+          primaryMediaId: body.primaryMediaId ?? null,
+          secondaryMediaId: body.secondaryMediaId ?? null,
+          scheduledFor: parsedScheduledFor,
+          publishedAt: null,
+        },
+        select: postSelect,
+      });
+    } catch (err) {
+      // Compensação: arte subiu mas o post não foi gravado — remove o asset
+      // órfão antes de propagar (o usuário pode tentar salvar de novo).
+      if (art.imageAssetName) await deletePostImage(art.imageAssetName);
+      throw err;
+    }
 
     return reply.status(201).send({ success: true, data: toPostResponse(post) });
   }
@@ -401,6 +570,7 @@ export class PostsController {
         designOptions: true,
         primaryMediaId: true,
         secondaryMediaId: true,
+        imageAssetName: true,
       },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
@@ -422,10 +592,11 @@ export class PostsController {
       body.format !== undefined ||
       body.paletteKey !== undefined ||
       body.designOptions !== undefined ||
+      body.priceSplit !== undefined ||
       body.primaryMediaId !== undefined ||
       body.secondaryMediaId !== undefined;
 
-    let imageUrl: string | undefined;
+    let art: PersistedPostImage | undefined;
     if (visualChanged) {
       const formatEnumToInput: Record<"SQUARE" | "PORTRAIT" | "STORY", "square" | "portrait" | "story"> = {
         SQUARE: "square",
@@ -437,7 +608,9 @@ export class PostsController {
         APPOINTMENTS: "appointments",
         BOTH: "both",
       };
-      imageUrl = await buildPostImage(existing.barbershopId, {
+      art = await persistPostImage(
+        existing.barbershopId,
+        await buildPostImage(existing.barbershopId, {
         title: body.title !== undefined ? body.title : existing.title,
         ctaText: body.ctaText !== undefined ? body.ctaText : existing.ctaText,
         postMode: body.postMode ?? modeEnumToInput[existing.postMode as "QUEUE" | "APPOINTMENTS" | "BOTH"],
@@ -449,6 +622,7 @@ export class PostsController {
           body.designOptions !== undefined
             ? body.designOptions ?? undefined
             : (existing.designOptions as { focalX?: number; focalY?: number; overlay?: number } | undefined) ?? undefined,
+        priceSplit: body.priceSplit ?? readPriceSplit(existing.designOptions),
         primaryMediaId:
           body.primaryMediaId !== undefined
             ? body.primaryMediaId
@@ -457,27 +631,44 @@ export class PostsController {
           body.secondaryMediaId !== undefined
             ? body.secondaryMediaId
             : existing.secondaryMediaId,
-      });
+        }),
+      );
     }
 
-    const post = await prisma.feedPost.update({
-      where: { id },
-      data: {
-        ...(body.title !== undefined && { title: body.title }),
-        ...(body.ctaText !== undefined && { ctaText: body.ctaText }),
-        ...(body.content !== undefined && { content: body.content }),
-        ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl }),
-        ...(body.postMode && { postMode: POST_MODE_MAP[body.postMode] }),
-        ...(body.templateKey && { templateKey: body.templateKey }),
-        ...(body.format && { format: body.format.toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY" }),
-        ...(body.paletteKey && { paletteKey: body.paletteKey }),
-        ...(body.designOptions !== undefined && { designOptions: body.designOptions }),
-        ...(body.primaryMediaId !== undefined && { primaryMediaId: body.primaryMediaId }),
-        ...(body.secondaryMediaId !== undefined && { secondaryMediaId: body.secondaryMediaId }),
-        ...(imageUrl !== undefined && { imageUrl }),
-      },
-      select: postSelect,
-    });
+    let post;
+    try {
+      post = await prisma.feedPost.update({
+        where: { id },
+        data: {
+          ...(body.title !== undefined && { title: body.title }),
+          ...(body.ctaText !== undefined && { ctaText: body.ctaText }),
+          ...(body.content !== undefined && { content: body.content }),
+          ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl }),
+          ...(body.postMode && { postMode: POST_MODE_MAP[body.postMode] }),
+          ...(body.templateKey && { templateKey: body.templateKey }),
+          ...(body.format && { format: body.format.toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY" }),
+          ...(body.paletteKey && { paletteKey: body.paletteKey }),
+          ...((body.designOptions !== undefined || body.priceSplit !== undefined) && {
+            designOptions: mergeDesignOptions(existing.designOptions, body.designOptions, body.priceSplit),
+          }),
+          ...(body.primaryMediaId !== undefined && { primaryMediaId: body.primaryMediaId }),
+          ...(body.secondaryMediaId !== undefined && { secondaryMediaId: body.secondaryMediaId }),
+          ...(art && { imageUrl: art.imageUrl, imageAssetName: art.imageAssetName }),
+        },
+        select: postSelect,
+      });
+    } catch (err) {
+      // Compensação: arte subiu mas a gravação falhou — remove o asset novo
+      // (o antigo continua válido no banco).
+      if (art?.imageAssetName) await deletePostImage(art.imageAssetName);
+      throw err;
+    }
+
+    // Arte nova gravada com sucesso: remove o asset anterior, se era nosso.
+    // `imageAssetName` nulo (legado base64/URL externa) não destrói nada.
+    if (art?.imageAssetName && existing.imageAssetName && existing.imageAssetName !== art.imageAssetName) {
+      await deletePostImage(existing.imageAssetName);
+    }
 
     return reply.status(200).send({ success: true, data: toPostResponse(post) });
   }
@@ -743,7 +934,7 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, status: true },
+      select: { id: true, barbershopId: true, status: true, imageAssetName: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
 
@@ -757,6 +948,8 @@ export class PostsController {
     }
 
     await prisma.feedPost.delete({ where: { id } });
+    // Limpeza best-effort do asset (nulo no legado base64 = no-op).
+    if (existing.imageAssetName) await deletePostImage(existing.imageAssetName);
 
     return reply
       .status(200)

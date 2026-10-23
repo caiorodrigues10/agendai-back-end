@@ -9,7 +9,6 @@ import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
 import {
   ALLOWED_LOGO_MIME_TYPES,
-  MAX_UPLOAD_SIZE_BYTES,
   validateMagicBytes,
 } from "@/shared/config/upload";
 
@@ -89,7 +88,7 @@ export class AvatarController {
     const { id: userId } = request.params as { id: string };
 
     const data = await (request as any).file({
-      limits: { fileSize: MAX_UPLOAD_SIZE_BYTES, files: 1, fields: 0 },
+      limits: { files: 1, fields: 0 },
     });
 
     if (!data) {
@@ -109,9 +108,6 @@ export class AvatarController {
     try {
       buffer = await data.toBuffer();
     } catch (err: any) {
-      if (err?.code === "FST_REQ_FILE_TOO_LARGE" || err?.statusCode === 413) {
-        throw new AppError("Arquivo muito grande. Máximo permitido: 5 MB", 413);
-      }
       throw new AppError(`Erro ao processar o arquivo: ${err?.message ?? "erro desconhecido"}`, 500);
     }
 

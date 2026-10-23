@@ -27,6 +27,11 @@ export interface IUploadBufferOptions {
   publicId?: string;
   /** Cache-Control do objeto (padrão do provider). */
   cacheControl?: string;
+  /**
+   * Transformações de ENTRADA no Cloudinary (ex.: `[{ width: 2000, crop: "limit", quality: "auto" }]`).
+   * Ignorado por provedores que não suportam transformação no upload (GCS).
+   */
+  transformation?: Array<Record<string, unknown>>;
 }
 
 export interface IStorageProvider {

@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "source": "backend/src/modules/posts/templates/_engine/sanitize.ts × frontend/src/features/posts/renderTextGlyphs.ts",
+  "note": "Contrato único dos dois lados: front asserta dropped/truncated, back asserta text/removed/dropped/truncated.",
+  "cases": [
+    {
+      "id": "emoji-no-titulo",
+      "max": 40,
+      "input": "💈 Corte ✂️",
+      "expect": {
+        "text": "Corte",
+        "removed": true,
+        "dropped": [
+          "💈",
+          "✂️"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "id": "cjk",
+      "max": 40,
+      "input": "纹身",
+      "expect": {
+        "text": "",
+        "removed": true,
+        "dropped": [
+          "纹",
+          "身"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "id": "emoji-cjk-misturado",
+      "max": 60,
+      "input": "Barba ✨ e navalha 🪒 — Corte já! 金",
+      "expect": {
+        "text": "Barba e navalha — Corte já!",
+        "removed": true,
+        "dropped": [
+          "✨",
+          "🪒",
+          "金"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "id": "tofu-total",
+      "max": 100,
+      "input": "💈✂️🪒😀纹身日本語🚀🇺🇸🇿🇧️‍",
+      "expect": {
+        "text": "",
+        "removed": true,
+        "dropped": [
+          "💈",
+          "✂️",
+          "🪒",
+          "😀",
+          "纹",
+          "身",
+          "日",
+          "本",
+          "語",
+          "🚀",
+          "🇺🇸",
+          "🇿🇧️‍"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "id": "alfabeto-ptbr-intacto",
+      "max": 60,
+      "input": "Corte & Barba R$ 45,00 — Promoção nº 1 (50%) @spa €5",
+      "expect": {
+        "text": "Corte & Barba R$ 45,00 — Promoção nº 1 (50%) @spa €5",
+        "removed": false,
+        "dropped": [],
+        "truncated": false
+      }
+    },
+    {
+      "id": "truncamento-fronteira-palavra",
+      "max": 40,
+      "input": "TABELA DE VALORES COMPLETA DOS NOSSOS SERVIÇOS PREMIUM",
+      "expect": {
+        "text": "TABELA DE VALORES COMPLETA DOS NOSSOS",
+        "removed": true,
+        "dropped": [],
+        "truncated": true
+      }
+    },
+    {
+      "id": "limite-sem-espaco",
+      "max": 4,
+      "input": "SERVIÇOSPREMIUM",
+      "expect": {
+        "text": "SERV",
+        "removed": true,
+        "dropped": [],
+        "truncated": true
+      }
+    },
+    {
+      "id": "colapso-de-espacos",
+      "max": 9,
+      "input": "   TABELA    DE   VALORES   ",
+      "expect": {
+        "text": "TABELA",
+        "removed": true,
+        "dropped": [],
+        "truncated": true
+      }
+    },
+    {
+      "id": "cluster-keycap",
+      "max": 40,
+      "input": "1️⃣ Promoção 2️⃣",
+      "expect": {
+        "text": "1 Promoção 2",
+        "removed": true,
+        "dropped": [
+          "1️⃣",
+          "2️⃣"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "id": "cluster-vs16",
+      "max": 40,
+      "input": "x️",
+      "expect": {
+        "text": "x",
+        "removed": true,
+        "dropped": [
+          "x️"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "id": "acento-nfd",
+      "max": 40,
+      "input": "Café",
+      "expect": {
+        "text": "Cafe",
+        "removed": true,
+        "dropped": [
+          "é"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "id": "nome-de-servico-ok",
+      "max": 48,
+      "input": "Corte degradê fade",
+      "expect": {
+        "text": "Corte degradê fade",
+        "removed": false,
+        "dropped": [],
+        "truncated": false
+      }
+    },
+    {
+      "id": "nome-do-negocio-ok",
+      "max": 60,
+      "input": "Barbearia São João & Cia",
+      "expect": {
+        "text": "Barbearia São João & Cia",
+        "removed": false,
+        "dropped": [],
+        "truncated": false
+      }
+    },
+    {
+      "id": "nome-do-negocio-longo",
+      "max": 60,
+      "input": "Barbearia Imperial Centro Histórico — Filial 2 e Barbearia Alma",
+      "expect": {
+        "text": "Barbearia Imperial Centro Histórico — Filial 2 e Barbearia",
+        "removed": true,
+        "dropped": [],
+        "truncated": true
+      }
+    },
+    {
+      "id": "vazio",
+      "max": 40,
+      "input": "",
+      "expect": {
+        "text": "",
+        "removed": false,
+        "dropped": [],
+        "truncated": false
+      }
+    },
+    {
+      "id": "nulo",
+      "max": 40,
+      "input": null,
+      "expect": {
+        "text": "",
+        "removed": false,
+        "dropped": [],
+        "truncated": false
+      }
+    }
+  ]
+}
