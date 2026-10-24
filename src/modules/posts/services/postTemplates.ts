@@ -4,7 +4,7 @@ export const TEMPLATE_VERSION = 2;
 
 /**
  * Rollout do modelo "Tabela de valores · Foto + painel" (price-split).
- * Flag lida em runtime (mesmo padrão de POST_IMAGE_ALLOW_LOOPBACK): sem `1`
+ * Flag lida em runtime (mesmo padrão das flags de ambiente do serviço): sem `1`
  * o catálogo volta ao v2 legado e o modelo nem aparece no editor.
  */
 export function priceSplitEnabled(): boolean {

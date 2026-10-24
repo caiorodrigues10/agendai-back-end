@@ -3,8 +3,8 @@
  *
  * Regras:
  *  - Só baixa de hosts permitidos: Cloudinary do próprio projeto
- *    (`/CLOUDINARY_CLOUD_NAME/`, https) e loopback — este, só fora de
- *    produção (ou `POST_IMAGE_ALLOW_LOOPBACK=1`); data-URI aceito direto.
+ *    (`/CLOUDINARY_CLOUD_NAME/`, https) e loopback — este, somente fora
+ *    de produção (`NODE_ENV !== "production"`); data-URI aceito direto.
  *  - Timeout 10 s, limite de bytes, checagem de content-type + magic bytes.
  *  - Cacheia a foto JÁ redimensionada (≤1080, buffer JPEG) — nunca raster cru.
  *  - Falha de foto → `PhotoError`; o motor tenta o stock do segmento e, se
@@ -24,13 +24,12 @@ const CLOUDINARY_HOST = "res.cloudinary.com";
 
 /**
  * Loopback (dev/serviços internos). Em produção é SSRF contra a própria
- * infraestrutura: liberado só fora de produção ou com a flag de teste
- * explícita `POST_IMAGE_ALLOW_LOOPBACK=1`.
+ * infraestrutura: liberado SOMENTE fora de produção (`NODE_ENV !==
+ * "production"`) — nenhuma flag reabre exceção em produção.
  */
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 function loopbackAllowed(): boolean {
-  if (process.env.POST_IMAGE_ALLOW_LOOPBACK === "1") return true;
   return process.env.NODE_ENV !== "production";
 }
 
