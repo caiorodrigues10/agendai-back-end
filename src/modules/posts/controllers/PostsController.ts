@@ -205,6 +205,12 @@ async function loadExternalImageUrl(url: string): Promise<string | null> {
   }
 }
 
+function assertPostTemplateKey(templateKey: string): void {
+  if (!listPostTemplates().some(template => template.key === templateKey)) {
+    throw new AppError("Modelo de post não encontrado", 400);
+  }
+}
+
 async function assertRequiredPostMedia(post: { barbershopId: string; templateKey: string; primaryMediaId: string | null; secondaryMediaId: string | null }) {
   const template = listPostTemplates().find(item => item.key === post.templateKey);
   if (!template) throw new AppError("Modelo de post não encontrado", 400);
@@ -366,6 +372,8 @@ async function buildPostImage(
     renderPreview?: boolean;
   }
 ) {
+  const templateKey = opts.templateKey ?? "agenda-aberta";
+  assertPostTemplateKey(templateKey);
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
   const title = opts.title ?? "Vem pra cá hoje!";
   const ctaText = opts.ctaText ?? defaultCtaText(opts.postMode);
@@ -376,10 +384,10 @@ async function buildPostImage(
     barbershop.logoUrl ? loadExternalImageUrl(barbershop.logoUrl) : Promise.resolve(null),
   ]);
   // price-split: motor de camadas (pool v2), não o fluxo SVG legado.
-  if (opts.templateKey === "price-split") {
+  if (templateKey === "price-split") {
     return buildPriceSplitImage(barbershopId, opts, { barbershop, services, schedule }, primaryImageUrl, logoDataUrl);
   }
-  const template = listPostTemplates().find(item => item.key === (opts.templateKey ?? "agenda-aberta")) as { stockImageKey?: string } | undefined;
+  const template = listPostTemplates().find(item => item.key === templateKey) as { stockImageKey?: string } | undefined;
   const stockImageUrl = primaryImageUrl ? null : loadPostStockImage(template?.stockImageKey);
   const illustrativeBackground = Boolean(stockImageUrl && template?.stockImageKey?.startsWith("promo-"));
   const svg = buildPostSvg({
@@ -390,7 +398,7 @@ async function buildPostImage(
     postMode: opts.postMode,
     ctaText,
     title,
-    templateKey: opts.templateKey,
+    templateKey,
     format: opts.format,
     paletteKey: opts.paletteKey,
     designOptions: opts.designOptions,
@@ -424,6 +432,7 @@ export class PostsController {
   async preview(request: FastifyRequest, reply: FastifyReply) {
     const query = previewPostQuerySchema.parse(request.query);
     assertSameBarbershop(request.user!, query.barbershopId);
+    assertPostTemplateKey(query.templateKey);
     const imageUrl = await buildPostImage(query.barbershopId, {
       postMode: query.postMode,
       title: query.title,
@@ -473,6 +482,7 @@ export class PostsController {
     const body = createPostSchema.parse(request.body);
 
     assertSameBarbershop(user, body.barbershopId);
+    assertPostTemplateKey(body.templateKey ?? "agenda-aberta");
 
     assertOwnedPostVideo(body.videoUrl, body.barbershopId);
 
@@ -576,6 +586,7 @@ export class PostsController {
     if (!existing) throw new AppError("Post não encontrado", 404);
 
     assertSameBarbershop(user, existing.barbershopId);
+    assertPostTemplateKey(body.templateKey ?? existing.templateKey);
 
     assertOwnedPostVideo(body.videoUrl, existing.barbershopId);
 
