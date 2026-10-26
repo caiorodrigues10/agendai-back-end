@@ -29,6 +29,13 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Tema da página pública (`BarbershopPageTheme`, 1:1): cores hex + radius + botão + overlay 0–80 + capa (`coverFocalX/Y` 0–100, padrão 50/50 — aceito no `PUT`; `coverWidth/Height` só do servidor); **contraste WCAG AA validado no back por variante** (escura sempre; clara quando materializada — par reprovado → 400 com o nome da variante); `mode` (`AUTO|LIGHT|DARK`) + `darkColors`/`lightColors` (JSON), colunas planas = espelho legado do `darkColors` (linha sem JSON volta às planas); `PUT` exige OWNER do tenant (ou MASTER_ADMIN); rotas de upload/tema com rate limit próprio.
 - Cartão OG da página pública: `GET /barbershops/:id/page-theme/og-image` gera PNG 1200×630 (cores do tema + nome do salão via sharp/SVG; fonte `font-noto-sans` no Dockerfile), cache 1h.
 
+## Posts (formato da arte)
+
+- **Formato padrão por modelo:** `price-split` → `portrait` (4:5); todos os demais → `square` (1:1). Fonte única no back: `defaultPostFormat()` em `modules/posts/services/postTemplates.ts`, que lê `PRICE_SPLIT_MANIFEST.defaultFormat` (manifesto do modelo).
+- O catálogo `GET /api/posts/templates` devolve `defaultFormat` em cada modelo — **é o que o frontend lê** (o fallback local do editor vale só enquanto a lista não carrega/erro de rede). Front e back precisam ficar iguais: mudar a regra = mudar o manifesto/`defaultPostFormat` **e** o fallback do editor no mesmo PR, com o teste do catálogo (`postEditorialTemplates.spec.ts`) verificando os dois lados.
+- `format` explícito sempre vence o default: `previewPostQuerySchema.format` é opcional (sem valor, a prévia usa o default do modelo) e o `create` persiste `body.format ?? defaultPostFormat(templateKey)`. O default é aplicado em um único ponto de render (`buildPostImage`), que alimenta prévia, preview de template, create e update.
+- Prévia e arte final precisam sair no mesmo formato — por isso o `price-split` nasce 4:5 e não 1:1.
+
 ## Fila / agenda / híbrido
 
 - Modos de operação do salão restringem join/booking (`shopOpenState`, WhatsApp obrigatório em alguns fluxos).
