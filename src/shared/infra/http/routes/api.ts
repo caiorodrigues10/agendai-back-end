@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify'
+import cors from '@fastify/cors'
+import { corsOptions } from '../corsOptions'
 import { usersRoutes } from './users.routes'
 import { servicesRoutes } from './services.routes'
 import { barbershopsRoutes } from './barbershops.routes'
@@ -65,6 +67,9 @@ import { supportRoutes } from '@/modules/support/support.routes'
 import { npsRoutes } from '@/modules/nps/routes/nps.routes'
 
 export async function apiRoutes(app: FastifyInstance) {
+	// CORS só neste escopo (/api) — ver corsOptions.ts.
+	await app.register(cors, corsOptions)
+
 	await realtimeWsRoutes(app)
 	await authRoutes(app)
 	await usersRoutes(app)
