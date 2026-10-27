@@ -1151,7 +1151,7 @@ model PostMedia {
   objectName     String     @db.Text
   mimeType       String     @db.VarChar(80)
   size           Int
-  inGallery      Boolean    @default(false)
+  inGallery      Boolean    @default(true)
   createdAt      DateTime   @default(now())
   barbershop     Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   uploadedBy     User?      @relation("PostMediaUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)

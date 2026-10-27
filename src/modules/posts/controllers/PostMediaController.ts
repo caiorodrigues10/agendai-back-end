@@ -55,10 +55,11 @@ function mapStorageError(err: unknown): never {
   throw new AppError("Não foi possível enviar a imagem ao servidor de fotos. Tente novamente.", 502);
 }
 
+/** Limite da galeria pública do salão (perfil "Fotos"), verificado antes do upload. */
 async function assertGalleryCapacity(barbershopId: string) {
   const count = await prisma.postMedia.count({ where: { barbershopId, inGallery: true } });
   if (count >= GALLERY_MAX_PHOTOS) {
-    throw new AppError(`A galeria pública aceita no máximo ${GALLERY_MAX_PHOTOS} fotos. Remova uma foto da galeria antes de adicionar outra.`, 400);
+    throw new AppError(`Sua galeria já tem ${GALLERY_MAX_PHOTOS} fotos. Remova uma foto para enviar outra.`, 400);
   }
 }
 
@@ -77,7 +78,6 @@ export class PostMediaController {
   async upload(request: FastifyRequest, reply: FastifyReply) {
     const { barbershopId } = request.params as { barbershopId: string };
     ensureTenant(request, barbershopId);
-    let inGallery = false;
     let fileData: { mimetype: string; buffer: Buffer } | null = null;
     try {
       // fileSize por rota: mesmo limite do front (POST_MEDIA_MAX_BYTES). O
@@ -86,8 +86,6 @@ export class PostMediaController {
       for await (const part of request.parts({ limits: { files: 1, fields: 2, fileSize: POST_MEDIA_MAX_BYTES } })) {
         if (part.type === "file") {
           fileData = { mimetype: String(part.mimetype ?? ""), buffer: await part.toBuffer() };
-        } else if (part.fieldname === "inGallery") {
-          inGallery = String(part.value) === "true";
         }
       }
     } catch (err) {
@@ -103,7 +101,9 @@ export class PostMediaController {
     if (!extension) throw new AppError("Formato inválido. Envie JPG, PNG ou WebP.", 415);
     const buffer = fileData.buffer;
     if (!validateMagicBytes(buffer, mimeType)) throw new AppError("A imagem parece inválida ou corrompida.", 400);
-    if (inGallery) await assertGalleryCapacity(barbershopId);
+    // Limite da galeria verificado ANTES do upload ao storage: quando a galeria
+    // está cheia nada é enviado ao Cloudinary (sem arquivo órfão).
+    await assertGalleryCapacity(barbershopId);
     const storage = container.resolve<IStorageProvider>("ImageStorageProvider");
     let uploaded;
     try {
@@ -113,8 +113,9 @@ export class PostMediaController {
     } catch (err) {
       mapStorageError(err);
     }
+    // Toda foto enviada entra na galeria pública do perfil (aba "Fotos").
     const media = await prisma.postMedia.create({
-      data: { barbershopId, uploadedById: request.user!.id, url: uploaded.publicUrl, objectName: uploaded.objectName, mimeType, size: buffer.byteLength, inGallery },
+      data: { barbershopId, uploadedById: request.user!.id, url: uploaded.publicUrl, objectName: uploaded.objectName, mimeType, size: buffer.byteLength, inGallery: true },
       select: mediaSelect,
     });
     return reply.status(201).send({ success: true, data: toMediaDto(media) });

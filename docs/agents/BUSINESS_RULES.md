@@ -29,6 +29,14 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Tema da página pública (`BarbershopPageTheme`, 1:1): cores hex + radius + botão + overlay 0–80 + capa (`coverFocalX/Y` 0–100, padrão 50/50 — aceito no `PUT`; `coverWidth/Height` só do servidor); **contraste WCAG AA validado no back por variante** (escura sempre; clara quando materializada — par reprovado → 400 com o nome da variante); `mode` (`AUTO|LIGHT|DARK`) + `darkColors`/`lightColors` (JSON), colunas planas = espelho legado do `darkColors` (linha sem JSON volta às planas); `PUT` exige OWNER do tenant (ou MASTER_ADMIN); rotas de upload/tema com rate limit próprio.
 - Cartão OG da página pública: `GET /barbershops/:id/page-theme/og-image` gera PNG 1200×630 (cores do tema + nome do salão via sharp/SVG; fonte `font-noto-sans` no Dockerfile), cache 1h.
 
+## Galeria do perfil (aba Fotos)
+
+- Limite de `GALLERY_MAX_PHOTOS = 30` (`PostMediaController`); a galeria pública (`feed/social/socialRepository.gallery`) lista `inGallery: true` com `take: 30`, `createdAt DESC`.
+- **Upload sempre grava `inGallery: true`** (o campo multipart `inGallery` é ignorado) e a capacidade é verificada **antes** do envio ao Cloudinary: galeria cheia → **400** "Sua galeria já tem 30 fotos. Remova uma foto para enviar outra." (nada vai ao storage, sem arquivo órfão).
+- Coluna `post_media.inGallery` com **default `true`** (migration `20261027000000_post_media_gallery_default`) + backfill que promove as fotos **mais recentes** de cada salão até completar 30, **sem rebaixar** foto já publicada e **sem ultrapassar** o limite.
+- Excluir a foto apaga o registro → ela sai da galeria do perfil automaticamente.
+- `PATCH /api/posts/media/:id` (toggle) continua na API, mas o front não usa mais (não há escolha de galeria na UI).
+
 ## Fila / agenda / híbrido
 
 - Modos de operação do salão restringem join/booking (`shopOpenState`, WhatsApp obrigatório em alguns fluxos).
