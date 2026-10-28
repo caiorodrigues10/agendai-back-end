@@ -55,10 +55,11 @@ function mapStorageError(err: unknown): never {
   throw new AppError("Não foi possível enviar a imagem ao servidor de fotos. Tente novamente.", 502);
 }
 
+/** Limite da galeria pública do salão (perfil "Fotos"), verificado antes do upload. */
 async function assertGalleryCapacity(barbershopId: string) {
   const count = await prisma.postMedia.count({ where: { barbershopId, inGallery: true } });
   if (count >= GALLERY_MAX_PHOTOS) {
-    throw new AppError(`A galeria pública aceita no máximo ${GALLERY_MAX_PHOTOS} fotos. Remova uma foto da galeria antes de adicionar outra.`, 400);
+    throw new AppError(`Sua galeria já tem ${GALLERY_MAX_PHOTOS} fotos. Remova uma foto para enviar outra.`, 400);
   }
 }
 
@@ -136,8 +137,12 @@ export class PostMediaController {
     const media = await prisma.postMedia.findUnique({ where: { id } });
     if (!media) throw new AppError("Imagem não encontrada.", 404);
     ensureTenant(request, media.barbershopId);
-    const inUse = await prisma.feedPost.count({ where: { OR: [{ primaryMediaId: id }, { secondaryMediaId: id }], status: { notIn: ["PUBLISHED"] } } });
-    if (inUse > 0) throw new AppError("Remova a imagem dos rascunhos ou posts agendados antes de excluir.", 409);
+    // Foto de galeria (inGallery=true) é enviada pela tela "Galeria" e nunca é
+    // usada em posts: pode ser excluída normalmente.
+    if (!media.inGallery) {
+      const inUse = await prisma.feedPost.count({ where: { OR: [{ primaryMediaId: id }, { secondaryMediaId: id }], status: { notIn: ["PUBLISHED"] } } });
+      if (inUse > 0) throw new AppError("Remova a imagem dos rascunhos ou posts agendados antes de excluir.", 409);
+    }
     // Roteia pela origem do asset: URL do Cloudinary → ImageStorageProvider; GCS legado → StorageProvider
     const { deleteImageAsset } = await import("@/shared/utils/imageAssetDeletion");
     await deleteImageAsset({
