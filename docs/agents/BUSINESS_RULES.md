@@ -37,6 +37,14 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Excluir foto de galeria funciona normalmente: o bloqueio 409 ("remova a imagem dos rascunhos ou posts agendados") só vale para foto usada em rascunho/post agendado — foto de galeria nunca é usada em post.
 - Sem backfill: fotos já existentes mantêm o `inGallery` atual (default da coluna: `false`).
 
+## Redes sociais do perfil (barbershops.socialLinks)
+
+- O dono cadastra até 5 redes (Instagram, TikTok, X, YouTube, Facebook) via `PATCH|PUT /barbershops/:id` (corpo `socialLinks`, mapa rede → URL; OWNER/MASTER_ADMIN + tenant via `assertShopAccess`). A resposta pública `GET /barbershops/:id` (e a lista) devolve o mapa ordenado pelas redes conhecidas.
+- Persistência: coluna JSONB `barbershops.socialLinks` (migration `20261028120000_barbershop_social_links`; sem backfill, NULL = nenhuma rede). JSON em vez de tabela nova: herda a RLS/tenant já existente da tabela `barbershops` e segue o padrão de `pageTheme`/`designOptions`.
+- Normalização por rede (`modules/barbershops/utils/socialLinks.ts`): aceita `@usuario`, `usuario`, `rede.com/usuario`, URL com/sem `https://`; `http://` vira `https://`; `twitter.com` vira `x.com`; YouTube aceita `@handle` e `/channel|c|user/` (mantém o path do canal); Facebook recusa `profile.php`. Hosts fora da allowlist da rede (inclusive IPs, localhost, `javascript:`, `data:`, porta não padrão) são recusados com mensagem PT-BR no padrão "O link do Instagram precisa ser de instagram.com".
+- Entrada vazia remove a rede; mapa final vazio grava `null`; chave desconhecida gera erro claro ("Rede social desconhecida: kwai."). Validação roda no schema Zod (`updateBarbershopSchema`), com path do issue em `socialLinks.<rede>`.
+- Saída: `orderSocialLinks` no repositório filtra só redes conhecidas/strings não vazias e ordena — perfil sem redes não renderiza nada (sem espaço vazio).
+
 ## Fila / agenda / híbrido
 
 - Modos de operação do salão restringem join/booking (`shopOpenState`, WhatsApp obrigatório em alguns fluxos).

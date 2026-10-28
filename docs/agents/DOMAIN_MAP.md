@@ -11,7 +11,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Domínio | Rotas | Persistência principal |
 |---|---|---|
 | Auth / users | `/auth`, `/users` | `User`, `RefreshToken`, `UserSession` (sessões/"meus dispositivos": `GET|POST /auth/sessions*`, revogação + flags no Redis, cron `sessionsCleanup`) |
-| Barbershop / schedule / logo | `/barbershops` (logo via Cloudinary: signed URL + multipart; tema/capa da página pública: `GET|PUT /barbershops/:id/page-theme` com `mode` + variantes `darkColors`/`lightColors`, `POST|DELETE .../page-theme/cover`; cartão OG: `GET .../page-theme/og-image` PNG 1200×630) | `Barbershop`, `Schedule`, `BarbershopPageTheme` |
+| Barbershop / schedule / logo | `/barbershops` (logo via Cloudinary: signed URL + multipart; tema/capa da página pública: `GET|PUT /barbershops/:id/page-theme` com `mode` + variantes `darkColors`/`lightColors`, `POST|DELETE .../page-theme/cover`; cartão OG: `GET .../page-theme/og-image` PNG 1200×630; redes sociais do dono no perfil: `PATCH|PUT /barbershops/:id` com `socialLinks` mapa rede → URL, exposto no `GET` público ordenado) | `Barbershop`, `Schedule`, `BarbershopPageTheme` |
 | Serviços / categorias | `/services`, `/service-categories` | `Service`, `ServiceCategory` |
 | Fila | `/queue` | `QueueItem` |
 | Agenda | `/appointments` | `Appointment` (campo `source`: `APP`, `PUBLIC` ou `WHATSAPP_OWNER_BOT`) |

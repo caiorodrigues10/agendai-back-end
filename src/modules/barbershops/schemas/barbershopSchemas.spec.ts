@@ -89,3 +89,58 @@ describe("texto livre de OTHER (businessSegmentOther)", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("updateBarbershopSchema — socialLinks (redes sociais do dono)", () => {
+  it("aceita @usuário/URL e normaliza para URL canônica ordenada", () => {
+    const parsed = updateBarbershopSchema.parse({
+      socialLinks: { x: "twitter.com/alguem", instagram: "@meubarbeiro" },
+    });
+    expect(parsed.socialLinks).toEqual({
+      instagram: "https://instagram.com/meubarbeiro",
+      x: "https://x.com/alguem",
+    });
+  });
+
+  it("campo vazio remove a rede; mapa final vazio grava null", () => {
+    const mixed = updateBarbershopSchema.parse({
+      socialLinks: { instagram: "@x", tiktok: "  " },
+    });
+    expect(mixed.socialLinks).toEqual({ instagram: "https://instagram.com/x" });
+
+    const cleared = updateBarbershopSchema.parse({ socialLinks: { instagram: "", tiktok: null } });
+    expect(cleared.socialLinks).toBeNull();
+  });
+
+  it("host errado gera mensagem clara no campo da rede", () => {
+    const result = updateBarbershopSchema.safeParse({
+      socialLinks: { instagram: "facebook.com/x" },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]).toMatchObject({
+        path: ["socialLinks", "instagram"],
+        message: "O link do Instagram precisa ser de instagram.com",
+      });
+    }
+  });
+
+  it("esquema perigoso (javascript:) é recusado", () => {
+    const result = updateBarbershopSchema.safeParse({
+      socialLinks: { instagram: "javascript:alert(1)" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rede desconhecida é recusada com o nome da chave", () => {
+    const result = updateBarbershopSchema.safeParse({ socialLinks: { kwai: "@x" } });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual(["socialLinks", "kwai"]);
+      expect(result.error.issues[0].message).toBe("Rede social desconhecida: kwai.");
+    }
+  });
+
+  it("campo ausente não mexe nas redes (undefined)", () => {
+    expect(updateBarbershopSchema.parse({}).socialLinks).toBeUndefined();
+  });
+});

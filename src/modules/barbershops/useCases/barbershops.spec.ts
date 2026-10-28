@@ -140,4 +140,45 @@ describe("Barbershops module", () => {
 
     expect(await getSchedule.execute(victim.id)).toHaveLength(0);
   });
+
+  it("OWNER não atualiza socialLinks de outro salão (403) e nada muda", async () => {
+    const victim = await create.execute({ name: "Vitima Social", whatsapp: "55" });
+    const attacker = { id: "owner-2", role: "OWNER", barbershopId: "outro-salao" };
+
+    const attempt = update.execute(
+      victim.id,
+      { socialLinks: { instagram: "@hacked" } },
+      attacker,
+    );
+    await expect(attempt).rejects.toMatchObject({ statusCode: 403 });
+
+    const untouched = await get.execute(victim.id);
+    expect(untouched.socialLinks ?? null).toBeNull();
+  });
+
+  it("OWNER atualiza as socialLinks da própria barbearia", async () => {
+    const mine = await create.execute({ name: "Social Propria", whatsapp: "55" });
+    const updated = await update.execute(
+      mine.id,
+      { socialLinks: { instagram: "https://instagram.com/propria", x: "https://x.com/propria" } },
+      { id: "owner-1", role: "OWNER", barbershopId: mine.id },
+    );
+    expect(updated.socialLinks).toEqual({
+      instagram: "https://instagram.com/propria",
+      x: "https://x.com/propria",
+    });
+  });
+
+  it("resposta pública do salão expõe socialLinks (perfil)", async () => {
+    const mine = await create.execute({ name: "Social Publica", whatsapp: "55" });
+    await update.execute(
+      mine.id,
+      { socialLinks: { instagram: "@publica" } },
+      { id: "owner-1", role: "OWNER", barbershopId: mine.id },
+    );
+
+    const shop = await repo.findByIdPublic(mine.id);
+    expect(shop?.socialLinks).toEqual({ instagram: "@publica" });
+    expect(shop).not.toHaveProperty("evolutionInstanceName");
+  });
 });

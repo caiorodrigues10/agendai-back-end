@@ -34,6 +34,9 @@ describe("leitura pública de salões não expõe evolutionInstanceName (Postgre
         approvalStatus: "APPROVED",
         active: true,
         evolutionInstanceName: INSTANCE,
+        // Redes sociais do dono são conteúdo do perfil público (ícones no
+        // cabeçalho e na aba Sobre) — têm que sair no findByIdPublic.
+        socialLinks: { instagram: "https://instagram.com/qapublic" },
       },
     });
   });
@@ -49,6 +52,7 @@ describe("leitura pública de salões não expõe evolutionInstanceName (Postgre
     expect(shop?.id).toBe(shopId);
     expect(shop?.name).toContain("QA-PUBLIC-SELECT");
     expect(shop).not.toHaveProperty("evolutionInstanceName");
+    expect(shop?.socialLinks).toEqual({ instagram: "https://instagram.com/qapublic" });
   });
 
   it("list (rota pública) devolve salões SEM o nome da instância", async () => {
