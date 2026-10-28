@@ -797,3 +797,104 @@ describe("PostsController price-split — modelo por flag + motor v2", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Auditoria Parte 2 — fluxo de rascunhos (itens 1, 2, 6 e 9)
+// ---------------------------------------------------------------------------
+describe("Posts — auditoria de rascunhos (Parte 2)", () => {
+  it("item 1: list com status=draft filtra findMany por DRAFT", async () => {
+    mockFeedPostFindMany.mockResolvedValue([makeDraftRow()]);
+    mockFeedPostCount.mockResolvedValue(1);
+
+    const reply = fakeReply();
+    await new PostsController().list(
+      { query: { barbershopId: BARBERSHOP_ID, status: "draft", page: 1, limit: 12 }, user: fakeUser() } as unknown as FastifyRequest,
+      reply
+    );
+
+    expect(mockFeedPostFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { barbershopId: BARBERSHOP_ID, status: "DRAFT" } })
+    );
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({ meta: expect.objectContaining({ total: 1, page: 1, limit: 12 }) })
+    );
+  });
+
+  it("item 2: cria rascunho incompleto (sem título/conteúdo/foto) com 201, sem exigir mídia", async () => {
+    mockFeedPostCreate.mockResolvedValue(makeDraftRow({ title: "Vem pra cá hoje!", content: "" }));
+
+    const reply = fakeReply();
+    await new PostsController().create(
+      { body: { barbershopId: BARBERSHOP_ID, type: "announcement", postMode: "both" }, user: fakeUser() } as unknown as FastifyRequest,
+      reply
+    );
+
+    expect(mockFeedPostCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "DRAFT",
+          title: "Vem pra cá hoje!",
+          content: "",
+          primaryMediaId: null,
+          secondaryMediaId: null,
+          scheduledFor: null,
+        }),
+      })
+    );
+    expect(mockPostMediaFindFirst).not.toHaveBeenCalled();
+    expect(reply.status).toHaveBeenCalledWith(201);
+  });
+
+  it("item 6: editar rascunho preserva status DRAFT (update não recebe status nem valida mídia)", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow());
+    mockFeedPostUpdate.mockResolvedValue(makeDraftRow({ title: "Título editado" }));
+
+    const reply = fakeReply();
+    await new PostsController().update(
+      { params: { id: POST_ID }, body: { title: "Título editado" }, user: fakeUser() } as unknown as FastifyRequest,
+      reply
+    );
+
+    expect(mockFeedPostUpdate).toHaveBeenCalledTimes(1);
+    const updateArgs = mockFeedPostUpdate.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+    expect(updateArgs.data).not.toHaveProperty("status");
+    expect(mockPostMediaFindFirst).not.toHaveBeenCalled();
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, data: expect.objectContaining({ id: POST_ID }) })
+    );
+  });
+
+  it("item 9: update de post de outro salão responde 403 sem gravar", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow());
+    const request = {
+      params: { id: POST_ID },
+      body: { title: "Invadindo" },
+      user: fakeUser({ barbershopId: "00000000-0000-0000-0000-000000000099" }),
+    } as unknown as FastifyRequest;
+
+    await expect(new PostsController().update(request, fakeReply())).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockFeedPostUpdate).not.toHaveBeenCalled();
+  });
+
+  it("item 9: publish de post de outro salão responde 403 sem publicar", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow());
+    const request = {
+      params: { id: POST_ID },
+      user: fakeUser({ barbershopId: "00000000-0000-0000-0000-000000000099" }),
+    } as unknown as FastifyRequest;
+
+    await expect(new PostsController().publish(request, fakeReply())).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockFeedPostUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("item 9: delete de post de outro salão responde 403 sem apagar", async () => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow());
+    const request = {
+      params: { id: POST_ID },
+      user: fakeUser({ barbershopId: "00000000-0000-0000-0000-000000000099" }),
+    } as unknown as FastifyRequest;
+
+    await expect(new PostsController().delete(request, fakeReply())).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockFeedPostDelete).not.toHaveBeenCalled();
+  });
+});
