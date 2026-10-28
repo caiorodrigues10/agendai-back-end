@@ -37,6 +37,13 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Excluir foto de galeria funciona normalmente: o bloqueio 409 ("remova a imagem dos rascunhos ou posts agendados") só vale para foto usada em rascunho/post agendado — foto de galeria nunca é usada em post.
 - Sem backfill: fotos já existentes mantêm o `inGallery` atual (default da coluna: `false`).
 
+## Posts do feed — agendamento fora da UI
+
+- O frontend não tem mais UI de agendamento: `PostsManager` só expõe as sub-abas **Publicados** e **Rascunhos**, e `PostEditor` só salva rascunho (`create/update` com `status: 'draft'`) ou publica (`POST /posts/:id/publish`). Não há botão/fluxo de "Agendar publicação" nem "Cancelar agendamento".
+- Migration de dados `20261028140000_posts_scheduled_to_draft`: converte `FeedPost` de `SCHEDULED` → `DRAFT` e zera `scheduledFor` (posts legados senão ficariam invisíveis na UI). Idempotente; nenhum DDL — enum `FeedPostStatus.SCHEDULED`, coluna `scheduledFor` e rotas legadas permanecem.
+- Rotas mantidas por compatibilidade (sem consumidores no front): `POST /posts/:id/schedule`, `POST /posts/:id/cancel-schedule`, `GET /posts/scheduled` (`staffGuard`). O `createPostSchema` continua aceitando `scheduledFor` (futuro → agenda), e o cron `postPublisher` mantém o bloco que publica `SCHEDULED` vencidos — legado/inerte sem chamadas de agendamento, mas remoção exige decisão explícita do produto.
+- Editor: validar que a API deixa um rascunho incompleto salvar (por design — rascunho é livre) e que publicar exige modelo carregado, fotos exigidas pelo template e itens de preço quando o template usa lista.
+
 ## Redes sociais do perfil (barbershops.socialLinks)
 
 - O dono cadastra até 5 redes (Instagram, TikTok, X, YouTube, Facebook) via `PATCH|PUT /barbershops/:id` (corpo `socialLinks`, mapa rede → URL; OWNER/MASTER_ADMIN + tenant via `assertShopAccess`). A resposta pública `GET /barbershops/:id` (e a lista) devolve o mapa ordenado pelas redes conhecidas.
