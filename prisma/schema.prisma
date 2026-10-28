@@ -86,6 +86,10 @@ model User {
   tasksCompleted            Task[]                     @relation("TaskCompletedBy")
   taskComments              TaskComment[]
   taskHistoryEntries        TaskHistory[]
+  ownerBotLinkCodes         OwnerBotLinkCode[]
+  ownerBotLinks             OwnerBotLink[]
+  ownerBotActionLogs        OwnerBotActionLog[]
+  ownerBotCampaigns         OwnerBotCampaign[]
 
   @@index([cpf])
   @@index([deletedAt])
@@ -482,7 +486,12 @@ model Barbershop {
   tickets                        Ticket[]
   tasks                          Task[]
   npsSurveys                     NpsSurvey[]
-  pageTheme                     BarbershopPageTheme?
+  pageTheme                      BarbershopPageTheme?
+  OwnerBotLinkCode               OwnerBotLinkCode[]
+  OwnerBotLink                   OwnerBotLink[]
+  OwnerBotActionLog              OwnerBotActionLog[]
+  OwnerBotPreference             OwnerBotPreference?
+  OwnerBotCampaign               OwnerBotCampaign[]
 
   @@index([approvalStatus])
   @@index([active])
@@ -493,36 +502,36 @@ model Barbershop {
 /// Tema de aparência da página pública do salão (1:1).
 /// Cores em hex #RRGGBB; sem linha = aparência padrão atual do app.
 model BarbershopPageTheme {
-  id              String    @id @default(uuid()) @db.Uuid
-  barbershopId    String    @unique @db.Uuid
+  id              String     @id @default(uuid()) @db.Uuid
+  barbershopId    String     @unique @db.Uuid
   /// Chave do preset escolhido no painel (custom quando editado à mão).
-  presetKey       String?   @db.VarChar(40)
-  accentColor     String    @default("#2CB58A") @db.VarChar(9)
-  backgroundColor String    @default("#0F1110") @db.VarChar(9)
-  surfaceColor    String    @default("#1B1F1D") @db.VarChar(9)
-  textColor       String    @default("#F2F5F3") @db.VarChar(9)
-  textMutedColor  String    @default("#8B9990") @db.VarChar(9)
+  presetKey       String?    @db.VarChar(40)
+  accentColor     String     @default("#2CB58A") @db.VarChar(9)
+  backgroundColor String     @default("#0F1110") @db.VarChar(9)
+  surfaceColor    String     @default("#1B1F1D") @db.VarChar(9)
+  textColor       String     @default("#F2F5F3") @db.VarChar(9)
+  textMutedColor  String     @default("#8B9990") @db.VarChar(9)
   /// squared | rounded | pill
-  radiusStyle     String    @default("rounded") @db.VarChar(20)
+  radiusStyle     String     @default("rounded") @db.VarChar(20)
   /// filled | outline
-  buttonStyle     String    @default("filled") @db.VarChar(20)
+  buttonStyle     String     @default("filled") @db.VarChar(20)
   /// AUTO (segue o sistema) | LIGHT | DARK
-  mode            String    @default("AUTO") @db.VarChar(20)
+  mode            String     @default("AUTO") @db.VarChar(20)
   /// Variantes completas (JSON). Colunas planas acima = espelho legado do darkColors.
   lightColors     Json?
   darkColors      Json?
-  coverUrl        String?   @db.VarChar(500)
-  coverPublicId   String?   @db.VarChar(300)
+  coverUrl        String?    @db.VarChar(500)
+  coverPublicId   String?    @db.VarChar(300)
   /// Overlay escuro sobre a capa (0–80, porcentagem).
-  coverOverlay    Int       @default(40)
+  coverOverlay    Int        @default(40)
   /// Ponto focal do recorte 16:9 (0–100, porcentagem do original).
-  coverFocalX     Int       @default(50)
-  coverFocalY     Int       @default(50)
+  coverFocalX     Int        @default(50)
+  coverFocalY     Int        @default(50)
   /// Dimensões originais da capa (informadas no upload/confirmação).
   coverWidth      Int?
   coverHeight     Int?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
   barbershop      Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
 
   @@map("barbershop_page_themes")
@@ -806,6 +815,8 @@ model Appointment {
   /// Pet escolhido no agendamento (MVP petshop). petName é snapshot do nome.
   petId               String?                        @db.Uuid
   petName             String?                        @db.VarChar(120)
+  /// Canal de origem do agendamento (app, portal público ou assistente do dono no WhatsApp).
+  source              AppointmentSource              @default(APP)
 
   barbershop             Barbershop                      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   service                Service                         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
@@ -842,6 +853,16 @@ enum AppointmentCancellationSource {
   STAFF
   CUSTOMER
   SYSTEM
+}
+
+/// Origem do agendamento — alimenta a auditoria e o selo no app.
+enum AppointmentSource {
+  /// Criado no painel da equipe.
+  APP
+  /// Criado pelo cliente no portal público.
+  PUBLIC
+  /// Criado pelo dono conversando com o assistente no WhatsApp.
+  WHATSAPP_OWNER_BOT
 }
 
 enum AppointmentStatus {
@@ -1120,12 +1141,12 @@ model PostComment {
 }
 
 model PostTag {
-  id           String   @id @default(uuid()) @db.Uuid
-  postId       String   @db.Uuid
-  barbershopId String   @db.Uuid
-  requestedById String? @db.Uuid
-  approvedAt   DateTime?
-  createdAt    DateTime @default(now())
+  id            String    @id @default(uuid()) @db.Uuid
+  postId        String    @db.Uuid
+  barbershopId  String    @db.Uuid
+  requestedById String?   @db.Uuid
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
 
   post        FeedPost   @relation(fields: [postId], references: [id], onDelete: Cascade)
   barbershop  Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
@@ -1383,16 +1404,16 @@ enum AdminNotificationType {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @db.Uuid
-  action     String   @db.VarChar(100)
-  resource   String   @db.VarChar(100)
-  resourceId String?  @db.VarChar(100)
-  details    String?  @db.Text
-  ipAddress  String?  @db.VarChar(50)
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  action       String   @db.VarChar(100)
+  resource     String   @db.VarChar(100)
+  resourceId   String?  @db.VarChar(100)
+  details      String?  @db.Text
+  ipAddress    String?  @db.VarChar(50)
   /// Salão dono do recurso auditado (null em ações globais, ex.: planos).
-  barbershopId String? @db.Uuid
-  createdAt  DateTime @default(now())
+  barbershopId String?  @db.Uuid
+  createdAt    DateTime @default(now())
 
   @@index([userId])
   @@index([action])
@@ -4592,20 +4613,20 @@ enum NpsSurveyStatus {
 /// são hash + máscara do contato (LGPD: nenhum contato cru é persistido).
 /// Máx1 pesquisa ativa por respondente e máx1 resposta a cada 90 dias.
 model NpsSurvey {
-  id                String          @id @default(uuid()) @db.Uuid
-  barbershopId      String          @db.Uuid
-  clientId          String?         @db.Uuid
-  respondentKey     String          @db.VarChar(64)
-  destinationMasked String          @db.VarChar(200)
+  id                String              @id @default(uuid()) @db.Uuid
+  barbershopId      String              @db.Uuid
+  clientId          String?             @db.Uuid
+  respondentKey     String              @db.VarChar(64)
+  destinationMasked String              @db.VarChar(200)
   channel           NotificationChannel
-  status            NpsSurveyStatus @default(PENDING)
-  sentAt            DateTime        @default(now())
+  status            NpsSurveyStatus     @default(PENDING)
+  sentAt            DateTime            @default(now())
   expiresAt         DateTime
   answeredAt        DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barbershop Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   client     SalonClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
   response   NpsResponse?
 
@@ -4628,4 +4649,150 @@ model NpsResponse {
 
   @@index([barbershopId, createdAt])
   @@map("nps_responses")
+}
+
+/// Código de vínculo do assistente de WhatsApp do dono.
+/// Guardamos apenas o HASH do código (nunca em texto puro): uso único,
+/// expiração curta e limite de tentativas.
+model OwnerBotLinkCode {
+  id           String                 @id @default(uuid()) @db.Uuid
+  userId       String                 @db.Uuid
+  barbershopId String                 @db.Uuid
+  codeHash     String                 @db.VarChar(200)
+  attempts     Int                    @default(0)
+  maxAttempts  Int                    @default(5)
+  status       OwnerBotLinkCodeStatus @default(PENDING)
+  ipAddress    String?                @db.VarChar(45)
+  createdAt    DateTime               @default(now())
+  expiresAt    DateTime
+  consumedAt   DateTime?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([barbershopId, status])
+  @@index([expiresAt])
+  @@map("owner_bot_link_codes")
+}
+
+enum OwnerBotLinkCodeStatus {
+  PENDING
+  CONSUMED
+  FAILED
+  EXPIRED
+}
+
+/// Vínculo entre o número do dono e a unidade (barbershop) dele.
+/// `normalizedPhone` é único entre os vínculos ativos: um número fala com
+/// um único estabelecimento por vez.
+model OwnerBotLink {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  barbershopId    String    @db.Uuid
+  normalizedPhone String    @db.VarChar(15)
+  linkedAt        DateTime  @default(now())
+  revokedAt       DateTime?
+  lastSeenAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([barbershopId])
+  @@index([normalizedPhone])
+  @@map("owner_bot_links")
+}
+
+/// Auditoria das ações executadas pelo assistente no WhatsApp.
+/// Guarda o pedido (redigido), a ação e os ids afetados — sem conteúdo
+/// sensível de cliente além do necessário.
+model OwnerBotActionLog {
+  id           String               @id @default(uuid()) @db.Uuid
+  barbershopId String               @db.Uuid
+  userId       String?              @db.Uuid
+  phoneMasked  String?              @db.VarChar(20)
+  action       String               @db.VarChar(60)
+  status       OwnerBotActionStatus @default(SUCCESS)
+  request      Json                 @default("{}")
+  result       Json?
+  errorMessage String?              @db.VarChar(300)
+  /// Id do comando do registry que originou a ação.
+  commandId    String?              @db.VarChar(60)
+  /// Classe de risco do comando (READ / WRITE / SENSITIVE).
+  riskClass    String?              @db.VarChar(20)
+  /// Ids afetados pela ação (agenda, despesas, clientes...) — para desfazer.
+  affectedIds  String[]             @default([])
+  /// A ação pode ser desfeita pelo dono dentro da janela de 2 minutos.
+  canUndo      Boolean              @default(false)
+  undoneAt     DateTime?
+  createdAt    DateTime             @default(now())
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([barbershopId, createdAt])
+  @@index([userId, createdAt])
+  @@index([barbershopId, commandId])
+  @@map("owner_bot_action_logs")
+}
+
+/// Preferências do assistente por estabelecimento: briefing, resumo de fim
+/// de dia, alertas, tom e a flag de bloqueio do assistente.
+model OwnerBotPreference {
+  id              String    @id @default(uuid()) @db.Uuid
+  barbershopId    String    @db.Uuid
+  enabled         Boolean   @default(true)
+  blocked         Boolean   @default(false)
+  blockedAt       DateTime?
+  briefingEnabled Boolean   @default(false)
+  briefingTime    String    @default("07:30") @db.VarChar(5)
+  summaryEnabled  Boolean   @default(false)
+  summaryTime     String    @default("21:00") @db.VarChar(5)
+  alertsEnabled   Boolean   @default(true)
+  /// Tipos de alerta ligados (ver OWNER_BOT_ALERT_TYPES).
+  alertTypes      String[]  @default([])
+  tone            String    @default("FRIENDLY") @db.VarChar(20)
+  language        String    @default("pt-BR") @db.VarChar(10)
+  lastBriefingAt  DateTime?
+  lastSummaryAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId])
+  @@map("owner_bot_preferences")
+}
+
+/// Campanha/lote disparado pelo dono pelo WhatsApp (aviso de atraso,
+/// reativação de clientes sumidos, aniversariantes).
+model OwnerBotCampaign {
+  id             String    @id @default(uuid()) @db.Uuid
+  barbershopId   String    @db.Uuid
+  userId         String    @db.Uuid
+  kind           String    @db.VarChar(40)
+  status         String    @default("DRAFT") @db.VarChar(20)
+  audienceCount  Int       @default(0)
+  sentCount      Int       @default(0)
+  messagePreview String    @db.Text
+  recipientIds   String[]  @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  sentAt         DateTime?
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId, createdAt])
+  @@map("owner_bot_campaigns")
+}
+
+enum OwnerBotActionStatus {
+  SUCCESS
+  ERROR
+  NEEDS_CONFIRMATION
+  BLOCKED
 }

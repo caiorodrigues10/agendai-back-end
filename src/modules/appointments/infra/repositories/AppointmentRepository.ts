@@ -34,6 +34,7 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 		date: record.date,
 		time: record.time,
 		status: record.status as AppointmentStatus,
+		source: record.source as IAppointmentResponseDTO['source'],
 		clientId: record.clientId ?? null,
 		clientPackageId: record.clientPackageId ?? null,
 		petId: record.petId ?? null,
@@ -94,6 +95,7 @@ export class AppointmentRepository implements IAppointmentRepository {
 			clientPackageId: data.clientPackageId ?? null,
 			petId: data.petId ?? null,
 			petName: data.petName ?? null,
+			source: data.source ?? 'APP',
 		},
 			include,
 		})

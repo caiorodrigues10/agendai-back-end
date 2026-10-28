@@ -25,6 +25,7 @@ import { scheduleRefundReconciliation } from "@/shared/infra/cron/refundReconcil
 import { scheduleDepositExpiration } from "@/modules/deposits/jobs/depositExpirationJob";
 import { scheduleWaitlistExpiration } from "@/modules/waitlist/jobs/waitlistExpirationJob";
 import { scheduleLateAppointmentsAlert } from "@/shared/infra/cron/lateAppointmentsAlert.cron";
+import { scheduleOwnerBotPush } from "@/shared/infra/cron/ownerBotPush.cron";
 import {
   startWhatsAppWorker,
   startEmailWorker,
@@ -35,6 +36,8 @@ import {
   stopNotificationDispatcher,
   stopNotificationWorker,
   closeNotificationQueue,
+  startOwnerBotWorker,
+  stopOwnerBotWorker,
 } from "@/shared/infra/queue";
 import { cleanupTimers as cleanupBruteForceTimers } from "@/shared/services/bruteForceProtection";
 import { initSentry } from "@/shared/utils/sentry";
@@ -61,6 +64,7 @@ const WORKER_STOPS: Array<[string, () => Promise<void>]> = [
   ['email worker', stopEmailWorker],
   ['whatsapp worker', stopWhatsAppWorker],
   ['notification worker', stopNotificationWorker],
+  ['owner bot worker', stopOwnerBotWorker],
   ['post-broadcast worker', stopPostBroadcastWorker],
 ];
 
@@ -216,6 +220,7 @@ async function start() {
     await startWhatsAppWorker();
     await startNotificationWorker();
     await startNotificationDispatcher();
+    await startOwnerBotWorker();
   }
 
   if (!shouldRunApi(role)) {
@@ -278,6 +283,7 @@ function registerCrons(log: CronLog): void {
     ['expiração de waitlist', () => scheduleWaitlistExpiration(log)],
     ['e-mails de lembrete', () => scheduleEmailReminders()],
     ['alertas de atraso de cliente', () => scheduleLateAppointmentsAlert(log)],
+    ['push do assistente (briefing/resumo)', () => scheduleOwnerBotPush(log)],
   ] as const;
 
   for (const [name, startJob] of jobs) {

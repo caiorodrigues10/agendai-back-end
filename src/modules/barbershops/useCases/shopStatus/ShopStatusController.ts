@@ -1,8 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
-import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
-import { getShopOpenState } from "../../utils/getShopOpenState";
+import { SetShopStatusUseCase } from "./SetShopStatusUseCase";
 
 const idSchema = z.string().uuid();
 const manualStatusSchema = z.object({
@@ -19,49 +18,22 @@ function assertShopAccess(request: FastifyRequest, barbershopId: string) {
   }
 }
 
-async function shopPayload(barbershopId: string) {
-  const shop = await prisma.barbershop.findUnique({
-    where: { id: barbershopId },
-    select: {
-      id: true,
-      openingMode: true,
-      manualStatus: true,
-      queueClosedAt: true,
-    },
-  });
-  if (!shop) throw new AppError("Salão não encontrado", 404);
-  const openState = await getShopOpenState(barbershopId);
-  return {
-    id: shop.id,
-    openingMode: shop.openingMode,
-    manualStatus: shop.manualStatus,
-    openState,
-  };
-}
-
 export class ShopStatusController {
+  private useCases = new SetShopStatusUseCase();
+
   async setManualStatus(request: FastifyRequest, reply: FastifyReply) {
     const barbershopId = idSchema.parse((request.params as { id: string }).id);
     assertShopAccess(request, barbershopId);
     const { status } = manualStatusSchema.parse(request.body);
-    await prisma.barbershop.update({
-      where: { id: barbershopId },
-      data: {
-        manualStatus: status,
-        manualStatusSetAt: status === "AUTO" ? null : new Date(),
-      },
-    });
-    return reply.send({ success: true, data: await shopPayload(barbershopId) });
+    const data = await this.useCases.execute(barbershopId, { status }, request.user);
+    return reply.send({ success: true, data });
   }
 
   async setQueueStatus(request: FastifyRequest, reply: FastifyReply) {
     const barbershopId = idSchema.parse((request.params as { id: string }).id);
     assertShopAccess(request, barbershopId);
     const { closed } = queueStatusSchema.parse(request.body);
-    await prisma.barbershop.update({
-      where: { id: barbershopId },
-      data: { queueClosedAt: closed ? new Date() : null },
-    });
-    return reply.send({ success: true, data: await shopPayload(barbershopId) });
+    const data = await this.useCases.execute(barbershopId, { closed }, request.user);
+    return reply.send({ success: true, data });
   }
 }

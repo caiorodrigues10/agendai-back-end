@@ -14,7 +14,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Barbershop / schedule / logo | `/barbershops` (logo via Cloudinary: signed URL + multipart; tema/capa da página pública: `GET|PUT /barbershops/:id/page-theme` com `mode` + variantes `darkColors`/`lightColors`, `POST|DELETE .../page-theme/cover`; cartão OG: `GET .../page-theme/og-image` PNG 1200×630) | `Barbershop`, `Schedule`, `BarbershopPageTheme` |
 | Serviços / categorias | `/services`, `/service-categories` | `Service`, `ServiceCategory` |
 | Fila | `/queue` | `QueueItem` |
-| Agenda | `/appointments` | `Appointment` |
+| Agenda | `/appointments` | `Appointment` (campo `source`: `APP`, `PUBLIC` ou `WHATSAPP_OWNER_BOT`) |
 | Clientes / CRM | `/clients`, `/crm` | `SalonClient` + agregações CRM |
 | Pacotes | `/service-packages`, `/client-packages` | `ServicePackage`, `ClientPackage` |
 | Produtos / estoque / retail | `/products` (CRUD, incl. `DELETE /products/:id`), inventory, sales | `Product`, movimentos, `RetailSale*` |
@@ -28,6 +28,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | NPS | `/admin/nps/*` (master) + `/nps/:surveyId` (público, com rate limit) | `NpsSurvey`, `NpsResponse`; gating via `NotificationPreference` (`NPS_SURVEY`) e `NotificationSuppression` |
 | Referrals | `/referrals` | `ReferralCode`, `Referral` |
 | Contact | `/contact` | formulário / notificação |
+| Assistente no WhatsApp (dono) | `/barbershops/:id/owner-bot/*` (painel: `link-code`, `status`, `link`, `preferences` GET/PUT — Zod `ownerBotPreferencesUpdateSchema` com horário `HH:MM` e `alertTypes` do enum, `catalog` — `buildOwnerBotSegmentCatalog` por `businessSegment`, `action-logs` — filtros `limit≤100`/`from`/`to`/`commandId`/`riskClass`/`status`) + `POST /webhooks/evolution/platform` (entrada da Evolution, segredo `EVOLUTION_WEBHOOK_SECRET`) | `OwnerBotLinkCode`, `OwnerBotLink`, `OwnerBotActionLog`, `OwnerBotPreference`; fila BullMQ `owner-bot` |
 
 ## Checkout de assinatura (implementado)
 

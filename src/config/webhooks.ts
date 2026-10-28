@@ -10,6 +10,9 @@ export const WEBHOOK_SECRETS: Record<EnabledPaymentProvider, { name: string; min
   ABACATEPAY: { name: "ABACATEPAY_WEBHOOK_SECRET", min: 32 },
 };
 
+/** Tamanho mínimo do segredo do webhook da Evolution (assistente do dono). */
+export const EVOLUTION_WEBHOOK_SECRET_MIN_LENGTH = 32;
+
 /**
  * Configuração insegura de webhook em produção (S4). Fora de produção não
  * há restrição — o bypass local continua permitido pelos controllers.
@@ -48,6 +51,15 @@ export function validateWebhookConfig(env: NodeJS.ProcessEnv = process.env): str
     if (value.length < min) {
       errors.push(`${name} muito curto (${value.length} < ${min} caracteres).`);
     }
+  }
+
+  // Webhook da Evolution (assistente do dono no WhatsApp): opcional, mas se
+  // estiver presente precisa ser forte — é a única barreira do endpoint.
+  const evolutionSecret = env.EVOLUTION_WEBHOOK_SECRET?.trim();
+  if (evolutionSecret && evolutionSecret.length < EVOLUTION_WEBHOOK_SECRET_MIN_LENGTH) {
+    errors.push(
+      `EVOLUTION_WEBHOOK_SECRET muito curto (${evolutionSecret.length} < ${EVOLUTION_WEBHOOK_SECRET_MIN_LENGTH} caracteres).`
+    );
   }
 
   return errors;

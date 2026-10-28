@@ -49,6 +49,7 @@ function mapCreatedAppointment(record: {
   date: Date;
   time: string;
   status: string;
+  source?: string;
   reminderSentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -78,6 +79,7 @@ function mapCreatedAppointment(record: {
     date: record.date,
     time: record.time,
     status: record.status as IAppointmentResponseDTO["status"],
+    source: (record.source ?? "APP") as IAppointmentResponseDTO["source"],
     reminderSentAt: record.reminderSentAt ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -247,6 +249,7 @@ async function createAppointmentAtomic(
           clientPackageId: data.clientPackageId ?? null,
           petId: data.petId ?? null,
           petName: data.petName ?? null,
+          source: data.source ?? "APP",
         },
         include: {
           service: { select: { name: true, price: true } },
