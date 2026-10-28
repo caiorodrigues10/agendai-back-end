@@ -7,6 +7,8 @@ const mockPostMediaCount = vi.fn();
 const mockPostMediaCreate = vi.fn();
 const mockPostMediaFindUnique = vi.fn();
 const mockPostMediaUpdate = vi.fn();
+const mockPostMediaDelete = vi.fn();
+const mockFeedPostCount = vi.fn();
 
 vi.mock("@/libs/prismaClient", () => ({
   prisma: {
@@ -16,6 +18,10 @@ vi.mock("@/libs/prismaClient", () => ({
       create: (...a: unknown[]) => mockPostMediaCreate(...a),
       findUnique: (...a: unknown[]) => mockPostMediaFindUnique(...a),
       update: (...a: unknown[]) => mockPostMediaUpdate(...a),
+      delete: (...a: unknown[]) => mockPostMediaDelete(...a),
+    },
+    feedPost: {
+      count: (...a: unknown[]) => mockFeedPostCount(...a),
     },
   },
 }));
@@ -84,7 +90,7 @@ describe("PostMediaController — galeria (inGallery)", () => {
     expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: [] }));
   });
 
-  it("upload cria a foto já marcada para a galeria quando inGallery=true", async () => {
+  it("upload cria a foto na galeria quando inGallery=true", async () => {
     mockPostMediaCount.mockResolvedValueOnce(0);
     mockPostMediaCreate.mockResolvedValueOnce(mediaRow({ inGallery: true }));
     const controller = new PostMediaController();
@@ -103,9 +109,33 @@ describe("PostMediaController — galeria (inGallery)", () => {
       data: expect.objectContaining({ inGallery: true }),
     }));
     expect(reply.status).toHaveBeenCalledWith(201);
+    expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      data: expect.objectContaining({ inGallery: true }),
+    }));
   });
 
-  it("upload rejeita quando a galeria já atingiu o limite", async () => {
+  it("upload fora da galeria (inGallery=false) não conta capacidade", async () => {
+    mockPostMediaCreate.mockResolvedValueOnce(mediaRow({ inGallery: false }));
+    const controller = new PostMediaController();
+    const reply = fakeReply();
+    await controller.upload(
+      fakeRequest({
+        params: { barbershopId: BARBERSHOP_ID },
+        parts: () => fakeParts([
+          { type: "field", fieldname: "inGallery", value: "false" },
+          { type: "file", mimetype: "image/png", toBuffer: async () => PNG },
+        ]),
+      }),
+      reply
+    );
+    expect(mockPostMediaCount).not.toHaveBeenCalled();
+    expect(mockPostMediaCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ inGallery: false }),
+    }));
+  });
+
+  it("upload rejeita a 31ª foto da galeria com 400 e mensagem clara (sem enviar ao storage)", async () => {
     mockPostMediaCount.mockResolvedValueOnce(GALLERY_MAX_PHOTOS);
     const controller = new PostMediaController();
     const promise = controller.upload(
@@ -118,9 +148,50 @@ describe("PostMediaController — galeria (inGallery)", () => {
       }),
       fakeReply()
     );
-    await expect(promise).rejects.toMatchObject({ statusCode: 400 });
+    const err = await promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err).toMatchObject({
+      statusCode: 400,
+      message: `Sua galeria já tem ${GALLERY_MAX_PHOTOS} fotos. Remova uma foto para enviar outra.`,
+    });
     expect(mockUploadBuffer).not.toHaveBeenCalled();
     expect(mockPostMediaCreate).not.toHaveBeenCalled();
+  });
+
+  it("list recusa mídia de outro tenant (403)", async () => {
+    const controller = new PostMediaController();
+    const promise = controller.list(
+      fakeRequest({
+        query: { barbershopId: "00000000-0000-0000-0000-0000000000ff", inGallery: "true" },
+      }),
+      fakeReply()
+    );
+    const err = await promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err).toMatchObject({ statusCode: 403 });
+    expect(mockPostMediaFindMany).not.toHaveBeenCalled();
+  });
+
+  it("remove apaga foto de galeria sem bloqueio (foto de galeria não é usada em post)", async () => {
+    mockPostMediaFindUnique.mockResolvedValueOnce(mediaRow({ inGallery: true }));
+    mockPostMediaDelete.mockResolvedValueOnce(mediaRow({ inGallery: true }));
+    const controller = new PostMediaController();
+    const reply = fakeReply();
+    await controller.remove(fakeRequest({ params: { id: MEDIA_ID } }), reply);
+    expect(mockFeedPostCount).not.toHaveBeenCalled();
+    expect(mockPostMediaDelete).toHaveBeenCalledWith(expect.objectContaining({ where: { id: MEDIA_ID } }));
+    expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+  });
+
+  it("remove bloqueia foto em uso por rascunho/post agendado (409)", async () => {
+    mockPostMediaFindUnique.mockResolvedValueOnce(mediaRow({ inGallery: false }));
+    mockFeedPostCount.mockResolvedValueOnce(1);
+    const controller = new PostMediaController();
+    const promise = controller.remove(fakeRequest({ params: { id: MEDIA_ID } }), fakeReply());
+    const err = await promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err).toMatchObject({ statusCode: 409 });
+    expect(mockPostMediaDelete).not.toHaveBeenCalled();
   });
 
   it("update alterna para fora da galeria sem contar capacidade", async () => {

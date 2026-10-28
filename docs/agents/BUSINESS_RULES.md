@@ -29,6 +29,14 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Tema da página pública (`BarbershopPageTheme`, 1:1): cores hex + radius + botão + overlay 0–80 + capa (`coverFocalX/Y` 0–100, padrão 50/50 — aceito no `PUT`; `coverWidth/Height` só do servidor); **contraste WCAG AA validado no back por variante** (escura sempre; clara quando materializada — par reprovado → 400 com o nome da variante); `mode` (`AUTO|LIGHT|DARK`) + `darkColors`/`lightColors` (JSON), colunas planas = espelho legado do `darkColors` (linha sem JSON volta às planas); `PUT` exige OWNER do tenant (ou MASTER_ADMIN); rotas de upload/tema com rate limit próprio.
 - Cartão OG da página pública: `GET /barbershops/:id/page-theme/og-image` gera PNG 1200×630 (cores do tema + nome do salão via sharp/SVG; fonte `font-noto-sans` no Dockerfile), cache 1h.
 
+## Galeria do perfil (aba Fotos)
+
+- A galeria é alimentada **exclusivamente** pela sub-aba "Fotos do perfil" (dentro da tela "Posts" do painel do dono): `POST /posts/media/:barbershopId` com `inGallery=true`. O upload do editor de posts grava `inGallery=false` e **não** publica no perfil.
+- Limite de `GALLERY_MAX_PHOTOS = 30` (`PostMediaController`): a verificação roda **antes** do envio ao Cloudinary → **400** "Sua galeria já tem 30 fotos. Remova uma foto para enviar outra." (nada é enviado ao storage, sem arquivo órfão).
+- `GET /posts/media?barbershopId=…&inGallery=true` lista a galeria respeitando o tenant (`ensureTenant` → 403 para outro salão); a rota pública `GET /social/:salonId/gallery` devolve `inGallery: true` em `createdAt DESC` (`take: 30`).
+- Excluir foto de galeria funciona normalmente: o bloqueio 409 ("remova a imagem dos rascunhos ou posts agendados") só vale para foto usada em rascunho/post agendado — foto de galeria nunca é usada em post.
+- Sem backfill: fotos já existentes mantêm o `inGallery` atual (default da coluna: `false`).
+
 ## Fila / agenda / híbrido
 
 - Modos de operação do salão restringem join/booking (`shopOpenState`, WhatsApp obrigatório em alguns fluxos).
