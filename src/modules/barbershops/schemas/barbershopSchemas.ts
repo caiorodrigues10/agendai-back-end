@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BusinessSegment, OpeningMode, TargetAudience } from "@prisma/client";
 import { isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
 import { segmentAudienceError, segmentOtherError } from "@/shared/segments";
+import { buildSocialLinksUpdate } from "@/modules/barbershops/utils/socialLinks";
 
 const phoneBR = z
   .string()
@@ -63,6 +64,20 @@ export const updateBarbershopSchema = z
     businessSegment: z.nativeEnum(BusinessSegment).optional(),
     businessSegmentOther: z.string().max(80).optional(),
     targetAudience: z.nativeEnum(TargetAudience).nullable().optional(),
+    // Redes sociais do dono no perfil público: mapa rede → URL. Valida e
+    // normaliza por rede (utils/socialLinks); entrada vazia remove a rede;
+    // mapa final vazio grava null (perfil sem redes não mostra nada).
+    socialLinks: z
+      .record(z.union([z.string().max(1000), z.null()]))
+      .optional()
+      .superRefine((value, ctx) => {
+        if (!value) return;
+        const { errors } = buildSocialLinksUpdate(value);
+        for (const [key, message] of Object.entries(errors)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message });
+        }
+      })
+      .transform((value) => (value ? buildSocialLinksUpdate(value).links : undefined)),
   })
   // Mesma regra do cadastro: trocar o segmento para PETSHOP não pode deixar
   // um público antigo colado no registro.

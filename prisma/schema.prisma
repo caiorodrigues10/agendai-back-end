@@ -381,6 +381,9 @@ model Barbershop {
   businessSegmentOther  String?          @db.VarChar(80)
   /// Link público configurado pelo salão para avaliações no Google.
   googleReviewUrl       String?          @db.VarChar(500)
+  /// Redes sociais do dono no perfil público: mapa rede → URL canônica (https).
+  /// Nulo = nenhuma rede cadastrada. Validação/normalização em utils/socialLinks.
+  socialLinks           Json?
 
   onboardingCompletedSteps String[]
   onboardingCurrentStep    String?

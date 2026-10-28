@@ -10,6 +10,7 @@ import {
   PageThemeVariantColorsDTO,
 } from "../../repositories/IBarbershopRepository";
 import { isHexColor, normalizeHexColor } from "../../utils/pageThemeContrast";
+import { orderSocialLinks } from "../../utils/socialLinks";
 
 const shopSelect = {
   id: true,
@@ -33,6 +34,10 @@ const shopSelect = {
   // interno — entra no select autenticado e no público de propósito.
   targetAudience: true,
   manualStatus: true,
+  // Redes sociais do dono entram no select público de propósito: é conteúdo
+  // do perfil (ícones no cabeçalho e na aba Sobre). Ordem/sanitização via
+  // withSocialLinks (JsonValue não casa estruturalmente com o DTO).
+  socialLinks: true,
   createdAt: true,
   active: true,
   evolutionInstanceName: true,
@@ -77,6 +82,13 @@ function toPrismaJson(
   return value;
 }
 
+/** Row Prisma → DTO: `socialLinks` (JsonValue) sai ordenado e só com redes conhecidas. */
+function withSocialLinks<T extends { socialLinks: unknown }>(
+  row: T
+): Omit<T, "socialLinks"> & { socialLinks: Record<string, string> | null } {
+  return { ...row, socialLinks: orderSocialLinks(row.socialLinks) };
+}
+
 /**
  * Row → DTO (mapeamento explícito): `lightColors`/`darkColors` são `JsonValue`
  * no client do Prisma e não casam estruturalmente com o DTO. `darkColors`
@@ -117,35 +129,47 @@ function mapPageThemeRow(row: BarbershopPageTheme): IPageThemeDTO {
 
 export class BarbershopRepository implements IBarbershopRepository {
   async create(data: ICreateBarbershopDTO): Promise<IBarbershopResponseDTO> {
-    return prisma.barbershop.create({
+    const row = await prisma.barbershop.create({
       data,
       select: shopSelect
     });
+    return withSocialLinks(row);
   }
   async findById(id: string): Promise<IBarbershopResponseDTO | null> {
-    return prisma.barbershop.findUnique({
+    const row = await prisma.barbershop.findUnique({
       where: { id },
       select: shopSelect
     });
+    return row ? withSocialLinks(row) : null;
   }
   async list(): Promise<IBarbershopResponseDTO[]> {
-    return prisma.barbershop.findMany({
+    const rows = await prisma.barbershop.findMany({
       orderBy: { name: "asc" },
       select: publicShopSelect
     });
+    return rows.map(withSocialLinks);
   }
   async findByIdPublic(id: string): Promise<IBarbershopResponseDTO | null> {
-    return prisma.barbershop.findUnique({
+    const row = await prisma.barbershop.findUnique({
       where: { id },
       select: publicShopSelect
     });
+    return row ? withSocialLinks(row) : null;
   }
   async update(id: string, data: IUpdateBarbershopDTO): Promise<IBarbershopResponseDTO> {
-    return prisma.barbershop.update({
+    const { socialLinks, ...rest } = data;
+    const row = await prisma.barbershop.update({
       where: { id },
-      data,
+      data: {
+        ...rest,
+        // null limpa o JSON (SQL NULL); undefined não altera a coluna.
+        ...(socialLinks !== undefined
+          ? { socialLinks: socialLinks === null ? Prisma.DbNull : socialLinks }
+          : {})
+      },
       select: shopSelect
     });
+    return withSocialLinks(row);
   }
   async deactivate(id: string): Promise<void> {
     await prisma.barbershop.update({

@@ -39,7 +39,9 @@ export interface IBarbershopResponseDTO {
   /** Texto livre do dono quando o segmento é OTHER. Só no fluxo autenticado. */
   businessSegmentOther?: string | null;
   targetAudience?: TargetAudience | null;
-  manualStatus?: ManualShopStatus;
+  manualStatus?: PrismaManualShopStatus;
+  /** Redes sociais do dono no perfil público: mapa rede → URL canônica, ordenado. */
+  socialLinks?: Record<string, string> | null;
   createdAt: Date;
   active: boolean;
   /** Nome da instância Evolution — só o fluxo de connect/disconnect altera. */
