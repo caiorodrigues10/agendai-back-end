@@ -12,3 +12,6 @@ export {
   stopNotificationDispatcher,
 } from './notificationDispatcher';
 export { startNotificationWorker, stopNotificationWorker } from './notificationWorker';
+export { ownerBotQueue, ownerBotQueueEvents, enqueueOwnerBotMessage } from './ownerBotQueue';
+export type { OwnerBotJobData } from './ownerBotQueue';
+export { ownerBotWorker, startOwnerBotWorker, stopOwnerBotWorker, ensureOwnerBotWorker } from './ownerBotWorker';

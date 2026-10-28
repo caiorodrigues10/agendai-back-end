@@ -1,5 +1,8 @@
 export type AppointmentStatus = "CONFIRMED" | "CANCELLED" | "COMPLETED" | "CHECKED_IN" | "NO_SHOW";
 
+/** Origem do agendamento (espelha o enum `AppointmentSource` do Prisma). */
+export type AppointmentSource = "APP" | "PUBLIC" | "WHATSAPP_OWNER_BOT";
+
 export interface ICreateAppointmentDTO {
   barbershopId: string;
   serviceId: string;
@@ -19,6 +22,8 @@ export interface ICreateAppointmentDTO {
   /** Pet escolhido (MVP petshop). O nome é resolvido no backend. */
   petId?: string | null;
   petName?: string | null;
+  /** Canal de origem — o assistente do dono no WhatsApp grava WHATSAPP_OWNER_BOT. */
+  source?: AppointmentSource;
 }
 
 export interface IUpdateAppointmentDTO {
@@ -44,6 +49,8 @@ export interface IAppointmentResponseDTO {
   date: Date;
   time: string;
   status: AppointmentStatus;
+  /** Canal de origem do agendamento. */
+  source?: AppointmentSource;
   clientId?: string | null;
   clientPackageId?: string | null;
   petId?: string | null;

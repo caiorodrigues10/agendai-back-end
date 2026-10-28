@@ -64,6 +64,19 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - `GET /products` devolve `reservedQty` (só vigentes) e `availableQty` (`null` quando `trackStock = false`). `reservations[]` com `customerName`/`whatsapp` só vai para OWNER/MASTER_ADMIN ou quem tem `PRODUCTS_VIEW` / `PRODUCTS_MANAGE` / `RETAIL_SELL` (`permissions.canSeeReservationCustomer`); permissão só de `INVENTORY_MANAGE` recebe apenas os totais.
 - Criar reserva **avisa o dono do salão** (nunca o cliente), fire-and-forget em `productReservations/reservationNotify.ts`: WhatsApp Evolution + e-mail `product_reservation_alert` (categoria `OPERATION`), um `try/catch` por canal e dedup `product-reservation:{id}:{whatsapp|email}` — falha de notificação não atrasa nem derruba a reserva (201 continua 201).
 
+## Assistente no WhatsApp (dono)
+
+- O assistente conversa com o **dono** (não com o cliente final) e executa os **mesmos use cases do app** — nunca escreve direto no banco.
+- O bot usa **sempre a instância da plataforma** (`EVOLUTION_INSTANCE_NAME`, via `{ platform: true }`); instâncias `shop-*` não recebem nem enviam mensagens do assistente.
+- Vínculo: código de 6 caracteres, **10 minutos**, **uso único**, máximo de **5 tentativas**; o banco guarda só o **HMAC** do código (`owner_bot_link_codes.codeHash`) e a comparação é em tempo constante.
+- O número que escreve tem que ser **o telefone cadastrado no estabelecimento** (`Barbershop.whatsapp` normalizado). `User` não tem telefone — o telefone do dono é o do salão.
+- Um número pertence a um dono: ao vincular, vínculos ativos do mesmo número ligados a **outros** donos são revogados. O mesmo dono pode ter várias unidades (contexto de unidade ativa + "trocar de unidade").
+- Idempotência da entrada: `key.id` da Evolution vira chave no Redis (`ownerbot:msg:{id}`, 24h); o estado da conversa vive no Redis (15 min). Número **não vinculado** responde no máximo uma vez a cada 10 minutos.
+- Ação sensível (agendar, cancelar, remarcar, check-in, encerrar, falta, encaixe, desvincular) **sempre pede confirmação** ("1-Sim 2-Não"). Resposta em texto numerado, sem IA.
+- Assinatura sem acesso (trial expirado / plano inativo) **bloqueia** as ações do assistente.
+- `Appointment.source` registra a origem: `APP`, `PUBLIC` ou `WHATSAPP_OWNER_BOT` (usado no selo "via WhatsApp" do painel).
+- Auditoria: toda ação executada vira linha em `owner_bot_action_logs` (ação, status, request redigido, telefone mascarado).
+
 ## Notificações
 
 - Evolution WhatsApp: opcional; sem credenciais = no-op / falha isolada.

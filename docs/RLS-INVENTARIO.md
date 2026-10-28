@@ -15,6 +15,8 @@
 | `contact.routes.ts` — `POST /contact` (público, rate-limit em `src/shared/infra/http/routes/contact.routes.ts:8-20`) | `admin_notifications` (`src/modules/contact/useCases/SubmitContactMessageUseCase.ts:29`); `notification_deliveries` (`src/modules/notifications/services/notificationDeliveryService.ts:151,163`, acionado por `enqueueWhatsApp` em `SubmitContactMessageUseCase.ts:49`) | `admin_notifications`: **não** (`—`); `notification_deliveries`: **sim** (`20260902010000_add_notification_outbox_and_safe_provider_snapshots:179`) | admin (`admin_notifications`) / tenant (`notification_deliveries`) | **não adicionar** `setRlsContext` | A rota é pública (sem `request.user`, logo `setRlsContext` seria no-op). A policy de `notification_deliveries` aceita GUC vazio — `COALESCE(current_setting('app.current_barbershop_id', true), '') = ''` (`...20260902010000.../migration.sql:181`) — e a extensão grava `''` quando não há contexto (`prismaExtensions.ts:34,39-41`), então a escrita funciona sem o middleware. `admin_notifications` não tem RLS, portanto o middleware não protegeria nada; adicioná-lo criaria falso senso de segurança. |
 | `emailGallery.routes.ts` — `GET /dev/email-templates` e `GET /dev/email-templates/:template` (`src/shared/infra/http/routes/emailGallery.routes.ts:155,186`) | nenhuma (HTML estático montado em memória) | — (não aplica) | — | **não adicionar** `setRlsContext` | Não há acesso a banco; dev-only com retorno 404 em produção (`emailGallery.routes.ts:156-158,187-189`). |
 
+| `ownerBot.routes.ts` — `POST /webhooks/evolution/platform` (sem `preHandler`; autenticado por `EVOLUTION_WEBHOOK_SECRET`) (`src/modules/whatsappOwnerBot/ownerBot.routes.ts:20`) | `owner_bot_link_codes`, `owner_bot_links`, `owner_bot_action_logs` (`src/modules/whatsappOwnerBot/ownerBotRepository.ts`) | **sim** para as três (`20261027120000_owner_bot_assistant`) | tenant | **não adicionar** `setRlsContext` | A rota não tem sessão de staff: o GUC fica `''` e as policies liberam a escrita — que é o comportamento desejado, porque o webhook resolve o tenant pelo próprio vínculo (`normalizedPhone`) e pelo código de vínculo (hash). O `where` do repositório (`barbershopId` do vínculo) é a contenção real; o RLS aqui é rede de segurança, não o controle primário. As rotas do painel (`/barbershops/:id/owner-bot/*`) usam `setRlsContext` normalmente. |
+
 ### Pontos-chave que sustentam a decisão
 
 1. **`setRlsContext.ts:12-18` não lança erro.** Se `request.user?.barbershopId` estiver ausente, a função apenas chama `done()` — o request segue normalmente, sem contexto RLS e sem qualquer log/erro. Falha aqui é silenciosa por projeto.
@@ -169,6 +171,9 @@
 | `ai_conversations` | não | tenant | — |
 | `ai_messages` | não | tenant | — |
 | `ai_intent_logs` | não | tenant | — |
+| `owner_bot_link_codes` | sim | tenant | 20261027120000_owner_bot_assistant:106 |
+| `owner_bot_links` | sim | tenant | 20261027120000_owner_bot_assistant:117 |
+| `owner_bot_action_logs` | sim | tenant | 20261027120000_owner_bot_assistant:128 |
 | `fiscal_configs` | não | tenant | — |
 | `nfe_records` | não | tenant | — |
 | `integrations` | não | tenant | — |

@@ -59,6 +59,22 @@ export class ReputationRepository {
     });
   }
 
+  /** Últimas avaliações publicadas com o nome do cliente (anonimizado no bot). */
+  async listRecentReviews(barbershopId: string, limit = 5) {
+    return prisma.clientReview.findMany({
+      where: { barbershopId, status: "PUBLISHED" },
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        client: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(Math.max(limit, 1), 20),
+    });
+  }
+
   async getReviewById(reviewId: string) {
     return prisma.clientReview.findUnique({
       where: { id: reviewId },
