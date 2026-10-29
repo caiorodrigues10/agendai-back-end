@@ -8,6 +8,7 @@ import { authorize } from "@/shared/infra/http/middlewares/authorize";
 import { checkSubscription } from "@/shared/infra/http/middlewares/checkSubscription";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
 import { ReviewInvitationService } from "@/modules/reputation/reviewInvitationService";
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 
 const reviewSchema = z.object({
   token: z.string().min(20).max(4096),
@@ -37,9 +38,18 @@ export async function reviewRoutes(app: FastifyInstance) {
       status: "PUBLISHED" as const,
       ...(query.staffId ? { staffId: query.staffId } : {}),
     };
+    // Segmento com restrição de publicidade (ex.: advocacia): não expõe nem
+    // nota nem avaliações públicas.
+    const shop = await prisma.barbershop.findUnique({
+      where: { id: barbershopId },
+      select: { businessSegment: true },
+    });
+    const advertisingRestricted = isAdvertisingRestricted(shop?.businessSegment);
     const [summary, reviews] = await Promise.all([
       reviewInvitationService.getPublicSummary(barbershopId),
-      prisma.clientReview.findMany({
+      advertisingRestricted
+        ? Promise.resolve([])
+        : prisma.clientReview.findMany({
         where,
         orderBy: { createdAt: "desc" },
         take: query.limit,

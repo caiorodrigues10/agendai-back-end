@@ -138,10 +138,12 @@ export class AppointmentController {
       ...body,
       barbershopId: body.barbershopId,
     });
+    // Dados de caso/processo são internos: nunca voltam para o cliente.
+    const { caseId: _caseId, caseName: _caseName, practiceArea: _practiceArea, ...publicAppointment } = appointment;
     reply.status(201).send({
       success: true,
       data: {
-        ...appointment,
+        ...publicAppointment,
         manageToken: createPublicAppointmentToken(appointment.id, appointment.barbershopId, 1),
       },
     });

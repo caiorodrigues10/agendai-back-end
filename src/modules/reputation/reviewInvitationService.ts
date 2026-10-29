@@ -4,6 +4,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { getFrontendUrl } from "@/shared/constants/env";
 import { enqueueWhatsApp } from "@/shared/infra/queue";
 import { isPlaceholderWhatsApp } from "@/modules/queue/utils/queueDuplicate";
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 
 const REVIEW_TOKEN_BYTES = 32;
 const REVIEW_EXPIRY_DAYS = 14;
@@ -26,6 +27,15 @@ function maskClientName(name?: string | null): string {
   if (!clean) return "Cliente";
   const [first, second] = clean.split(/\s+/);
   return second ? `${first} ${second[0]}.` : first;
+}
+
+/** O estabelecimento do segmento restringe publicidade? */
+async function isShopAdvertisingRestricted(barbershopId: string): Promise<boolean> {
+  const shop = await prisma.barbershop.findUnique({
+    where: { id: barbershopId },
+    select: { businessSegment: true },
+  });
+  return isAdvertisingRestricted(shop?.businessSegment);
 }
 
 export class ReviewInvitationService {
@@ -115,6 +125,16 @@ export class ReviewInvitationService {
 
   async submit(token: string, rating: number, comment?: string | null) {
     const invitation = await this.findValidInvitation(token);
+    // Segmento com restrição de publicidade não recebe avaliação pública —
+    // nem por link antigo já enviado antes da troca de segmento.
+    if (await isShopAdvertisingRestricted(invitation.barbershopId)) {
+      throw new AppError(
+        "Este estabelecimento não recebe avaliações públicas.",
+        403,
+        undefined,
+        "ADVERTISING_FEATURE_UNAVAILABLE",
+      );
+    }
     if (invitation.status === "SUBMITTED" || invitation.review) {
       throw new AppError("Este atendimento já foi avaliado.", 409, undefined, "REVIEW_ALREADY_SUBMITTED");
     }
@@ -154,6 +174,17 @@ export class ReviewInvitationService {
   }
 
   async getPublicSummary(barbershopId: string) {
+    // Segmento com restrição de publicidade (ex.: advocacia) não expõe nota
+    // nem avaliações públicas.
+    if (await isShopAdvertisingRestricted(barbershopId)) {
+      return {
+        average: null,
+        count: 0,
+        threshold: PUBLIC_REVIEW_MIN_COUNT,
+        showAverage: false,
+        reviews: [],
+      };
+    }
     const where = { barbershopId, status: "PUBLISHED" as const };
     const [aggregate, reviews] = await Promise.all([
       prisma.clientReview.aggregate({ where, _avg: { rating: true }, _count: { _all: true } }),
@@ -207,6 +238,9 @@ export class ReviewInvitationService {
     sourceId: string;
   }): Promise<{ token: string; url: string } | null> {
     if (!input.appointmentId && !input.queueItemId) return null;
+    // Segmento com restrição de publicidade (ex.: advocacia): não se pede
+    // avaliação ao cliente.
+    if (await isShopAdvertisingRestricted(input.barbershopId)) return null;
     const token = crypto.randomBytes(REVIEW_TOKEN_BYTES).toString("base64url");
     const tokenHash = sha256(token);
     const expiresAt = addDays(new Date(), REVIEW_EXPIRY_DAYS);

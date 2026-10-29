@@ -4,6 +4,7 @@ import { authorize } from "@/shared/infra/http/middlewares/authorize";
 import { checkSubscription } from "@/shared/infra/http/middlewares/checkSubscription";
 import { checkDashboardAccess } from "@/shared/infra/http/middlewares/checkDashboardAccess";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
+import { segmentModuleGuard } from "@/shared/infra/http/middlewares/segmentModuleGuard";
 import { EquipmentController } from "./equipmentController";
 
 export async function equipmentRoutes(app: FastifyInstance) {
@@ -15,6 +16,7 @@ export async function equipmentRoutes(app: FastifyInstance) {
     authorize(ownerRoles),
     checkSubscription,
     checkDashboardAccess,
+    segmentModuleGuard("equipment"),
     setRlsContext,
   ];
 

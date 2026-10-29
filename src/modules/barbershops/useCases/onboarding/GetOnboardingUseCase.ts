@@ -1,6 +1,7 @@
 import { injectable } from 'tsyringe';
 import { prisma } from '@/libs/prismaClient';
 import { AppError } from '@/shared/errors/AppError';
+import { getSegmentConfig } from '@/shared/segments';
 
 interface OnboardingStep {
   key: string;
@@ -10,16 +11,27 @@ interface OnboardingStep {
   required: boolean;
 }
 
-const ONBOARDING_STEPS: Array<{ key: string; label: string; field: string; required: boolean }> = [
-  { key: 'PROFILE', label: 'Revisar dados do salão', field: 'profileConfirmedAt', required: true },
-  { key: 'SEGMENT', label: 'Escolher o tipo do estabelecimento', field: 'segmentConfirmedAt', required: true },
-  { key: 'SCHEDULE', label: 'Revisar horários', field: 'scheduleConfirmedAt', required: true },
-  { key: 'SERVICES', label: 'Revisar serviços sugeridos', field: 'servicesConfirmedAt', required: true },
-  { key: 'OPERATION_MODE', label: 'Escolher modo de atendimento', field: 'operationModeConfirmedAt', required: true },
-  { key: 'PUBLIC_LINK', label: 'Abrir e validar o link público', field: 'publicLinkValidatedAt', required: true },
-  { key: 'WHATSAPP', label: 'Configurar WhatsApp', field: 'whatsappConfiguredAt', required: false },
-  { key: 'FIRST_SERVICE', label: 'Registrar primeiro atendimento', field: 'firstServiceCompletedAt', required: false },
+const ONBOARDING_STEPS: Array<{
+  key: string;
+  label: (labels: OnboardingLabels) => string;
+  field: string;
+  required: boolean;
+}> = [
+  { key: 'PROFILE', label: (l) => `Revisar dados do ${l.shopNoun}`, field: 'profileConfirmedAt', required: true },
+  { key: 'SEGMENT', label: (l) => `Escolher o tipo do ${l.shopNoun}`, field: 'segmentConfirmedAt', required: true },
+  { key: 'SCHEDULE', label: () => 'Revisar horários', field: 'scheduleConfirmedAt', required: true },
+  { key: 'SERVICES', label: (l) => `Revisar ${l.servicePlural} sugeridos`, field: 'servicesConfirmedAt', required: true },
+  { key: 'OPERATION_MODE', label: () => 'Escolher modo de atendimento', field: 'operationModeConfirmedAt', required: true },
+  { key: 'PUBLIC_LINK', label: () => 'Abrir e validar o link público', field: 'publicLinkValidatedAt', required: true },
+  { key: 'WHATSAPP', label: () => 'Configurar WhatsApp', field: 'whatsappConfiguredAt', required: false },
+  { key: 'FIRST_SERVICE', label: (l) => `Registrar primeiro ${l.service}`, field: 'firstServiceCompletedAt', required: false },
 ];
+
+interface OnboardingLabels {
+  shopNoun: string;
+  service: string;
+  servicePlural: string;
+}
 
 @injectable()
 export class GetOnboardingUseCase {
@@ -72,11 +84,18 @@ export class GetOnboardingUseCase {
       FIRST_SERVICE: false,
     };
 
+    const segmentConfig = getSegmentConfig(shop?.businessSegment ?? null);
+    const labels: OnboardingLabels = {
+      shopNoun: segmentConfig.labels.shopNoun,
+      service: segmentConfig.labels.service,
+      servicePlural: segmentConfig.labels.servicePlural,
+    };
+
     const steps: OnboardingStep[] = ONBOARDING_STEPS.map(step => {
       const flagged = onboarding[step.field as keyof typeof onboarding] !== null;
       return {
         key: step.key,
-        label: step.label,
+        label: step.label(labels),
         completed: flagged || (realOk[step.key] ?? false),
         completedAt: onboarding[step.field as keyof typeof onboarding] as Date | null,
         required: step.required,

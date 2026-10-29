@@ -21,6 +21,7 @@ import { mapRole, parseDuration } from "@/shared/utils/authUtils";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 import { getSegmentConfig, resolveAudienceForSegment, normalizeSegmentOther } from "@/shared/segments";
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 import type { BusinessSegment, TargetAudience } from "@prisma/client";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
@@ -119,12 +120,15 @@ export class RegisterUseCase {
       }
     }
 
+    // Segmento do cadastro: define catálogo, horário, modo e o que o
+    // estabelecimento pode divulgar (advertisingRestricted).
+    const segment = data.businessSegment ?? "BARBERSHOP";
+
     let user;
     try {
       user = await prisma.$transaction(async (tx: any) => {
         // Público normalizado no backend: PETSHOP zera, o resto cai no
         // sugerido do segmento quando o usuário não escolheu.
-        const segment = data.businessSegment ?? "BARBERSHOP";
         const targetAudience = resolveAudienceForSegment(segment, data.targetAudience);
         const segmentOther = normalizeSegmentOther(data.businessSegment, data.businessSegmentOther);
 
@@ -225,8 +229,10 @@ export class RegisterUseCase {
       userAgent: context?.userAgent,
     });
 
-    // Código de indicação do novo owner (para compartilhar depois)
-    if (user.barbershopId) {
+    // Código de indicação do novo owner (para compartilhar depois).
+    // Segmento com restrição de publicidade (ex.: advocacia) não gera
+    // código de indicação: indicação é divulgação comercial.
+    if (user.barbershopId && !isAdvertisingRestricted(segment)) {
       await ensureReferralCode({
         ownerUserId: user.id,
         barbershopId: user.barbershopId,

@@ -38,6 +38,14 @@ export const createAppointmentSchema = z.object({
 	clientPackageId: z.string().uuid().optional().nullable(),
 	/** Pet escolhido (MVP petshop). O nome é resolvido no backend. */
 	petId: z.string().uuid().optional().nullable(),
+	/** Caso/processo escolhido (LAW_FIRM). O apelido é resolvido no backend. */
+	caseId: z.string().uuid().optional().nullable(),
+	/** Área de atuação (tag do escritório) que classifica o atendimento. */
+	practiceArea: z.string().min(1).max(80).optional().nullable(),
+	/** Modalidade do atendimento: presencial, vídeo ou telefone. */
+	modality: z.enum(['IN_PERSON', 'VIDEO', 'PHONE']).optional(),
+	/** Link da reunião online (opcional). Entra no lembrete enviado ao cliente. */
+	meetingLink: z.string().url('Link da reunião inválido').max(500).optional().nullable(),
 	reservedProducts: z.array(reservedProductSchema).max(10).optional(),
 })
 
@@ -48,6 +56,12 @@ export const updateAppointmentSchema = z.object({
 	date: dateField.optional(),
 	time: timeField.optional(),
 	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'CHECKED_IN', 'NO_SHOW']).optional(),
+	/** Reapontar o atendimento para outro caso do mesmo cliente. */
+	caseId: z.string().uuid().optional().nullable(),
+	/** Reclassificar o atendimento em outra área de atuação. */
+	practiceArea: z.string().min(1).max(80).optional().nullable(),
+	modality: z.enum(['IN_PERSON', 'VIDEO', 'PHONE']).optional(),
+	meetingLink: z.string().url('Link da reunião inválido').max(500).optional().nullable(),
 })
 
 export const availabilityQuerySchema = z.object({

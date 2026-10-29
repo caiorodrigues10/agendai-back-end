@@ -20,6 +20,11 @@ import { ClientPetRepository } from '@/modules/clients/repositories/ClientPetRep
 import { IClientVehicleRepository } from '@/modules/clients/repositories/ClientVehicleRepository'
 import { ClientVehicleRepository } from '@/modules/clients/repositories/ClientVehicleRepository'
 
+import { IClientCaseRepository } from '@/modules/clients/repositories/ClientCaseRepository'
+import { ClientCaseRepository } from '@/modules/clients/repositories/ClientCaseRepository'
+import { CaseManagementRepository } from '@/modules/cases/repositories/CaseManagementRepository'
+import { CaseBacklogRepository } from '@/modules/cases/repositories/CaseBacklogRepository'
+
 import { IQueueRepository } from '@/modules/queue/repositories/IQueueRepository'
 import { QueueRepository } from '@/modules/queue/infra/repositories/QueueRepository'
 
@@ -139,6 +144,9 @@ container.registerSingleton<IProcedureRecordRepository>(
 )
 container.registerSingleton<IClientPetRepository>('ClientPetRepository', ClientPetRepository)
 container.registerSingleton<IClientVehicleRepository>('ClientVehicleRepository', ClientVehicleRepository)
+container.registerSingleton<IClientCaseRepository>('ClientCaseRepository', ClientCaseRepository)
+container.registerSingleton('CaseManagementRepository', CaseManagementRepository)
+container.registerSingleton('CaseBacklogRepository', CaseBacklogRepository)
 container.registerSingleton<ICommissionRepository>('CommissionRepository', CommissionRepository)
 container.registerSingleton<ICrmRepository>('CrmRepository', CrmRepository)
 container.registerSingleton(InventoryEngine)

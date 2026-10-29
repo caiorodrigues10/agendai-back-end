@@ -52,6 +52,47 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Entrada vazia remove a rede; mapa final vazio grava `null`; chave desconhecida gera erro claro ("Rede social desconhecida: kwai."). Validação roda no schema Zod (`updateBarbershopSchema`), com path do issue em `socialLinks.<rede>`.
 - Saída: `orderSocialLinks` no repositório filtra só redes conhecidas/strings não vazias e ordena — perfil sem redes não renderiza nada (sem espaço vazio).
 
+## Segmentos (gate por segmento)
+
+- A configuração de cada segmento vive em `src/shared/segments/index.ts` (`SEGMENT_CONFIGS`); o front espelha em `frontend/src/shared/segments/segmentConfigs.ts` e a paridade é conferida por `npm run segments:parity` (back) + `src/shared/segments/segmentParity.test.ts` (front).
+- Regra do repositório: **nenhum `if (segment === ...)` espalhado**. Quem precisa de comportamento novo por segmento acrescenta entrada em `SEGMENT_GATE_CONFIG` (backend e front), no perfil do bot (`shared/segments`/`segmentProfiles.ts`) ou na regra de publicidade (`shared/segments/advertising.ts`).
+- Gate do segmento (`shared/segments/segmentGate.ts`): oculta abas/módulos e nega o endpoint dedicado com **403** `SEGMENT_FEATURE_UNAVAILABLE`. `LAW_FIRM` (advocacia) esconde produtos, equipamento, comissões e gorjeta — o repository é honorários.
+- `publicBookable` (`Service`): serviço agendável pelo cliente na agenda pública. Default **true**; serviço interno (audiência, diligência) fica `false` e não aparece nem pode ser agendado pelo público (`SERVICE_NOT_PUBLICLY_BOOKABLE`, 400). A rota `GET /services` é pública com `authenticateOptional`: anônimo vê só os públicos, staff do salão (token) vê todos (`includeInternal`).
+- Ficha auxiliar do cliente por segmento (`auxiliaryProfile`): `pet` (petshop/veterinária), `vehicle` (lava jato/oficina), `case` (advocacia). Em advocacia a ficha é **caso/processo**: apelido, área de atuação e número do processo — sempre restritos à equipe.
+- Sigilo: área de atuação, número de processo e apelido de caso **não** aparecem em mensagem ao cliente, no perfil público nem no assistente do dono (`stripCaseData` no bot).
+- Cadastro: `seedBarbershopDefaults` aplica catálogo, preset de horário, modo de atendimento e preferências **por segmento**; onboarding usa o vocabulário do segmento (`shopNoun`, `service`, `servicePlural`).
+
+### Feature por segmento (`features`)
+
+- Segmentos podem declarar **features** opcionais em `SEGMENT_CONFIGS` (`features?: SegmentFeature[]`), espelhadas no front (`frontend/src/shared/segments/segmentConfigs.ts`) e conferidas pela paridade (`segmentParity.json`).
+- `caseManagement` (gestão de processos) existe só no `LAW_FIRM`: habilita a aba "Processos" no painel (`TabDef.segmentFeature`) e as rotas `/cases*` na API (`segmentFeatureGuard`, 403 `SEGMENT_FEATURE_UNAVAILABLE`). Não há `if (segment === ...)` espalhado: quem precisa de nova feature declara no segmento.
+
+### Gestão de processos (escritório)
+
+- Dados **internos do escritório**: caso, tarefas, prazos, andamentos e documentos nunca aparecem para o cliente, no perfil público nem em mensagem do assistente.
+- Prazo em dias úteis: contagem ignora fins de semana, feriados nacionais (BR) e feriados/suspensões cadastrados pelo escritório (`shared/utils/businessDays.ts` + `OfficeHoliday`). Enviar `businessDays` calcula a data; enviar `dueDate` fixa a data.
+- Dias restantes (`daysRemaining`) são calculados em dias úteis: negativo = atraso. O prazo não é "cumprido" sozinho: o usuário marca (`FULFILLED`).
+- Fechar/arquivar um caso carimba `closedAt` (`ClientCaseRepository`).
+- Financeiro do caso: honorários vêm dos atendimentos concluídos vinculados ao caso (`Appointment.caseId`) e o saldo em aberto do cliente (fiado). Valor da causa (`claimedAmount`) e valor obtido (`awardedAmount`) são dados do processo, não do faturamento.
+- Relatório por área de atuação (`GET /cases/reports/practice-areas`) agrega processos, valores da causa e honorários por área.
+- **Contratos e assinaturas**: o documento do contrato é interno; a assinatura acontece em página pública por **token** (`/assinar/:token`). O token é a credencial. O status do contrato é recalculado pelas assinaturas (todas → `SIGNED`, algumas → `PARTIALLY_SIGNED`). Enviar para assinatura exige ao menos um signatário.
+- **Assinatura não expõe o processo**: a página pública de assinatura devolve só título, tipo, conteúdo e nome do signatário — nunca número de processo, apelido interno, tribunal ou dados do cliente.
+- **Timesheet**: o valor da hora é **derivado** (`minutos/60 × valor/hora`); o escritório lança horas, nunca o total. Lançamento pode ser marcado como "faturado" (não pode ser faturado duas vezes).
+- **Honorário de êxito**: percentual sobre o `awardedAmount` do caso; o valor é recalculado pelo sistema (`baseAmount × percent`), com parcelamento e situação própria (`PENDING`/`INVOICED`/`PAID`/`CANCELED`).
+- **Digestão de intimações**: o sistema detecta o número CNJ no texto e **sugere** o tipo do andamento; a triagem é humana (vincular/ignorar). O conteúdo da intimação nunca vai para o cliente nem para o assistente.
+- **Número CNJ**: segmento do tribunal (TR) aceito em letras **e** dígitos (`8.SP` e `8.26`, formato oficial). Normalizado para o canônico.
+- **NFS-e**: emissão manual funciona sem credenciais (número digitado); NFE.io e Focus NFe exigem token na env e falham com mensagem clara quando ausentes (nunca em silêncio).
+- **Alertas de prazo**: cron diário (08:00 BRT) avisa o dono por WhatsApp quando o prazo vence em até 3 dias úteis ou já venceu. Deduplicação por (prazo, destinatário, tipo, canal, dia) — índice único, varredura idempotente. Alerta é operacional interno: não passa pelo gate de publicidade.
+- **Portal do cliente**: o caso só aparece se `shareWithClient` estiver ligado (alternável pelo escritório) e apenas os andamentos com `visibleToClient` são expostos. Nunca saem número de processo, apelido interno, parte adversária, tribunal ou observações. O portal enxerga os casos pela **identidade do cliente** (`ClientSalonLink` confirmado): sem vínculo confirmado, nada aparece.
+- **Transferência entre unidades**: só para unidade **irmã** (mesma `Organization`); a unidade de destino aceita e, ao aceitar, o caso e tudo que é vinculado (tarefas, prazos, andamentos, documentos, contratos, assinaturas, horas, honorários, intimações, NFS-e) muda de `barbershopId` em uma transação.
+
+### Restrição de publicidade (`advertisingRestricted`)
+
+- Declaração única no segmento (`advertisingRestricted: true` no `LAW_FIRM`) + helper `shared/segments/advertising.ts`. Não é regra da advocacia escrita em vários arquivos: é uma feature genérica por segmento.
+- Desliga: campanhas/mensagens em massa do assistente, pedido de avaliação e nota/reputação públicas, NPS, indicações (o código nem é gerado no cadastro), fidelidade (nasce inativa) e preços públicos no perfil/agenda.
+- Não desliga: a consulta interna do dono ("quem não vem há X dias") — é lista para o dono, não disparo ao cliente; agenda, clientes, honorários e financeiro continuam.
+- APIs: middleware `advertisingGuard` (403 `ADVERTISING_FEATURE_UNAVAILABLE`) em referrals e loyalty; NPS nega em `assertShopEligible`; `reviewInvitationService` não cria convite, não expõe resumo público e recusa envio de link antigo; `notificationDeliveryService` marca `ADVERTISING_RESTRICTED` nas notificações promocionais.
+
 ## Fila / agenda / híbrido
 
 - Modos de operação do salão restringem join/booking (`shopOpenState`, WhatsApp obrigatório em alguns fluxos).

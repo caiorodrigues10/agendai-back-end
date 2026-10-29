@@ -11,6 +11,7 @@ import { IClientPackageRepository } from "@/modules/packages/repositories/IClien
 import { debitClientPackageInTx, restoreClientPackageInTx } from "@/modules/packages/utils/clientPackageCredits";
 import { upsertSalonClientRecord } from "@/modules/clients/utils/ensureSalonClient";
 import { resolvePetSnapshot } from "@/modules/clients/utils/resolvePetSnapshot";
+import { resolveCaseSnapshot } from "@/modules/clients/utils/resolveCaseSnapshot";
 import {
   ICreateAppointmentDTO,
   IUpdateAppointmentDTO,
@@ -44,6 +45,13 @@ function mapCreatedAppointment(record: {
   staffId: string | null;
   clientId?: string | null;
   clientPackageId?: string | null;
+  petId?: string | null;
+  petName?: string | null;
+  caseId?: string | null;
+  caseName?: string | null;
+  practiceArea?: string | null;
+  modality?: string;
+  meetingLink?: string | null;
   customerName: string;
   whatsapp: string;
   date: Date;
@@ -85,6 +93,13 @@ function mapCreatedAppointment(record: {
     updatedAt: record.updatedAt,
     clientId: record.clientId ?? null,
     clientPackageId: record.clientPackageId ?? null,
+    petId: record.petId ?? null,
+    petName: record.petName ?? null,
+    caseId: record.caseId ?? null,
+    caseName: record.caseName ?? null,
+    practiceArea: record.practiceArea ?? null,
+    modality: (record.modality ?? 'IN_PERSON') as IAppointmentResponseDTO['modality'],
+    meetingLink: record.meetingLink ?? null,
     reservedProducts: record.productReservations?.map((item) => ({
       id: item.id,
       productId: item.productId,
@@ -162,6 +177,15 @@ async function createAppointmentAtomic(
   // testes de unidade existentes seguem sem Postgres.
   const pet = await resolvePetSnapshot(data.barbershopId, data.petId);
   data = { ...data, ...pet };
+
+  // Snapshot do caso/processo (LAW_FIRM): mesmo contrato do pet — o apelido
+  // vem do banco e o caso precisa ser do mesmo cliente do atendimento.
+  const clientCase = await resolveCaseSnapshot(
+    data.barbershopId,
+    data.caseId,
+    data.clientId
+  );
+  data = { ...data, ...clientCase };
 
   // Unit tests usam MockAppointmentRepository sem Postgres.
   if (process.env.VITEST) {
@@ -249,6 +273,11 @@ async function createAppointmentAtomic(
           clientPackageId: data.clientPackageId ?? null,
           petId: data.petId ?? null,
           petName: data.petName ?? null,
+          caseId: data.caseId ?? null,
+          caseName: data.caseName ?? null,
+          practiceArea: data.practiceArea ?? null,
+          modality: data.modality ?? "IN_PERSON",
+          meetingLink: data.meetingLink ?? null,
           source: data.source ?? "APP",
         },
         include: {
@@ -336,7 +365,7 @@ export class CreatePublicAppointmentUseCase {
 
     const { clientPackageId: _ignored, clientId: _ignoredClient, ...publicData } = data;
     return createAppointmentAtomic(
-      { ...publicData, barbershopId: data.barbershopId },
+      { ...publicData, barbershopId: data.barbershopId, source: "PUBLIC" },
       this.repo
     );
   }
@@ -429,10 +458,22 @@ export class UpdateAppointmentUseCase {
       );
     }
 
-    const isReschedule = data.date || data.time || data.staffId;
+    // Reapontar o atendimento para outro caso exige resolver o novo snapshot
+    // (apelido vem do banco, nunca do payload).
+    let updateData: IUpdateAppointmentDTO = data;
+    if (data.caseId !== undefined) {
+      const clientCase = await resolveCaseSnapshot(
+        appointment.barbershopId,
+        data.caseId,
+        appointment.clientId
+      );
+      updateData = { ...data, ...clientCase };
+    }
+
+    const isReschedule = updateData.date || updateData.time || updateData.staffId;
     if (isReschedule && !process.env.VITEST) {
       const lock = new AdvisoryLock(prisma as any);
-      const lockDateSource = data.date ?? appointment.date;
+      const lockDateSource = updateData.date ?? appointment.date;
       const lockDate =
         lockDateSource instanceof Date
           ? lockDateSource.toISOString().slice(0, 10)
@@ -445,15 +486,15 @@ export class UpdateAppointmentUseCase {
             {
               barbershopId: appointment.barbershopId,
               serviceId: appointment.serviceId,
-              staffId: data.staffId ?? appointment.staffId,
+              staffId: updateData.staffId ?? appointment.staffId,
               customerName: appointment.customerName,
               whatsapp: appointment.whatsapp,
               date:
-                data.date ??
+                updateData.date ??
                 (appointment.date instanceof Date
                   ? appointment.date.toISOString().slice(0, 10)
                   : String(appointment.date).slice(0, 10)),
-              time: data.time ?? appointment.time,
+              time: updateData.time ?? appointment.time,
             },
             tx,
             { excludeAppointmentId: id }
@@ -461,9 +502,9 @@ export class UpdateAppointmentUseCase {
           await tx.appointment.update({
             where: { id },
             data: {
-              ...(data.date && { date: new Date(data.date) }),
-              ...(data.time && { time: data.time }),
-              ...(data.staffId !== undefined && { staffId: data.staffId }),
+              ...(updateData.date && { date: new Date(updateData.date) }),
+              ...(updateData.time && { time: updateData.time }),
+              ...(updateData.staffId !== undefined && { staffId: updateData.staffId }),
             },
           });
         });
@@ -474,7 +515,7 @@ export class UpdateAppointmentUseCase {
       }
     }
 
-    return this.repo.update(id, data).then((updated) => {
+    return this.repo.update(id, updateData).then((updated) => {
       publishRealtime(appointment.barbershopId, "appointments:changed");
       return updated;
     });
@@ -538,8 +579,18 @@ export class GetAvailableSlotsUseCase {
     const day = new Date(`${date}T00:00:00Z`);
     const next = new Date(day);
     next.setUTCDate(next.getUTCDate() + 1);
-    const service = await prisma.service.findFirst({ where: { id: serviceId, barbershopId, active: true }, select: { avgTimeMinutes: true } });
+    const service = await prisma.service.findFirst({ where: { id: serviceId, barbershopId, active: true }, select: { avgTimeMinutes: true, publicBookable: true } });
     if (!service) throw new AppError('Serviço inválido para este estabelecimento', 400);
+    // Serviço interno (audiência, diligência, despacho) não oferece horário
+    // no portal público.
+    if (!service.publicBookable) {
+      throw new AppError(
+        'Este atendimento não é disponível para agendamento público',
+        400,
+        undefined,
+        'SERVICE_NOT_PUBLICLY_BOOKABLE'
+      );
+    }
     const dateYmd = date.slice(0, 10);
     const { getShopOpenState } = await import("@/modules/barbershops/utils/getShopOpenState");
     const dayState = await getShopOpenState(barbershopId, { dateYmd, forDateOnly: true });
@@ -684,10 +735,20 @@ function formatSaoPauloTime(d: Date): string {
   }).format(d);
 }
 
+/** Rótulos da modalidade do atendimento (usados no lembrete). */
+const MODALITY_LABEL: Record<string, string> = {
+  IN_PERSON: "presencial",
+  VIDEO: "por vídeo",
+  PHONE: "por telefone",
+};
+
 /**
  * Mensagem principal do lembrete — não menciona fila (a info de fila é enviada
  * como segunda mensagem separada por `buildQueueUpdateMessage`). Exportada para
  * ser testável de forma isolada.
+ *
+ * Inclui a modalidade e o link da reunião online quando houver. Nunca inclui
+ * dados de caso/processo: são internos do escritório.
  */
 export function buildReminderMessage(
   appt: IAppointmentResponseDTO,
@@ -696,10 +757,15 @@ export function buildReminderMessage(
 ): string {
   const shopLabel = appt.barbershopName?.trim() || "";
   const serviceLabel = appt.serviceName?.trim() || "atendimento";
+  const modalityLabel = MODALITY_LABEL[appt.modality ?? "IN_PERSON"];
+  const meetingLink = appt.meetingLink?.trim() || "";
+
+  const modalityLine = modalityLabel === "presencial" ? "" : ` (${modalityLabel})`;
+  const meetingLine = meetingLink ? `\n🔗 Link da reunião: ${meetingLink}` : "";
 
   return (
     `Olá, ${appt.customerName}! 💈\n\n` +
-    `Seu horário${shopLabel ? ` na *${shopLabel}*` : ""} está confirmado para hoje às *${appt.time}* (${serviceLabel}).\n\n` +
+    `Seu horário${shopLabel ? ` na *${shopLabel}*` : ""} está confirmado para hoje às *${appt.time}* (${serviceLabel}${modalityLine}).${meetingLine}\n\n` +
     `Até já!`
   );
 }

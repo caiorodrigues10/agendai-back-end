@@ -6,6 +6,7 @@ import {
   maskDestination,
   normalizeDestination,
 } from "@/modules/notifications/services/notificationSecurity";
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 
 /** Tipo de notificação registrado no registry (preferências do salão). */
 export const NPS_SURVEY_TYPE = "NPS_SURVEY";
@@ -90,11 +91,22 @@ export async function assertShopEligible(barbershopId: string): Promise<{ id: st
       id: true,
       name: true,
       active: true,
+      businessSegment: true,
       subscriptions: { select: { status: true, startDate: true }, take: 1 },
     },
   });
   if (!shop) {
     throw new AppError("Salão não encontrado.", 404, undefined, "SHOP_NOT_FOUND");
+  }
+  // Segmento com restrição de publicidade (ex.: advocacia) não faz pesquisa
+  // de satisfação: é divulgação comercial.
+  if (isAdvertisingRestricted(shop.businessSegment)) {
+    throw new AppError(
+      "Recurso indisponível para o segmento deste estabelecimento",
+      403,
+      undefined,
+      "ADVERTISING_FEATURE_UNAVAILABLE"
+    );
   }
   const check = isShopEligible({
     active: shop.active,

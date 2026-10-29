@@ -152,6 +152,42 @@ describe("cadastro com segmento (Postgres real)", () => {
     expect(names.length).toBeGreaterThan(0);
   });
 
+  it("LAW_FIRM nasce com o catálogo de advocacia, sem público e sem indicação", async () => {
+    const result = await register("LAW_FIRM");
+    createdBarbershopIds.push(result.user.barbershopId!);
+
+    const shop = await prisma.barbershop.findUniqueOrThrow({
+      where: { id: result.user.barbershopId! },
+    });
+    expect(shop.businessSegment).toBe("LAW_FIRM");
+    expect(shop.targetAudience).toBeNull();
+
+    const names = (
+      await prisma.service.findMany({ where: { barbershopId: shop.id }, select: { name: true } })
+    ).map((s) => s.name);
+    expect(names).toEqual(
+      expect.arrayContaining(["Consulta inicial", "Acompanhamento de processo"])
+    );
+    expect(names).not.toContain("Cortes");
+
+    // Segmento com restrição de publicidade: sem código de indicação e sem
+    // preferências de notificação promocional.
+    const referral = await prisma.referralCode.findFirst({
+      where: { barbershopId: shop.id },
+    });
+    expect(referral).toBeNull();
+
+    const nps = await prisma.notificationPreference.findFirst({
+      where: { barbershopId: shop.id, type: "NPS_SURVEY" },
+    });
+    expect(nps?.enabled).toBe(false);
+
+    const loyalty = await prisma.loyaltyProgram.findFirst({
+      where: { barbershopId: shop.id },
+    });
+    expect(loyalty?.isActive).toBe(false);
+  });
+
   it("público explícito do usuário é respeitado nos segmentos de beleza", async () => {
     const result = await register("HAIR_SALON", "FEMININO");
     createdBarbershopIds.push(result.user.barbershopId!);

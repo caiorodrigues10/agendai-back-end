@@ -34,6 +34,7 @@ import {
   getOwnerBotCommand,
   matchOwnerBotCommand,
   buildOwnerBotSegmentCatalog,
+  ownerBotCommandsForSegment,
   OWNER_BOT_CATEGORY_LABELS,
 } from "./commands/registry";
 import {
@@ -382,7 +383,10 @@ export class OwnerBotService {
 
     const text = normalizeText(raw).replace(/\s+/g, " ");
     const entities = this.buildEntities(raw, context, state);
-    const match = matchOwnerBotCommand(raw, OWNER_BOT_COMMANDS, context.segment);
+    // Só o que existe no segmento é executável: campanha, nota média, fila e
+    // comissão não respondem nem por texto em segmento sem esse recurso.
+    const segmentCommands = ownerBotCommandsForSegment(OWNER_BOT_COMMANDS, context.segment);
+    const match = matchOwnerBotCommand(raw, segmentCommands, context.segment);
 
     if (match.best) {
       await this.runCommand(match.best.command, context, state, entities, phone, preferences);
@@ -697,7 +701,21 @@ export class OwnerBotService {
       return;
     }
 
-    state.flow = { kind, step: "APPOINTMENT" };
+    state.flow = {
+      kind,
+      step: "APPOINTMENT",
+      // Preço do serviço por agendamento: no encerramento, o dono só é
+      // perguntado sobre valor e pagamento quando há cobrança.
+      ...(kind === "COMPLETE"
+        ? {
+            entities: {
+              prices: Object.fromEntries(
+                candidates.map((item) => [item.id, Number(item.servicePrice ?? 0)])
+              ),
+            },
+          }
+        : {}),
+    };
     state.lastList = {
       kind: "APPOINTMENTS",
       items: candidates.map((item) => ({
@@ -727,6 +745,13 @@ export class OwnerBotService {
         )
         .join("\n")}`
     );
+  }
+
+  /** O agendamento tem cobrança (serviço com preço)? */
+  private appointmentHasCharge(flow: OwnerBotFlow, appointmentId: string): boolean {
+    const prices = (flow.entities as { prices?: Record<string, number> } | undefined)?.prices;
+    const price = Number(prices?.[appointmentId] ?? 0);
+    return Number.isFinite(price) && price > 0;
   }
 
   private isSelectable(status: string, kind: AppointmentAction): boolean {
@@ -870,6 +895,54 @@ export class OwnerBotService {
 
     // ─── Fluxos legados ──────────────────────────────────────────────────────
 
+    // Encerramento de atendimento com cobrança: valor e forma de pagamento.
+    if (flow.kind === "COMPLETE" && flow.step === "AMOUNT") {
+      const amount = extractOwnerBotAmount(text);
+      if (!amount || amount <= 0) {
+        await this.reply(phone, "Qual o valor do atendimento? (ex.: 350 ou R$ 1.200,50)");
+        return true;
+      }
+      flow.entities = { ...(flow.entities ?? {}), amount };
+      flow.step = "PAYMENT";
+      await this.saveState(phone, state);
+      await this.reply(phone, "Forma de pagamento? Responda: Pix, Dinheiro, Cartão ou Fiado.");
+      return true;
+    }
+
+    if (flow.kind === "COMPLETE" && flow.step === "PAYMENT") {
+      const paymentMethod = parseOwnerBotPaymentMethod(text);
+      if (!paymentMethod) {
+        await this.reply(phone, "Forma de pagamento? Responda: Pix, Dinheiro, Cartão ou Fiado.");
+        return true;
+      }
+      const amount = Number((flow.entities as { amount?: number } | undefined)?.amount ?? 0);
+      const actor: OwnerBotActor = {
+        userId: context.userId,
+        role: "OWNER",
+        barbershopId: context.barbershopId,
+      };
+      try {
+        await this.actions.completeAppointment(flow.appointmentId ?? "", actor, {
+          finalPrice: amount,
+          paymentMethod,
+        });
+        await this.log(context, phone, "COMPLETE", "WRITE", flow, "SUCCESS");
+        await this.clearFlow(state, phone);
+        const next = await this.nextClientLabel(context);
+        await this.reply(
+          phone,
+          `${OWNER_BOT_MESSAGES.completeSuccess(flow.summary ?? "")}\n\n${OWNER_BOT_MESSAGES.nextClient(
+            next
+          )}`
+        );
+      } catch (error) {
+        const message =
+          error instanceof AppError ? error.message : "não consegui encerrar o atendimento";
+        await this.reply(phone, `Não consegui encerrar o atendimento: ${message}.`);
+      }
+      return true;
+    }
+
     // Passo CONFIRM dos fluxos legados (agendar, cancelar, unlink, lembrete...).
     if (flow.step === "CONFIRM" && flow.kind !== "COMMAND") {
       if (intent.type === "CONFIRM" || (intent.type === "SELECT" && intent.index === 1)) {
@@ -901,6 +974,14 @@ export class OwnerBotService {
         flow.step = "DATE";
         await this.saveState(phone, state);
         await this.reply(phone, OWNER_BOT_MESSAGES.askDate());
+        return true;
+      }
+      if (flow.kind === "COMPLETE" && this.appointmentHasCharge(flow, item.id)) {
+        // Há cobrança: pergunta só o valor e a forma de pagamento.
+        flow.summary = item.label;
+        flow.step = "AMOUNT";
+        await this.saveState(phone, state);
+        await this.reply(phone, "Qual o valor do atendimento? (ex.: 350 ou R$ 1.200,50)");
         return true;
       }
       flow.step = "CONFIRM";
@@ -1188,7 +1269,13 @@ export class OwnerBotService {
         }
 
         case "COMPLETE": {
-          await this.actions.completeAppointment(flow.appointmentId ?? "", actor);
+          const flowEntities = flow.entities as
+            | { amount?: number; paymentMethod?: string }
+            | undefined;
+          await this.actions.completeAppointment(flow.appointmentId ?? "", actor, {
+            ...(flowEntities?.amount !== undefined ? { finalPrice: flowEntities.amount } : {}),
+            ...(flowEntities?.paymentMethod ? { paymentMethod: flowEntities.paymentMethod } : {}),
+          });
           await this.log(context, phone, "COMPLETE", "WRITE", flow, "SUCCESS");
           await this.clearFlow(state, phone);
           const next = await this.nextClientLabel(context);
@@ -1426,7 +1513,7 @@ export class OwnerBotService {
       },
       linkedShops: [],
       raw: entities.raw,
-      commands: OWNER_BOT_COMMANDS,
+      commands: ownerBotCommandsForSegment(OWNER_BOT_COMMANDS, context.segment),
       actions: this.actions,
       preferences,
       state,
@@ -1571,4 +1658,20 @@ export function splitMessage(text: string, max = 1500): string[] {
   }
   if (remaining) parts.push(remaining);
   return parts;
+}
+
+/**
+ * Forma de pagamento digitada pelo dono no encerramento do atendimento.
+ * Aceita "pix", "dinheiro", "cartao"/"credito"/"debito" e "fiado".
+ */
+export function parseOwnerBotPaymentMethod(text: string): string | null {
+  const normalized = normalizeText(text);
+  if (!normalized) return null;
+  if (/\bfiado\b/.test(normalized)) return "fiado";
+  if (/\bpix\b/.test(normalized)) return "pix";
+  if (/\bdinheiro\b|\bcedula\b|\bcaixa\b/.test(normalized)) return "cash";
+  if (/\bcredito\b/.test(normalized)) return "credit_card";
+  if (/\bdebito\b/.test(normalized)) return "debit_card";
+  if (/\bcartao\b|\bcard\b/.test(normalized)) return "credit_card";
+  return null;
 }

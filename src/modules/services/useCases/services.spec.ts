@@ -65,6 +65,54 @@ describe("Services module", () => {
   });
 });
 
+describe("Serviço interno (publicBookable)", () => {
+  it("visão pública devolve só serviços agendáveis pelo cliente", async () => {
+    const publico = await create.execute(
+      { barbershopId: "shop-1", name: "Consulta", price: 200, avgTimeMinutes: 60, icon: "user" },
+      OWNER_SHOP1
+    );
+    const interno = await create.execute(
+      {
+        barbershopId: "shop-1",
+        name: "Audiência interna",
+        price: 300,
+        avgTimeMinutes: 60,
+        icon: "user",
+        publicBookable: false,
+      },
+      OWNER_SHOP1
+    );
+
+    const listaPublica = await list.execute("shop-1");
+    expect(listaPublica.map((s) => s.id)).toEqual([publico.id]);
+    expect(listaPublica.map((s) => s.id)).not.toContain(interno.id);
+
+    const listaStaff = await list.execute("shop-1", { includeInternal: true });
+    expect(listaStaff.map((s) => s.id)).toContain(interno.id);
+  });
+
+  it("serviço interno é 404 para quem não é staff", async () => {
+    const interno = await create.execute(
+      {
+        barbershopId: "shop-1",
+        name: "Diligência",
+        price: 150,
+        avgTimeMinutes: 45,
+        icon: "user",
+        publicBookable: false,
+      },
+      OWNER_SHOP1
+    );
+
+    await expect(get.execute(interno.id, "shop-1")).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(
+      get.execute(interno.id, "shop-1", { includeInternal: true })
+    ).resolves.toMatchObject({ id: interno.id });
+  });
+});
+
 describe('Vínculos de categorias', () => {
   it.each([null, { barbershopId: 'outro-salao', active: true }, { barbershopId: 'shop-1', active: false }])('rejeita categoria indisponível %j', async category => {
     categoryRepo.findById.mockResolvedValue(category);

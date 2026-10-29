@@ -2,6 +2,7 @@ import { normalizeText } from "../dateParser";
 import { maskPhone } from "../messages";
 import { formatBRL } from "./money";
 import { findByName, numberedList, suggestionsLine } from "./helpers";
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 import type { OwnerBotCommand } from "./types";
 
 /**
@@ -157,7 +158,9 @@ export const clientCommands: OwnerBotCommand[] = [
 
       return {
         text: `Clientes sumidos (${inactive.length}):\n${lines.join("\n")}`,
-        suggestions: ["campanha para clientes sumidos", "faturamento do mês"],
+        suggestions: isAdvertisingRestricted(ctx.segment)
+          ? ["faturamento do mês", "agenda de hoje"]
+          : ["campanha para clientes sumidos", "faturamento do mês"],
       };
     },
   },

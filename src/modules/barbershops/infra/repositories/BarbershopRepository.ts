@@ -38,6 +38,10 @@ const shopSelect = {
   // do perfil (ícones no cabeçalho e na aba Sobre). Ordem/sanitização via
   // withSocialLinks (JsonValue não casa estruturalmente com o DTO).
   socialLinks: true,
+  // Áreas de atuação e registro na OAB são conteúdo do perfil público do
+  // escritório (vitrine), não dado interno — entram no select público.
+  practiceAreas: true,
+  oabRegistration: true,
   createdAt: true,
   active: true,
   evolutionInstanceName: true,

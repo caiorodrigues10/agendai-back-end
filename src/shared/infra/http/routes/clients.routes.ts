@@ -3,16 +3,19 @@ import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
 import { setRlsContext } from "../middlewares/setRlsContext";
+import { segmentFeatureGuard } from "../middlewares/segmentFeatureGuard";
 import { ClientController } from "@/modules/clients/controllers/ClientController";
 import { ProcedureRecordController } from "@/modules/clients/controllers/ProcedureRecordController";
 import { PetController } from "@/modules/clients/controllers/PetController";
 import { VehicleController } from "@/modules/clients/controllers/VehicleController";
+import { CaseController } from "@/modules/clients/controllers/CaseController";
 
 export async function clientsRoutes(app: FastifyInstance) {
   const clients = new ClientController();
   const procedures = new ProcedureRecordController();
   const pets = new PetController();
   const vehicles = new VehicleController();
+  const cases = new CaseController();
   const staffGuard = [
     authenticate,
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
@@ -44,4 +47,12 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.post("/clients/:id/vehicles", { preHandler: staffGuard }, vehicles.create.bind(vehicles));
   app.patch("/clients/:id/vehicles/:vehicleId", { preHandler: staffGuard }, vehicles.update.bind(vehicles));
   app.delete("/clients/:id/vehicles/:vehicleId", { preHandler: staffGuard }, vehicles.delete.bind(vehicles));
+
+  // Casos/processos (segmento LAW_FIRM) — dados internos do escritório.
+  // Exigem a feature `caseManagement` do segmento.
+  const caseGuard = [...staffGuard, segmentFeatureGuard("caseManagement")];
+  app.get("/clients/:id/cases", { preHandler: caseGuard }, cases.list.bind(cases));
+  app.post("/clients/:id/cases", { preHandler: caseGuard }, cases.create.bind(cases));
+  app.patch("/clients/:id/cases/:caseId", { preHandler: caseGuard }, cases.update.bind(cases));
+  app.delete("/clients/:id/cases/:caseId", { preHandler: caseGuard }, cases.delete.bind(cases));
 }

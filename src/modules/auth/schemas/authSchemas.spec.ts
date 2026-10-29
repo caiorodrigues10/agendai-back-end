@@ -80,6 +80,7 @@ describe("registerSchema — segmento e público", () => {
       "PRIVATE_CLASSES",
       "TECH_SUPPORT",
       "HOME_SERVICES",
+      "LAW_FIRM",
       "OTHER",
     ] as const;
     for (const businessSegment of allSegments) {
@@ -119,6 +120,21 @@ describe("registerSchema — segmento e público", () => {
     });
     expect(parsed.success).toBe(false);
     expect(paths(parsed.error)).toContain("targetAudience:custom");
+  });
+
+  it("recusa público em LAW_FIRM (escritório não pede público)", () => {
+    const parsed = registerSchema.safeParse({
+      ...base,
+      businessSegment: "LAW_FIRM",
+      targetAudience: "FEMININO",
+    });
+    expect(parsed.success).toBe(false);
+    expect(paths(parsed.error)).toContain("targetAudience:custom");
+  });
+
+  it("aceita LAW_FIRM sem público", () => {
+    const parsed = registerSchema.safeParse({ ...base, businessSegment: "LAW_FIRM" });
+    expect(parsed.success).toBe(true);
   });
 
   it("aceita PETSHOP sem público", () => {

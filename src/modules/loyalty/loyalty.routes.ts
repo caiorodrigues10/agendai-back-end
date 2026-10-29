@@ -4,13 +4,16 @@ import { authorize } from "@/shared/infra/http/middlewares/authorize";
 import { checkSubscription } from "@/shared/infra/http/middlewares/checkSubscription";
 import { checkDashboardAccess } from "@/shared/infra/http/middlewares/checkDashboardAccess";
 import { setRlsContext } from "@/shared/infra/http/middlewares/setRlsContext";
+import { advertisingGuard } from "@/shared/infra/http/middlewares/advertisingGuard";
 import { LoyaltyController } from "./loyaltyController";
 
 export async function loyaltyRoutes(app: FastifyInstance) {
   const controller = new LoyaltyController();
 
   const ownerRoles = ["MASTER_ADMIN", "OWNER"];
-  const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess, setRlsContext];
+  // Fidelidade é divulgação comercial (recompensa por voltar): desligada
+  // em segmentos com restrição de publicidade (ex.: advocacia).
+  const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess, advertisingGuard(), setRlsContext];
 
   app.post(
     "/barbershops/:barbershopId/loyalty/program",

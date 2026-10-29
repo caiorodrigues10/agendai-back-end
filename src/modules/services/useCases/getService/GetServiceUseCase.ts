@@ -9,9 +9,18 @@ export class GetServiceUseCase {
     @inject("ServiceRepository")
     private serviceRepository: IServiceRepository
   ) {}
-  async execute(id: string, barbershopId?: string): Promise<IServiceResponseDTO> {
+  async execute(
+    id: string,
+    barbershopId?: string,
+    options?: { includeInternal?: boolean }
+  ): Promise<IServiceResponseDTO> {
     const service = await this.serviceRepository.findById(id, barbershopId);
     if (!service) throw new AppError("Serviço não encontrado", 404);
+    // Visão pública: serviço interno (`publicBookable = false`) não existe
+    // para quem não é do staff.
+    if (!options?.includeInternal && !service.publicBookable) {
+      throw new AppError("Serviço não encontrado", 404);
+    }
     return service;
   }
 }

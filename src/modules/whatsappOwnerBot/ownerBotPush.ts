@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import type { BusinessSegment } from "@prisma/client";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { OwnerBotRepository } from "./ownerBotRepository";
@@ -8,8 +9,12 @@ import type { OwnerBotMessenger } from "./ownerBotMessenger";
 import { EvolutionOwnerBotMessenger } from "./ownerBotMessenger";
 import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 import { maskPhone } from "./messages";
+import { normalizeText } from "./dateParser";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { formatBRL } from "./commands/money";
+import { getBusinessSegment } from "@/shared/segments/segmentCache";
+import { getOwnerBotLabels, getOwnerBotSegmentProfile } from "./segmentProfiles";
+import { isModuleEnabled } from "@/shared/segments/segmentGate";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -31,6 +36,8 @@ export type OwnerBotPushDeps = {
   hasAccess?: (barbershopId: string) => Promise<boolean>;
   now?: () => Date;
   getTimezone?: (barbershopId: string) => Promise<string>;
+  /** Segmento do estabelecimento (vocabulário e gate do resumo). */
+  getSegment?: (barbershopId: string) => Promise<BusinessSegment | null>;
 };
 
 type PushPreferenceRow = {
@@ -50,6 +57,7 @@ export class OwnerBotPushService {
   private hasAccess: (barbershopId: string) => Promise<boolean>;
   private now: () => Date;
   private getTimezone: (barbershopId: string) => Promise<string>;
+  private getSegment: (barbershopId: string) => Promise<BusinessSegment | null>;
 
   constructor(deps: OwnerBotPushDeps = {}) {
     this.repo = deps.repo ?? new OwnerBotRepository();
@@ -58,6 +66,7 @@ export class OwnerBotPushService {
     this.hasAccess = deps.hasAccess ?? hasOwnerBotAccess;
     this.now = deps.now ?? (() => new Date());
     this.getTimezone = deps.getTimezone ?? getShopTimezone;
+    this.getSegment = deps.getSegment ?? getBusinessSegment;
   }
 
   /**
@@ -112,6 +121,15 @@ export class OwnerBotPushService {
     return { briefing, summary, skipped };
   }
 
+  /** Segmento do salão; falha de leitura não impede o push (vocabulário padrão). */
+  private async resolveSegment(barbershopId: string): Promise<BusinessSegment | null> {
+    try {
+      return await this.getSegment(barbershopId);
+    } catch {
+      return null;
+    }
+  }
+
   private sentToday(lastAt: Date | null | undefined, localDay: string): boolean {
     if (!lastAt) return false;
     return dayjs(lastAt).format("YYYY-MM-DD") === localDay;
@@ -122,11 +140,18 @@ export class OwnerBotPushService {
     const appointments = await this.actions.listAppointments(barbershopId, today);
     const active = appointments.filter((item) => item.status !== "CANCELLED");
 
-    const lines = [
-      `Bom dia! ☀️ Hoje você tem ${active.length} ${
-        active.length === 1 ? "atendimento" : "atendimentos"
-      }.`,
-    ];
+    const segment = await this.resolveSegment(barbershopId);
+    const profile = getOwnerBotSegmentProfile(segment);
+    const unit = profile.vocabulary.ticketUnit;
+    const hearings = countHearings(active, profile.vocabulary.hearingKeywords);
+
+    const countText = `${active.length} ${active.length === 1 ? unit : `${unit}s`}`;
+    const hearingText =
+      profile.vocabulary.hearingNoun && hearings > 0
+        ? ` e ${hearings} ${hearings === 1 ? profile.vocabulary.hearingNoun : `${profile.vocabulary.hearingNoun}s`}`
+        : "";
+
+    const lines = [`Bom dia! ☀️ Hoje você tem ${countText}${hearingText}.`];
     if (active.length) {
       lines.push("");
       for (const item of active.slice(0, 10)) {
@@ -147,13 +172,21 @@ export class OwnerBotPushService {
     const figures = await this.actions.dayFigures(barbershopId, today);
     const total = figures.cashReceived + figures.pixReceived + figures.cardReceived;
 
+    const segment = await this.resolveSegment(barbershopId);
+    const labels = getOwnerBotLabels(segment);
+    const revenueLabel = labels.revenue ?? "Faturamento";
+
     const lines = [
       "Resumo do dia 🌙",
-      `• Entradas: ${formatBRL(total)}`,
+      `• ${revenueLabel}: ${formatBRL(total)}`,
       `• Dinheiro: ${formatBRL(figures.cashReceived)} · Pix: ${formatBRL(figures.pixReceived)} · Cartão: ${formatBRL(figures.cardReceived)}`,
       `• Despesas: ${formatBRL(figures.expenses)}`,
-      `• Comissões: ${formatBRL(figures.commissions)}`,
     ];
+
+    // Comissão por atendimento não existe onde o gate do segmento a remove.
+    if (isModuleEnabled(segment, "commissions")) {
+      lines.push(`• Comissões: ${formatBRL(figures.commissions)}`);
+    }
 
     return this.sendToOwners(barbershopId, lines.join("\n"));
   }
@@ -180,4 +213,20 @@ export class OwnerBotPushService {
 export async function runOwnerBotPushes(): Promise<{ briefing: number; summary: number; skipped: number }> {
   const service = new OwnerBotPushService();
   return service.runDuePushes();
+}
+
+/**
+ * Quantas audiências há no dia — pelo nome do atendimento ("Audiência
+ * preliminar", "Audiência de conciliação"). O briefing do escritório conta
+ * isso no vocabulário do segmento.
+ */
+function countHearings(
+  appointments: Array<{ serviceName?: string | null }>,
+  hearingKeywords?: string[]
+): number {
+  if (!hearingKeywords?.length) return 0;
+  return appointments.filter((item) => {
+    const name = normalizeText(item.serviceName ?? "");
+    return hearingKeywords.some((keyword) => name.includes(normalizeText(keyword)));
+  }).length;
 }

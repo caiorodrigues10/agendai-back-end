@@ -5,6 +5,8 @@ import {
 } from "./cashMovementRepository";
 import { DailyCloseoutUseCases, computeDay } from "@/modules/financial/dailyCloseoutUseCases";
 import { calendarDateKey } from "@/modules/financial/ledger/shopTime";
+import { isModuleEnabled } from "@/shared/segments/segmentGate";
+import { getBusinessSegment } from "@/shared/segments/segmentCache";
 
 export class CashMovementUseCases {
   private repo = new CashMovementRepository();
@@ -16,6 +18,20 @@ export class CashMovementUseCases {
     data: CreateCashMovementData
   ) {
     if (!barbershopId) throw new AppError("barbershopId is required", 400);
+
+    // Gorjeta não existe em segmentos que não a消炎am (ex.: advocacia —
+    // o repository é honorário). O gate decide; aqui só aplicamos.
+    if (data.type === "TIP") {
+      const segment = await getBusinessSegment(barbershopId);
+      if (!isModuleEnabled(segment, "tip")) {
+        throw new AppError(
+          "Recurso indisponível para o segmento deste estabelecimento",
+          403,
+          undefined,
+          "SEGMENT_FEATURE_UNAVAILABLE"
+        );
+      }
+    }
 
     return this.repo.create({
       ...data,

@@ -42,6 +42,10 @@ export interface IBarbershopResponseDTO {
   manualStatus?: PrismaManualShopStatus;
   /** Redes sociais do dono no perfil público: mapa rede → URL canônica, ordenado. */
   socialLinks?: Record<string, string> | null;
+  /** Áreas de atuação do escritório (tags) — exibidas no perfil público. */
+  practiceAreas?: string[];
+  /** Registro na OAB (texto livre opcional) — exibido como "OAB/UF nº ...". */
+  oabRegistration?: string | null;
   createdAt: Date;
   active: boolean;
   /** Nome da instância Evolution — só o fluxo de connect/disconnect altera. */

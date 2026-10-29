@@ -15,15 +15,43 @@ function appointmentInstant(date: string, time: string): Date {
   return new Date(`${date}T${time}:00-03:00`);
 }
 
+/**
+ * Campos expostos ao cliente do agendamento.
+ *
+ * `caseId`, `caseName` e `practiceArea` ficam de fora de propósito: dados de
+ * caso/processo são internos do escritório e nunca vão para o portal público.
+ */
+const publicAppointmentSelect = {
+  id: true,
+  barbershopId: true,
+  serviceId: true,
+  staffId: true,
+  customerName: true,
+  whatsapp: true,
+  date: true,
+  time: true,
+  status: true,
+  reminderSentAt: true,
+  createdAt: true,
+  updatedAt: true,
+  publicAccessVersion: true,
+  source: true,
+  clientId: true,
+  clientPackageId: true,
+  petId: true,
+  petName: true,
+  modality: true,
+  meetingLink: true,
+  service: { select: { name: true, price: true, avgTimeMinutes: true } },
+  staff: { select: { name: true } },
+  barbershop: { select: { name: true, address: true, city: true } },
+  client: { select: { name: true } },
+} as const;
+
 async function getAppointment(id: string, barbershopId: string, version: number) {
   const appointment = await prisma.appointment.findFirst({
     where: { id, barbershopId },
-    include: {
-      service: { select: { name: true, price: true, avgTimeMinutes: true } },
-      staff: { select: { name: true } },
-      barbershop: { select: { name: true, address: true, city: true } },
-      client: { select: { name: true } },
-    },
+    select: publicAppointmentSelect,
   });
   if (!appointment || appointment.publicAccessVersion !== version) {
     throw new AppError("Link de agendamento inválido ou expirado", 401, undefined, "INVALID_APPOINTMENT_TOKEN");
@@ -60,12 +88,7 @@ export class PublicAppointmentManagementUseCase {
     const cancelled = await prisma.appointment.update({
       where: { id: appointment.id },
       data: { status: "CANCELLED", canceledAt: new Date(), cancellationSource: "CUSTOMER", cancellationReason: reason?.slice(0, 300) },
-      include: {
-        service: { select: { name: true, price: true } },
-        staff: { select: { name: true } },
-        barbershop: { select: { name: true } },
-        client: { select: { name: true } },
-      },
+      select: publicAppointmentSelect,
     });
     publishRealtime(appointment.barbershopId, "appointments:changed");
 
@@ -112,12 +135,7 @@ export class PublicAppointmentManagementUseCase {
       return tx.appointment.update({
         where: { id: appointment.id },
         data: { date: new Date(date), time, publicAccessVersion: { increment: 1 } },
-        include: {
-          service: { select: { name: true, price: true } },
-          staff: { select: { name: true } },
-          barbershop: { select: { name: true } },
-          client: { select: { name: true } },
-        },
+        select: publicAppointmentSelect,
       });
     });
     publishRealtime(updated.barbershopId, "appointments:changed");

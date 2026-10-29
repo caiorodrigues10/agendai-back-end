@@ -6,4 +6,5 @@ export interface IUpdateServiceDTO {
   icon?: string;
   active?: boolean;
   commissionPercent?: number;
+  publicBookable?: boolean;
 }

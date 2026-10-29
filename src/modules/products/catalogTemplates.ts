@@ -279,6 +279,12 @@ export const CATALOG_TEMPLATES: Record<BusinessSegment, CatalogTemplate> = {
       { name: "Diária de limpeza", price: 0, avgTimeMinutes: 240, icon: "home", categoryName: "Serviços" },
     ],
   }),
+  LAW_FIRM: minimal("LAW_FIRM", {
+    serviceCategories: [{ name: "Consultoria", icon: "user" }],
+    services: [
+      { name: "Consulta inicial", price: 0, avgTimeMinutes: 60, icon: "user", categoryName: "Consultoria" },
+    ],
+  }),
   OTHER: base("OTHER", {
     serviceCategories: [{ name: "Serviços", icon: "sparkles" }],
     productCategories: [{ name: "Varejo", icon: "package", color: "#6B7280" }],

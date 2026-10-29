@@ -8,7 +8,10 @@ export class ListServicesUseCase {
     @inject("ServiceRepository")
     private serviceRepository: IServiceRepository
   ) {}
-  async execute(barbershopId?: string): Promise<IServiceResponseDTO[]> {
-    return this.serviceRepository.list(barbershopId);
+  async execute(
+    barbershopId?: string,
+    options?: { includeInternal?: boolean }
+  ): Promise<IServiceResponseDTO[]> {
+    return this.serviceRepository.list(barbershopId, options);
   }
 }

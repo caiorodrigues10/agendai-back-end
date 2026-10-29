@@ -9,4 +9,6 @@ export interface IServiceResponseDTO {
   createdAt: Date;
   active: boolean;
   commissionPercent: number;
+  /** Serviço agendável pelo cliente na agenda pública (audiência/diligência não são). */
+  publicBookable: boolean;
 }

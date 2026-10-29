@@ -68,6 +68,7 @@ vi.mock("@/shared/utils/logger", () => ({
 }));
 
 import { RegisterUseCase, IRegisterDTO } from "./RegisterUseCase";
+import { ensureReferralCode } from "@/modules/referrals/services/referralService";
 
 const BASE_INPUT: IRegisterDTO = {
   ownerName: "João Silva",
@@ -204,6 +205,31 @@ describe("RegisterUseCase — schedule", () => {
     expect(mockTxScheduleCreateMany).toHaveBeenCalledTimes(1);
     const calledData = mockTxScheduleCreateMany.mock.calls[0][0].data;
     expect(calledData).toHaveLength(7);
+  });
+});
+
+describe("RegisterUseCase — indicação", () => {
+  let useCase: RegisterUseCase;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useCase = new RegisterUseCase({ hash: vi.fn().mockResolvedValue("hashed") } as any);
+  });
+
+  it("gera código de indicação nos segmentos normais", async () => {
+    mockTransactionSuccess();
+
+    await useCase.execute({ ...BASE_INPUT, businessSegment: "BARBERSHOP" });
+
+    expect(ensureReferralCode).toHaveBeenCalledTimes(1);
+  });
+
+  it("LAW_FIRM não gera código de indicação (divulgação comercial)", async () => {
+    mockTransactionSuccess();
+
+    await useCase.execute({ ...BASE_INPUT, businessSegment: "LAW_FIRM" });
+
+    expect(ensureReferralCode).not.toHaveBeenCalled();
   });
 });
 

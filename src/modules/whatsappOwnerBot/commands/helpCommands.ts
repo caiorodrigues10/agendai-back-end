@@ -1,4 +1,8 @@
-import { OWNER_BOT_CATEGORY_LABELS, OWNER_BOT_CATEGORY_ORDER } from "./catalog";
+import {
+  OWNER_BOT_CATEGORY_LABELS,
+  OWNER_BOT_CATEGORY_ORDER,
+  ownerBotCommandExamples,
+} from "./catalog";
 import { getOwnerBotSegmentProfile } from "../segmentProfiles";
 import { commandApplies } from "./matcher";
 import type { OwnerBotCommand, OwnerBotCommandCategory } from "./types";
@@ -81,7 +85,10 @@ export const helpCommands: OwnerBotCommand[] = [
         };
       }
 
-      const lines = commands.map((command) => `• ${command.description}: ${command.examples[0]}`);
+      const lines = commands.map(
+        (command) =>
+          `• ${command.description}: ${ownerBotCommandExamples(command, ctx.segment)[0]}`
+      );
       return {
         text: [
           `${OWNER_BOT_CATEGORY_LABELS[topic]} — exemplos:`,
@@ -113,7 +120,11 @@ export const helpCommands: OwnerBotCommand[] = [
         "",
         ...highlights.map((highlight) => `• ${highlight}`),
         "",
-        "Comandos por categoria: agenda, clientes, financeiro, equipe, serviços, marketing, operação e conta.",
+        `Comandos por categoria: ${OWNER_BOT_CATEGORY_ORDER.filter((category) =>
+          profile.categories.includes(category)
+        )
+          .map((category) => OWNER_BOT_CATEGORY_LABELS[category].toLowerCase())
+          .join(", ")}.`,
         "Envie \"ajuda <categoria>\" para ver exemplos (ex.: \"ajuda financeiro\").",
       ];
 

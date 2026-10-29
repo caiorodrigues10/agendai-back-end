@@ -8,6 +8,7 @@ import {
 	IListAppointmentsQuery,
 	IAvailabilitySlotDTO,
 	AppointmentStatus,
+	AppointmentModality,
 } from '../../dtos/IAppointmentDTO'
 
 type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
@@ -39,6 +40,11 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 		clientPackageId: record.clientPackageId ?? null,
 		petId: record.petId ?? null,
 		petName: record.petName ?? null,
+		caseId: record.caseId ?? null,
+		caseName: record.caseName ?? null,
+		practiceArea: record.practiceArea ?? null,
+		modality: record.modality as AppointmentModality,
+		meetingLink: record.meetingLink ?? null,
 		reminderSentAt: record.reminderSentAt ?? null,
 		createdAt: record.createdAt,
 		updatedAt: record.updatedAt,
@@ -95,6 +101,11 @@ export class AppointmentRepository implements IAppointmentRepository {
 			clientPackageId: data.clientPackageId ?? null,
 			petId: data.petId ?? null,
 			petName: data.petName ?? null,
+			caseId: data.caseId ?? null,
+			caseName: data.caseName ?? null,
+			practiceArea: data.practiceArea ?? null,
+			modality: data.modality ?? 'IN_PERSON',
+			meetingLink: data.meetingLink ?? null,
 			source: data.source ?? 'APP',
 		},
 			include,
@@ -167,6 +178,11 @@ export class AppointmentRepository implements IAppointmentRepository {
 				...(data.date !== undefined && { date: new Date(data.date) }),
 				...(data.time !== undefined && { time: data.time }),
 				...(data.status !== undefined && { status: data.status }),
+				...(data.caseId !== undefined && { caseId: data.caseId }),
+				...(data.caseName !== undefined && { caseName: data.caseName }),
+				...(data.practiceArea !== undefined && { practiceArea: data.practiceArea }),
+				...(data.modality !== undefined && { modality: data.modality }),
+				...(data.meetingLink !== undefined && { meetingLink: data.meetingLink }),
 			},
 			include,
 		})

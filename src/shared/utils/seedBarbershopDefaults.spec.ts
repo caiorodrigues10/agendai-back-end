@@ -85,6 +85,47 @@ describe("seedBarbershopDefaults", () => {
     ).toBe(true);
   });
 
+  it("LAW_FIRM usa o catálogo de advocacia e não semeia marketing/fidelidade/promocional", async () => {
+    const { db } = createFakeSeedDb();
+
+    await seedBarbershopDefaults(db, SHOP, "LAW_FIRM");
+
+    // Catálogo de advocacia: Consultoria e Contencioso
+    const categoryNames = db.serviceCategory.rows.map((r: any) => r.name);
+    expect(categoryNames).toEqual(expect.arrayContaining(["Consultoria", "Contencioso"]));
+    expect(categoryNames).not.toContain("Cortes");
+
+    const serviceNames = db.service.rows.map((r: any) => r.name);
+    expect(serviceNames).toEqual(
+      expect.arrayContaining(["Consulta inicial", "Acompanhamento de processo"]),
+    );
+    expect(serviceNames).not.toContain("Barba");
+
+    // Horário do escritório: segunda a sexta (fim de semana fechado)
+    expect(db.schedule.rows).toHaveLength(7);
+    const openDays = db.schedule.rows.filter((r: any) => r.isOpen).map((r: any) => r.dayOfWeek);
+    expect(openDays).toEqual([1, 2, 3, 4, 5]);
+
+    // Sem despesa de marketing
+    const expenseNames = db.expenseCategory.rows.map((r: any) => r.name);
+    expect(expenseNames).toEqual(expect.arrayContaining(["Aluguel", "Salários"]));
+    expect(expenseNames).not.toContain("Marketing");
+
+    // Fidelidade nasce inativa
+    expect(db.loyaltyProgram.rows[0].isActive).toBe(false);
+
+    // Notificações promocionais desligadas
+    const disabled = db.notificationPreference.rows
+      .filter((r: any) => r.enabled === false)
+      .map((r: any) => r.type);
+    expect(disabled).toContain("NPS_SURVEY");
+    expect(
+      db.notificationPreference.rows.filter(
+        (r: any) => r.type === "APPOINTMENT_REMINDER" && r.enabled === true,
+      ),
+    ).toHaveLength(1);
+  });
+
   it("segunda execução é idempotente (não duplica nada)", async () => {
     const { db } = createFakeSeedDb();
 

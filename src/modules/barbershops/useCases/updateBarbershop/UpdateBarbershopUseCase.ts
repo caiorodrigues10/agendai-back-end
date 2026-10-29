@@ -5,6 +5,7 @@ import { IBarbershopResponseDTO } from "../../dtos/IBarbershopResponseDTO";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { resolveAudienceForSegment, normalizeSegmentOther } from "@/shared/segments";
 import { assertShopAccess, type RequestingUser } from "../../utils/assertShopAccess";
+import { invalidateSegmentCache } from "@/shared/segments/segmentCache";
 
 @injectable()
 export class UpdateBarbershopUseCase {
@@ -76,6 +77,15 @@ export class UpdateBarbershopUseCase {
       }
     }
 
-    return this.barbershopRepository.update(id, resolved);
+    const updated = await this.barbershopRepository.update(id, resolved);
+
+    // O gate por segmento lê o segmento do cache: trocar o segmento tem que
+    // invalidar a entrada, senão o painel esconde/mostra a aba errada por
+    // até 60s.
+    if (data.businessSegment !== undefined) {
+      invalidateSegmentCache(id);
+    }
+
+    return updated;
   }
 }

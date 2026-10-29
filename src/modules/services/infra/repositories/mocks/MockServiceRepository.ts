@@ -20,7 +20,8 @@ export class MockServiceRepository implements IServiceRepository {
       icon: payload.icon,
       createdAt: now,
       active: true,
-      commissionPercent: payload.commissionPercent ?? 0
+      commissionPercent: payload.commissionPercent ?? 0,
+      publicBookable: payload.publicBookable ?? true
     };
     this.data.push(entity);
     return entity;
@@ -30,9 +31,14 @@ export class MockServiceRepository implements IServiceRepository {
     return this.data.find((s) => s.id === id && (!barbershopId || s.barbershopId === barbershopId)) ?? null;
   }
 
-  async list(barbershopId?: string): Promise<IServiceResponseDTO[]> {
+  async list(
+    barbershopId?: string,
+    options?: { includeInternal?: boolean }
+  ): Promise<IServiceResponseDTO[]> {
     if (!barbershopId) return [];
-    return this.data.filter((s) => s.barbershopId === barbershopId);
+    return this.data.filter(
+      (s) => s.barbershopId === barbershopId && (options?.includeInternal || s.publicBookable)
+    );
   }
 
   async update(id: string, payload: IUpdateServiceDTO): Promise<IServiceResponseDTO> {

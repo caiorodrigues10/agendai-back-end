@@ -457,6 +457,78 @@ describe("OwnerBotService", () => {
     expect(sent.join(" ")).toContain("cancelado");
   });
 
+  it("encerrar atendimento pergunta valor e forma de pagamento quando há cobrança", async () => {
+    const actions = makeActions({
+      listAppointments: vi.fn(async () => [
+        {
+          id: "appt-1",
+          barbershopId: "shop-1",
+          serviceId: "service-1",
+          staffId: null,
+          customerName: "Joana",
+          whatsapp: OTHER_PHONE,
+          date: new Date("2026-10-27T00:00:00Z"),
+          time: "10:30",
+          status: "CHECKED_IN" as const,
+          serviceName: "Consulta",
+          servicePrice: 350,
+          staffName: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    });
+    const { service, sent } = buildService({ repo: makeRepo(), actions });
+
+    await service.handleIncoming({ messageId: "m1", phone: OWNER_PHONE, text: "encerrar atendimento" });
+    await service.handleIncoming({ messageId: "m2", phone: OWNER_PHONE, text: "1" });
+
+    expect(sent.join(" ")).toContain("Qual o valor do atendimento");
+    expect(actions.completeAppointment).not.toHaveBeenCalled();
+
+    await service.handleIncoming({ messageId: "m3", phone: OWNER_PHONE, text: "350" });
+    expect(sent.join(" ")).toContain("Forma de pagamento");
+    expect(actions.completeAppointment).not.toHaveBeenCalled();
+
+    await service.handleIncoming({ messageId: "m4", phone: OWNER_PHONE, text: "pix" });
+
+    expect(actions.completeAppointment).toHaveBeenCalledWith(
+      "appt-1",
+      expect.objectContaining({ barbershopId: "shop-1" }),
+      { finalPrice: 350, paymentMethod: "pix" }
+    );
+  });
+
+  it("encerrar atendimento sem cobrança não pergunta valor", async () => {
+    const actions = makeActions({
+      listAppointments: vi.fn(async () => [
+        {
+          id: "appt-1",
+          barbershopId: "shop-1",
+          serviceId: "service-1",
+          staffId: null,
+          customerName: "Joana",
+          whatsapp: OTHER_PHONE,
+          date: new Date("2026-10-27T00:00:00Z"),
+          time: "10:30",
+          status: "CHECKED_IN" as const,
+          serviceName: "Consulta inicial",
+          servicePrice: 0,
+          staffName: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    });
+    const { service, sent } = buildService({ repo: makeRepo(), actions });
+
+    await service.handleIncoming({ messageId: "m1", phone: OWNER_PHONE, text: "encerrar atendimento" });
+    await service.handleIncoming({ messageId: "m2", phone: OWNER_PHONE, text: "1" });
+
+    expect(sent.join(" ")).not.toContain("Qual o valor do atendimento");
+    expect(sent.join(" ")).toContain("Confirma");
+  });
+
   it("registra a ação executada na auditoria", async () => {
     const repo = makeRepo();
     const { service } = buildService({ repo });

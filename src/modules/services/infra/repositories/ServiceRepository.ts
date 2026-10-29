@@ -18,7 +18,8 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
-        ,commissionPercent: true
+        ,commissionPercent: true,
+        publicBookable: true
       }
     });
   }
@@ -35,14 +36,21 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
-        ,commissionPercent: true
+        ,commissionPercent: true,
+        publicBookable: true
       }
     });
   }
-  async list(barbershopId?: string): Promise<IServiceResponseDTO[]> {
+  async list(
+    barbershopId?: string,
+    options?: { includeInternal?: boolean }
+  ): Promise<IServiceResponseDTO[]> {
     if (!barbershopId) return [];
     return prisma.service.findMany({
-      where: { barbershopId },
+      where: {
+        barbershopId,
+        ...(options?.includeInternal ? {} : { publicBookable: true }),
+      },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -54,7 +62,8 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
-        ,commissionPercent: true
+        ,commissionPercent: true,
+        publicBookable: true
       }
     });
   }
@@ -72,7 +81,8 @@ export class ServiceRepository implements IServiceRepository {
         icon: true,
         createdAt: true,
         active: true
-        ,commissionPercent: true
+        ,commissionPercent: true,
+        publicBookable: true
       }
     });
   }

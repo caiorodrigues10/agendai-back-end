@@ -91,6 +91,7 @@ export type OwnerBotFlowStep =
   | "CLIENT_PHONE"
   | "CONFIRM"
   | "AMOUNT"
+  | "PAYMENT"
   | "TEXT"
   | "WAITLIST_DATE"
   | "WAITLIST_TIME"
@@ -135,7 +136,10 @@ export type OwnerBotListKind =
   | "COMMANDS"
   | "EXPENSES"
   | "FIADOS"
-  | "PRODUCTS";
+  | "PRODUCTS"
+  | "DEADLINES"
+  | "TASKS"
+  | "INTIMATIONS";
 
 export type OwnerBotListItem = {
   id: string;

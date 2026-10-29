@@ -17,8 +17,8 @@ export const agendaCommands: OwnerBotCommand[] = [
     category: "AGENDA",
     risk: "READ",
     triggers: [
-      /\b(agenda|horarios|atendimentos|servicos|consultas|banhos|ordens|aulas|lavagens|sessoes)\b.*\b(hoje|de hoje|de hj)\b/,
-      /\b(hoje|de hoje|de hj)\b.*\b(agenda|horarios|atendimentos|clientes|pacientes|tutores|alunos)\b/,
+      /\b(agenda|horarios|atendimentos|servicos|consultas|banhos|ordens|aulas|lavagens|sessoes|audiencias)\b.*\b(hoje|de hoje|de hj)\b/,
+      /\b(hoje|de hoje|de hj)\b.*\b(agenda|horarios|atendimentos|clientes|pacientes|tutores|alunos|audiencias)\b/,
       /\bver (a )?agenda\b/,
       /\bminha agenda\b/,
       /^agenda$/,
@@ -65,7 +65,7 @@ export const agendaCommands: OwnerBotCommand[] = [
     category: "AGENDA",
     risk: "READ",
     triggers: [
-      /\b(agenda|horarios|atendimentos|clientes)\b.*\b(semana|proximos 7|7 dias)\b/,
+      /\b(agenda|horarios|atendimentos|clientes|audiencias)\b.*\b(semana|proximos 7|7 dias)\b/,
       /\bsemana (que vem|proxima)\b/,
     ],
     keywords: ["agenda", "semana"],

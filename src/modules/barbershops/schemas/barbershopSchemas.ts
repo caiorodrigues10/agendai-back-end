@@ -3,6 +3,10 @@ import { BusinessSegment, OpeningMode, TargetAudience } from "@prisma/client";
 import { isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
 import { segmentAudienceError, segmentOtherError } from "@/shared/segments";
 import { buildSocialLinksUpdate } from "@/modules/barbershops/utils/socialLinks";
+import {
+  isValidOabRegistration,
+  normalizeOabRegistration,
+} from "@/modules/barbershops/utils/oabRegistration";
 
 const phoneBR = z
   .string()
@@ -78,6 +82,23 @@ export const updateBarbershopSchema = z
         }
       })
       .transform((value) => (value ? buildSocialLinksUpdate(value).links : undefined)),
+    // Áreas de atuação do escritório: tags livres configuráveis em
+    // Configurações. Aparecem no perfil público e classificam atendimentos.
+    practiceAreas: z
+      .array(z.string().min(1).max(60))
+      .max(20, "Máximo de 20 áreas de atuação")
+      .optional(),
+    // Registro na OAB do estabelecimento: texto livre opcional com validação
+    // leve de formato (UF + número). Sem consulta externa.
+    oabRegistration: z
+      .string()
+      .max(40)
+      .nullable()
+      .optional()
+      .refine((value) => !value || isValidOabRegistration(value), {
+        message: "Registro da OAB inválido (use o formato SP 123456)",
+      })
+      .transform((value) => (value ? normalizeOabRegistration(value) : value)),
   })
   // Mesma regra do cadastro: trocar o segmento para PETSHOP não pode deixar
   // um público antigo colado no registro.

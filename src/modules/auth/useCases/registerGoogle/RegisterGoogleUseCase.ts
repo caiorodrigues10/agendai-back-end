@@ -19,6 +19,7 @@ import { validateEmail } from "@/shared/services/emailValidationService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { seedBarbershopDefaults } from "@/shared/utils/seedBarbershopDefaults";
 import { getSegmentConfig, resolveAudienceForSegment, normalizeSegmentOther } from "@/shared/segments";
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 import type { BusinessSegment, TargetAudience } from "@prisma/client";
 import { geocodeCity } from "@/shared/services/geocodeCity";
 import { issueAuthSession } from "../../services/issueAuthSession";
@@ -141,10 +142,13 @@ export class RegisterGoogleUseCase {
       }
     }
 
+    // Segmento do cadastro: define catálogo, horário, modo e o que o
+    // estabelecimento pode divulgar (advertisingRestricted).
+    const segment = data.businessSegment ?? "BARBERSHOP";
+
     let user;
     try {
       user = await prisma.$transaction(async (tx: any) => {
-        const segment = data.businessSegment ?? "BARBERSHOP";
         const targetAudience = resolveAudienceForSegment(segment, data.targetAudience);
         const segmentOther = normalizeSegmentOther(data.businessSegment, data.businessSegmentOther);
 
@@ -201,7 +205,7 @@ export class RegisterGoogleUseCase {
       throw mapUniqueConstraintError(error) ?? error;
     }
 
-    if (user.barbershopId) {
+    if (user.barbershopId && !isAdvertisingRestricted(segment)) {
       await ensureReferralCode({
         ownerUserId: user.id,
         barbershopId: user.barbershopId,

@@ -22,6 +22,12 @@ import { CreateSalonClientUseCase } from "@/modules/clients/useCases/clientUseCa
 import { UpdateSalonClientUseCase } from "@/modules/clients/useCases/clientUseCases";
 import { DeleteSalonClientUseCase } from "@/modules/clients/useCases/clientUseCases";import { ListCrmClientsUseCase } from "@/modules/crm/useCases/crmUseCases";
 import { GetCrmClientUseCase } from "@/modules/crm/useCases/crmUseCases";
+import {
+  ListDeadlinesUseCase,
+  ListOpenCaseTasksUseCase,
+  GetCasePipelineUseCase,
+} from "@/modules/cases/useCases/caseManagementUseCases";
+import { ListIntimationsUseCase } from "@/modules/cases/useCases/caseBacklogUseCases";
 import { CreateExpenseUseCase } from "@/modules/expenses/useCases/expenseUseCases";
 import { DeleteExpenseUseCase } from "@/modules/expenses/useCases/expenseUseCases";
 import { ListExpensesUseCase } from "@/modules/expenses/useCases/expenseUseCases";
@@ -53,6 +59,8 @@ import { sendWhatsAppMessageDetailed } from "@/shared/services/evolutionApiServi
 import { enqueueWhatsApp } from "@/shared/infra/queue/whatsappQueue";
 import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 import { updateOwnerBotPreferences } from "./ownerBotPreferences";
+import { getBusinessSegment } from "@/shared/segments/segmentCache";
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 import type { ICommissionRepository } from "@/modules/commissions/repositories/ICommissionRepository";
 import type { IAppointmentResponseDTO } from "@/modules/appointments/dtos/IAppointmentDTO";
 import type { IQueueItemResponseDTO } from "@/modules/queue/dtos/IQueueItemResponseDTO";
@@ -60,6 +68,19 @@ import type { IExpenseResponseDTO, IExpenseSummary } from "@/modules/expenses/dt
 import type { IFiadoResponseDTO, IFiadoSummary } from "@/modules/fiado/dtos/IFiadoDTO";
 import type { IServiceResponseDTO } from "@/modules/services/dtos/IServiceResponseDTO";
 import type { ISalonClientResponseDTO } from "@/modules/clients/dtos/ISalonClientDTO";
+
+/**
+ * Remove os dados de caso/processo do agendamento antes de ele chegar ao
+ * assistente. O dono vê cliente, horário e tipo do atendimento — a área de
+ * atuação, o número do processo e o apelido do caso ficam no painel.
+ */
+function stripCaseData(
+  appointment: IAppointmentResponseDTO
+): IAppointmentResponseDTO {
+  const { caseId: _caseId, caseName: _caseName, practiceArea: _practiceArea, ...rest } =
+    appointment;
+  return rest as IAppointmentResponseDTO;
+}
 
 /**
  * Ações que o assistente pode executar.
@@ -138,7 +159,11 @@ export interface OwnerBotActions {
     actor: OwnerBotActor
   ): Promise<IAppointmentResponseDTO>;
   checkIn(appointmentId: string, actor: OwnerBotActor): Promise<{ queueItemId: string }>;
-  completeAppointment(appointmentId: string, actor: OwnerBotActor): Promise<unknown>;
+  completeAppointment(
+    appointmentId: string,
+    actor: OwnerBotActor,
+    options?: { finalPrice?: number; paymentMethod?: string }
+  ): Promise<unknown>;
   markNoShow(appointmentId: string, actor: OwnerBotActor): Promise<unknown>;
   joinQueue(
     input: {
@@ -208,6 +233,54 @@ export interface OwnerBotActions {
     clientId: string,
     actor: OwnerBotActor
   ): Promise<Record<string, unknown>>;
+
+  // ─── Processos (segmento LAW_FIRM) ─────────────────────────────────────────
+  /**
+   * Prazos próximos do escritório. Sem dados de caso: só título, data e
+   * dias úteis restantes (o assistente é um canal de mensagem — o sigilo
+   * do processo vale aqui também).
+   */
+  listUpcomingDeadlines(
+    barbershopId: string,
+    options?: { days?: number; limit?: number }
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      dueDate: string;
+      daysRemaining: number | null;
+      type: string;
+    }>
+  >;
+  /** Tarefas abertas do escritório (sem identificador de caso). */
+  listOpenCaseTasks(
+    barbershopId: string,
+    options?: { limit?: number }
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      dueDate: string | null;
+      priority: string;
+    }>
+  >;
+  /** Contadores do quadro de processos (por status). */
+  casePipeline(barbershopId: string): Promise<Record<string, number>>;
+  /**
+   * Intimações aguardando triagem. Sem dados de caso: só assunto, origem e
+   * data de recebimento (sigilo do processo vale aqui também).
+   */
+  listPendingIntimations(
+    barbershopId: string,
+    options?: { limit?: number }
+  ): Promise<
+    Array<{
+      id: string;
+      subject: string;
+      source: string;
+      receivedAt: string;
+    }>
+  >;
 
   // ─── Financeiro ────────────────────────────────────────────────────────────
   insights(
@@ -622,7 +695,9 @@ export function createOwnerBotActions(): OwnerBotActions {
         { page: 1, limit: 50, date },
         { role: "OWNER", barbershopId }
       );
-      return result.data;
+      // Sigilo: o assistente do dono enxerga cliente, horário e tipo — nunca
+      // área de atuação, número de processo ou dados do caso.
+      return result.data.map(stripCaseData);
     },
 
     async listAppointmentsRange(barbershopId, from, to) {
@@ -631,7 +706,61 @@ export function createOwnerBotActions(): OwnerBotActions {
         { page: 1, limit: 100, from, to },
         { role: "OWNER", barbershopId }
       );
-      return result.data;
+      return result.data.map(stripCaseData);
+    },
+
+    async listUpcomingDeadlines(barbershopId, options) {
+      const days = options?.days ?? 15;
+      const deadlines = await container
+        .resolve(ListDeadlinesUseCase)
+        .execute(
+          barbershopId,
+          { withinBusinessDays: days, limit: options?.limit ?? 10 },
+          { role: "OWNER", barbershopId }
+        );
+      // Sigilo do processo: o assistente não mostra apelido de caso, número
+      // de processo nem nome do cliente.
+      return deadlines.map((deadline) => ({
+        id: deadline.id,
+        title: deadline.title,
+        dueDate: new Date(deadline.dueDate).toISOString().slice(0, 10),
+        daysRemaining: deadline.daysRemaining ?? null,
+        type: deadline.type,
+      }));
+    },
+
+    async listOpenCaseTasks(barbershopId, options) {
+      return container
+        .resolve(ListOpenCaseTasksUseCase)
+        .execute(
+          barbershopId,
+          { limit: options?.limit ?? 10 },
+          { role: "OWNER", barbershopId }
+        );
+    },
+
+    async casePipeline(barbershopId) {
+      return container
+        .resolve(GetCasePipelineUseCase)
+        .execute(barbershopId, { role: "OWNER", barbershopId });
+    },
+
+    async listPendingIntimations(barbershopId, options) {
+      const intimations = await container
+        .resolve(ListIntimationsUseCase)
+        .execute(
+          barbershopId,
+          { status: "NEW", limit: options?.limit ?? 10 },
+          { role: "OWNER", barbershopId }
+        );
+      // Sigilo do processo: o assistente não mostra número de processo,
+      // apelido do caso nem o corpo da intimação.
+      return intimations.map((intimation) => ({
+        id: intimation.id,
+        subject: intimation.subject,
+        source: intimation.source,
+        receivedAt: new Date(intimation.receivedAt).toISOString().slice(0, 10),
+      }));
     },
 
     async listWaitingQueue(barbershopId) {
@@ -690,12 +819,14 @@ export function createOwnerBotActions(): OwnerBotActions {
       });
     },
 
-    async completeAppointment(appointmentId, actor) {
+    async completeAppointment(appointmentId, actor, options) {
       return container.resolve(CompleteAppointmentUseCase).execute({
         appointmentId,
         barbershopId: actor.barbershopId,
         userId: actor.userId,
         userRole: actor.role,
+        ...(options?.finalPrice !== undefined ? { finalPrice: options.finalPrice } : {}),
+        ...(options?.paymentMethod ? { paymentMethod: options.paymentMethod } : {}),
       });
     },
 
@@ -1177,6 +1308,12 @@ export function createOwnerBotActions(): OwnerBotActions {
 
     async sendCampaignToClients(barbershopId, recipients, message, options) {
       const repo = new OwnerBotRepository();
+      // Segmento com restrição de publicidade (ex.: advocacia): nada de
+      // mensagem em massa. O dono continua consultando a lista interna.
+      const segment = await getBusinessSegment(barbershopId);
+      if (isAdvertisingRestricted(segment)) {
+        return { sent: 0, failed: 0, skipped: recipients.length };
+      }
       const instanceName = await this.shopInstanceName(barbershopId);
       if (!instanceName) {
         return { sent: 0, failed: 0, skipped: recipients.length };

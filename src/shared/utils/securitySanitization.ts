@@ -13,7 +13,7 @@ const AUDIT_VALUE_ALLOWLIST = new Set([
   "format",
 ]);
 
-const SENSITIVE_KEY = /password|secret|token|authorization|cookie|credit.?card|card.?number|number|ccv|cvv|cpf|cnpj|tax.?id|document|recaptcha/i;
+const SENSITIVE_KEY = /password|secret|token|authorization|cookie|credit.?card|card.?number|number|ccv|cvv|cpf|cnpj|tax.?id|document|recaptcha|case.?id|case.?name|case.?number|nickname/i;
 
 export function sanitizeSensitivePayload(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitizeSensitivePayload);

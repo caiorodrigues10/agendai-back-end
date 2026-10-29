@@ -23,6 +23,7 @@ export type OwnerBotRiskClass = "READ" | "WRITE" | "SENSITIVE";
 export type OwnerBotCommandCategory =
   | "AGENDA"
   | "CLIENTES"
+  | "PROCESSOS"
   | "FINANCEIRO"
   | "EQUIPE"
   | "ESTOQUE"

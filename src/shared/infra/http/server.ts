@@ -26,6 +26,7 @@ import { scheduleDepositExpiration } from "@/modules/deposits/jobs/depositExpira
 import { scheduleWaitlistExpiration } from "@/modules/waitlist/jobs/waitlistExpirationJob";
 import { scheduleLateAppointmentsAlert } from "@/shared/infra/cron/lateAppointmentsAlert.cron";
 import { scheduleOwnerBotPush } from "@/shared/infra/cron/ownerBotPush.cron";
+import { scheduleDeadlineAlerts } from "@/shared/infra/cron/deadlineAlerts.cron";
 import {
   startWhatsAppWorker,
   startEmailWorker,
@@ -284,6 +285,7 @@ function registerCrons(log: CronLog): void {
     ['e-mails de lembrete', () => scheduleEmailReminders()],
     ['alertas de atraso de cliente', () => scheduleLateAppointmentsAlert(log)],
     ['push do assistente (briefing/resumo)', () => scheduleOwnerBotPush(log)],
+    ['alertas de vencimento de prazo', () => scheduleDeadlineAlerts(log)],
   ] as const;
 
   for (const [name, startJob] of jobs) {

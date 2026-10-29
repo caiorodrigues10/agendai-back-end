@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { OwnerBotPushService } from "./ownerBotPush";
 import type { OwnerBotActions } from "./ownerBotActions";
 import type { OwnerBotMessenger } from "./ownerBotMessenger";
+import type { BusinessSegment } from "@prisma/client";
 
 const SHOP = "shop-1";
 const OWNER = "551199999999";
@@ -83,6 +84,7 @@ function buildService(options: {
   actions?: OwnerBotActions;
   now?: Date;
   hasAccess?: boolean;
+  segment?: BusinessSegment | null;
 }) {
   const { messenger, sent } = makeMessenger();
   const repo = makeRepo(options.prefs ?? [prefRow()]);
@@ -94,6 +96,7 @@ function buildService(options: {
     hasAccess: vi.fn(async () => options.hasAccess ?? true),
     now: () => options.now ?? AT_BRIEFING_TIME,
     getTimezone: vi.fn(async () => "America/Sao_Paulo"),
+    getSegment: vi.fn(async () => options.segment ?? null),
   });
   return { service, sent, repo, actions, messenger };
 }
@@ -167,5 +170,58 @@ describe("OwnerBotPushService", () => {
     await service.runDuePushes();
 
     expect(sent[0].text).toContain("Agenda livre");
+  });
+
+  it("briefing do escritório conta audiências no vocabulário do segmento", async () => {
+    const actions = makeActions({
+      listAppointments: vi.fn(async () => [
+        {
+          id: "appt-1",
+          customerName: "Joana",
+          serviceName: "Audiência preliminar",
+          time: "10:30",
+          status: "CONFIRMED",
+          barbershopId: SHOP,
+          serviceId: "service-1",
+          staffId: null,
+          whatsapp: "5511888888888",
+          date: new Date("2026-10-28T00:00:00Z"),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "appt-2",
+          customerName: "Pedro",
+          serviceName: "Consulta inicial",
+          time: "14:00",
+          status: "CONFIRMED",
+          barbershopId: SHOP,
+          serviceId: "service-2",
+          staffId: null,
+          whatsapp: "5511877777777",
+          date: new Date("2026-10-28T00:00:00Z"),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]) as never,
+    });
+    const { service, sent } = buildService({ actions, segment: "LAW_FIRM" });
+
+    await service.runDuePushes();
+
+    expect(sent[0].text).toContain("Hoje você tem 2 atendimentos e 1 audiência");
+  });
+
+  it("resumo do escritório usa honorários e não fala de comissão", async () => {
+    const { service, sent } = buildService({
+      prefs: [prefRow({ briefingEnabled: false, summaryEnabled: true })],
+      now: AT_SUMMARY_TIME,
+      segment: "LAW_FIRM",
+    });
+
+    await service.runDuePushes();
+
+    expect(sent[0].text).toContain("Honorários");
+    expect(sent[0].text).not.toContain("Comissões");
   });
 });

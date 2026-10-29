@@ -31,6 +31,8 @@ export function buildSegmentParity() {
             suggestedOperationMode: config.suggestedOperationMode,
             complianceNote: config.complianceNote ?? null,
             auxiliaryProfile: config.auxiliaryProfile ?? null,
+            advertisingRestricted: config.advertisingRestricted ?? false,
+            features: config.features ?? [],
             catalog: config.catalog,
             schedulePreset: config.schedulePreset,
           },

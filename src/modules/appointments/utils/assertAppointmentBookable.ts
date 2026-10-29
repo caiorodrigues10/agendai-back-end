@@ -64,10 +64,21 @@ export async function assertAppointmentBookable(
       barbershopId: data.barbershopId,
       active: true,
     },
-    select: { id: true, avgTimeMinutes: true },
+    select: { id: true, avgTimeMinutes: true, publicBookable: true },
   });
   if (!service) {
     throw new AppError("Serviço inválido para este estabelecimento", 400);
+  }
+
+  // Serviço interno (audiência, diligência, despacho) não é agendável pelo
+  // cliente: o portal público recusa a reserva.
+  if (data.source === "PUBLIC" && !service.publicBookable) {
+    throw new AppError(
+      "Este atendimento não é disponível para agendamento público",
+      400,
+      undefined,
+      "SERVICE_NOT_PUBLICLY_BOOKABLE"
+    );
   }
 
   if (data.staffId) {

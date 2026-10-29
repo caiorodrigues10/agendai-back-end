@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
+  assertShopEligible,
   createSurveysForShop,
   getPublicSurvey,
   isShopEligible,
@@ -85,6 +86,37 @@ describe("npsService.isShopEligible", () => {
     expect(
       isShopEligible({ active: true, subscription: { status: "CANCELED", startDate: now } }, now),
     ).toEqual({ eligible: false, reason: "SUBSCRIPTION_NOT_ELIGIBLE" });
+  });
+});
+
+describe("npsService.assertShopEligible — restrição de publicidade", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("nega com 403 no segmento com restrição de publicidade", async () => {
+    prismaMock.barbershop.findUnique.mockResolvedValue({
+      id: ACTIVE_SHOP.id,
+      name: "Escritório",
+      active: true,
+      businessSegment: "LAW_FIRM",
+      subscriptions: [{ status: "ACTIVE", startDate: new Date() }],
+    });
+
+    await expect(assertShopEligible(ACTIVE_SHOP.id)).rejects.toMatchObject({
+      statusCode: 403,
+      code: "ADVERTISING_FEATURE_UNAVAILABLE",
+    });
+  });
+
+  it("aceita segmento sem restrição", async () => {
+    prismaMock.barbershop.findUnique.mockResolvedValue({
+      id: ACTIVE_SHOP.id,
+      name: "Barbearia Central",
+      active: true,
+      businessSegment: "BARBERSHOP",
+      subscriptions: [{ status: "ACTIVE", startDate: new Date() }],
+    });
+
+    await expect(assertShopEligible(ACTIVE_SHOP.id)).resolves.toMatchObject({ id: ACTIVE_SHOP.id });
   });
 });
 

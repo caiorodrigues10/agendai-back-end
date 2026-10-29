@@ -26,6 +26,13 @@ export type OwnerBotSegmentVocabulary = {
   clientsOfDay: string;
   /** Como chamar a ficha auxiliar (pet/veículo), quando existir. */
   auxiliaryNoun?: string;
+  /**
+   * Nome da audiência formal, quando o segmento tem ("audiência"). O
+   * briefing do dia conta essas audiências pelo nome do atendimento.
+   */
+  hearingNoun?: string;
+  /** Palavras que marcam audiência no nome do atendimento. */
+  hearingKeywords?: string[];
 };
 
 export type OwnerBotSegmentProfile = {
@@ -39,6 +46,22 @@ export type OwnerBotSegmentProfile = {
   auxiliaryProfile?: "pet" | "vehicle";
   /** Aviso obrigatório nos segmentos de saúde (não é prontuário). */
   complianceNote?: string;
+  /**
+   * Exemplos por comando, no tom do segmento. A "ajuda" mostra estes
+   * exemplos em vez dos genéricos ("marcar corte amanhã às 10h" vira
+   * "marcar audiência amanhã às 10h" no escritório).
+   */
+  examples?: Record<string, string[]>;
+  /**
+   * Comandos que não existem neste segmento (fila e lista de espera em
+   * escritório, comissões onde o repository é honorário, cupom promocional).
+   */
+  hiddenCommands?: string[];
+  /**
+   * Descrições por comando, no tom do segmento ("Próximo cliente da fila"
+   * vira "Próximo cliente na agenda" no escritório).
+   */
+  descriptions?: Record<string, string>;
   /** Vocabulário próprio do segmento. */
   vocabulary: OwnerBotSegmentVocabulary;
 };
@@ -63,6 +86,20 @@ const HEALTH_CAPABILITIES: OwnerBotCapability[] = [
   "NO_SHOW",
 ];
 
+/**
+ * Escritório: agenda pura, mas com check-in e encerramento do atendimento
+ * ("o cliente chegou", "encerrar atendimento"). Sem fila e sem walk-in.
+ */
+const OFFICE_CAPABILITIES: OwnerBotCapability[] = [
+  "SCHEDULE",
+  "AGENDA",
+  "CANCEL",
+  "RESCHEDULE",
+  "CHECK_IN",
+  "COMPLETE",
+  "NO_SHOW",
+];
+
 const COMPLIANCE_NOTE =
   "O assistente organiza agenda e relacionamento com clientes. Não é prontuário clínico e não substitui documentação profissional regulada.";
 
@@ -84,6 +121,16 @@ const BASE_CATEGORIES: OwnerBotCommandCategory[] = [
   "OPERACAO",
   "CONTA",
 ];
+
+/**
+ * Categorias sem publicidade: o escritório não recebe menu de marketing
+ * (sem campanha, sem pedido de avaliação, sem nota média pública). A
+ * consulta interna de clientes que não voltam continua existindo — é lista
+ * para o dono, não disparo ao cliente.
+ */
+const NO_ADVERTISING_CATEGORIES: OwnerBotCommandCategory[] = BASE_CATEGORIES.filter(
+  (category) => category !== "MARKETING"
+);
 
 const WITH_STOCK_CATEGORIES: OwnerBotCommandCategory[] = [...BASE_CATEGORIES, "ESTOQUE"];
 
@@ -235,6 +282,76 @@ export const OWNER_BOT_SEGMENT_PROFILES: Record<BusinessSegment, OwnerBotSegment
     FULL_CAPABILITIES,
     [...BASE_HIGHLIGHTS, "Consultar faturamento, caixa e comissões"],
     { todayNoun: "serviços de hoje", ticketUnit: "serviço", clientsOfDay: "clientes de hoje" }
+  ),
+  LAW_FIRM: profile(
+    OFFICE_CAPABILITIES,
+    [
+      "Ver os atendimentos de hoje",
+      "Ver as audiências da semana",
+      "Ver a agenda de amanhã",
+      "Agendar um novo horário",
+      "Cancelar ou remarcar um horário",
+      "Registrar que o cliente chegou",
+      "Encerrar atendimento e registrar o honorário",
+      "Consultar faturamento, caixa e honorários",
+      "Ver os próximos prazos do escritório",
+      "Ver as tarefas abertas dos processos",
+    ],
+    {
+      todayNoun: "atendimentos de hoje",
+      ticketUnit: "atendimento",
+      clientsOfDay: "clientes de hoje",
+      hearingNoun: "audiência",
+      hearingKeywords: ["audiencia"],
+    },
+    {
+      categories: [...NO_ADVERTISING_CATEGORIES, "PROCESSOS"],
+      hiddenCommands: [
+        // Escritório não tem fila nem lista de espera.
+        "queue.status",
+        "waitlist.list",
+        "waitlist.offer",
+        "waitlist.remove",
+        // Repository de honorários: sem comissão por atendimento.
+        "fin.commissions",
+        "team.commission",
+        // Cupom é promoção: fora do segmentos com restrição de publicidade.
+        "fin.vouchers",
+      ],
+      complianceNote:
+        "O assistente organiza agenda, clientes e honorários. Não substitui a análise jurídica: valide com um advogado e com as regras da OAB aplicáveis qualquer conteúdo que você divulgar.",
+      // Exemplos no tom do escritório — a "ajuda" não fala de corte nem de fila.
+      descriptions: {
+        "agenda.today": "Ver os atendimentos de hoje",
+        "agenda.week": "Ver as audiências da semana",
+        "agenda.next": "Próximo cliente na agenda",
+        "agenda.free": "Horários livres",
+        "appointment.schedule": "Agendar um novo horário",
+        "appointment.checkin": "Registrar que o cliente chegou",
+        "appointment.complete": "Encerrar atendimento",
+        "case.deadlines": "Ver os próximos prazos",
+        "case.tasks": "Ver as tarefas abertas",
+        "case.pipeline": "Resumo dos processos",
+      },
+      examples: {
+        "agenda.today": ["atendimentos de hoje", "o que tenho hoje"],
+        "agenda.week": ["audiências da semana", "agenda dos próximos 7 dias"],
+        "agenda.next": ["próximo cliente", "quem é o próximo"],
+        "agenda.free": ["agenda de amanhã", "horários livres amanhã"],
+        "agenda.late": ["clientes atrasados", "quem ainda não chegou"],
+        "appointment.schedule": ["agendar um horário", "marcar audiência amanhã às 10h"],
+        "appointment.cancel": ["cancelar o horário das 10h"],
+        "appointment.reschedule": ["remarcar o horário do Pedro"],
+        "appointment.checkin": ["o cliente chegou", "check-in da Maria"],
+        "appointment.complete": ["encerrar atendimento", "finalizei a audiência do João"],
+        "appointment.noshow": ["marcar falta do Pedro", "a Maria não veio"],
+        "client.reminder": ["reenviar lembrete do horário de hoje"],
+        "client.inactive": ["quem não vem há 45 dias", "clientes que não voltam"],
+        "case.deadlines": ["quais os prazos", "prazos dos próximos 15 dias"],
+        "case.tasks": ["quais as tarefas", "o que falta fazer"],
+        "case.pipeline": ["quantos processos tenho", "resumo dos processos"],
+      },
+    }
   ),
   OTHER: profile(
     FULL_CAPABILITIES,

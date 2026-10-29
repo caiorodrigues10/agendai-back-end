@@ -23,6 +23,7 @@ export const SEGMENT_LABEL_KEYS = [
   "queue",
   "appointment",
   "staff",
+  "revenue",
 ] as const;
 
 export type SegmentLabelKey = (typeof SEGMENT_LABEL_KEYS)[number];
@@ -38,7 +39,7 @@ export type SegmentCatalogService = {
 };
 
 /** Grupos exibidos no cadastro. `other` sempre por último. */
-export const SEGMENT_GROUPS = ["beauty", "wellness", "health", "pet", "automotive", "services", "other"] as const;
+export const SEGMENT_GROUPS = ["beauty", "wellness", "health", "pet", "automotive", "professional", "services", "other"] as const;
 export type SegmentGroup = (typeof SEGMENT_GROUPS)[number];
 
 /** Rótulos de grupo (front espelha; paridade compara só segmentos/labels). */
@@ -48,11 +49,21 @@ export const SEGMENT_GROUP_LABELS: Record<SegmentGroup, string> = {
   health: "Saúde",
   pet: "Pet",
   automotive: "Automotivo",
+  professional: "Serviços profissionais",
   services: "Outros serviços",
   other: "Outros",
 };
 
-export type SegmentAuxiliaryProfile = "pet" | "vehicle";
+export type SegmentAuxiliaryProfile = "pet" | "vehicle" | "case";
+
+/**
+ * Features opcionais do segmento. Declaradas aqui para que front e back
+ * decidam o mesmo por configuração — nunca por `if (segment === ...)`.
+ *
+ * - `caseManagement`: tela de gestão de processos (pipeline, tarefas,
+ *   prazos, andamentos, documentos) — existe no escritório de advocacia.
+ */
+export type SegmentFeature = "caseManagement";
 
 export type SegmentConfig = {
   segment: BusinessSegment;
@@ -74,10 +85,24 @@ export type SegmentConfig = {
    */
   complianceNote?: string;
   /**
-   * Ficha auxiliar opcional do cliente: `pet` (reusa o MVP de pets) ou
-   * `vehicle` (placa/modelo na ficha). Ausente = nenhuma.
+   * Ficha auxiliar opcional do cliente: `pet` (reusa o MVP de pets),
+   * `vehicle` (placa/modelo na ficha) ou `case` (caso/processo, no mesmo
+   * molde de pet e veículo). Ausente = nenhuma.
    */
   auxiliaryProfile?: SegmentAuxiliaryProfile;
+  /** Features opcionais do segmento (ex.: gestão de processos). */
+  features?: SegmentFeature[];
+  /**
+   * Restrição de publicidade: o segmento não faz divulgação comercial.
+   *
+   * Quando true, o produto desliga para o estabelecimento: campanhas do
+   * assistente, pedido de avaliação, NPS, indicações (referrals), fidelidade
+   * (loyalty), preços públicos e menções a nota/reputação. A consulta interna
+   * do dono ("quem não vem há X dias") continua existindo — é lista, não
+   * disparo ao cliente. Usado na advocacia, onde a divulgação de
+   * resultados e a captação agressiva são desaconselhadas.
+   */
+  advertisingRestricted?: boolean;
   catalog: {
     serviceCategories: SegmentCatalogCategory[];
     services: SegmentCatalogService[];
@@ -137,6 +162,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "MASCULINO" },
     suggestedOperationMode: "QUEUE_ONLY",
@@ -177,6 +203,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "UNISSEX" },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -220,6 +247,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "FEMININO" },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -263,6 +291,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     // Em petshop não há público por gênero: quem agenda é o tutor, o pet é o
     // atendido. A coluna fica nula.
@@ -311,6 +340,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "FEMININO" },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -346,6 +376,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "FEMININO" },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -382,6 +413,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "FEMININO" },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -417,6 +449,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "UNISSEX" },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -452,6 +485,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: true, suggested: "FEMININO" },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -489,6 +523,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -528,6 +563,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -566,6 +602,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -600,6 +637,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "HYBRID",
@@ -638,6 +676,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "HYBRID",
@@ -676,6 +715,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -714,6 +754,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -750,6 +791,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -786,6 +828,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -819,6 +862,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "APPOINTMENTS_ONLY",
@@ -852,6 +896,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "HYBRID",
@@ -888,6 +933,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     targetAudience: { applies: false, suggested: null },
     suggestedOperationMode: "HYBRID",
@@ -903,6 +949,58 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       welcomeTitle: "Coloque sua empresa no ar",
       welcomeDescription: "Vamos preparar serviços e textos para os seus serviços domiciliares.",
       segmentSummary: "Vamos preparar serviços e textos para serviços domiciliares.",
+    },
+  },
+  LAW_FIRM: {
+    segment: "LAW_FIRM",
+    group: "professional",
+    labels: {
+      segmentLabel: "Advocacia",
+      shopNoun: "escritório",
+      shopNounPlural: "escritórios",
+      professional: "advogado(a)",
+      professionalPlural: "advogados(as)",
+      client: "cliente",
+      clientPlural: "clientes",
+      service: "atendimento",
+      servicePlural: "atendimentos",
+      queue: "fila",
+      appointment: "agenda",
+      staff: "equipe",
+      revenue: "Honorários",
+    },
+    // Escritório não pergunta público (a resposta seria o gênero do cliente,
+    // não do advogado) e não é prontuário: é agenda e relacionamento.
+    targetAudience: { applies: false, suggested: null },
+    suggestedOperationMode: "APPOINTMENTS_ONLY",
+    // Ficha auxiliar do cliente: caso/processo (apelido, área, nº do processo).
+    auxiliaryProfile: "case",
+    // Escritório tem gestão de processos (pipeline, tarefas, prazos,
+    // andamentos e documentos do caso).
+    features: ["caseManagement"],
+    // Escritório não divulga comercialmente: sem campanha, sem pedido de
+    // avaliação, sem NPS, sem indicação, sem preços públicos.
+    advertisingRestricted: true,
+    // Aviso exibido no cadastro e no assistente: o sistema organiza agenda,
+    // clientes e honorários — não substitui a análise jurídica.
+    complianceNote:
+      "O sistema organiza agenda, clientes e honorários. Não substitui a análise jurídica: valide com um advogado e com as regras da OAB aplicáveis qualquer conteúdo que você divulgar.",
+    catalog: {
+      serviceCategories: [
+        { name: "Consultoria", icon: "user" },
+        { name: "Contencioso", icon: "clipboard" },
+      ],
+      services: [
+        { name: "Consulta inicial", price: 0, avgTimeMinutes: 60, icon: "user", categoryName: "Consultoria" },
+        { name: "Acompanhamento de processo", price: 0, avgTimeMinutes: 60, icon: "clipboard", categoryName: "Contencioso" },
+      ],
+    },
+    schedulePreset: PRESET_MON_FRI,
+    onboarding: {
+      welcomeTitle: "Coloque seu escritório no ar",
+      welcomeDescription:
+        "Vamos preparar atendimentos, áreas de atuação e horários para o seu escritório.",
+      segmentSummary: "Vamos preparar atendimentos e textos para escritórios de advocacia.",
     },
   },
   OTHER: {
@@ -921,6 +1019,7 @@ export const SEGMENT_CONFIGS: Record<BusinessSegment, SegmentConfig> = {
       queue: "fila",
       appointment: "agenda",
       staff: "equipe",
+      revenue: "Faturamento",
     },
     // OUTRO é o modo padrão/genérico: sem público (não perguntamos gênero),
     // todos os módulos disponíveis, catálogo com um único serviço de exemplo
@@ -965,8 +1064,18 @@ export const ALL_SEGMENTS: BusinessSegment[] = [
   "PRIVATE_CLASSES",
   "TECH_SUPPORT",
   "HOME_SERVICES",
+  "LAW_FIRM",
   "OTHER",
 ];
+
+/** O segmento tem a feature? */
+export function hasSegmentFeature(
+  segment: BusinessSegment | null | undefined,
+  feature: SegmentFeature
+): boolean {
+  if (!segment) return false;
+  return getSegmentConfig(segment).features?.includes(feature) === true;
+}
 
 /** Segmentos agrupados para exibição no cadastro (ordem dos grupos + ordem interna). */
 export const SEGMENTS_BY_GROUP: Array<{ group: SegmentGroup; segments: BusinessSegment[] }> =

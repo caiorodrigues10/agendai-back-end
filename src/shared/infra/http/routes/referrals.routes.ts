@@ -3,6 +3,7 @@ import { authenticate } from '../middlewares/authenticate'
 import { authorize } from '../middlewares/authorize'
 import { checkSubscription } from '../middlewares/checkSubscription'
 import { setRlsContext } from '../middlewares/setRlsContext'
+import { advertisingGuard } from '../middlewares/advertisingGuard'
 import { ReferralsController } from '@/modules/referrals/controllers/ReferralsController'
 import { z } from 'zod'
 import { validateSchema } from '@/shared/utils/zodValidation'
@@ -17,6 +18,7 @@ export async function referralsRoutes(app: FastifyInstance) {
 				authenticate,
 				authorize(['OWNER', 'MASTER_ADMIN']),
 				checkSubscription,
+				advertisingGuard(),
 				setRlsContext,
 			],
 		},
@@ -30,6 +32,7 @@ export async function referralsRoutes(app: FastifyInstance) {
 				authenticate,
 				authorize(['OWNER', 'MASTER_ADMIN']),
 				checkSubscription,
+				advertisingGuard(),
 				setRlsContext,
 				validateSchema(z.object({ code: z.string().trim().min(4).max(32) })),
 			],

@@ -38,6 +38,8 @@ export const NOTIFICATION_TYPES = [
   "SUBSCRIPTION_RENEWAL_FAILED",
   "SUBSCRIPTION_TRIAL_ENDED",
   "DAILY_DIGEST",
+  "CASE_DEADLINE_ALERT",
+  "CASE_CONTRACT_SIGNATURE",
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -83,6 +85,8 @@ const LABELS: Record<NotificationType, string> = {
   SUBSCRIPTION_RENEWAL_FAILED: "Falha na renovação",
   SUBSCRIPTION_TRIAL_ENDED: "Período grátis encerrado",
   DAILY_DIGEST: "Resumo diário",
+  CASE_DEADLINE_ALERT: "Alerta de prazo (processo)",
+  CASE_CONTRACT_SIGNATURE: "Contrato para assinar (processo)",
 };
 
 const OWNER_CONFIGURABLE = new Set<NotificationType>([

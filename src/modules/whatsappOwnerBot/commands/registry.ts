@@ -1,5 +1,6 @@
 import { agendaCommands } from "./agendaCommands";
 import { clientCommands } from "./clientCommands";
+import { caseCommands } from "./caseCommands";
 import { financialCommands } from "./financialCommands";
 import { staffCommands } from "./staffCommands";
 import { inventoryCommands } from "./inventoryCommands";
@@ -21,6 +22,7 @@ import type { OwnerBotCommand, OwnerBotRiskClass } from "./types";
 export const OWNER_BOT_COMMANDS: OwnerBotCommand[] = [
   ...agendaCommands,
   ...clientCommands,
+  ...caseCommands,
   ...financialCommands,
   ...staffCommands,
   ...inventoryCommands,

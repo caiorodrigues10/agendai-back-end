@@ -19,6 +19,10 @@ export interface IUpdateBarbershopDTO {
   targetAudience?: TargetAudience | null;
   /** Redes sociais do dono: mapa rede → URL canônica. undefined não altera; null limpa. */
   socialLinks?: Record<string, string> | null;
+  /** Áreas de atuação do escritório (tags). undefined não altera; [] limpa. */
+  practiceAreas?: string[];
+  /** Registro na OAB (texto livre opcional, ex.: "SP 123456"). */
+  oabRegistration?: string | null;
   /** Nome da instância Evolution — gravado pelo pairing, não pelo PATCH genérico. */
   evolutionInstanceName?: string | null;
 }

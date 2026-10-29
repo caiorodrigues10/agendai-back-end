@@ -30,6 +30,7 @@ type ParityFile = {
       suggestedOperationMode: string;
       complianceNote: string | null;
       auxiliaryProfile: string | null;
+      advertisingRestricted: boolean;
       catalog: {
         serviceCategories: { name: string; icon: string }[];
         services: {
@@ -110,6 +111,9 @@ describe("segmentParity.json", () => {
       );
       expect(mirror.auxiliaryProfile ?? null, `${segment}: auxiliaryProfile`).toBe(
         config.auxiliaryProfile ?? null
+      );
+      expect(mirror.advertisingRestricted ?? false, `${segment}: advertisingRestricted`).toBe(
+        config.advertisingRestricted ?? false
       );
       expect(mirror.catalog, `${segment}: catalog`).toEqual(config.catalog);
       expect(mirror.schedulePreset, `${segment}: schedulePreset`).toEqual(config.schedulePreset);
@@ -286,6 +290,20 @@ describe("catálogo por segmento", () => {
         `${segment}: complianceNote ausente`
       ).toBeTruthy();
     }
+  });
+
+  it("advocacia carrega o aviso de validar com advogado/OAB antes de divulgar", () => {
+    const note = SEGMENT_CONFIGS.LAW_FIRM.complianceNote ?? "";
+    expect(note).toContain("advogado");
+    expect(note.toLowerCase()).toContain("oab");
+    expect(SEGMENT_CONFIGS.LAW_FIRM.advertisingRestricted).toBe(true);
+  });
+
+  it("só a advocacia restringe publicidade", () => {
+    const restricted = ALL_SEGMENTS.filter(
+      (segment) => SEGMENT_CONFIGS[segment].advertisingRestricted === true
+    );
+    expect(restricted).toEqual(["LAW_FIRM"]);
   });
 
   it("PETSHOP cobre o catálogo pedido: banho, tosa, cuidados", () => {

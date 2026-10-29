@@ -278,11 +278,16 @@ export async function buildApp() {
       await prisma.auditLog.create({
         data: {
           userId: (request.user as any).id,
-          action: `${request.method} ${request.url.split("?")[0]}`,
-          resource: request.url.split("/")[2] || "API",
-          resourceId: (request.params as any)?.id || null,
+          // As colunas do audit_log são VarChar(100)/(50): caminhos longos
+          // (rotas com vários uuids) estourariam o limite e a auditoria
+          // seria perdida silenciosamente.
+          action: `${request.method} ${request.url.split("?")[0]}`.slice(0, 100),
+          resource: (request.url.split("/")[2] || "API").slice(0, 100),
+          resourceId: (request.params as any)?.id
+            ? String((request.params as any).id).slice(0, 100)
+            : null,
           details: buildSafeAuditDetails(request.body),
-          ipAddress: request.ip,
+          ipAddress: request.ip?.slice(0, 50),
           barbershopId: shopIdFromRequest(request),
         },
       });

@@ -19,6 +19,8 @@ import { contactRoutes } from './contact.routes'
 import { referralsRoutes } from './referrals.routes'
 import { postsRoutes } from './posts.routes'
 import { clientsRoutes } from './clients.routes'
+import { casesRoutes } from '@/modules/cases/routes/cases.routes'
+import { caseBacklogRoutes } from '@/modules/cases/routes/caseBacklog.routes'
 import { packagesRoutes } from './packages.routes'
 import { commissionsRoutes } from './commissions.routes'
 import { crmRoutes } from './crm.routes'
@@ -87,6 +89,8 @@ export async function apiRoutes(app: FastifyInstance) {
 	await referralsRoutes(app)
 	await postsRoutes(app)
 	await clientsRoutes(app)
+	await casesRoutes(app)
+	await caseBacklogRoutes(app)
 	await packagesRoutes(app)
 	await commissionsRoutes(app)
 	await crmRoutes(app)

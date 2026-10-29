@@ -16,6 +16,17 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Fila | `/queue` | `QueueItem` |
 | Agenda | `/appointments` | `Appointment` (campo `source`: `APP`, `PUBLIC` ou `WHATSAPP_OWNER_BOT`) |
 | Clientes / CRM | `/clients`, `/crm` | `SalonClient` + agregações CRM |
+| Casos do cliente (advocacia) | `/clients/:id/cases` | `ClientCase` (apelido, área de atuação, nº do processo, situação, prioridade, tribunal, valores, responsável) — restrito à equipe |
+| Gestão de processos (escritório) | `/cases` (pipeline, relatórios por área), `/cases/deadlines`, `/cases/holidays`, `/cases/:caseId/{overview,tasks,deadlines,events,documents}` | `ClientCase` + `CaseTask`, `CaseDeadline`, `CaseEvent`, `CaseDocument`, `OfficeHoliday` — interno do escritório, exige feature `caseManagement` do segmento |
+| Contratos e assinaturas (escritório) | `/cases/contracts`, `/cases/:caseId/contracts`, `/cases/contracts/:id/{signers,send}`, `/contracts/sign/:token` (público) | `CaseContract`, `ContractSignature` — link público por token; a página de assinatura só expõe título, conteúdo e nome do signatário |
+| Timesheet do processo (escritório) | `/cases/time-entries`, `/cases/:caseId/time-entries`, `/cases/:caseId/time-entries/summary` | `CaseTimeEntry` — valor derivado (minutos/60 × valor/hora) |
+| Honorários de êxito (escritório) | `/cases/success-fees`, `/cases/:caseId/success-fees` | `CaseSuccessFee` — percentual sobre `awardedAmount`, valor recalculado |
+| Digestão de intimações / PJe (escritório) | `/cases/intimations`, `/cases/intimations/import`, `/cases/intimations/:id` (triagem) | `CourtIntimation` — detecta número CNJ e sugere tipo de andamento |
+| NFS-e do escritório | `/cases/fee-invoices`, `/cases/fee-invoices/:id/issue` | `CaseFeeInvoice` — manual ou via provedor (NFE.io / Focus NFe, exigem credenciais) |
+| Alertas de prazo (escritório) | `/cases/alerts` (consulta; geração no cron diário) | `DeadlineAlert` — deduplicado por (prazo, destinatário, tipo, canal, dia) |
+| Transferência entre unidades (escritório) | `/cases/transfers`, `/cases/:caseId/transfers`, `/cases/transfers/:id/respond`, `/cases/transfers/sibling-shops` | `CaseTransfer` — só entre unidades da mesma organização; move o caso e vinculados em transação |
+| Casos no portal do cliente | `/client/portal/cases` (sessão do portal) | `ClientCase.shareWithClient` + `CaseEvent.visibleToClient` — sem número de processo, apelido, tribunal ou observações |
+| Segmentos / gate | `/services` (público com `authenticateOptional` → `publicBookable` + `includeInternal`) | `Service.publicBookable`; config por segmento em `src/shared/segments/` (gate, publicidade, paridade `segmentParity.json`) |
 | Pacotes | `/service-packages`, `/client-packages` | `ServicePackage`, `ClientPackage` |
 | Produtos / estoque / retail | `/products` (CRUD, incl. `DELETE /products/:id`), inventory, sales | `Product`, movimentos, `RetailSale*` |
 | Reservas de produto (vitrine pública) | `/barbershops/:id/public-products/*` (público) + `/product-reservations` (painel) + aviso ao salão em `productReservations/reservationNotify.ts` (WhatsApp + e-mail `product_reservation_alert`) | `ProductReservation` |

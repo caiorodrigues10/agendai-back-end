@@ -3,6 +3,10 @@ import type { BusinessSegment } from "@prisma/client";
 import { listNotificationPreferences } from "@/modules/notifications/services/notificationRegistry";
 import { CATALOG_TEMPLATES } from "@/modules/products/catalogTemplates";
 import { getSegmentConfig } from "@/shared/segments";
+import {
+  isAdvertisingRestricted,
+  isPromotionalNotificationType,
+} from "@/shared/segments/advertising";
 
 type SeedTx = AppTx;
 
@@ -38,6 +42,9 @@ export async function seedBarbershopDefaults(
 
   const config = getSegmentConfig(segment ?? FALLBACK_SEGMENT);
   const { serviceCategories, services } = config.catalog;
+  // Segmento com restrição de publicidade (ex.: advocacia): sem marketing,
+  // sem fidelidade e sem notificações promocionais.
+  const advertisingRestricted = isAdvertisingRestricted(config.segment);
 
   const scheduleToCreate = schedule?.length === 7 ? schedule : config.schedulePreset;
   await tx.schedule.createMany({
@@ -87,7 +94,10 @@ export async function seedBarbershopDefaults(
     }
   }
 
-  for (const name of DEFAULT_EXPENSE_CATEGORIES) {
+  const expenseCategories = advertisingRestricted
+    ? DEFAULT_EXPENSE_CATEGORIES.filter((name) => name !== "Marketing")
+    : DEFAULT_EXPENSE_CATEGORIES;
+  for (const name of expenseCategories) {
     const existing = await tx.expenseCategory.findFirst({ where: { barbershopId, name } });
     if (!existing) {
       await tx.expenseCategory.create({ data: { barbershopId, name } });
@@ -128,7 +138,7 @@ export async function seedBarbershopDefaults(
     create: {
       barbershopId,
       type: "VISITS",
-      isActive: true,
+      isActive: !advertisingRestricted,
       config: {
         visitsRequired: 10,
         rewardDescription: "Cortesia",
@@ -144,7 +154,10 @@ export async function seedBarbershopDefaults(
       barbershopId,
       channel: preference.channel,
       type: preference.type,
-      enabled: preference.defaultEnabled,
+      enabled:
+        advertisingRestricted && isPromotionalNotificationType(preference.type)
+          ? false
+          : preference.defaultEnabled,
     })),
     skipDuplicates: true,
   });

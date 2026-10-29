@@ -16,6 +16,10 @@ import {
   type NotificationType,
 } from "./notificationRegistry";
 import { getCorrelationId } from "@/shared/utils/correlationContext";
+import {
+  isAdvertisingRestricted,
+  isPromotionalNotificationType,
+} from "@/shared/segments/advertising";
 
 export type NotificationV2Mode = "disabled" | "shadow" | "active";
 
@@ -79,6 +83,19 @@ async function resolveSkipReason(
   db: any,
 ): Promise<string | null> {
   if (input.skipReason) return input.skipReason;
+
+  // Segmento com restrição de publicidade (ex.: advocacia) não recebe
+  // notificação promocional (campanha, avaliação, NPS, indicação).
+  if (input.barbershopId && isPromotionalNotificationType(input.type)) {
+    const shop = await db.barbershop?.findUnique?.({
+      where: { id: input.barbershopId },
+      select: { businessSegment: true },
+    });
+    if (shop && isAdvertisingRestricted(shop.businessSegment)) {
+      return "ADVERTISING_RESTRICTED";
+    }
+  }
+
   const normalized = normalizeDestination(input.channel, input.destination);
   if (!normalized || (input.channel === "EMAIL" && !normalized.includes("@"))) {
     return "INVALID_DESTINATION";

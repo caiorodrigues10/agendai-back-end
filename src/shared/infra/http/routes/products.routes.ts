@@ -4,6 +4,7 @@ import { authorize } from "../middlewares/authorize";
 import { checkSubscription } from "../middlewares/checkSubscription";
 import { checkProductsInventoryAccess } from "../middlewares/checkProductsInventoryAccess";
 import { setRlsContext } from "../middlewares/setRlsContext";
+import { segmentModuleGuard } from "../middlewares/segmentModuleGuard";
 import { ProductsController } from "@/modules/products/controllers/ProductsController";
 
 export async function productsRoutes(app: FastifyInstance) {
@@ -13,6 +14,7 @@ export async function productsRoutes(app: FastifyInstance) {
     authorize(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]),
     checkSubscription,
     checkProductsInventoryAccess,
+    segmentModuleGuard("products"),
     setRlsContext,
   ];
 
