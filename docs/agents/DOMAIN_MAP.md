@@ -40,6 +40,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Referrals | `/referrals` | `ReferralCode`, `Referral` |
 | Contact | `/contact` | formulário / notificação |
 | Assistente no WhatsApp (dono) | `/barbershops/:id/owner-bot/*` (painel: `link-code`, `status`, `link`, `preferences` GET/PUT — Zod `ownerBotPreferencesUpdateSchema` com horário `HH:MM` e `alertTypes` do enum, `catalog` — `buildOwnerBotSegmentCatalog` por `businessSegment`, `action-logs` — filtros `limit≤100`/`from`/`to`/`commandId`/`riskClass`/`status`) + `POST /webhooks/evolution/platform` (entrada da Evolution, segredo `EVOLUTION_WEBHOOK_SECRET`) | `OwnerBotLinkCode`, `OwnerBotLink`, `OwnerBotActionLog`, `OwnerBotPreference`; fila BullMQ `owner-bot` |
+| Importação de planilhas | `/barbershops/:id/imports*` (upload, alvo, mapeamento, validate/dry-run, confirm, preview, errors.csv, template, undo, cancel) — dono-only com `setRlsContext` | `ImportBatch`, `ImportRowResult`, `ImportCreatedEntity`; escreve em `SalonClient`, `Service`, `Appointment` (via `source: "IMPORT"`); fila BullMQ `data-import`. Detalhes em `docs/IMPORTACAO_PLANILHAS.md` |
 
 ## Checkout de assinatura (implementado)
 

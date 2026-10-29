@@ -41,6 +41,7 @@
 | `cloudinary` | `^2.11.0` | Storage | Upload/fallback de imagens (SDK v2) | CloudinaryStorageProvider.ts |
 | `dayjs` | `^1.11.13` | Datas | Datas/horários | DayjsDateProvider |
 | `disposable-email-domains` | `^1.0.62` | Auth | Bloqueio e-mails descartáveis | emailValidationService |
+| `exceljs` | `^4.4.0` | Planilhas | Leitura/escrita de `.xlsx` | modules/dataImport (parser e modelo em branco) |
 | `fastify` | `^4.26.2` | HTTP | Framework HTTP | server/app |
 | `google-auth-library` | `^11.0.2` | Auth | OAuth Google | Google login |
 | `ioredis` | `^6.0.0` | Cache | Cliente Redis | REDIS_URL / BullMQ |
@@ -77,4 +78,15 @@
 | `typescript` | `^5.7.2` | Core | Compilador | typecheck |
 | `vite-tsconfig-paths` | `^6.0.5` | Testes | Aliases Vitest | vitest.config.mts |
 | `vitest` | `^4.0.18` | Testes | Runner de testes | npm test / test:unit |
+
+## overrides
+
+| Pacote | Versão | Motivo |
+|---|---|---|
+| `exceljs` → `uuid` | `^11.1.1` | O `exceljs@4.4.0` declara `uuid@^8.3.0`, que o npm marca como depreciada ("uuid@10 and below is no longer supported"). O override sobe a dependência transitiva para a linha 11 (CommonJS, compatível com o Node em uso) e roda sem alteração no `exceljs`: leitura do `.xlsx` e geração do modelo em branco foram validadas pelo teste de integração e pelo e2e. |
+
+> O `exceljs` só é usado pelo assistente de importação de planilhas
+> (`src/modules/dataImport/`): leitura do `.xlsx` enviado pelo dono e geração do
+> modelo em branco. O `.csv` é lido pelo parser próprio do módulo.
+
 

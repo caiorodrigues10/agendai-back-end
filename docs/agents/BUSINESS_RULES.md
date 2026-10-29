@@ -141,6 +141,19 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - `Appointment.source` registra a origem: `APP`, `PUBLIC` ou `WHATSAPP_OWNER_BOT` (usado no selo "via WhatsApp" do painel).
 - Auditoria: toda ação executada vira linha em `owner_bot_action_logs` (ação, status, request redigido, telefone mascarado).
 
+## Importação de planilhas (assistente do dono)
+
+- Só o **dono** importa (`authorize(["MASTER_ADMIN","OWNER"])` + `setRlsContext`): importar dado é decisão do responsável pelo salão.
+- Fluxo em 7 passos com **dry-run** obrigatório: `validate` é somente leitura — nada é gravado antes da confirmação do dono.
+- **Identidade**: telefone identifica o cliente (mesma regra do CRM); serviço é identificado pelo nome no salão; agendamento pela chave **salão + serviço + dia + hora + cliente**. Reimportar o mesmo arquivo **não duplica** — a linha equivalente vira `SKIPPED`.
+- **Importar histórico alimenta o CRM, não o caixa**: sem mensagem (WhatsApp/e-mail), sem convite de avaliação, sem comissão e sem lançamento financeiro. A opção "contar valores no histórico financeiro" só entra em jogo quando o dono liga.
+- **Contadores de CRM** (`crmCounters.ts`): ao concluir o lote, o cliente importado ganha `totalAppointments` e `lastVisitAt` (visita = `COMPLETED`/`CHECKED_IN`). Nada mais muda. Idempotente via `ImportBatch.crmCountersAppliedAt` — reprocessar a fila não conta duas vezes. Aplicado **antes** de fechar o lote, para o `updatedAt` do cliente não travar o desfazer.
+- `sendReviewInvitations` é **fase 2**: a opção é aceita e guardada, e **nada é disparado**.
+- Cliente importado nasce com `marketingOptIn: false` — histórico importado nunca vira campanha.
+- **Desfazer** (30 dias) remove só o que o lote criou **e** o que ninguém tocou depois: registro com movimentação posterior (avaliação, sinal, comissão, item de fila, agendamento, evento financeiro, fiado) ou com `updatedAt` posterior ao fim do lote é preservado, com o motivo no relatório (`removed`/`kept`).
+- Limites: 10 MB por arquivo, 20.000 linhas, 1 importação ativa por salão, 5 importações por hora (`IMPORT_MAX_BATCHES_PER_HOUR`), arquivo temporário guardado por 7 dias e apagado no fim do processamento.
+- Detalhes completos em `docs/IMPORTACAO_PLANILHAS.md`.
+
 ## Notificações
 
 - Evolution WhatsApp: opcional; sem credenciais = no-op / falha isolada.

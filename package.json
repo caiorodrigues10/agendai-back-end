@@ -76,6 +76,7 @@
     "cloudinary": "^2.11.0",
     "dayjs": "^1.11.13",
     "disposable-email-domains": "^1.0.62",
+    "exceljs": "^4.4.0",
     "fastify": "^4.26.2",
     "google-auth-library": "^11.0.2",
     "ioredis": "^6.0.0",
@@ -109,5 +110,10 @@
     "typescript": "^5.7.2",
     "vite-tsconfig-paths": "^6.0.5",
     "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

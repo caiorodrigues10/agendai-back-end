@@ -35,12 +35,12 @@ model User {
   refreshTokens             RefreshToken[]
   userSessions              UserSession[]
   appointments              Appointment[]              @relation("staff")
-  casesAsResponsible         ClientCase[]              @relation("caseResponsible")
-  caseTasksAsAssignee        CaseTask[]                @relation("caseTaskAssignee")
-  caseEventsAsAuthor         CaseEvent[]               @relation("caseEventAuthor")
-  caseDocumentsAsAuthor      CaseDocument[]            @relation("caseDocumentAuthor")
-  caseContractsAsAuthor      CaseContract[]            @relation("caseContractAuthor")
-  caseTimeEntriesAsStaff     CaseTimeEntry[]
+  casesAsResponsible        ClientCase[]               @relation("caseResponsible")
+  caseTasksAsAssignee       CaseTask[]                 @relation("caseTaskAssignee")
+  caseEventsAsAuthor        CaseEvent[]                @relation("caseEventAuthor")
+  caseDocumentsAsAuthor     CaseDocument[]             @relation("caseDocumentAuthor")
+  caseContractsAsAuthor     CaseContract[]             @relation("caseContractAuthor")
+  caseTimeEntriesAsStaff    CaseTimeEntry[]
   feedPosts                 FeedPost[]
   postComments              PostComment[]
   postTagsRequested         PostTag[]
@@ -96,6 +96,7 @@ model User {
   ownerBotLinks             OwnerBotLink[]
   ownerBotActionLogs        OwnerBotActionLog[]
   ownerBotCampaigns         OwnerBotCampaign[]
+  importBatches             ImportBatch[]              @relation("ImportBatchCreatedBy")
 
   @@index([cpf])
   @@index([deletedAt])
@@ -703,8 +704,8 @@ model Barbershop {
   courtIntimations               CourtIntimation[]
   caseFeeInvoices                CaseFeeInvoice[]
   deadlineAlerts                 DeadlineAlert[]
-  caseTransfersAsOrigin          CaseTransfer[]                   @relation("CaseTransferOrigin")
-  caseTransfersAsTarget          CaseTransfer[]                   @relation("CaseTransferTarget")
+  caseTransfersAsOrigin          CaseTransfer[]                  @relation("CaseTransferOrigin")
+  caseTransfersAsTarget          CaseTransfer[]                  @relation("CaseTransferTarget")
   fiscalConfig                   FiscalConfig?
   nfeRecords                     NfeRecord[]
   integrations                   Integration[]
@@ -721,6 +722,7 @@ model Barbershop {
   OwnerBotActionLog              OwnerBotActionLog[]
   OwnerBotPreference             OwnerBotPreference?
   OwnerBotCampaign               OwnerBotCampaign[]
+  importBatches                  ImportBatch[]
 
   @@index([approvalStatus])
   @@index([active])
@@ -1115,6 +1117,8 @@ enum AppointmentSource {
   PUBLIC
   /// Criado pelo dono conversando com o assistente no WhatsApp.
   WHATSAPP_OWNER_BOT
+  /// Criado por importação de planilha (backend de importação de dados).
+  IMPORT
 }
 
 enum AppointmentStatus {
@@ -1153,6 +1157,9 @@ model SalonClient {
   marketingOptInAt       DateTime?
   marketingOptInSource   String?   @db.VarChar(80)
   totalAppointments      Int       @default(0)
+  /// Última visita (atendimento) do cliente. Atualizado pela importação de
+  /// planilhas e pelos demais fluxos que registram atendimento.
+  lastVisitAt            DateTime?
   totalCancellations     Int       @default(0)
   totalLateCancellations Int       @default(0)
   totalNoShows           Int       @default(0)
@@ -1281,47 +1288,47 @@ model ClientVehicle {
 /// de pet e veículo: só dados internos do escritório. Nunca aparece em
 /// mensagens ao cliente, no perfil público ou no assistente do WhatsApp.
 model ClientCase {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  clientId     String   @db.Uuid
+  id                 String           @id @default(uuid()) @db.Uuid
+  barbershopId       String           @db.Uuid
+  clientId           String           @db.Uuid
   /// Apelido interno do caso (ex.: "Ação de cobrança"). Uso interno.
-  nickname     String   @db.VarChar(120)
+  nickname           String           @db.VarChar(120)
   /// Área do direito (ex.: "Cível"). Livre, alinhada às áreas do escritório.
-  practiceArea String?  @db.VarChar(80)
+  practiceArea       String?          @db.VarChar(80)
   /// Número do processo no padrão CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO. Aceita vazio.
-  caseNumber   String?  @db.VarChar(30)
+  caseNumber         String?          @db.VarChar(30)
   /// Observação interna curta. Nunca sai do painel.
-  notes        String?  @db.Text
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes              String?          @db.Text
+  active             Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
   /// Situação no pipeline do escritório.
-  status       ClientCaseStatus @default(LEAD)
+  status             ClientCaseStatus @default(LEAD)
   /// Prioridade de trabalho no caso.
-  priority     CasePriority     @default(NORMAL)
+  priority           CasePriority     @default(NORMAL)
   /// Título do processo como aparece no tribunal (ex.: "Ação de cobrança").
-  title        String?  @db.VarChar(160)
+  title              String?          @db.VarChar(160)
   /// Órgão julgador / vara / comarca (texto livre).
-  courtName    String?  @db.VarChar(120)
+  courtName          String?          @db.VarChar(120)
   /// Parte adversária (texto livre).
-  opponent     String?  @db.VarChar(120)
+  opponent           String?          @db.VarChar(120)
   /// Valor da causa / pretensão (R$). Decimal para não perder centavos.
-  claimedAmount Decimal? @db.Decimal(12, 2)
+  claimedAmount      Decimal?         @db.Decimal(12, 2)
   /// Valor efetivamente obtido (acordo, condenação, êxito). Null = não apurado.
-  awardedAmount Decimal? @db.Decimal(12, 2)
+  awardedAmount      Decimal?         @db.Decimal(12, 2)
   /// Advogado(a) responsável pelo caso (User do escritório).
-  responsibleStaffId String? @db.Uuid
+  responsibleStaffId String?          @db.Uuid
   /// Data de abertura do trabalho no escritório.
-  openedAt     DateTime @default(now())
+  openedAt           DateTime         @default(now())
   /// Data de encerramento (status CLOSED/ARCHIVED).
-  closedAt     DateTime?
+  closedAt           DateTime?
   /// Se o caso aparece no portal do cliente. Desligado por padrão: o número do
   /// processo e o apelido interno jamais saem do painel (regra de sigilo).
-  shareWithClient Boolean @default(false)
+  shareWithClient    Boolean          @default(false)
 
-  barbershop       Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  client           SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  responsibleStaff User?       @relation("caseResponsible", fields: [responsibleStaffId], references: [id], onDelete: SetNull)
+  barbershop       Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  client           SalonClient       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  responsibleStaff User?             @relation("caseResponsible", fields: [responsibleStaffId], references: [id], onDelete: SetNull)
   tasks            CaseTask[]
   appointments     Appointment[]
   deadlines        CaseDeadline[]
@@ -1342,20 +1349,20 @@ model ClientCase {
 
 /// Tarefa/pendência do caso (checklist de trabalho do advogado).
 model CaseTask {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  caseId       String   @db.Uuid
-  title        String   @db.VarChar(160)
-  description  String?  @db.Text
-  status       CaseTaskStatus @default(OPEN)
-  priority     CasePriority    @default(NORMAL)
+  id              String         @id @default(uuid()) @db.Uuid
+  barbershopId    String         @db.Uuid
+  caseId          String         @db.Uuid
+  title           String         @db.VarChar(160)
+  description     String?        @db.Text
+  status          CaseTaskStatus @default(OPEN)
+  priority        CasePriority   @default(NORMAL)
   /// Data-limite da tarefa (opcional).
-  dueDate      DateTime?
+  dueDate         DateTime?
   /// Responsável pela tarefa (User do escritório).
-  assigneeStaffId String? @db.Uuid
-  completedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  assigneeStaffId String?        @db.Uuid
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   barbershop    Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   case          ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -1368,27 +1375,27 @@ model CaseTask {
 
 /// Prazo do caso — ou do escritório, quando caseId é nulo.
 model CaseDeadline {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
+  id           String         @id @default(uuid()) @db.Uuid
+  barbershopId String         @db.Uuid
   /// Nulo = prazo do escritório, sem caso vinculado.
-  caseId       String?  @db.Uuid
-  title        String   @db.VarChar(160)
+  caseId       String?        @db.Uuid
+  title        String         @db.VarChar(160)
   type         DeadlineType   @default(JUDICIAL_RESPONSE)
   status       DeadlineStatus @default(PENDING)
   /// Data final do prazo (date-only).
-  dueDate      DateTime @db.Date
+  dueDate      DateTime       @db.Date
   /// Quantos dias úteis o prazo corre, quando contado a partir de uma data
   /// de referência (ver `shared/utils/businessDays`).
   businessDays Int?
   /// Órgão/varia que fijou o prazo.
-  courtName    String?  @db.VarChar(120)
-  notes        String?  @db.Text
+  courtName    String?        @db.VarChar(120)
+  notes        String?        @db.Text
   completedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  case       ClientCase? @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  barbershop Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  case       ClientCase?     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   alerts     DeadlineAlert[]
 
   @@index([barbershopId, dueDate])
@@ -1399,20 +1406,20 @@ model CaseDeadline {
 
 /// Andamento registrado no histórico do caso.
 model CaseEvent {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  caseId       String   @db.Uuid
-  type         CaseEventType @default(NOTE)
-  title        String   @db.VarChar(160)
-  description  String?  @db.Text
+  id              String        @id @default(uuid()) @db.Uuid
+  barbershopId    String        @db.Uuid
+  caseId          String        @db.Uuid
+  type            CaseEventType @default(NOTE)
+  title           String        @db.VarChar(160)
+  description     String?       @db.Text
   /// Quando o fato aconteceu (pode ser retroativo).
-  occurredAt   DateTime @default(now())
+  occurredAt      DateTime      @default(now())
   /// Quem registrou o andamento (User do escritório).
-  createdByUserId String? @db.Uuid
-  createdAt    DateTime @default(now())
+  createdByUserId String?       @db.Uuid
+  createdAt       DateTime      @default(now())
   /// Se o andamento é compartilhado com o cliente no portal. Desligado por
   /// padrão: só o que o escritório marcar explicitamente é visível.
-  visibleToClient Boolean @default(false)
+  visibleToClient Boolean       @default(false)
 
   barbershop    Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   case          ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -1425,22 +1432,22 @@ model CaseEvent {
 
 /// Documento do caso (metadados + link para o arquivo guardado pelo escritório).
 model CaseDocument {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  caseId       String   @db.Uuid
-  title        String   @db.VarChar(160)
-  type         CaseDocumentType @default(OTHER)
+  id              String           @id @default(uuid()) @db.Uuid
+  barbershopId    String           @db.Uuid
+  caseId          String           @db.Uuid
+  title           String           @db.VarChar(160)
+  type            CaseDocumentType @default(OTHER)
   /// Link do arquivo (Drive/S3/etc. do escritório) ou do documento gerado.
-  fileUrl      String?  @db.VarChar(500)
-  fileName     String?  @db.VarChar(200)
-  mimeType     String?  @db.VarChar(120)
-  sizeBytes    Int?
+  fileUrl         String?          @db.VarChar(500)
+  fileName        String?          @db.VarChar(200)
+  mimeType        String?          @db.VarChar(120)
+  sizeBytes       Int?
   /// Versão do documento (1 = original; revisões incrementam).
-  version      Int      @default(1)
-  notes        String?  @db.Text
-  createdByUserId String? @db.Uuid
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  version         Int              @default(1)
+  notes           String?          @db.Text
+  createdByUserId String?          @db.Uuid
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   barbershop    Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   case          ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -1468,35 +1475,35 @@ model OfficeHoliday {
 
 /// Contrato/procuração do caso — metadados + arquivo + trilha de assinatura.
 model CaseContract {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  caseId       String   @db.Uuid
-  clientId     String   @db.Uuid
-  title        String   @db.VarChar(160)
-  type         ContractType   @default(ENGAGEMENT)
-  status       ContractStatus @default(DRAFT)
+  id              String         @id @default(uuid()) @db.Uuid
+  barbershopId    String         @db.Uuid
+  caseId          String         @db.Uuid
+  clientId        String         @db.Uuid
+  title           String         @db.VarChar(160)
+  type            ContractType   @default(ENGAGEMENT)
+  status          ContractStatus @default(DRAFT)
   /// Cláusulas/texto do contrato (markdown/texto).
-  content      String?  @db.Text
+  content         String?        @db.Text
   /// Arquivo assinado/digitalizado (GCS/Cloudinary).
-  fileUrl      String?  @db.VarChar(500)
-  fileName     String?  @db.VarChar(200)
-  mimeType     String?  @db.VarChar(120)
-  sizeBytes    Int?
-  version      Int      @default(1)
+  fileUrl         String?        @db.VarChar(500)
+  fileName        String?        @db.VarChar(200)
+  mimeType        String?        @db.VarChar(120)
+  sizeBytes       Int?
+  version         Int            @default(1)
   /// Valor total do contrato (quando aplicável).
-  value        Decimal? @db.Decimal(12, 2)
+  value           Decimal?       @db.Decimal(12, 2)
   /// Percentual de honorários por êxito (%). Vincula a um CaseSuccessFee.
-  feePercent   Decimal? @db.Decimal(5, 2)
-  notes        String?  @db.Text
-  signedAt     DateTime?
-  createdByUserId String? @db.Uuid
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  feePercent      Decimal?       @db.Decimal(5, 2)
+  notes           String?        @db.Text
+  signedAt        DateTime?
+  createdByUserId String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  barbershop    Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  case          ClientCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  client        SalonClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  createdByUser User?       @relation("caseContractAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  barbershop    Barbershop          @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  case          ClientCase          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  client        SalonClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdByUser User?               @relation("caseContractAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
   signatures    ContractSignature[]
 
   @@index([barbershopId, caseId])
@@ -1506,22 +1513,22 @@ model CaseContract {
 
 /// Assinatura individual de um contrato (cliente, advogado, testemunha).
 model ContractSignature {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  contractId   String   @db.Uuid
-  signerName   String   @db.VarChar(120)
-  signerEmail  String?  @db.VarChar(200)
-  signerWhatsapp String? @db.VarChar(20)
-  role         SignatureRole   @default(CLIENT)
-  status       SignatureStatus @default(PENDING)
+  id             String          @id @default(uuid()) @db.Uuid
+  barbershopId   String          @db.Uuid
+  contractId     String          @db.Uuid
+  signerName     String          @db.VarChar(120)
+  signerEmail    String?         @db.VarChar(200)
+  signerWhatsapp String?         @db.VarChar(20)
+  role           SignatureRole   @default(CLIENT)
+  status         SignatureStatus @default(PENDING)
   /// Token único do link de assinatura (enviado ao signatário).
-  token        String   @unique @db.VarChar(80)
+  token          String          @unique @db.VarChar(80)
   /// Assinatura desenhada (dataURL PNG) ou certificado digital.
-  signatureUrl String?  @db.Text
-  signatureType SignatureType @default(TYPED)
-  signedAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  signatureUrl   String?         @db.Text
+  signatureType  SignatureType   @default(TYPED)
+  signedAt       DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   barbershop Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   contract   CaseContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -1567,23 +1574,23 @@ model CaseTimeEntry {
 
 /// Honorário de êxito — percentual sobre o resultado obtido.
 model CaseSuccessFee {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  caseId       String   @db.Uuid
+  id           String           @id @default(uuid()) @db.Uuid
+  barbershopId String           @db.Uuid
+  caseId       String           @db.Uuid
   /// Percentual sobre o valor obtido (%).
-  percent      Decimal  @db.Decimal(5, 2)
+  percent      Decimal          @db.Decimal(5, 2)
   /// Base de cálculo (awardedAmount do caso quando apurado).
-  baseAmount   Decimal? @db.Decimal(12, 2)
+  baseAmount   Decimal?         @db.Decimal(12, 2)
   /// Honorário calculado (base × percent / 100).
-  amount       Decimal? @db.Decimal(12, 2)
+  amount       Decimal?         @db.Decimal(12, 2)
   /// Número de parcelas do honorário.
-  installments Int      @default(1)
+  installments Int              @default(1)
   status       SuccessFeeStatus @default(PENDING)
   dueDate      DateTime?
   paidAt       DateTime?
-  notes        String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes        String?          @db.Text
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   case       ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -1595,28 +1602,28 @@ model CaseSuccessFee {
 
 /// Intimação recebida (PJe/tribunal/email/WhatsApp) aguardando triagem.
 model CourtIntimation {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
+  id              String           @id @default(uuid()) @db.Uuid
+  barbershopId    String           @db.Uuid
   /// Caso vinculado após triagem (null = ainda não triado/sem correspondência).
-  caseId       String?  @db.Uuid
-  source       IntimationSource @default(MANUAL)
+  caseId          String?          @db.Uuid
+  source          IntimationSource @default(MANUAL)
   /// Quando a intimação foi recebida.
-  receivedAt   DateTime @default(now())
-  subject      String   @db.VarChar(300)
-  body         String   @db.Text
+  receivedAt      DateTime         @default(now())
+  subject         String           @db.VarChar(300)
+  body            String           @db.Text
   /// Payload bruto (email/JSON do provedor), para auditoria.
-  rawPayload   Json?
+  rawPayload      Json?
   /// Número do processo detectado no corpo (padrão CNJ).
-  detectedNumber String? @db.VarChar(30)
+  detectedNumber  String?          @db.VarChar(30)
   /// Tipo sugerido para o andamento gerado.
-  suggestedType CaseEventType @default(INTIMATION)
-  status       IntimationStatus @default(NEW)
-  triagedByUserId String? @db.Uuid
-  triagedAt    DateTime?
+  suggestedType   CaseEventType    @default(INTIMATION)
+  status          IntimationStatus @default(NEW)
+  triagedByUserId String?          @db.Uuid
+  triagedAt       DateTime?
   /// Id do andamento gerado quando convertido em CaseEvent.
-  linkedEventId String? @db.Uuid
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  linkedEventId   String?          @db.Uuid
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   case       ClientCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
@@ -1628,31 +1635,31 @@ model CourtIntimation {
 
 /// Nota fiscal de serviço (NFS-e) do escritório.
 model CaseFeeInvoice {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  caseId       String?  @db.Uuid
-  clientId     String?  @db.Uuid
+  id              String             @id @default(uuid()) @db.Uuid
+  barbershopId    String             @db.Uuid
+  caseId          String?            @db.Uuid
+  clientId        String?            @db.Uuid
   /// Número da NFS-e emitida (preenchido ao emitir).
-  invoiceNumber String? @db.VarChar(40)
+  invoiceNumber   String?            @db.VarChar(40)
   /// Identificador no provedor externo (quando usado).
-  externalId   String?  @db.VarChar(120)
-  provider     FeeInvoiceProvider @default(MANUAL)
-  status       FeeInvoiceStatus @default(DRAFT)
-  description  String   @db.VarChar(300)
-  amount       Decimal  @db.Decimal(12, 2)
+  externalId      String?            @db.VarChar(120)
+  provider        FeeInvoiceProvider @default(MANUAL)
+  status          FeeInvoiceStatus   @default(DRAFT)
+  description     String             @db.VarChar(300)
+  amount          Decimal            @db.Decimal(12, 2)
   /// ISS retido pelo tomador.
-  issRetained  Boolean  @default(false)
+  issRetained     Boolean            @default(false)
   /// CNPJ/CPF do tomador (snapshot).
-  taxpayerId   String?  @db.VarChar(20)
-  issuedAt     DateTime?
-  xmlUrl       String?  @db.VarChar(500)
-  errorMessage String?  @db.Text
-  createdByUserId String? @db.Uuid
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  taxpayerId      String?            @db.VarChar(20)
+  issuedAt        DateTime?
+  xmlUrl          String?            @db.VarChar(500)
+  errorMessage    String?            @db.Text
+  createdByUserId String?            @db.Uuid
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
-  barbershop Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
-  case       ClientCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  barbershop Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  case       ClientCase?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
   client     SalonClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@index([barbershopId, status])
@@ -1662,21 +1669,21 @@ model CaseFeeInvoice {
 
 /// Alerta de vencimento de prazo (deduplicado por prazo + kind + dia).
 model DeadlineAlert {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  deadlineId   String   @db.Uuid
+  id            String               @id @default(uuid()) @db.Uuid
+  barbershopId  String               @db.Uuid
+  deadlineId    String               @db.Uuid
   /// Destinatário (User do escritório — dono/advogado).
-  userId       String   @db.Uuid
-  channel      DeadlineAlertChannel @default(WHATSAPP)
-  kind         DeadlineAlertKind    @default(UPCOMING)
+  userId        String               @db.Uuid
+  channel       DeadlineAlertChannel @default(WHATSAPP)
+  kind          DeadlineAlertKind    @default(UPCOMING)
   /// Dias restantes quando o alerta é UPCOMING (null quando OVERDUE).
   daysRemaining Int?
   /// Dia (date-only) a que o alerta pertence — chave de deduplicação no cron.
-  sentOn       DateTime @db.Date
-  status       DeadlineAlertStatus @default(PENDING)
-  sentAt       DateTime?
-  errorMessage String?  @db.Text
-  createdAt    DateTime @default(now())
+  sentOn        DateTime             @db.Date
+  status        DeadlineAlertStatus  @default(PENDING)
+  sentAt        DateTime?
+  errorMessage  String?              @db.Text
+  createdAt     DateTime             @default(now())
 
   barbershop Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   deadline   CaseDeadline @relation(fields: [deadlineId], references: [id], onDelete: Cascade)
@@ -1689,22 +1696,22 @@ model DeadlineAlert {
 
 /// Transferência de caso entre unidades/escritórios da mesma organização.
 model CaseTransfer {
-  id           String   @id @default(uuid()) @db.Uuid
-  barbershopId String   @db.Uuid
-  caseId       String   @db.Uuid
+  id                 String             @id @default(uuid()) @db.Uuid
+  barbershopId       String             @db.Uuid
+  caseId             String             @db.Uuid
   /// Unidade/escritório de destino (Barbershop na mesma Organization).
-  targetBarbershopId String @db.Uuid
-  reason       String?  @db.Text
-  status       CaseTransferStatus @default(PENDING)
-  requestedByUserId String @db.Uuid
-  acceptedByUserId String? @db.Uuid
-  acceptedAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  targetBarbershopId String             @db.Uuid
+  reason             String?            @db.Text
+  status             CaseTransferStatus @default(PENDING)
+  requestedByUserId  String             @db.Uuid
+  acceptedByUserId   String?            @db.Uuid
+  acceptedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  barbershop Barbershop @relation("CaseTransferOrigin", fields: [barbershopId], references: [id], onDelete: Cascade)
+  barbershop       Barbershop @relation("CaseTransferOrigin", fields: [barbershopId], references: [id], onDelete: Cascade)
   targetBarbershop Barbershop @relation("CaseTransferTarget", fields: [targetBarbershopId], references: [id], onDelete: Cascade)
-  case       ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  case             ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@index([barbershopId, status])
   @@index([targetBarbershopId, status])
@@ -5486,4 +5493,155 @@ enum OwnerBotActionStatus {
   ERROR
   NEEDS_CONFIRMATION
   BLOCKED
+}
+
+// ─── Importação de planilhas ─────────────────────────────────────────────────
+
+/// Formatos de arquivo aceitos pela importação.
+enum ImportFileFormat {
+  XLSX
+  CSV
+}
+
+/// O que o lote de importação vai criar.
+enum ImportTargetType {
+  /// Clientes (contatos).
+  CLIENTS
+  /// Serviços do catálogo.
+  SERVICES
+  /// Agendamentos da agenda.
+  APPOINTMENTS
+}
+
+/// Situação do lote de importação ao longo do assistente.
+enum ImportBatchStatus {
+  /// Arquivo recebido, aguardando o dono escolher o tipo de importação.
+  UPLOADED
+  /// Dono está mapeando as colunas da planilha.
+  MAPPING
+  /// Dry-run em andamento.
+  VALIDATING
+  /// Dry-run pronto: o dono ainda precisa confirmar.
+  AWAITING_CONFIRMATION
+  /// Confirmado e em execução na fila.
+  PROCESSING
+  /// Concluído sem erros.
+  COMPLETED
+  /// Concluído com linhas rejeitadas.
+  COMPLETED_WITH_ERRORS
+  /// Falhou antes de concluir.
+  FAILED
+  /// Cancelado pelo dono.
+  CANCELLED
+  /// Desfeito pelo dono (janela de 30 dias).
+  UNDONE
+  /// Expirou: arquivo removido e desfazer indisponível.
+  EXPIRED
+}
+
+/// Situação de uma linha do arquivo.
+enum ImportRowStatus {
+  PENDING
+  IMPORTED
+  /// Duplicado detectado (ex.: cliente já existente) — nada foi criado.
+  SKIPPED
+  /// Linha rejeitada por validação.
+  FAILED
+}
+
+/// Tipo de entidade criada por um lote de importação.
+enum ImportEntityType {
+  CLIENT
+  SERVICE
+  APPOINTMENT
+  CASE
+}
+
+/// Lote de importação de planilha. Um lote por arquivo enviado.
+model ImportBatch {
+  id            String            @id @default(uuid()) @db.Uuid
+  barbershopId  String            @db.Uuid
+  /// Nome original do arquivo (mostrado ao dono, nunca usado como caminho).
+  fileName      String            @db.VarChar(255)
+  /// Caminho absoluto do arquivo temporário no servidor.
+  filePath      String            @db.VarChar(500)
+  fileSize      Int
+  fileFormat    ImportFileFormat
+  /// Aba escolhida na planilha (null para CSV).
+  sheetName     String?           @db.VarChar(120)
+  /// O que o lote vai importar.
+  targetType    ImportTargetType  @default(CLIENTS)
+  status        ImportBatchStatus @default(UPLOADED)
+  /// Cabeçalhos das colunas detectadas (nomes das abas/linha 1).
+  headers       Json?
+  /// Mapeamento escolhido pelo dono (coluna -> campo do destino) + opções.
+  mapping       Json?
+  totalRows     Int               @default(0)
+  processedRows Int               @default(0)
+  importedRows  Int               @default(0)
+  failedRows    Int               @default(0)
+  skippedRows   Int               @default(0)
+  errorMessage  String?           @db.Text
+  createdById   String?           @db.Uuid
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  startedAt     DateTime?
+  finishedAt     DateTime?
+  undoneAt       DateTime?
+  /// Momento em que os contadores de CRM foram atualizados pelo lote.
+  /// Garante que a contagem não seja aplicada duas vezes (retry da fila).
+  crmCountersAppliedAt DateTime?
+  /// Fim da janela de desfazer (30 dias a partir da criação).
+  expiresAt     DateTime
+
+  barbershop Barbershop            @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  createdBy  User?                 @relation("ImportBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  rows       ImportRowResult[]
+  entities   ImportCreatedEntity[]
+
+  @@index([barbershopId, createdAt])
+  @@index([barbershopId, status])
+  @@map("import_batches")
+}
+
+/// Resultado por linha do arquivo. A chave (batchId, rowNumber) garante
+/// idempotência: reprocessar a mesma linha não duplica o que foi criado.
+model ImportRowResult {
+  id           String            @id @default(uuid()) @db.Uuid
+  batchId      String            @db.Uuid
+  barbershopId String            @db.Uuid
+  /// Número da linha no arquivo (1 = primeira linha de dados, sem o cabeçalho).
+  rowNumber    Int
+  status       ImportRowStatus   @default(PENDING)
+  entityType   ImportEntityType?
+  entityId     String?           @db.Uuid
+  /// Motivo da rejeição (sem dados pessoais do arquivo).
+  errorMessage String?           @db.Text
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  batch ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, rowNumber])
+  @@index([barbershopId, status])
+  @@map("import_row_results")
+}
+
+/// Vínculo entre o lote e as entidades criadas por ele. Permite desfazer
+/// apenas o que o lote criou, sem tocar em registros alterados depois.
+model ImportCreatedEntity {
+  id           String           @id @default(uuid()) @db.Uuid
+  batchId      String           @db.Uuid
+  barbershopId String           @db.Uuid
+  entityType   ImportEntityType
+  entityId     String           @db.Uuid
+  createdAt    DateTime         @default(now())
+  /// Marcado quando o registro foi removido no desfazer.
+  undoneAt     DateTime?
+
+  batch ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, entityType, entityId])
+  @@index([barbershopId, entityType])
+  @@map("import_created_entities")
 }

@@ -64,3 +64,20 @@ describe("AppointmentRepository.list", () => {
     expect(listArgs.where.date.lt).toEqual(new Date(Date.UTC(2026, 9, 6)));
   });
 });
+
+describe("AppointmentRepository.findConfirmedForReminderToday", () => {
+  let repo: AppointmentRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findMany.mockResolvedValue([]);
+    repo = new AppointmentRepository();
+  });
+
+  it("não manda lembrete de agendamento vindo de planilha", async () => {
+    await repo.findConfirmedForReminderToday();
+
+    const args = findMany.mock.calls[0][0] as { where: { source: { not: string } } };
+    expect(args.where.source).toEqual({ not: "IMPORT" });
+  });
+});
