@@ -237,6 +237,10 @@ export class AppointmentRepository implements IAppointmentRepository {
 				status: 'CONFIRMED',
 				reminderSentAt: null,
 				date: { gte, lt },
+				// Agendamento vindo de planilha não recebe lembrete: o dono
+				// importou histórico/roteiro, não marcou atendimento com o
+				// cliente. O silêncio é a regra da importação.
+				source: { not: 'IMPORT' },
 			},
 			orderBy: [{ time: 'asc' }],
 			include,

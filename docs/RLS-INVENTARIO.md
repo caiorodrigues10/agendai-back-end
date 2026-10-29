@@ -1,8 +1,9 @@
 # RLS — Inventário de policies e decisão por rota
 
-- **Data:** 2026-09-29
+- **Data:** 2026-09-29 (inventário completo) — atualizado em 2026-10-29 com as 3 tabelas do assistente de importação
 - **Escopo:** `agendai-back-end` (Prisma + Postgres/Supabase)
-- **Método:** leitura estática de `prisma/schema.prisma` (143 models) cruzada com grep em `prisma/migrations/**/migration.sql` por `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`. **Nenhuma consulta ao banco de dados foi feita para este documento.**
+- **Método:** leitura estática de `prisma/schema.prisma` (143 models na data original) cruzada com grep em `prisma/migrations/**/migration.sql` por `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`. **Nenhuma consulta ao banco de dados foi feita para este documento.**
+- **Atualização 2026-10-29:** as 3 tabelas do assistente de importação (`import_batches`, `import_row_results`, `import_created_entities`) foram adicionadas ao inventário com a evidência da migration `20261029120000_data_import`. A contagem de models do schema já é **178** (o resto do inventário, com 143 models, foi escrito em 2026-09-29 e não foi revisado model a model nesta atualização — a revisão completa fica para o próximo ciclo do inventário).
 - **Arquivo de contexto:** `src/libs/prismaExtensions.ts` (extensão que grava o GUC `app.current_barbershop_id`), `src/shared/infra/http/middlewares/setRlsContext.ts`, `src/shared/infra/http/middlewares/authenticateClient.ts`.
 
 ---
@@ -186,6 +187,9 @@
 | `tasks` | não | tenant | — |
 | `task_comments` | não | admin | — |
 | `task_history` | não | admin | — |
+| `import_batches` | sim | tenant | 20261029120000_data_import:139 |
+| `import_row_results` | sim | tenant | 20261029120000_data_import:139 |
+| `import_created_entities` | sim | tenant | 20261029120000_data_import:139 |
 
 ### Notas do inventário
 
@@ -193,6 +197,7 @@
 - **Tabelas de memberships renomeadas:** `salon_membership_plans`, `membership_benefits`, `client_memberships`, `membership_cycles` e `membership_usages` receberam policy em `20260910000005_add_rls_v13` e foram substituídas por `*_recurring_packages*` em `20260922000000_rename_membership_to_recurring_packages` (policy recriada nas linhas 125-137). Não há mais models para elas.
 - **12 policies criadas por loop** em `20260903010000_products_inventory_retail:262-273` (`FOREACH ... ARRAY[...]` com `format(...)`), por isso a evidência aponta a linha do array.
 - **`referrals`** não tem coluna `barbershopId`, mas sim `referrerBarbershopId`/`refereeBarbershopId` — é tenant mesmo assim.
+- **Assistente de importação (2026-10-29):** `import_batches`, `import_row_results` e `import_created_entities` nasceram com RLS `ENABLE` + `FORCE` e policy `tenant_isolation` no mesmo padrão de `client_cases` (`20261029120000_data_import/migration.sql:128-144`). As três tabelas têm coluna `barbershopId` e as rotas do assistente usam `setRlsContext` (`src/modules/dataImport/dataImport.routes.ts:17`), então o contexto de tenant é sempre o do salão da sessão.
 
 ---
 
@@ -200,11 +205,11 @@
 
 | métrica | valor |
 |---|---|
-| models no `schema.prisma` | 143 |
-| com policy (`CREATE POLICY` nas migrations) | **59** |
-| sem policy | **84** |
-| das sem policy, classificadas **tenant** | **64** |
-| classificação total | tenant 120 / sistema 12 / admin 9 / público 2 |
+| models no `schema.prisma` | 143 (2026-09-29) / **178** (2026-10-29, contagem atual do schema) |
+| com policy (`CREATE POLICY` nas migrations) | **59** (2026-09-29) / **86** (2026-10-29, apurado no banco local `agendai`) |
+| sem policy | **84** (2026-09-29) / **92** (2026-10-29) |
+| das sem policy, classificadas **tenant** | **64** (2026-09-29) |
+| classificação total | tenant 120 / sistema 12 / admin 9 / público 2 (2026-09-29) |
 
 ### Riscos identificados
 
