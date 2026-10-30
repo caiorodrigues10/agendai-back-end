@@ -33,8 +33,15 @@ function contexto(): ImportRowContext {
       countFinancialValues: false,
       sendReviewInvitations: false,
       includeCase: false,
+        replaceExistingSchedules: false,
+        importTimeOffAsPending: false,
+        updateExistingProducts: false,
+        createProductCategories: false,
+        sendFiadoReminders: false,
     },
     segment: null,
+    actingUserId: "user-1",
+    batchId: "batch-1",
   };
 }
 

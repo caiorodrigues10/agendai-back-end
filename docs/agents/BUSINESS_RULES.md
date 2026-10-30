@@ -145,13 +145,14 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 
 - Só o **dono** importa (`authorize(["MASTER_ADMIN","OWNER"])` + `setRlsContext`): importar dado é decisão do responsável pelo salão.
 - Fluxo em 7 passos com **dry-run** obrigatório: `validate` é somente leitura — nada é gravado antes da confirmação do dono.
-- **Identidade**: telefone identifica o cliente (mesma regra do CRM); serviço é identificado pelo nome no salão; agendamento pela chave **salão + serviço + dia + hora + cliente**. Reimportar o mesmo arquivo **não duplica** — a linha equivalente vira `SKIPPED`.
-- **Importar histórico alimenta o CRM, não o caixa**: sem mensagem (WhatsApp/e-mail), sem convite de avaliação, sem comissão e sem lançamento financeiro. A opção "contar valores no histórico financeiro" só entra em jogo quando o dono liga.
+- **Identidade**: telefone identifica o cliente (mesma regra do CRM); serviço é identificado pelo nome no salão; agendamento pela chave **salão + serviço + dia + hora + cliente**; produto por SKU → código de barras → nome. Reimportar o mesmo arquivo **não duplica** — a linha equivalente vira `SKIPPED`.
+- **Multi-aba (fase 2)**: uma planilha pode ter várias abas, cada uma com o seu tipo (10 alvos); o lote misto grava `targetType: "MIXED"` e processa as abas na ordem de dependência entre os tipos, nunca na ordem das abas.
+- **Importar histórico alimenta o CRM, não o caixa**: sem mensagem (WhatsApp/e-mail), sem convite de avaliação, sem comissão e sem lançamento financeiro. A opção "contar valores no histórico financeiro" só entra em jogo quando o dono liga. Estoque inicial vira movimento `IMPORT`; "valor já pago" do fiado é pagamento sem caixa.
 - **Contadores de CRM** (`crmCounters.ts`): ao concluir o lote, o cliente importado ganha `totalAppointments` e `lastVisitAt` (visita = `COMPLETED`/`CHECKED_IN`). Nada mais muda. Idempotente via `ImportBatch.crmCountersAppliedAt` — reprocessar a fila não conta duas vezes. Aplicado **antes** de fechar o lote, para o `updatedAt` do cliente não travar o desfazer.
-- `sendReviewInvitations` é **fase 2**: a opção é aceita e guardada, e **nada é disparado**.
+- `sendReviewInvitations` é aceita e guardada, e **nada é disparado**.
 - Cliente importado nasce com `marketingOptIn: false` — histórico importado nunca vira campanha.
-- **Desfazer** (30 dias) remove só o que o lote criou **e** o que ninguém tocou depois: registro com movimentação posterior (avaliação, sinal, comissão, item de fila, agendamento, evento financeiro, fiado) ou com `updatedAt` posterior ao fim do lote é preservado, com o motivo no relatório (`removed`/`kept`).
-- Limites: 10 MB por arquivo, 20.000 linhas, 1 importação ativa por salão, 5 importações por hora (`IMPORT_MAX_BATCHES_PER_HOUR`), arquivo temporário guardado por 7 dias e apagado no fim do processamento.
+- **Desfazer** (30 dias) remove só o que o lote criou **e** o que ninguém tocou depois, cobrindo os 12 tipos de entidade: o que o lote criou é removido; o que ele **substituiu** é **restaurado** do snapshot `{before, applied}`; o que foi editado depois (detectado pelo `applied` ou pelo status, já que horário/folga não têm `updatedAt`) é preservado, com o motivo no relatório (`removed`/`kept`/`restored`).
+- Limites: 10 MB por arquivo, 20.000 linhas, 10 abas, 1 importação ativa por salão, 5 importações por hora (`IMPORT_MAX_BATCHES_PER_HOUR`), arquivo temporário guardado por 7 dias e apagado no fim do processamento.
 - Detalhes completos em `docs/IMPORTACAO_PLANILHAS.md`.
 
 ## Notificações

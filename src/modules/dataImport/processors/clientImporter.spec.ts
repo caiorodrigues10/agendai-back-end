@@ -36,8 +36,15 @@ function contexto(overrides: Partial<ImportRowContext> = {}): ImportRowContext {
       countFinancialValues: false,
       sendReviewInvitations: false,
       includeCase: false,
+        replaceExistingSchedules: false,
+        importTimeOffAsPending: false,
+        updateExistingProducts: false,
+        createProductCategories: false,
+        sendFiadoReminders: false,
     },
     segment: null,
+    actingUserId: "user-1",
+    batchId: "batch-1",
     ...overrides,
   };
 }
@@ -111,6 +118,11 @@ describe("importClientRow", () => {
           countFinancialValues: false,
           sendReviewInvitations: false,
           includeCase: false,
+            replaceExistingSchedules: false,
+            importTimeOffAsPending: false,
+            updateExistingProducts: false,
+            createProductCategories: false,
+            sendFiadoReminders: false,
         },
       }),
     );

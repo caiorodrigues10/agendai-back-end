@@ -107,6 +107,7 @@ export function getFieldLabel(
   switch (definition.key) {
     case "name":
     case "clientName":
+    case "customerName":
       return labels.client;
     case "serviceName":
       return labels.service;
@@ -114,6 +115,18 @@ export function getFieldLabel(
       return labels.professional;
     case "durationMinutes":
       return `Duração (minutos)`;
+    case "packageName":
+      return "Pacote";
+    case "productName":
+      return "Produto";
+    case "timeOffReason":
+      return "Motivo";
+    case "originalAmount":
+      return "Valor da dívida";
+    case "paidAmount":
+      return "Valor já pago";
+    case "dueDate":
+      return "Vencimento";
     default:
       return definition.label;
   }
