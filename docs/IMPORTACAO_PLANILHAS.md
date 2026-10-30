@@ -1,8 +1,14 @@
 # Assistente de importação de planilhas
 
-O dono do salão importa clientes, serviços e histórico de agenda a partir de uma
-planilha `.xlsx` ou `.csv`. Nada é gravado antes da prévia: o fluxo sempre passa
-por **dry-run** (simulação) e só grava depois que o dono confirma.
+O dono do salão importa clientes, serviços, agenda, horários, folgas, produtos,
+pacotes e fiado a partir de uma planilha `.xlsx` ou `.csv`. Nada é gravado antes
+da prévia: o fluxo sempre passa por **dry-run** (simulação) e só grava depois que
+o dono confirma.
+
+A planilha pode ter **várias abas, cada uma com o seu tipo** (Fase 2): o dono
+escolhe o tipo de cada aba e o assistente importa na ordem de dependência entre
+os tipos (serviços → clientes → produtos → catálogo de pacotes → horários/folgas
+→ pacotes dos clientes → fiado → agenda), nunca na ordem das abas.
 
 - **Backend:** `src/modules/dataImport/` (rotas, use cases, processors, worker).
 - **Frontend:** `src/features/dataImport/` (assistente em Configurações → Importar dados).
@@ -16,12 +22,21 @@ por **dry-run** (simulação) e só grava depois que o dono confirma.
 | passo | o que acontece | rota |
 |---|---|---|
 | 1. Arquivo | o dono envia a planilha (até 10 MB) | `POST /api/barbershops/:barbershopId/imports` |
-| 2. O que importar | escolhe o alvo (clientes, serviços ou agenda) e a aba da planilha | `PATCH .../imports/:batchId/target` |
-| 3. Colunas | o sistema detecta as colunas por sinônimo; o dono corrige o que quiser | `PATCH .../imports/:batchId/mapping` |
+| 2. O que importar | escolhe o tipo de **cada aba** (uma aba por tipo) | `PATCH .../imports/:batchId/target` |
+| 3. Colunas | o sistema detecta as colunas por sinônimo; o dono corrige o que quiser (aba a aba) | `PATCH .../imports/:batchId/mapping` |
 | 4. Validação | **dry-run**: mostra quantas linhas entram, quantas são ignoradas e quantas são rejeitadas — não grava nada | `POST .../imports/:batchId/validate` |
 | 5. Prévia | o dono confere e confirma | `POST .../imports/:batchId/confirm` |
-| 6. Processamento | o worker processa em pedaços de 200 linhas, cada pedaço em uma transação | fila `data-import` |
+| 6. Processamento | o worker processa em pedaços de 200 linhas, cada pedaço em uma transação, **na ordem de dependência entre os tipos** | fila `data-import` |
 | 7. Conclusão | mostra o resultado e permite **desfazer** em até 30 dias | `POST .../imports/:batchId/undo` |
+
+As rotas de alvo e de mapeamento aceitam **duas formas**:
+
+- **multi-aba (Fase 2):** `PATCH /target` com `{ sheets: [{ sheetName, targetType }] }`
+  e `PATCH /mapping` com `{ sheets: [{ sheetName, targetType, columns, options }] }`;
+- **legada (aba única):** `PATCH /target` com `{ targetType, sheetName }` e
+  `PATCH /mapping` com `{ columns, options }`.
+
+Quando as abas têm tipos diferentes, o lote guarda `targetType: "MIXED"`.
 
 O dono pode sair da tela no meio: ao voltar, o assistente retoma o lote
 pendente (`GET .../imports/active`). Lote abandonado pode ser cancelado
@@ -51,18 +66,24 @@ a assinatura binária do arquivo (`.xlsx` precisa começar com `PK`). `.xlsm`,
 
 ---
 
-## 3. Colunas aceitas por alvo
+## 3. Alvos e colunas
 
 A detecção automática casa o cabeçalho da planilha com os sinônimos de cada
 campo (`IMPORT_FIELDS_BY_TARGET`, em `src/modules/dataImport/dataImport.constants.ts`).
 O dono pode trocar o mapeamento antes de confirmar.
 
+Os 10 alvos: `CLIENTS`, `SERVICES`, `APPOINTMENTS`, `STAFF_SCHEDULES`,
+`SHOP_SCHEDULE`, `TIME_OFF`, `PRODUCTS`, `SERVICE_PACKAGES`, `CLIENT_PACKAGES`,
+`FIADOS`. O alvo `PRODUCTS` fica oculto para o segmento jurídico
+(`availableImportTargets`).
+
 ### Clientes (`CLIENTS`)
 
-| campo | obrigatório |Observações |
+| campo | obrigatório | Observações |
 |---|---|---|
 | Nome | sim | mínimo 2 caracteres |
 | WhatsApp | sim | DDD + número (10 ou 11 dígitos); **é a identidade do cliente** |
+| E-mail | não | |
 | Data de nascimento | não | `dd/mm/aaaa` ou `aaaa-mm-dd` |
 | Observações | não | até 2.000 caracteres |
 
@@ -92,6 +113,79 @@ O dono pode trocar o mapeamento antes de confirmar.
 | Modalidade | não | `presencial` ou `online` |
 | Caso/processo | não | só para salões do segmento jurídico (`includeCase`) |
 
+### Horários da equipe (`STAFF_SCHEDULES`)
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Profissional | sim | casa com um membro da equipe existente — **nunca cria login novo**; nome ambíguo rejeita a linha |
+| Dia da semana | sim | `segunda`, `terça`… (acentos normalizados) |
+| Início / fim | sim | `hh:mm` |
+| Pausa (início/fim) | não | pausa de almoço que não cabe no intervalo é ignorada + aviso |
+
+Por padrão dias que já têm horário são **mantidos**; a opção
+`replaceExistingSchedules` substitui.
+
+### Horário do salão (`SHOP_SCHEDULE`)
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Dia da semana | sim | |
+| Abre / fecha | sim | `hh:mm`; `aberto=não` marca o dia fechado |
+
+### Férias e folgas (`TIME_OFF`)
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Profissional | sim | casa com a equipe existente |
+| Início / fim | sim | `dd/mm/aaaa` |
+| Motivo | não | |
+| Status | não | por padrão entra **aprovada**; `importTimeOffAsPending` importa como pendente |
+
+### Produtos e estoque (`PRODUCTS`)
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Produto | sim | |
+| SKU / código de barras | não | dedupe: SKU → código de barras → nome |
+| Categoria | não | `createProductCategories` cria a que não existe |
+| Preço de venda / custo | não | |
+| Estoque inicial | não | vira **movimento de entrada** (`StockMovement` tipo `IMPORT`) — nunca sobrescreve o saldo direto |
+| Estoque mínimo | não | `updateExistingProducts` atualiza preço/mínimo de produto existente |
+| Imagem (URL) | não | **ignorada** + aviso |
+
+### Catálogo de pacotes (`SERVICE_PACKAGES`)
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Pacote | sim | |
+| Sessões | sim | inteiro |
+| Preço | sim | |
+| Validade (dias) | não | |
+
+### Pacotes dos clientes (`CLIENT_PACKAGES`)
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Cliente (telefone) | sim | cria o cliente se não existir |
+| Pacote | sim | casa no catálogo |
+| Sessões totais / restantes | sim | |
+| Valor pago | não | **não** cria `PACKAGE_SALE` nem evento financeiro |
+| Compra / validade | não | |
+
+### Fiados (`FIADOS`)
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Cliente (telefone) | sim | **não cria cliente novo** — só vincula por telefone; telefone desconhecido rejeita a linha |
+| Descrição | não | |
+| Valor original | sim | |
+| Já pago | não | vira `FiadoPayment` forma `other` **sem** lançamento no caixa |
+| Vencimento | não | |
+
+O fiado importado nasce com `origin: IMPORT`: ele **não entra no primeiro
+ciclo de cobrança**. `sendFiadoReminders` (desligado por padrão) é a única forma
+de disparar lembrete — e hoje também não dispara nada.
+
 ---
 
 ## 4. Regras de identidade (por que não duplica)
@@ -107,6 +201,9 @@ O dono pode trocar o mapeamento antes de confirmar.
   comparado pelo CRM quando há telefone, pelo nome quando não). Agendamento
   equivalente já existente na agenda é ignorado (`SKIPPED`) — reimportar o mesmo
   arquivo não duplica a agenda.
+- **Produto:** dedupe por SKU → código de barras → nome.
+- **Horário:** por dia + profissional (ou dia do salão); mantido por padrão.
+- **Pacote do cliente:** cliente + pacote; saldo é atualizado, não duplicado.
 
 ---
 
@@ -120,9 +217,10 @@ Esta é a parte que mais importa: importar histórico **alimenta o CRM, não o c
   "contar valores no histórico financeiro" está desligada (padrão): o agendamento
   entra na agenda, mas `completedAt` e `finalPrice` ficam vazios, então
   relatórios e comissões não o enxergam.
-- **Não dispara convite de avaliação.** A opção "convidar para avaliação" existe
-  na interface mas é **fase 2**: hoje ela é aceita e guardada, e **nada é
-  disparado** (`sendReviewInvitations` — ver `dataImport.types.ts`).
+- **Não dispara convite de avaliação.** A opção `sendReviewInvitations` é aceita
+  e guardada, e **nada é disparado**.
+- **Não cria caixa/estoque direto:** estoque inicial é movimento `IMPORT`;
+  "valor já pago" do fiado é pagamento sem caixa.
 - Cliente importado **nunca entra em campanha de marketing** sem consentimento:
   o importador grava `marketingOptIn: false`.
 
@@ -149,22 +247,28 @@ Nada além disso muda: sem comissão, sem financeiro, sem notificação.
 
 ---
 
-## 7. Desfazer
+## 7. Desfazer (por tipo, com snapshot)
 
 `POST .../imports/:batchId/undo` remove **apenas** o que o lote criou e **apenas**
-o que não foi mexido depois:
+o que não foi mexido depois. O desfazer cobre os 12 tipos de entidade
+(`ImportCreatedEntity.entityType`), na ordem `UNDO_ORDER` (agenda → caso →
+fiado → pacote do cliente → catálogo de pacotes → folga → horário da equipe →
+horário do salão → produto → categoria → cliente → serviço):
 
-- registro que ganhou movimentação posterior (agendamento com avaliação, sinal,
-  comissão ou item de fila; cliente com agendamento, avaliação, evento financeiro
-  ou fiado) é **preservado**;
-- registro alterado depois da importação (`updatedAt` posterior ao fim do lote)
-  é **preservado**;
-- o que o lote criou e ninguém tocou é **removido**;
-- junto saem os contadores de CRM do que foi removido.
+- **Criado pelo lote** (`previousState: null`): removido, junto com o que dele
+  depende (movimentos `IMPORT` de produto saem antes do produto; contador de CRM
+  é revertido).
+- **Substituído pelo lote** (`previousState: { before, applied }`): o desfazer
+  **restaura** o `before` (ex.: horário que existia antes, preço de produto) —
+  e usa o `applied` para detectar edição posterior.
+- **Editado depois** (`applied` ≠ estado atual, ou `status` rejeitado/cancelado
+  em folga): **preservado**, com o motivo no relatório.
+- Registro com movimentação posterior (agendamento com avaliação/sinal/comissão,
+  fiado com pagamento posterior, cliente com agendamento/avaliação) é
+  **preservado**.
 
-O relatório do desfazer vem em `removed` (quantos saíram) e `kept` (quantos
-ficaram, com o motivo de cada um). A janela é de 30 dias a partir da criação do
-lote.
+O relatório vem em `removed`, `kept` e `details[]` (`action: removed | kept |
+restored` + motivo). A janela é de 30 dias a partir da criação do lote.
 
 ---
 
@@ -176,7 +280,16 @@ importação.
 
 ---
 
-## 9. Variáveis de ambiente
+## 9. Modelos (.xlsx)
+
+`GET .../imports/template?target=<TIPO>` devolve um modelo por tipo (10 modelos),
+com **duas linhas de exemplo** e os cabeçalhos certos para aquele segmento. A aba
+"Como preencher" do modelo explica as regras. O assistente expõe os links na
+etapa de upload.
+
+---
+
+## 10. Variáveis de ambiente
 
 | env | padrão | para quê |
 |---|---|---|
@@ -184,15 +297,13 @@ importação.
 
 ---
 
-## 10. Testes
+## 11. Testes
 
 | tipo | onde | o que cobre |
 |---|---|---|
-| unit | `src/modules/dataImport/crmCounters.spec.ts` | contadores de CRM: soma, última visita, idempotência, reversão |
-| unit | `src/modules/dataImport/processors/*.spec.ts` | processadores de cliente, serviço e agendamento (inclusive o dedupe de agendamento) |
-| unit | `src/modules/dataImport/importUndo.spec.ts` | regras do desfazer |
-| integração | `src/tests/integration/dataImport.integration.spec.ts` | fluxo completo contra Postgres: dry-run não grava, sem efeitos colaterais, contadores, reimportação sem duplicar, desfazer remove só o criado |
-| e2e | `frontend/e2e/data-import.spec.ts` | navegador: upload → alvo → colunas → prévia → confirmar → reimportar sem duplicar → desfazer, e a garantia de que **nenhuma mensagem** foi enviada |
+| unit | `src/modules/dataImport/**/*.spec.ts` (19 arquivos) | processadores dos 10 alvos, plano multi-aba, desfazer 12 tipos com snapshot, contadores, parsers, rótulos |
+| integração | `src/tests/integration/dataImport.integration.spec.ts` | fluxo completo contra Postgres: dry-run não grava, sem efeitos colaterais, contadores, reimportação sem duplicar, desfazer remove só o criado, **multi-aba (MIXED) com desfazer multi-tipo e ordem de dependência** |
+| e2e | `frontend/e2e/data-import.spec.ts` | navegador: upload → alvo → colunas → prévia → confirmar → reimportar sem duplicar → desfazer, garantia de que **nenhuma mensagem** foi enviada, e **multi-aba** (atribuição de tipo por aba + desfazer) |
 
 Rodar o e2e (precisa do stack inteiro e de um salão com dono):
 
@@ -205,9 +316,7 @@ npx playwright test e2e/data-import.spec.ts --project=desktop-chromium
 
 ---
 
-## 11. Fases futuras
+## 12. Próximos passos
 
-- **Fase 2 — convites de avaliação:** implementar `sendReviewInvitations` (hoje a
-  opção é aceita e não dispara nada).
 - Revisão completa do inventário de RLS (o schema já tem 178 models; o inventário
   foi escrito com 143 — ver `docs/RLS-INVENTARIO.md`).

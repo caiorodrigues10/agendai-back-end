@@ -87,32 +87,52 @@ export class DataImportController {
       .send(buffer);
   }
 
-  /** Etapa 2 — alvo da importação. */
+  /** Etapa 2 — alvo da importação (uma aba só ou uma aba por tipo). */
   async configureTarget(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
     const body = configureTargetSchema.parse(request.body);
 
-    const result = await this.useCases.configureTarget({
-      barbershopId,
-      batchId,
-      targetType: body.targetType,
-      sheetName: body.sheetName ?? null,
-    });
+    const result = "sheets" in body
+      ? await this.useCases.configureTarget({
+          barbershopId,
+          batchId,
+          sheets: body.sheets.map((sheet) => ({
+            sheetName: sheet.sheetName ?? null,
+            targetType: sheet.targetType,
+          })),
+        })
+      : await this.useCases.configureTarget({
+          barbershopId,
+          batchId,
+          targetType: body.targetType,
+          sheetName: body.sheetName ?? null,
+        });
 
     reply.send({ success: true, data: result });
   }
 
-  /** Etapa 3 — mapeamento de colunas. */
+  /** Etapa 3 — mapeamento de colunas (uma aba só ou todas as abas). */
   async saveMapping(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
     const body = mappingSchema.parse(request.body);
 
-    const result = await this.useCases.saveMapping({
-      barbershopId,
-      batchId,
-      columns: body.columns,
-      options: body.options,
-    });
+    const result = "sheets" in body
+      ? await this.useCases.saveMapping({
+          barbershopId,
+          batchId,
+          sheets: body.sheets.map((sheet) => ({
+            sheetName: sheet.sheetName ?? null,
+            targetType: sheet.targetType,
+            columns: sheet.columns,
+            options: sheet.options,
+          })),
+        })
+      : await this.useCases.saveMapping({
+          barbershopId,
+          batchId,
+          columns: body.columns,
+          options: body.options,
+        });
 
     reply.send({ success: true, data: result });
   }

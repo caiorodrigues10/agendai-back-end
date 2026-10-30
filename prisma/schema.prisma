@@ -2286,6 +2286,8 @@ enum FiadoStatus {
 }
 
 enum FiadoOrigin {
+  /// Dívida importada de planilha (não gera cobrança nem receita).
+  IMPORT
   MANUAL
   SERVICE_COMPLETION
   RETAIL_SALE
@@ -3019,6 +3021,8 @@ enum ProductReservationStatus {
 }
 
 enum StockMovementType {
+  /// Saldo inicial importado de planilha (não é compra: não gera despesa).
+  IMPORT
   PURCHASE_RECEIPT
   SALE
   SALE_REFUND
@@ -5511,6 +5515,23 @@ enum ImportTargetType {
   SERVICES
   /// Agendamentos da agenda.
   APPOINTMENTS
+  /// Horário de funcionamento dos profissionais.
+  STAFF_SCHEDULES
+  /// Horário de funcionamento do estabelecimento.
+  SHOP_SCHEDULE
+  /// Folgas e bloqueios dos profissionais.
+  TIME_OFF
+  /// Produtos do catálogo e estoque inicial.
+  PRODUCTS
+  /// Catálogo de pacotes de serviço.
+  SERVICE_PACKAGES
+  /// Saldo de pacotes dos clientes.
+  CLIENT_PACKAGES
+  /// Dívidas (fiado) de clientes.
+  FIADOS
+  /// Lote com abas de tipos diferentes. O detalhe de cada aba vive no plano
+  /// (JSON do mapeamento).
+  MIXED
 }
 
 /// Situação do lote de importação ao longo do assistente.
@@ -5555,44 +5576,60 @@ enum ImportEntityType {
   SERVICE
   APPOINTMENT
   CASE
+  /// Horário de um profissional.
+  STAFF_SCHEDULE
+  /// Horário do estabelecimento.
+  SHOP_SCHEDULE
+  /// Folga/bloqueio de um profissional.
+  TIME_OFF
+  /// Produto do catálogo.
+  PRODUCT
+  /// Categoria de produto.
+  PRODUCT_CATEGORY
+  /// Pacote do catálogo.
+  SERVICE_PACKAGE
+  /// Saldo de pacote de um cliente.
+  CLIENT_PACKAGE
+  /// Dívida (fiado).
+  FIADO
 }
 
 /// Lote de importação de planilha. Um lote por arquivo enviado.
 model ImportBatch {
-  id            String            @id @default(uuid()) @db.Uuid
-  barbershopId  String            @db.Uuid
+  id                   String            @id @default(uuid()) @db.Uuid
+  barbershopId         String            @db.Uuid
   /// Nome original do arquivo (mostrado ao dono, nunca usado como caminho).
-  fileName      String            @db.VarChar(255)
+  fileName             String            @db.VarChar(255)
   /// Caminho absoluto do arquivo temporário no servidor.
-  filePath      String            @db.VarChar(500)
-  fileSize      Int
-  fileFormat    ImportFileFormat
+  filePath             String            @db.VarChar(500)
+  fileSize             Int
+  fileFormat           ImportFileFormat
   /// Aba escolhida na planilha (null para CSV).
-  sheetName     String?           @db.VarChar(120)
+  sheetName            String?           @db.VarChar(120)
   /// O que o lote vai importar.
-  targetType    ImportTargetType  @default(CLIENTS)
-  status        ImportBatchStatus @default(UPLOADED)
+  targetType           ImportTargetType  @default(CLIENTS)
+  status               ImportBatchStatus @default(UPLOADED)
   /// Cabeçalhos das colunas detectadas (nomes das abas/linha 1).
-  headers       Json?
+  headers              Json?
   /// Mapeamento escolhido pelo dono (coluna -> campo do destino) + opções.
-  mapping       Json?
-  totalRows     Int               @default(0)
-  processedRows Int               @default(0)
-  importedRows  Int               @default(0)
-  failedRows    Int               @default(0)
-  skippedRows   Int               @default(0)
-  errorMessage  String?           @db.Text
-  createdById   String?           @db.Uuid
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  startedAt     DateTime?
-  finishedAt     DateTime?
-  undoneAt       DateTime?
+  mapping              Json?
+  totalRows            Int               @default(0)
+  processedRows        Int               @default(0)
+  importedRows         Int               @default(0)
+  failedRows           Int               @default(0)
+  skippedRows          Int               @default(0)
+  errorMessage         String?           @db.Text
+  createdById          String?           @db.Uuid
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  undoneAt             DateTime?
   /// Momento em que os contadores de CRM foram atualizados pelo lote.
   /// Garante que a contagem não seja aplicada duas vezes (retry da fila).
   crmCountersAppliedAt DateTime?
   /// Fim da janela de desfazer (30 dias a partir da criação).
-  expiresAt     DateTime
+  expiresAt            DateTime
 
   barbershop Barbershop            @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   createdBy  User?                 @relation("ImportBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -5610,7 +5647,9 @@ model ImportRowResult {
   id           String            @id @default(uuid()) @db.Uuid
   batchId      String            @db.Uuid
   barbershopId String            @db.Uuid
-  /// Número da linha no arquivo (1 = primeira linha de dados, sem o cabeçalho).
+  /// Aba da planilha da linha ("CSV" quando o arquivo é CSV).
+  sheetName    String            @default("CSV") @db.VarChar(120)
+  /// Número da linha dentro da aba (1 = primeira linha de dados, sem o cabeçalho).
   rowNumber    Int
   status       ImportRowStatus   @default(PENDING)
   entityType   ImportEntityType?
@@ -5622,7 +5661,7 @@ model ImportRowResult {
 
   batch ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
-  @@unique([batchId, rowNumber])
+  @@unique([batchId, sheetName, rowNumber])
   @@index([barbershopId, status])
   @@map("import_row_results")
 }
@@ -5630,14 +5669,17 @@ model ImportRowResult {
 /// Vínculo entre o lote e as entidades criadas por ele. Permite desfazer
 /// apenas o que o lote criou, sem tocar em registros alterados depois.
 model ImportCreatedEntity {
-  id           String           @id @default(uuid()) @db.Uuid
-  batchId      String           @db.Uuid
-  barbershopId String           @db.Uuid
-  entityType   ImportEntityType
-  entityId     String           @db.Uuid
-  createdAt    DateTime         @default(now())
+  id            String           @id @default(uuid()) @db.Uuid
+  batchId       String           @db.Uuid
+  barbershopId  String           @db.Uuid
+  entityType    ImportEntityType
+  entityId      String           @db.Uuid
+  /// Valor anterior da linha quando a importação SUBSTITUIU um registro que já
+  /// existia (ex.: horário do dia). O desfazer restaura esse valor.
+  previousState Json?
+  createdAt     DateTime         @default(now())
   /// Marcado quando o registro foi removido no desfazer.
-  undoneAt     DateTime?
+  undoneAt      DateTime?
 
   batch ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 

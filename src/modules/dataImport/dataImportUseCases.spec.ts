@@ -39,6 +39,16 @@ vi.mock("./utils/spreadsheetParser", () => ({
     sheetNames: [],
     selectedSheet: null,
   })),
+  readSpreadsheetSheets: vi.fn(async () => [
+    {
+      sheetName: null,
+      headers: ["Nome", "WhatsApp"],
+      rows: [
+        { Nome: "Ana", WhatsApp: "11987654321" },
+        { Nome: "Bruno", WhatsApp: "11888888888" },
+      ],
+    },
+  ]),
   readSpreadsheetPreview: vi.fn(async () => ({
     headers: ["Nome", "WhatsApp"],
     rows: [{ Nome: "Ana", WhatsApp: "11987654321" }],
@@ -184,8 +194,14 @@ describe("DataImportUseCases", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             mapping: expect.objectContaining({
-              columns: { "0": "name", "1": "whatsapp" },
-              options: expect.objectContaining({ countFinancialValues: true }),
+              version: 2,
+              sheets: expect.arrayContaining([
+                expect.objectContaining({
+                  targetType: "CLIENTS",
+                  columns: { "0": "name", "1": "whatsapp" },
+                  options: expect.objectContaining({ countFinancialValues: true }),
+                }),
+              ]),
             }),
           }),
         }),
@@ -200,8 +216,9 @@ describe("DataImportUseCases", () => {
       });
 
       const data = importBatchUpdateMany.mock.calls[0][0].data;
-      expect(data.mapping.options.countFinancialValues).toBe(false);
-      expect(data.mapping.options.sendReviewInvitations).toBe(false);
+      const options = data.mapping.sheets[0].options;
+      expect(options.countFinancialValues).toBe(false);
+      expect(options.sendReviewInvitations).toBe(false);
     });
   });
 

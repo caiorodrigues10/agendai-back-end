@@ -58,6 +58,12 @@ export function cellToText(value: ExcelJS.CellValue): string {
   return String(value).trim();
 }
 
+export interface XlsxSheetResult {
+  name: string;
+  headers: string[];
+  rows: string[][];
+}
+
 /**
  * Lê o workbook e devolve a primeira aba (ou a indicada).
  * `sheetName` opcional: quando informado, usa essa aba.
@@ -66,6 +72,28 @@ export async function parseXlsx(
   buffer: Buffer,
   sheetName?: string | null,
 ): Promise<XlsxParseResult> {
+  const sheets = await parseXlsxSheets(buffer);
+  if (!sheets.length) {
+    throw new AppError("A planilha enviada não tem abas com conteúdo.", 400);
+  }
+
+  const sheetNames = sheets.map((sheet) => sheet.name);
+  const sheet = sheetName ? sheets.find((item) => item.name === sheetName) : sheets[0];
+  if (!sheet) {
+    throw new AppError("A aba escolhida não existe mais na planilha.", 400);
+  }
+
+  return { headers: sheet.headers, rows: sheet.rows, sheetNames };
+}
+
+/**
+ * Lê **todas** as abas do workbook.
+ *
+ * A importação multi-aba precisa do cabeçalho e das linhas de cada aba: o
+ * dono escolhe o tipo de cada uma. O workbook é carregado uma vez só — abrir
+ * o arquivo de novo para cada aba seria desperdício.
+ */
+export async function parseXlsxSheets(buffer: Buffer): Promise<XlsxSheetResult[]> {
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
@@ -84,41 +112,40 @@ export async function parseXlsx(
     );
   }
 
-  const sheetNames = worksheets.map((sheet) => sheet.name);
-  const sheet = sheetName ? worksheets.find((item) => item.name === sheetName) : worksheets[0];
-  if (!sheet) {
-    throw new AppError("A aba escolhida não existe mais na planilha.", 400);
-  }
-
-  const matrix: string[][] = [];
-  sheet.eachRow({ includeEmpty: false }, (row) => {
-    if (matrix.length > MAX_IMPORT_ROWS + 1) return;
-    const cells: string[] = [];
-    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-      if (colNumber > MAX_IMPORT_COLUMNS) return;
-      cells[colNumber - 1] = cellToText(cell.value).slice(0, MAX_IMPORT_CELL_LENGTH);
+  const sheets: XlsxSheetResult[] = [];
+  for (const worksheet of worksheets) {
+    const matrix: string[][] = [];
+    worksheet.eachRow({ includeEmpty: false }, (row) => {
+      if (matrix.length > MAX_IMPORT_ROWS + 1) return;
+      const cells: string[] = [];
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        if (colNumber > MAX_IMPORT_COLUMNS) return;
+        cells[colNumber - 1] = cellToText(cell.value).slice(0, MAX_IMPORT_CELL_LENGTH);
+      });
+      while (cells.length && cells[cells.length - 1] === "") cells.pop();
+      if (cells.some((cell) => cell !== "")) matrix.push(cells);
     });
-    while (cells.length && cells[cells.length - 1] === "") cells.pop();
-    if (cells.some((cell) => cell !== "")) matrix.push(cells);
-  });
 
-  if (!matrix.length) {
-    throw new AppError("A aba escolhida está vazia.", 400);
+    // Aba vazia não atrapalha o dono: ele simplesmente não escolhe um tipo
+    // para ela. Só a aba que ele escolheu precisa ter conteúdo.
+    if (!matrix.length) continue;
+
+    const headers = normalizeHeaders(matrix[0]);
+    const rows = matrix.slice(1).map((cells) => {
+      const limited = cells.slice(0, headers.length);
+      while (limited.length < headers.length) limited.push("");
+      return limited.slice(0, headers.length);
+    });
+
+    if (rows.length > MAX_IMPORT_ROWS) {
+      throw new AppError(
+        `A aba "${worksheet.name}" tem ${rows.length} linhas; o limite é ${MAX_IMPORT_ROWS}.`,
+        400,
+      );
+    }
+
+    sheets.push({ name: worksheet.name, headers, rows });
   }
 
-  const headers = normalizeHeaders(matrix[0]);
-  const rows = matrix.slice(1).map((cells) => {
-    const limited = cells.slice(0, headers.length);
-    while (limited.length < headers.length) limited.push("");
-    return limited.slice(0, headers.length);
-  });
-
-  if (rows.length > MAX_IMPORT_ROWS) {
-    throw new AppError(
-      `A planilha tem ${rows.length} linhas; o limite é ${MAX_IMPORT_ROWS}.`,
-      400,
-    );
-  }
-
-  return { headers, rows, sheetNames };
+  return sheets;
 }

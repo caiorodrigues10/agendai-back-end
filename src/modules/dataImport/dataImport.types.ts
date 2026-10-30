@@ -7,10 +7,29 @@
  */
 
 /** O que o lote cria. */
-export type ImportTargetType = "CLIENTS" | "SERVICES" | "APPOINTMENTS";
+export type ImportTargetType =
+  | "CLIENTS"
+  | "SERVICES"
+  | "APPOINTMENTS"
+  | "STAFF_SCHEDULES"
+  | "SHOP_SCHEDULE"
+  | "TIME_OFF"
+  | "PRODUCTS"
+  | "SERVICE_PACKAGES"
+  | "CLIENT_PACKAGES"
+  | "FIADOS";
 
 /** Formato aceito no upload. */
 export type ImportFileFormat = "XLSX" | "CSV";
+
+/**
+ * Alvo gravado no lote.
+ *
+ * Espelha o enum `ImportTargetType` do Prisma e inclui `MIXED`: um lote com
+ * abas de tipos diferentes é gravado como "misto" — o detalhe de cada aba vive
+ * no plano (JSON do mapeamento).
+ */
+export type ImportBatchTargetType = ImportTargetType | "MIXED";
 
 /** Situação do lote. Espelha o enum `ImportBatchStatus` do Prisma. */
 export type ImportBatchStatus =
@@ -27,7 +46,19 @@ export type ImportBatchStatus =
   | "EXPIRED";
 
 /** Tipo de entidade criada pelo lote. Espelha o enum `ImportEntityType`. */
-export type ImportEntityType = "CLIENT" | "SERVICE" | "APPOINTMENT" | "CASE";
+export type ImportEntityType =
+  | "CLIENT"
+  | "SERVICE"
+  | "APPOINTMENT"
+  | "CASE"
+  | "STAFF_SCHEDULE"
+  | "SHOP_SCHEDULE"
+  | "TIME_OFF"
+  | "PRODUCT"
+  | "PRODUCT_CATEGORY"
+  | "SERVICE_PACKAGE"
+  | "CLIENT_PACKAGE"
+  | "FIADO";
 
 /** Situação de uma linha. Espelha o enum `ImportRowStatus`. */
 export type ImportRowStatus = "PENDING" | "IMPORTED" | "SKIPPED" | "FAILED";
@@ -52,7 +83,6 @@ export type ImportFieldKey =
   // agendamentos
   | "clientName"
   | "clientWhatsapp"
-  | "serviceName"
   | "staffName"
   | "date"
   | "time"
@@ -61,12 +91,55 @@ export type ImportFieldKey =
   | "paymentMethod"
   | "modality"
   | "caseName"
-  | "practiceArea";
+  | "practiceArea"
+  // horários (profissional e estabelecimento)
+  | "dayOfWeek"
+  | "startTime"
+  | "endTime"
+  | "pauseStart"
+  | "pauseEnd"
+  | "isOpen"
+  // folgas e bloqueios
+  | "startDate"
+  | "endDate"
+  | "timeOffReason"
+  | "timeOffStatus"
+  // produtos e estoque
+  | "productName"
+  | "productSku"
+  | "productBarcode"
+  | "productCategory"
+  | "productDescription"
+  | "productUnit"
+  | "productUnitLabel"
+  | "productType"
+  | "salePrice"
+  | "costPrice"
+  | "stockQty"
+  | "minStock"
+  | "productImage"
+  // catálogo de pacotes
+  | "packageName"
+  | "sessionCount"
+  | "packagePrice"
+  | "validityDays"
+  // saldo de pacotes do cliente
+  | "totalSessions"
+  | "remainingSessions"
+  | "pricePaid"
+  | "purchasedAt"
+  | "expiresAt"
+  // fiado
+  | "customerName"
+  | "fiadoDescription"
+  | "originalAmount"
+  | "paidAmount"
+  | "dueDate";
 
 /** Definição de um campo de destino, com rótulo por segmento. */
 export interface ImportFieldDefinition {
   key: ImportFieldKey;
-  /** Rótulo canônico (usado quando o segmento não define um vocabularário). */
+  /** Rótulo canônico (usado quando o segmento não define um vocabulário). */
   label: string;
   /** O campo é obrigatório para o alvo. */
   required: boolean;
@@ -77,7 +150,16 @@ export interface ImportFieldDefinition {
   /** Campo só aparece para segmentos com este perfil auxiliar. */
   requiresAuxiliaryProfile?: "case";
   /** Limita o formato aceito (usado na validação da linha). */
-  type: "text" | "phone" | "email" | "date" | "time" | "money" | "number";
+  type:
+    | "text"
+    | "phone"
+    | "email"
+    | "date"
+    | "time"
+    | "money"
+    | "number"
+    | "quantity"
+    | "weekday";
 }
 
 /** Mapeamento coluna → campo, mais as opções escolhidas pelo dono. */
@@ -115,6 +197,91 @@ export interface ImportOptions {
    * auxiliar `case` e nunca compartilha o caso com o cliente.
    */
   includeCase: boolean;
+  /**
+   * Substitui o horário já configurado do dia. Desligado por padrão: o dia
+   * que já existe é preservado e a linha aparece como "ignorada".
+   */
+  replaceExistingSchedules: boolean;
+  /**
+   * Importa a folga como pendente de aprovação. Desligado por padrão: a
+   * folga entra já aprovada (quem importa é o dono do estabelecimento).
+   */
+  importTimeOffAsPending: boolean;
+  /**
+   * Atualiza preço e estoque mínimo de produto que já existe. Desligado por
+   * padrão: produto repetido é ignorado.
+   */
+  updateExistingProducts: boolean;
+  /**
+   * Cria a categoria de produto que ainda não existe. Desligado por padrão:
+   * o produto entra sem categoria e a prévia avisa.
+   */
+  createProductCategories: boolean;
+  /**
+   * Envia o lembrete de cobrança do fiado importado. Desligado por padrão:
+   * a importação não fala com o cliente. Quando ligado, o fiado importado
+   * recebe a mesma mensagem de cobrança do botão "Cobrar" do painel.
+   */
+  sendFiadoReminders: boolean;
+}
+
+/** Uma aba da planilha e o que ela importa. */
+export interface ImportSheetPlan {
+  /** Nome da aba (`null` quando o arquivo é CSV). */
+  sheetName: string | null;
+  /** O que esta aba importa. */
+  targetType: ImportTargetType;
+  /** Coluna (índice em texto) → campo de destino. */
+  columns: Record<string, string>;
+  /** Opções escolhidas para esta aba. */
+  options: ImportOptions;
+}
+
+/**
+ * Plano do lote: o que cada aba da planilha importa.
+ *
+ * Uma planilha pode ter abas de tipos diferentes. As abas são processadas na
+ * ordem de dependência (serviços → clientes → produtos → pacotes → horários →
+ * folgas → pacotes dos clientes → fiado → agenda), não na ordem em que o dono
+ * escolheu.
+ */
+export interface ImportPlan {
+  sheets: ImportSheetPlan[];
+}
+
+/** Uma aba do arquivo, como o dono a vê na etapa de escolha do tipo. */
+export interface ImportSheetInfo {
+  /** Nome da aba (`null` quando o arquivo é CSV). */
+  sheetName: string | null;
+  headers: string[];
+  preview: ImportRawRow[];
+  totalRows: number;
+}
+
+/** Campo de destino como o dono o vê na tela (rótulo do segmento). */
+export interface ImportFieldView {
+  key: ImportFieldKey;
+  label: string;
+  required: boolean;
+  type: ImportFieldDefinition["type"];
+  hint?: string;
+  synonyms: string[];
+}
+
+/** Como uma aba do plano aparece para o dono (mapa + avisos). */
+export interface ImportSheetPlanView {
+  sheetName: string | null;
+  targetType: ImportTargetType;
+  fields: ImportFieldView[];
+  detectedColumns: Partial<Record<ImportFieldKey, number>>;
+  columns: Record<string, string>;
+  options: ImportOptions;
+  /** Campos obrigatórios que ainda não foram mapeados. */
+  missing: string[];
+  totalRows: number;
+  preview: ImportRawRow[];
+  /** Avisos da aba (ex.: pausa de almoço não suportada). */
+  warnings: string[];
 }
 
 /** Uma linha da planilha já normalizada (valores já como string/Number). */
@@ -131,6 +298,8 @@ export interface ParsedSpreadsheet {
 /** Resultado da validação de uma linha (dry-run). */
 export interface RowValidationResult {
   rowNumber: number;
+  /** Aba da linha (o resultado por linha é por aba). */
+  sheetName?: string | null;
   status: "VALID" | "SKIPPED" | "FAILED";
   /** Motivo legível para o dono. */
   message?: string;
@@ -138,6 +307,8 @@ export interface RowValidationResult {
   field?: ImportFieldKey;
   /** Colunas detectadas automaticamente. */
   detected?: Partial<Record<ImportFieldKey, number>>;
+  /** Avisos que não impedem a importação (ex.: pausa de almoço não suportada). */
+  warnings?: string[];
 }
 
 /** Resumo do dry-run exibido na etapa de prévia. */
@@ -147,6 +318,8 @@ export interface ValidationSummary {
   skippedRows: number;
   failedRows: number;
   results: RowValidationResult[];
+  /** Avisos que valem para o lote inteiro. */
+  warnings: string[];
 }
 
 /** Progresso do processamento na fila. */

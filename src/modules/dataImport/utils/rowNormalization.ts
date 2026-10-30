@@ -7,6 +7,7 @@
  * validação — nunca entra dado pela metade.
  */
 import { salonClientWhatsappKey } from "@/modules/clients/utils/ensureSalonClient";
+import { IMPORT_WEEKDAYS } from "../dataImport.constants";
 
 /** Excel conta os dias a partir de 30/12/1899 (bug histórico do Excel). */
 const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30);
@@ -174,6 +175,56 @@ export function normalizeInteger(value: string): number | null {
   const parsed = Number(text.replace(",", "."));
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.round(parsed);
+}
+
+/**
+ * Número com decimais — quantidade de estoque.
+ * Aceita `10`, `10,5`, `10.5` e `1.234,5` (milhar com ponto).
+ */
+export function normalizeQuantity(value: string): number | null {
+  let text = String(value ?? "").trim();
+  if (!text) return null;
+  text = text.replace(/\s/g, "").replace(/unidades?$/i, "").trim();
+  if (!text) return null;
+
+  const hasComma = text.includes(",");
+  const hasDot = text.includes(".");
+  if (hasComma && hasDot) {
+    const decimalIndex = Math.max(text.lastIndexOf(","), text.lastIndexOf("."));
+    const integerPart = text.slice(0, decimalIndex).replace(/[.,]/g, "");
+    const decimalPart = text.slice(decimalIndex + 1).replace(/[^0-9]/g, "");
+    text = `${integerPart || "0"}.${decimalPart || "0"}`;
+  } else if (hasComma) {
+    text = text.replace(",", ".");
+  }
+
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.round(parsed * 1000) / 1000;
+}
+
+/**
+ * Dia da semana em número (0 = domingo ... 6 = sábado).
+ * Aceita o nome em português ("segunda", "seg") e o número ("1", "0", "7").
+ */
+export function normalizeWeekday(value: string): number | null {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+
+  if (/^\d{1,2}$/.test(text)) {
+    const number = Number(text);
+    // 1 = segunda ... 6 = sábado (convenção ISO). 0 e 7 = domingo.
+    if (number === 0 || number === 7) return 0;
+    if (number >= 1 && number <= 6) return number;
+    return null;
+  }
+
+  const key = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  return IMPORT_WEEKDAYS[key] ?? null;
 }
 
 /** E-mail válido (verificação simples, sem bloquear domínios válidos). */

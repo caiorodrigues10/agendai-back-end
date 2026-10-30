@@ -1,8 +1,10 @@
 /**
  * Repositório do resultado por linha do lote.
  *
- * A chave única (batchId, rowNumber) é o que garante idempotência: ao
- * reprocessar um lote, a linha já processada é reconhecida e não roda de novo.
+ * A chave única (batchId, sheetName, rowNumber) é o que garante idempotência:
+ * ao reprocessar um lote, a linha já processada é reconhecida e não roda de
+ * novo. O `sheetName` entrou na chave porque uma planilha pode ter várias
+ * abas — cada aba tem a sua própria contagem de linhas.
  */
 import { prisma } from "@/libs/prismaClient";
 import type { ImportEntityType, ImportRowStatus } from "@prisma/client";
@@ -10,6 +12,8 @@ import type { ImportEntityType, ImportRowStatus } from "@prisma/client";
 export interface ImportRowResultData {
   batchId: string;
   barbershopId: string;
+  /** Aba da linha ("CSV" quando o arquivo é CSV). */
+  sheetName: string;
   rowNumber: number;
   status: ImportRowStatus;
   entityType?: ImportEntityType | null;
@@ -24,6 +28,7 @@ export class ImportRowResultRepository {
       data: rows.map((row) => ({
         batchId: row.batchId,
         barbershopId: row.barbershopId,
+        sheetName: row.sheetName,
         rowNumber: row.rowNumber,
         status: row.status,
         entityType: row.entityType ?? null,
@@ -36,6 +41,7 @@ export class ImportRowResultRepository {
 
   async update(
     batchId: string,
+    sheetName: string,
     rowNumber: number,
     data: {
       status: ImportRowStatus;
@@ -45,7 +51,7 @@ export class ImportRowResultRepository {
     },
   ) {
     return prisma.importRowResult.updateMany({
-      where: { batchId, rowNumber },
+      where: { batchId, sheetName, rowNumber },
       data: data as never,
     });
   }
@@ -57,14 +63,14 @@ export class ImportRowResultRepository {
         batchId,
         status: { in: ["IMPORTED", "SKIPPED", "FAILED"] },
       },
-      select: { rowNumber: true, status: true, entityId: true, entityType: true },
+      select: { sheetName: true, rowNumber: true, status: true, entityId: true, entityType: true },
     });
   }
 
   async listByBatch(batchId: string, barbershopId: string, limit = 500) {
     return prisma.importRowResult.findMany({
       where: { batchId, barbershopId },
-      orderBy: { rowNumber: "asc" },
+      orderBy: [{ sheetName: "asc" }, { rowNumber: "asc" }],
       take: limit,
     });
   }

@@ -106,7 +106,7 @@ describe("undoImportBatch", () => {
     salonClientFindFirst.mockResolvedValue({
       id: "client-1",
       updatedAt: new Date("2026-11-01T13:00:00.000Z"),
-      _count: { appointments: 0, reviews: 0, financialEvents: 0, fiados: 0 },
+      _count: { appointments: 0, packages: 0, fiados: 0, financialEvents: 0, reviews: 0 },
     });
 
     const result = await undoImportBatch(SHOP, BATCH);
@@ -123,7 +123,7 @@ describe("undoImportBatch", () => {
     salonClientFindFirst.mockResolvedValue({
       id: "client-1",
       updatedAt: new Date("2026-11-01T13:00:00.000Z"),
-      _count: { appointments: 2, reviews: 0, financialEvents: 0, fiados: 0 },
+      _count: { appointments: 2, packages: 0, fiados: 0, financialEvents: 0, reviews: 0 },
     });
 
     const result = await undoImportBatch(SHOP, BATCH);
@@ -138,7 +138,7 @@ describe("undoImportBatch", () => {
     salonClientFindFirst.mockResolvedValue({
       id: "client-1",
       updatedAt: new Date("2026-11-03T09:00:00.000Z"),
-      _count: { appointments: 0, reviews: 0, financialEvents: 0, fiados: 0 },
+      _count: { appointments: 0, packages: 0, fiados: 0, financialEvents: 0, reviews: 0 },
     });
 
     const result = await undoImportBatch(SHOP, BATCH);
@@ -152,7 +152,9 @@ describe("undoImportBatch", () => {
     appointmentFindFirst.mockResolvedValue({
       id: "appt-1",
       updatedAt: new Date("2026-11-01T13:00:00.000Z"),
-      _count: { review: 0, deposit: 1, commissionEntries: 0, queueItems: 0 },
+      review: null,
+      deposit: { id: "dep-1" },
+      _count: { commissionEntries: 0, queueItems: 0 },
     });
 
     const result = await undoImportBatch(SHOP, BATCH);
@@ -166,7 +168,9 @@ describe("undoImportBatch", () => {
     appointmentFindFirst.mockResolvedValue({
       id: "appt-1",
       updatedAt: new Date("2026-11-01T13:00:00.000Z"),
-      _count: { review: 0, deposit: 0, commissionEntries: 0, queueItems: 0 },
+      review: null,
+      deposit: null,
+      _count: { commissionEntries: 0, queueItems: 0 },
     });
 
     const result = await undoImportBatch(SHOP, BATCH);
