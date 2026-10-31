@@ -62,7 +62,9 @@ export class DataExportController {
         "Content-Type",
         job.format === "CSV_ZIP"
           ? "application/zip"
-          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          : job.format === "PDF"
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       )
       .header("Content-Disposition", `attachment; filename="${job.fileName ?? "exportacao"}"`)
       .header("Cache-Control", "private, no-store");

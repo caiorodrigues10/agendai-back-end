@@ -5663,6 +5663,8 @@ enum ExportJobFormat {
   XLSX
   /// Um .zip com um CSV por aba (UTF-8 com BOM, separador ";").
   CSV_ZIP
+  /// Relatório em PDF (somente leitura, para impressão/compartilhamento).
+  PDF
 }
 
 /// Pedido de exportação do negócio para planilha.

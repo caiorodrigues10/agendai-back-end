@@ -106,7 +106,7 @@ export function exportFileName(
   shopSlug: string | null,
   preset: ExportPeriodPreset,
   generatedAt: Date,
-  extension: "xlsx" | "zip",
+  extension: "xlsx" | "zip" | "pdf",
 ): string {
   const slug = (shopSlug ?? "negocio")
     .toLowerCase()

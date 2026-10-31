@@ -10,6 +10,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import archiver from "archiver";
+import PDFDocument from "pdfkit";
 import { prisma } from "@/libs/prismaClient";
 import { isModuleEnabled } from "@/shared/segments/segmentGate";
 import { isAdvertisingRestricted } from "@/shared/segments/advertising";
@@ -21,7 +22,7 @@ import {
 import { exportTempDirectory, newExportFilePath } from "../utils/exportTempFiles";
 import type { ExportModuleKey, ExportProgress } from "../dataExport.types";
 import type { SheetBuilder, SheetContext } from "./sheetHelpers";
-import { CsvSheetTarget, XlsxSheetTarget } from "./sheetHelpers";
+import { CsvSheetTarget, PdfSheetTarget, XlsxSheetTarget } from "./sheetHelpers";
 import { leiaMeSheet, resumoSheet, settingsSheet } from "./sheets/coreSheets";
 import {
   appointmentsSheet,
@@ -170,7 +171,7 @@ export interface BuildExportOptions {
   exportId: string;
   barbershopId: string;
   modules: ExportModuleKey[];
-  format: "XLSX" | "CSV_ZIP";
+  format: "XLSX" | "CSV_ZIP" | "PDF";
   period: SheetContext["period"];
   previousPeriod: SheetContext["previousPeriod"];
   options: SheetContext["options"];
@@ -266,7 +267,7 @@ export async function buildExportFile(opts: BuildExportOptions): Promise<BuildEx
     description: SHEET_DESCRIPTIONS[sheet.key] ?? "",
   }));
 
-  const extension = opts.format === "CSV_ZIP" ? "zip" : "xlsx";
+  const extension = opts.format === "CSV_ZIP" ? "zip" : opts.format === "PDF" ? "pdf" : "xlsx";
   const filePath = newExportFilePath(extension);
   const fileName = exportFileName(
     ctx.shop.name,
@@ -277,6 +278,8 @@ export async function buildExportFile(opts: BuildExportOptions): Promise<BuildEx
 
   if (opts.format === "CSV_ZIP") {
     await buildCsvZip(opts, ctx, sheets, filePath);
+  } else if (opts.format === "PDF") {
+    await buildPdf(opts, ctx, sheets, filePath);
   } else {
     await buildXlsx(opts, ctx, sheets, filePath);
   }
@@ -383,3 +386,166 @@ async function buildCsvZip(
 }
 
 export { MODULE_LABELS };
+
+/** Gera um PDF organizado com uma tabela por aba. */
+async function buildPdf(
+  opts: BuildExportOptions,
+  ctx: SheetContext,
+  sheets: SheetBuilder[],
+  filePath: string,
+): Promise<void> {
+  // Coleta os dados de cada aba (mesmo builder, destino em memória).
+  const collected: Array<{ name: string; rows: unknown[][] }> = [];
+  for (const sheetBuilder of sheets) {
+    const target = new PdfSheetTarget();
+    await sheetBuilder.build(ctx, target);
+    collected.push({ name: sheetBuilder.name, rows: target.rows });
+  }
+
+  const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 36 });
+  const stream = (await import("node:fs")).createWriteStream(filePath, { mode: 0o600 });
+  doc.pipe(stream);
+
+  // ── Capa / cabeçalho ──────────────────────────────────────────────────────
+  doc.fontSize(20).font("Helvetica-Bold").text("Exportação de dados — Agendaí", { align: "left" });
+  doc.moveDown(0.5);
+  doc.fontSize(11).font("Helvetica").text(`Estabelecimento: ${ctx.shop.name}`);
+  doc.text(`Período: ${ctx.period.label}`);
+  doc.text(`Fuso horário: ${ctx.period.timezone}`);
+  doc.text(`Gerada em: ${ctx.generatedAt.toLocaleString("pt-BR", { timeZone: "UTC" })}`);
+  doc.text(`Formato: PDF (somente leitura)`);
+  if (ctx.options.anonymize) {
+    doc.text("Dados pessoais: anonimizados (nomes, telefones e e-mails mascarados).");
+  }
+  if (ctx.warnings.length > 0) {
+    doc.moveDown(0.5);
+    doc.font("Helvetica-Bold").text("Avisos:");
+    doc.font("Helvetica");
+    for (const warning of ctx.warnings) doc.text(`• ${warning}`);
+  }
+  doc.moveDown(1);
+
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  for (const sheet of collected) {
+    if (sheet.rows.length === 0) continue;
+
+    // Quebra de página antes de cada aba (exceto a primeira se couber).
+    if (doc.y > doc.page.height - 120) doc.addPage();
+
+    doc.fontSize(14).font("Helvetica-Bold").text(sheet.name, { underline: true });
+    doc.moveDown(0.4);
+
+    const header = sheet.rows[0] as unknown[];
+    const dataRows = sheet.rows.slice(1);
+    const numCols = header.length || 1;
+
+    // Largura por coluna: proporcional ao maior conteúdo, limitada.
+    const colWidths = computeColumnWidths(header, dataRows, pageWidth, numCols);
+
+    renderTable(doc, header, dataRows, colWidths, pageWidth);
+
+    doc.moveDown(1);
+  }
+
+  doc.end();
+  await new Promise<void>((resolve, reject) => {
+    stream.on("finish", () => resolve());
+    stream.on("error", reject);
+  });
+}
+
+/** Larguras de coluna para o PDF (heurística por conteúdo). */
+function computeColumnWidths(
+  header: unknown[],
+  dataRows: unknown[][],
+  pageWidth: number,
+  numCols: number,
+): number[] {
+  const sample = dataRows.slice(0, 50);
+  const widths = new Array(numCols).fill(0);
+  for (let c = 0; c < numCols; c += 1) {
+    const headerLen = String(header[c] ?? "").length;
+    let max = headerLen;
+    for (const row of sample) {
+      const len = String(row[c] ?? "").length;
+      if (len > max) max = len;
+    }
+    widths[c] = Math.min(40, Math.max(6, max + 2));
+  }
+  const total = widths.reduce((sum, w) => sum + w, 0);
+  const scale = total > 0 ? pageWidth / (total * 6) : 1;
+  // Converte "caracteres" em pontos (≈6pt por caractere) e escala para caber.
+  return widths.map((w) => Math.max(30, Math.min(pageWidth / numCols, w * 6 * Math.min(1, scale))));
+}
+
+/** Renderiza uma tabela no PDF com quebra de página automática. */
+function renderTable(
+  doc: PDFKit.PDFDocument,
+  header: unknown[],
+  dataRows: unknown[][],
+  colWidths: number[],
+  pageWidth: number,
+): void {
+  const rowHeight = 12;
+  const headerFill = "#1F2937";
+
+  const drawHeader = (): void => {
+    let x = doc.page.margins.left;
+    const y = doc.y;
+    doc.rect(x, y, pageWidth, rowHeight + 4).fill(headerFill);
+    doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(8);
+    header.forEach((cell, index) => {
+      doc.text(String(cell ?? ""), x + 2, y + 2, {
+        width: colWidths[index] - 4,
+        height: rowHeight + 4,
+        ellipsis: true,
+      });
+      x += colWidths[index];
+    });
+    doc.fillColor("#000000");
+    doc.y = y + rowHeight + 6;
+  };
+
+  drawHeader();
+
+  doc.font("Helvetica").fontSize(8);
+  for (const row of dataRows) {
+    if (doc.y + rowHeight + 6 > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+      drawHeader();
+      doc.font("Helvetica").fontSize(8);
+    }
+    let x = doc.page.margins.left;
+    const y = doc.y;
+    row.forEach((cell, index) => {
+      const text = formatPdfCell(cell);
+      doc.text(text, x + 2, y + 1, {
+        width: colWidths[index] - 4,
+        height: rowHeight + 4,
+        ellipsis: true,
+      });
+      x += colWidths[index];
+    });
+    // linha divisória
+    doc
+      .moveTo(doc.page.margins.left, doc.y + rowHeight + 2)
+      .lineTo(doc.page.margins.left + pageWidth, doc.y + rowHeight + 2)
+      .strokeColor("#E5E7EB")
+      .stroke();
+    doc.y = y + rowHeight + 4;
+  }
+}
+
+/** Formata um valor para o PDF (data em dd/mm/aaaa, número em pt-BR). */
+function formatPdfCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) {
+    return value.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  }
+  if (typeof value === "number") {
+    return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  }
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  return String(value);
+}

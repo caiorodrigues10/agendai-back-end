@@ -18,7 +18,7 @@ export function exportTempDirectory(): string {
 }
 
 /** Caminho absoluto de um arquivo novo (o arquivo ainda não existe). */
-export function newExportFilePath(extension: "xlsx" | "zip"): string {
+export function newExportFilePath(extension: "xlsx" | "zip" | "pdf"): string {
   return join(exportTempDirectory(), `${randomUUID()}.${extension}`);
 }
 

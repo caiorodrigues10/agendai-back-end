@@ -67,7 +67,7 @@ export interface ExportProgress {
 }
 
 /** Formato do arquivo. */
-export type ExportFormat = "XLSX" | "CSV_ZIP";
+export type ExportFormat = "XLSX" | "CSV_ZIP" | "PDF";
 
 /** O que o use case recebe para criar um pedido. */
 export interface CreateExportInput {

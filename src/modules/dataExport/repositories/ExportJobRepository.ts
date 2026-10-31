@@ -35,7 +35,7 @@ export class ExportJobRepository {
         periodPreset: key.periodPreset,
         periodFrom: key.periodFrom,
         periodTo: key.periodTo,
-        format: key.format as "XLSX" | "CSV_ZIP",
+        format: key.format as "XLSX" | "CSV_ZIP" | "PDF",
         modules: { equals: key.modules },
       },
       orderBy: { createdAt: "desc" },

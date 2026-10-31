@@ -46,7 +46,7 @@ export const createExportSchema = z
     dateTo: dateOnlySchema.optional(),
     modules: z.array(moduleKeySchema).min(1).max(30).optional(),
     preset: z.enum(["GERENTIAL", "BACKUP"]).optional(),
-    format: z.enum(["XLSX", "CSV_ZIP"]).optional(),
+    format: z.enum(["XLSX", "CSV_ZIP", "PDF"]).optional(),
     options: z
       .object({
         anonymize: z.boolean().optional(),

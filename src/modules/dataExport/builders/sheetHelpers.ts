@@ -323,3 +323,22 @@ export function csvValue(value: unknown): string {
   }
   return text;
 }
+
+/** Coleta as linhas de uma aba para renderização em PDF. */
+export class PdfSheetTarget implements SheetTarget {
+  readonly rows: unknown[][] = [];
+  readonly columnCount: { value: number } = { value: 0 };
+
+  setViews(): void {}
+  setAutoFilter(): void {}
+
+  getColumn(): { width?: number; numFmt?: string } {
+    return {};
+  }
+
+  addRow(values: unknown[]): SheetRow {
+    this.rows.push([...values]);
+    if (values.length > this.columnCount.value) this.columnCount.value = values.length;
+    return { getCell: () => ({}) };
+  }
+}
