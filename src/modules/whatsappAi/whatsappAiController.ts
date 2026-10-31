@@ -11,6 +11,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { parseEvolutionWebhook, verifyWebhookSecret } from "@/shared/services/evolutionWebhook";
 import { enqueueWhatsAppAiMessage } from "@/shared/infra/queue/whatsappAiQueue";
+import { getPlatformWhatsAppSettings } from "@/shared/services/platformWhatsAppSettings";
 
 const logger = getModuleLogger("whatsapp-ai:controller");
 
@@ -140,6 +141,12 @@ export class WhatsAppAiController {
     }
     if (!verifyWebhookSecret(provided, expected)) {
       throw new AppError("Webhook inválido", 401);
+    }
+
+    const platformSettings = await getPlatformWhatsAppSettings();
+    if (!platformSettings.aiGloballyEnabled) {
+      reply.send({ success: true, data: { ignored: "atendente de IA desligado globalmente" } });
+      return;
     }
 
     const event = parseEvolutionWebhook(request.body);

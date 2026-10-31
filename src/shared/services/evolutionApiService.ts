@@ -13,6 +13,7 @@
 import { AppError } from "@/shared/errors/AppError";
 import { evolutionNotConfiguredError } from "@/modules/barbershops/utils/shopEvolutionInstance";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { getPlatformWhatsAppSettings } from "@/shared/services/platformWhatsAppSettings";
 
 export function normalizeWhatsAppPhone(phone: string): string {
   const clean = phone.replace(/\D/g, "");
@@ -120,6 +121,17 @@ export async function sendWhatsAppMessageDetailed(
     return { ok: false, errorCode: "CHANNEL_NOT_CONFIGURED", error: "Evolution ou instância não configurada" };
   }
 
+  try {
+    const platformSettings = await getPlatformWhatsAppSettings();
+    if (platformSettings.outboundPaused) {
+      log?.warn({}, "WhatsApp: envio pausado globalmente");
+      return { ok: false, errorCode: "OUTBOUND_PAUSED", error: "Envios de WhatsApp pausados globalmente" };
+    }
+  } catch {
+    // falha segura: não enviar
+    return { ok: false, errorCode: "OUTBOUND_PAUSED", error: "Envios de WhatsApp pausados (falha de config)" };
+  }
+
   const dailyLimit = Number(process.env.WHATSAPP_DAILY_LIMIT_PER_INSTANCE || 200);
   if (!process.env.VITEST) {
     try {
@@ -217,6 +229,13 @@ export async function sendWhatsAppMedia(
       { phone: finalPhone },
       "Mídia WhatsApp não enviada: sem URL/chave ou sem instância do salão"
     );
+    return false;
+  }
+
+  try {
+    const platformSettings = await getPlatformWhatsAppSettings();
+    if (platformSettings.outboundPaused) return false;
+  } catch {
     return false;
   }
 

@@ -17,6 +17,7 @@ import {
   verifyWebhookSecret,
 } from "./ownerBotWebhook";
 import { enqueueOwnerBotMessage } from "@/shared/infra/queue/ownerBotQueue";
+import { getPlatformWhatsAppSettings } from "@/shared/services/platformWhatsAppSettings";
 import {
   getOwnerBotPreferences,
   updateOwnerBotPreferences,
@@ -208,6 +209,12 @@ export class OwnerBotController {
     const event = parseEvolutionWebhook(request.body);
     if (event.type === "IGNORED") {
       reply.send({ success: true, data: { ignored: event.reason } });
+      return;
+    }
+
+    const platformSettings = await getPlatformWhatsAppSettings();
+    if (!platformSettings.ownerBotGloballyEnabled) {
+      reply.send({ success: true, data: { ignored: "assistente do dono desligado globalmente" } });
       return;
     }
 

@@ -5762,3 +5762,18 @@ model ImportCreatedEntity {
   @@index([barbershopId, entityType])
   @@map("import_created_entities")
 }
+
+/// Configuração global de WhatsApp (kill switches da plataforma).
+/// Tabela singleton (sem tenant): controla envio/processamento global.
+model PlatformWhatsAppSetting {
+  id                      String   @id @default("global") @db.VarChar(32)
+  aiGloballyEnabled       Boolean  @default(true)
+  ownerBotGloballyEnabled Boolean  @default(true)
+  outboundPaused          Boolean  @default(false)
+  reason                  String?  @db.Text
+  updatedBy               String?  @db.Uuid
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("platform_whatsapp_settings")
+}

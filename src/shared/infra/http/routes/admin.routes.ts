@@ -10,6 +10,7 @@ import { AdminOverviewController } from "@/modules/admin/controllers/AdminOvervi
 import { AdminAccountsController } from "@/modules/admin/controllers/AdminAccountsController";
 import { AdminAccountActionsController } from "@/modules/admin/controllers/AdminAccountActionsController";
 import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
+import { AdminWhatsAppController } from "@/modules/admin/controllers/AdminWhatsAppController";
 import { AdminProductController } from "@/modules/admin/controllers/AdminProductController";
 import { AdminEngagementController } from "@/modules/admin/controllers/AdminEngagementController";
 import { AdminNpsController } from "@/modules/nps/controllers/AdminNpsController";
@@ -49,6 +50,7 @@ const overviewController = new AdminOverviewController();
 const accountsController = new AdminAccountsController();
 const accountActionsController = new AdminAccountActionsController();
 const operationsController = new AdminOperationsController();
+const whatsappController = new AdminWhatsAppController();
 const productController = new AdminProductController();
 const engagementController = new AdminEngagementController();
 const npsController = new AdminNpsController();
@@ -61,6 +63,8 @@ export async function adminRoutes(app: FastifyInstance) {
   const usersManage = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.USERS_MANAGE)];
   const auditRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.AUDIT_READ)];
   const operationsRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.OPERATIONS_READ)];
+  const whatsappRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.WHATSAPP_READ)];
+  const whatsappManage = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.WHATSAPP_MANAGE)];
   const referralsRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.REFERRALS_READ)];
   const accountsManage = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.ACCOUNTS_MANAGE)];
   const accountsImpersonate = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.ACCOUNTS_IMPERSONATE)];
@@ -163,6 +167,65 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/operations/notifications", { preHandler: operationsRead }, async (_request, reply) => {
     return reply.send({ success: true, data: await getNotificationOperationsHealth() });
   });
+
+  // ─── WhatsApp (controle) ───────────────────────────────────────────────
+  app.get("/admin/whatsapp/overview", { preHandler: whatsappRead }, whatsappController.overview.bind(whatsappController));
+  app.get("/admin/whatsapp/instances", { preHandler: whatsappRead }, whatsappController.instances.bind(whatsappController));
+  app.get("/admin/whatsapp/platform-settings", { preHandler: whatsappRead }, whatsappController.platformSettingsGet.bind(whatsappController));
+  app.put("/admin/whatsapp/platform-settings", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.platformSettingsPut.bind(whatsappController));
+  app.get("/admin/whatsapp/shops", { preHandler: whatsappRead }, whatsappController.shops.bind(whatsappController));
+  app.post("/admin/whatsapp/shops/batch/ai", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.batchPatchShopAi.bind(whatsappController));
+  app.post("/admin/whatsapp/shops/batch/owner-bot", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.batchPatchShopOwnerBot.bind(whatsappController));
+  app.patch("/admin/whatsapp/shops/:id/ai", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.patchShopAi.bind(whatsappController));
+  app.patch("/admin/whatsapp/shops/:id/owner-bot", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.patchShopOwnerBot.bind(whatsappController));
+  app.post("/admin/whatsapp/shops/:id/instance/reconnect", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.shopInstanceReconnect.bind(whatsappController));
+  app.post("/admin/whatsapp/shops/:id/instance/logout", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.shopInstanceLogout.bind(whatsappController));
+  app.get("/admin/whatsapp/ai/conversations", { preHandler: whatsappRead }, whatsappController.aiConversations.bind(whatsappController));
+  app.get("/admin/whatsapp/ai/conversations/:id", { preHandler: whatsappRead }, whatsappController.aiConversationDetail.bind(whatsappController));
+  app.post("/admin/whatsapp/ai/conversations/:id/transfer", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.aiTransfer.bind(whatsappController));
+  app.get("/admin/whatsapp/owner-bot/action-logs", { preHandler: whatsappRead }, whatsappController.ownerBotActionLogs.bind(whatsappController));
+  app.get("/admin/whatsapp/notifications/failed", { preHandler: whatsappRead }, whatsappController.failedNotifications.bind(whatsappController));
+  app.post("/admin/whatsapp/notifications/:id/retry", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.retryDelivery.bind(whatsappController));
+  app.post("/admin/whatsapp/outbox/:id/retry", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.retryOutbox.bind(whatsappController));
+  app.get("/admin/whatsapp/queues", { preHandler: whatsappRead }, whatsappController.queues.bind(whatsappController));
+  app.post("/admin/whatsapp/queues/:queue/:jobId/reprocess", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.reprocessJob.bind(whatsappController));
+  app.post("/admin/whatsapp/queues/:queue/:jobId/clean", {
+    preHandler: whatsappManage,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, whatsappController.cleanJob.bind(whatsappController));
 
   // ─── Indicações ───────────────────────────────────────────────────────────
   app.get("/admin/referrals", { preHandler: referralsRead }, referralsController.getStats.bind(referralsController));
