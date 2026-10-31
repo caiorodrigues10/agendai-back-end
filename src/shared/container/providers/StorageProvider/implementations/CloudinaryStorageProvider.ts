@@ -100,7 +100,6 @@ export class CloudinaryStorageProvider implements IStorageProvider {
       public_id: publicId,
       overwrite: 1,
       invalidate: 1,
-      expiration: expiresInSeconds,
     }
     const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET!)
 
@@ -111,7 +110,6 @@ export class CloudinaryStorageProvider implements IStorageProvider {
       `&public_id=${encodeURIComponent(publicId)}` +
       `&overwrite=1` +
       `&invalidate=1` +
-      `&expiration=${expiresInSeconds}` +
       `&signature=${encodeURIComponent(signature)}`
 
     const publicUrl = `https://res.cloudinary.com/${this.cloudName}/image/upload/${publicId}`
