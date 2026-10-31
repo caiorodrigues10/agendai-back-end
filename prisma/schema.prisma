@@ -559,6 +559,9 @@ model Barbershop {
   /// Nome da instância da Evolution API conectada ao WhatsApp desta barbearia.
   /// Se vazio, cai no fallback da env var EVOLUTION_INSTANCE_NAME.
   evolutionInstanceName String?          @db.VarChar(100)
+  /// Atendente de IA no WhatsApp ligado para este salão (resposta automática).
+  /// Enquanto falso, o webhook da Evolution ignora as mensagens deste salão.
+  whatsappAiEnabled     Boolean          @default(false)
   queueAlertEnabled     Boolean          @default(false)
   queueAlertThreshold   Int              @default(10)
   queueAlertPhone       String?          @db.VarChar(20)

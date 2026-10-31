@@ -41,6 +41,8 @@ import {
   closeNotificationQueue,
   startOwnerBotWorker,
   stopOwnerBotWorker,
+  startWhatsAppAiWorker,
+  stopWhatsAppAiWorker,
   startDataImportWorker,
   stopDataImportWorker,
   startDataExportWorker,
@@ -72,6 +74,7 @@ const WORKER_STOPS: Array<[string, () => Promise<void>]> = [
   ['whatsapp worker', stopWhatsAppWorker],
   ['notification worker', stopNotificationWorker],
   ['owner bot worker', stopOwnerBotWorker],
+  ['whatsapp ai worker', stopWhatsAppAiWorker],
   ['post-broadcast worker', stopPostBroadcastWorker],
   ['data-import worker', stopDataImportWorker],
   ['data-export worker', stopDataExportWorker],
@@ -223,6 +226,7 @@ async function start() {
   const role = env.processRole;
   serverLogger.info({ role }, 'Starting with process role');
   await startProcessHeartbeats(role);
+  warnMissingWhatsAppAiConfig(serverLogger);
 
   if (shouldRunWorkers(role)) {
     await startEmailWorker();
@@ -230,6 +234,7 @@ async function start() {
     await startNotificationWorker();
     await startNotificationDispatcher();
     await startOwnerBotWorker();
+    await startWhatsAppAiWorker();
     await startDataImportWorker();
     await startDataExportWorker();
   }
@@ -264,9 +269,25 @@ async function start() {
 }
 
 /**
- * Background-only mode: workers and/or scheduler, without HTTP.
+ * O atendente de IA no WhatsApp só funciona com a instância própria da IA e o
+ * segredo do webhook configurados. Sem isso o webhook de IA responde 503 e as
+ * mensagens do cliente final nunca chegam ao atendente.
  */
-function startBackgroundOnly() {
+function warnMissingWhatsAppAiConfig(log: { warn: (obj: unknown, msg?: string) => void }): void {
+  const missing: string[] = [];
+  if (!process.env.EVOLUTION_AI_INSTANCE_NAME?.trim()) missing.push('EVOLUTION_AI_INSTANCE_NAME');
+  if (!process.env.EVOLUTION_WEBHOOK_SECRET?.trim()) missing.push('EVOLUTION_WEBHOOK_SECRET');
+  if (missing.length > 0) {
+    log.warn(
+      { missing },
+      'Atendente de IA no WhatsApp desativado — configure as envs listadas (npm run whatsappai:check)'
+    );
+  }
+}
+
+/**
+ * Background-only mode: workers and/or scheduler, without HTTP.
+ */function startBackgroundOnly() {
   serverLogger.info('Starting background-only mode (no HTTP)');
 
   // Workers are started by the queue barrel on import.

@@ -1,8 +1,16 @@
 import { z } from "zod";
 
+/** Telefone do cliente: só dígitos (com DDI opcional), 8 a 15 posições. */
+export const aiPhoneSchema = z
+  .string()
+  .trim()
+  .min(8, "Telefone inválido")
+  .max(20, "Telefone inválido")
+  .regex(/^\+?[\d\s().-]{8,20}$/, "Telefone inválido");
+
 export const processIncomingMessageSchema = z.object({
-  phone: z.string().min(1),
-  content: z.string().min(1),
+  phone: aiPhoneSchema,
+  content: z.string().trim().min(1, "Mensagem vazia").max(4000, "Mensagem muito longa"),
 });
 
 export const listConversationsSchema = z.object({
@@ -12,9 +20,13 @@ export const listConversationsSchema = z.object({
 });
 
 export const intentLogsSchema = z.object({
-  intent: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
+  intent: z.string().trim().max(100).optional(),
+  startDate: z.string().trim().optional(),
+  endDate: z.string().trim().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
+export const updateAiSettingsSchema = z.object({
+  enabled: z.boolean(),
 });

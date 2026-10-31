@@ -15,6 +15,9 @@ export { startNotificationWorker, stopNotificationWorker } from './notificationW
 export { ownerBotQueue, ownerBotQueueEvents, enqueueOwnerBotMessage } from './ownerBotQueue';
 export type { OwnerBotJobData } from './ownerBotQueue';
 export { ownerBotWorker, startOwnerBotWorker, stopOwnerBotWorker, ensureOwnerBotWorker } from './ownerBotWorker';
+export { whatsappAiQueue, whatsappAiQueueEvents, enqueueWhatsAppAiMessage } from './whatsappAiQueue';
+export type { WhatsAppAiJobData } from './whatsappAiQueue';
+export { whatsappAiWorker, startWhatsAppAiWorker, stopWhatsAppAiWorker, ensureWhatsAppAiWorker } from './whatsappAiWorker';
 export { dataImportQueue, dataImportQueueEvents, enqueueDataImportBatch } from './dataImportQueue';
 export type { DataImportJobData } from './dataImportQueue';
 export { dataImportWorker, startDataImportWorker, stopDataImportWorker, ensureDataImportWorker } from './dataImportWorker';

@@ -78,6 +78,8 @@ import {
 import { ProductReservationUseCases } from '@/modules/productReservations/productReservationUseCases'
 
 import { GetWeatherInsightsUseCase } from '@/modules/barbershops/useCases/getWeatherInsights/GetWeatherInsightsUseCase'
+import { WhatsAppAiRepository } from '@/modules/whatsappAi/whatsappAiRepository'
+import { WhatsAppAiService } from '@/modules/whatsappAi/whatsappAiService'
 
 container.registerSingleton<IUserRepository>('UserRepository', UserRepository)
 container.registerSingleton<IServiceRepository>(
@@ -157,3 +159,5 @@ container.registerSingleton<IProductReservationRepository>(
 )
 container.registerSingleton(ProductReservationUseCases)
 container.registerSingleton('GetWeatherInsightsUseCase', GetWeatherInsightsUseCase)
+container.registerSingleton<WhatsAppAiRepository>('WhatsAppAiRepository', WhatsAppAiRepository)
+container.registerSingleton<WhatsAppAiService>('WhatsAppAiService', WhatsAppAiService)

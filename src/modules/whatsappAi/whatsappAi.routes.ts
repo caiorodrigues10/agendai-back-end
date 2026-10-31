@@ -12,6 +12,9 @@ export async function whatsappAiRoutes(app: FastifyInstance) {
   const ownerRoles = ["MASTER_ADMIN", "OWNER"];
   const ownerGuard = [authenticate, authorize(ownerRoles), checkSubscription, checkDashboardAccess, setRlsContext];
 
+  // Webhook da Evolution — sem autenticação de usuário, autenticado por segredo.
+  app.post("/webhooks/evolution/ai", controller.handleEvolutionWebhook.bind(controller));
+
   app.post(
     "/barbershops/:barbershopId/ai/process",
     { preHandler: ownerGuard },
@@ -46,5 +49,17 @@ export async function whatsappAiRoutes(app: FastifyInstance) {
     "/barbershops/:barbershopId/ai/conversations/:id/transfer",
     { preHandler: ownerGuard },
     controller.transferToHuman.bind(controller)
+  );
+
+  app.get(
+    "/barbershops/:barbershopId/ai/settings",
+    { preHandler: ownerGuard },
+    controller.getSettings.bind(controller)
+  );
+
+  app.put(
+    "/barbershops/:barbershopId/ai/settings",
+    { preHandler: ownerGuard },
+    controller.updateSettings.bind(controller)
   );
 }

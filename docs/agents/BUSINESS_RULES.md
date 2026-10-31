@@ -141,6 +141,22 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - `Appointment.source` registra a origem: `APP`, `PUBLIC` ou `WHATSAPP_OWNER_BOT` (usado no selo "via WhatsApp" do painel).
 - Auditoria: toda ação executada vira linha em `owner_bot_action_logs` (ação, status, request redigido, telefone mascarado).
 
+## Atendente de IA no WhatsApp (cliente final)
+
+- O atendente de IA conversa com o **cliente final** do salão (o assistente da seção anterior é do **dono**). Ele é **por salão** e responde automaticamente no WhatsApp.
+- **Qual salão atender é resolvido pelo número do cliente**: `client_identities.normalizedPhone` → `client_salon_links` com `status = CONFIRMED` (portal do cliente) **ou** `salon_clients.normalizedWhatsapp` (CRM do salão). Cliente de mais de uma unidade → o bot pergunta e o cliente responde com o número da unidade (15 min no Redis). Cliente sem nenhum vínculo → a mensagem é **ignorada** (sem resposta e sem spam).
+- A resposta sai pela **mesma instância** em que o cliente escreveu: instância `shop-<barbershopId>` (número do próprio salão) ou a instância compartilhada da IA (`EVOLUTION_AI_INSTANCE_NAME`). A instância da plataforma (`EVOLUTION_INSTANCE_NAME`) é do assistente do dono e **não** é atendida pela IA — assim os dois nunca respondem à mesma mensagem.
+- Webhook de entrada: `POST /api/webhooks/evolution/ai`, autenticado por `EVOLUTION_WEBHOOK_SECRET` (mesmo segredo do assistente do dono), processado na fila BullMQ `whatsapp-ai` (fallback inline se o Redis cair).
+- **Kill switch por salão**: `Barbershop.whatsappAiEnabled` (começa `false`). `PUT /api/barbershops/:id/ai/settings` liga e desliga. Salão inativo, sem assinatura/trial válido ou com a IA desligada → mensagem ignorada.
+- Respostas usam **dados reais do salão**: endereço/cidade do `Barbershop`, quadro de horários do `Schedule`, serviços e preços do `Service` (`publicBookable` e `active`). Nada de endereço ou horário fixo no código.
+- Detecção de intenção por **palavra-chave determinística** (sem LLM): `scheduling`, `reschedule`, `pricing`, `hours`, `location`, `human_transfer`, `greeting`, `farewell`, `unknown`. Palavra curta casa por token exato ("boa noite" não vira saudação por causa do "oi" dentro de "noite").
+- Intenção `unknown` (confiança < 0.5) ou pedido explícito de atendente → a conversa vai para `TRANSFERRED_TO_HUMAN` e o log fica como `HYBRID`. Agendamento/remarcação também ficam `HYBRID` (a IA coleta os dados, um atendente confirma).
+- Idempotência: `key.id` da Evolution vira chave no Redis (`whatsappai:msg:{id}`, 24h); teto de **10 respostas por minuto** por número (`whatsappai:rate:{phone}`).
+- Telefone é gravado no formato canônico **55 + número** (`normalizeWhatsAppPhone`); a busca considera as variantes com e sem DDI, porque o cadastro pode ter vindo em formatos diferentes.
+- Conversas, mensagens e logs de intenção ficam em `ai_conversations` / `ai_messages` / `ai_intent_logs` (visíveis no painel do dono). O OWNER só acessa o **próprio** salão (o id da URL é conferido com o usuário).
+- A lista de unidades é ordenada por nome (ordem estável entre a pergunta e a escolha pelo número).
+- **Deploy**: runbook em `docs/WHATSAPP_AI_DEPLOY.md`; `npm run whatsappai:check` confere as envs (instância própria, segredo do webhook, Redis/DB) e imprime a URL de webhook a configurar na Evolution. No boot, o processo avisa quando `EVOLUTION_AI_INSTANCE_NAME`/`EVOLUTION_WEBHOOK_SECRET` faltam.
+
 ## Importação de planilhas (assistente do dono)
 
 - Só o **dono** importa (`authorize(["MASTER_ADMIN","OWNER"])` + `setRlsContext`): importar dado é decisão do responsável pelo salão.
