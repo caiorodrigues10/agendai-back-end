@@ -38,6 +38,7 @@ import { cashMovementRoutes } from '@/modules/cash/cashMovement.routes'
 import { loyaltyRoutes } from '@/modules/loyalty/loyalty.routes'
 import { goalRoutes } from '@/modules/goals/goal.routes'
 import { dataImportRoutes } from '@/modules/dataImport/dataImport.routes'
+import { dataExportRoutes } from '@/modules/dataExport/dataExport.routes'
 import { depositRoutes } from '@/modules/deposits/deposit.routes'
 import { waitlistRoutes } from '@/modules/waitlist/waitlist.routes'
 import { recurringPackageRoutes } from '@/modules/recurringPackages/recurringPackage.routes'
@@ -108,6 +109,7 @@ export async function apiRoutes(app: FastifyInstance) {
 	await loyaltyRoutes(app)
 	await goalRoutes(app)
 	await dataImportRoutes(app)
+	await dataExportRoutes(app)
 	await depositRoutes(app)
 	await waitlistRoutes(app)
 	await recurringPackageRoutes(app)

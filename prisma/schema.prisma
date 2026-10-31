@@ -97,6 +97,7 @@ model User {
   ownerBotActionLogs        OwnerBotActionLog[]
   ownerBotCampaigns         OwnerBotCampaign[]
   importBatches             ImportBatch[]              @relation("ImportBatchCreatedBy")
+  exportJobs                ExportJob[]                @relation("ExportJobCreatedBy")
 
   @@index([cpf])
   @@index([deletedAt])
@@ -723,6 +724,7 @@ model Barbershop {
   OwnerBotPreference             OwnerBotPreference?
   OwnerBotCampaign               OwnerBotCampaign[]
   importBatches                  ImportBatch[]
+  exportJobs                     ExportJob[]
 
   @@index([approvalStatus])
   @@index([active])
@@ -5639,6 +5641,74 @@ model ImportBatch {
   @@index([barbershopId, createdAt])
   @@index([barbershopId, status])
   @@map("import_batches")
+}
+
+/// Status de um pedido de exportação de planilha.
+enum ExportJobStatus {
+  /// Criado, aguardando a fila.
+  PENDING
+  /// Gerando o arquivo no worker.
+  PROCESSING
+  /// Arquivo pronto para download.
+  COMPLETED
+  /// Falhou antes de concluir.
+  FAILED
+  /// Arquivo removido (expiração ou exclusão manual).
+  EXPIRED
+}
+
+/// Formato do arquivo gerado.
+enum ExportJobFormat {
+  /// Uma pasta de trabalho .xlsx com uma aba por módulo.
+  XLSX
+  /// Um .zip com um CSV por aba (UTF-8 com BOM, separador ";").
+  CSV_ZIP
+}
+
+/// Pedido de exportação do negócio para planilha.
+///
+/// O arquivo é gerado no worker (fila `data-export`), fica em disco temporário
+/// e é apagado 24h depois de concluído (ou sob demanda). O download é sempre
+/// autenticado — não existe URL pública.
+model ExportJob {
+  id           String          @id @default(uuid()) @db.Uuid
+  barbershopId String          @db.Uuid
+  /// Período escolhido pelo dono (TODAY, THIS_WEEK, ... CUSTOM, ALL).
+  periodPreset String          @db.VarChar(32)
+  /// Início do período no fuso do salão (null = "Tudo").
+  periodFrom   DateTime?
+  /// Fim do período no fuso do salão (null = "Tudo").
+  periodTo     DateTime?
+  /// Fuso do salão no momento da emissão (fica no arquivo para auditoria).
+  timezone     String          @db.VarChar(64)
+  /// Módulos incluídos (array de chaves: appointments, clients, ...).
+  modules      Json
+  /// Opções: anonimizar, incluir dados de casos, etc.
+  options      Json?
+  format       ExportJobFormat @default(XLSX)
+  status       ExportJobStatus @default(PENDING)
+  /// Progresso por aba ({ currentSheet, sheetsDone, sheetsTotal, rowsWritten }).
+  progress     Json?
+  fileSizeBytes Int?
+  /// Caminho absoluto do arquivo gerado no servidor.
+  filePath     String?         @db.VarChar(500)
+  /// Nome do arquivo mostrado ao dono (sempre gerado pelo backend).
+  fileName     String?         @db.VarChar(255)
+  errorMessage String?         @db.Text
+  createdById  String?         @db.Uuid
+  createdAt    DateTime        @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  /// Fim da janela de download (24h a partir da conclusão).
+  expiresAt    DateTime?
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  createdBy  User?      @relation("ExportJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([barbershopId, createdAt])
+  @@index([barbershopId, status])
+  @@index([status, expiresAt])
+  @@map("export_jobs")
 }
 
 /// Resultado por linha do arquivo. A chave (batchId, rowNumber) garante
