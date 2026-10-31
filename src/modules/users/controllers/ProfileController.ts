@@ -6,7 +6,6 @@ import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashPr
 import { z } from "zod";
 
 const profileSchema = z.object({
-  name: z.string().min(3).max(200).optional(),
   email: z.string().email().max(100).optional(),
   currentPassword: z.string().min(1).optional(),
   newPassword: z.string().min(6).max(100).optional(),
@@ -42,7 +41,6 @@ export class ProfileController {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
-        ...(data.name ? { name: data.name.trim() } : {}),
         ...(data.email ? { email: data.email.trim().toLowerCase() } : {}),
         ...(password ? { password } : {}),
       },
