@@ -70,6 +70,7 @@
     "@sentry/node": "^9.0.0",
     "@sentry/profiling-node": "^9.0.0",
     "@upstash/redis": "^1.38.3",
+    "archiver": "^7.0.1",
     "bcryptjs": "^2.4.3",
     "bullmq": "^6.0.9",
     "busboy": "^1.6.0",
@@ -96,6 +97,7 @@
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^12.1.0",
+    "@types/archiver": "^6.0.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/busboy": "^1.5.4",
     "@types/jsonwebtoken": "^9.0.6",

@@ -3,6 +3,7 @@ import { AppError } from "@/shared/errors/AppError";
 import type { ProfitSettingsInput } from "./profitSchema";
 import { getShopTimezone, shopMonthRange } from "@/modules/financial/ledger/shopTime";
 import { summarizeRetailFinancials } from "@/modules/products/utils/retailSummary";
+import { calculateProfit } from "./profitCalculator";
 
 export class ProfitUseCases {
   private repo = new ProfitRepository();
@@ -70,74 +71,31 @@ export class ProfitUseCases {
       summarizeRetailFinancials(barbershopId, { gte: range.start, lte: range.end }),
     ]);
 
-    const sumAmounts = (list: { amount: number }[]) =>
-      list.reduce((sum, e) => sum + Number(e.amount), 0);
-    const totalExpenses = sumAmounts(expenses);
-    // Compra de estoque não é custo do período (entra no CMV quando o produto é vendido)
-    const periodExpenses = expenses.filter((e: { inventoryReceiptId?: string | null }) => !e.inventoryReceiptId);
-    // Despesas de "overheadCategories" viram Custos Indiretos; quando a lista está vazia,
-    // todas as despesas operacionais entram como indiretas (compatível com o comportamento atual)
-    const overheadKeys = Object.keys(settings.overheadCategories ?? {});
-    const overheadList = overheadKeys.length > 0
-      ? periodExpenses.filter((e: { categoryId?: string | null }) => !!e.categoryId && overheadKeys.includes(e.categoryId))
-      : periodExpenses;
-    const overheadCosts = sumAmounts(overheadList);
-    const operationalCosts = sumAmounts(periodExpenses) - overheadCosts;
+    // Cálculo compartilhado com a exportação de planilhas (paridade por construção).
+    const calculation = calculateProfit({
+      appointments,
+      queueItems,
+      expenses,
+      commissions,
+      retail,
+      settings: {
+        defaultTaxRate: settings.defaultTaxRate,
+        defaultCommission: settings.defaultCommission,
+        overheadCategories: (settings.overheadCategories ?? {}) as Record<string, unknown>,
+      },
+    });
+    const { totals, byService: serviceMap, byStaff: staffMap, summary } = calculation;
+    const {
+      revenue: totalRevenue,
+      directCosts,
+      overheadCosts,
+      operationalCosts,
+      taxAmount: totalTax,
+      commissionAmt: totalCommission,
+      netProfit: netProfitTotal,
+      marginPercent: marginTotal,
+    } = totals;
     const taxRate = settings.defaultTaxRate / 100;
-
-    const serviceMap = new Map<string, { revenue: number; count: number }>();
-    const staffMap = new Map<string, { revenue: number; commission: number; count: number }>();
-    const staffServiceCommissions = new Map<string, number>();
-
-    for (const c of commissions) {
-      const key = `${c.professionalId}:${c.serviceId}`;
-      staffServiceCommissions.set(key, (staffServiceCommissions.get(key) ?? 0) + Number(c.amount));
-    }
-
-    let serviceRevenue = 0;
-    let totalCommission = 0;
-
-    const creditService = (
-      price: number,
-      svcId: string | null,
-      staffId: string | null,
-    ) => {
-      serviceRevenue += price;
-      if (svcId) {
-        const prev = serviceMap.get(svcId) ?? { revenue: 0, count: 0 };
-        serviceMap.set(svcId, { revenue: prev.revenue + price, count: prev.count + 1 });
-      }
-      if (staffId && svcId) {
-        const sPrev = staffMap.get(staffId) ?? { revenue: 0, commission: 0, count: 0 };
-        const commKey = `${staffId}:${svcId}`;
-        const commAmt = staffServiceCommissions.get(commKey) ?? 0;
-        totalCommission += commAmt;
-        staffMap.set(staffId, {
-          revenue: sPrev.revenue + price,
-          commission: sPrev.commission + commAmt,
-          count: sPrev.count + 1,
-        });
-      }
-    };
-
-    for (const appt of appointments) {
-      // Sessão de pacote: consumo sem receita e sem comissão
-      if (appt.clientPackageId) continue;
-      const price = Number(appt.finalPrice ?? appt.service?.price ?? 0);
-      creditService(price, appt.serviceId, appt.staffId);
-    }
-
-    for (const item of queueItems) {
-      const price = Number(item.finalPrice ?? item.service?.price ?? 0);
-      creditService(price, item.serviceId, item.completedBy ?? null);
-    }
-
-    const productRevenue = retail.netRevenue;
-    const totalRevenue = serviceRevenue + productRevenue;
-    const directCosts = retail.cogs;
-    const totalTax = totalRevenue * taxRate;
-    const netProfitTotal = totalRevenue - directCosts - overheadCosts - operationalCosts - totalTax - totalCommission;
-    const marginTotal = totalRevenue > 0 ? (netProfitTotal / totalRevenue) * 100 : 0;
 
     const totalEntry = await this.repo.upsertEntry(barbershopId, period, null, null, {
       revenue: totalRevenue,
@@ -191,20 +149,7 @@ export class ProfitUseCases {
       totals: totalEntry,
       byService: serviceEntries,
       byStaff: staffEntries,
-      summary: {
-        totalAppointments: appointments.length + queueItems.length,
-        totalExpenses,
-        totalRevenue,
-        serviceRevenue,
-        productRevenue,
-        totalCommission,
-        totalTax,
-        directCosts,
-        overheadCosts,
-        operationalCosts,
-        netProfit: netProfitTotal,
-        marginPercent: marginTotal,
-      },
+      summary,
     };
   }
 

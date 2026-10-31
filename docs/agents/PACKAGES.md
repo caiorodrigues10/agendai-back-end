@@ -41,7 +41,8 @@
 | `cloudinary` | `^2.11.0` | Storage | Upload/fallback de imagens (SDK v2) | CloudinaryStorageProvider.ts |
 | `dayjs` | `^1.11.13` | Datas | Datas/horários | DayjsDateProvider |
 | `disposable-email-domains` | `^1.0.62` | Auth | Bloqueio e-mails descartáveis | emailValidationService |
-| `exceljs` | `^4.4.0` | Planilhas | Leitura/escrita de `.xlsx` | modules/dataImport (parser e modelo em branco) |
+| `exceljs` | `^4.4.0` | Planilhas | Leitura/escrita de `.xlsx` | modules/dataImport (parser e modelo em branco), modules/dataExport (geração de planilhas) |
+| `archiver` | `^7.0.1` | Zip | Geração de .zip (exportação CSV) | modules/dataExport |
 | `fastify` | `^4.26.2` | HTTP | Framework HTTP | server/app |
 | `google-auth-library` | `^11.0.2` | Auth | OAuth Google | Google login |
 | `ioredis` | `^6.0.0` | Cache | Cliente Redis | REDIS_URL / BullMQ |
@@ -69,6 +70,7 @@
 | `@types/jsonwebtoken` | `^9.0.6` | Tipos | Tipagens JWT | tsc |
 | `@types/node` | `^22.19.20` | Tipos | Tipagens Node | tsc |
 | `@types/node-cron` | `^3.0.11` | Tipos | Tipagens cron | tsc |
+| `@types/archiver` | `^6.0.4` | Tipos | Tipagens archiver | tsc |
 | `@types/pg` | `^8.18.0` | Tipos | Tipagens pg | tsc |
 | `@types/ws` | `^8.18.1` | Tipos | Tipagens WS | tsc |
 | `dotenv-cli` | `^11.0.0` | Testes | Env em scripts de teste | test:integration* |

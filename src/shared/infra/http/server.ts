@@ -28,6 +28,7 @@ import { scheduleLateAppointmentsAlert } from "@/shared/infra/cron/lateAppointme
 import { scheduleOwnerBotPush } from "@/shared/infra/cron/ownerBotPush.cron";
 import { scheduleDeadlineAlerts } from "@/shared/infra/cron/deadlineAlerts.cron";
 import { scheduleDataImportCleanup } from "@/shared/infra/cron/dataImportCleanup.cron";
+import { scheduleDataExportCleanup } from "@/shared/infra/cron/dataExportCleanup.cron";
 import {
   startWhatsAppWorker,
   startEmailWorker,
@@ -42,6 +43,8 @@ import {
   stopOwnerBotWorker,
   startDataImportWorker,
   stopDataImportWorker,
+  startDataExportWorker,
+  stopDataExportWorker,
 } from "@/shared/infra/queue";
 import { cleanupTimers as cleanupBruteForceTimers } from "@/shared/services/bruteForceProtection";
 import { initSentry } from "@/shared/utils/sentry";
@@ -71,6 +74,7 @@ const WORKER_STOPS: Array<[string, () => Promise<void>]> = [
   ['owner bot worker', stopOwnerBotWorker],
   ['post-broadcast worker', stopPostBroadcastWorker],
   ['data-import worker', stopDataImportWorker],
+  ['data-export worker', stopDataExportWorker],
 ];
 
 let shuttingDown = false;
@@ -227,6 +231,7 @@ async function start() {
     await startNotificationDispatcher();
     await startOwnerBotWorker();
     await startDataImportWorker();
+    await startDataExportWorker();
   }
 
   if (!shouldRunApi(role)) {
@@ -292,6 +297,7 @@ function registerCrons(log: CronLog): void {
     ['push do assistente (briefing/resumo)', () => scheduleOwnerBotPush(log)],
     ['alertas de vencimento de prazo', () => scheduleDeadlineAlerts(log)],
     ['limpeza de importações', () => scheduleDataImportCleanup(log)],
+    ['limpeza de exportações', () => scheduleDataExportCleanup(log)],
   ] as const;
 
   for (const [name, startJob] of jobs) {

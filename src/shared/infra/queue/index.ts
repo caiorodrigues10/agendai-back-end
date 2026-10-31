@@ -18,3 +18,6 @@ export { ownerBotWorker, startOwnerBotWorker, stopOwnerBotWorker, ensureOwnerBot
 export { dataImportQueue, dataImportQueueEvents, enqueueDataImportBatch } from './dataImportQueue';
 export type { DataImportJobData } from './dataImportQueue';
 export { dataImportWorker, startDataImportWorker, stopDataImportWorker, ensureDataImportWorker } from './dataImportWorker';
+export { dataExportQueue, dataExportQueueEvents, enqueueDataExport } from './dataExportQueue';
+export type { DataExportJobData } from './dataExportQueue';
+export { dataExportWorker, startDataExportWorker, stopDataExportWorker, ensureDataExportWorker } from './dataExportWorker';
