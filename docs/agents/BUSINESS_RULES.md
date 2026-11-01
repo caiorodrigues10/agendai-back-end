@@ -157,6 +157,21 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - A lista de unidades é ordenada por nome (ordem estável entre a pergunta e a escolha pelo número).
 - **Deploy**: runbook em `docs/WHATSAPP_AI_DEPLOY.md`; `npm run whatsappai:check` confere as envs (instância própria, segredo do webhook, Redis/DB) e imprime a URL de webhook a configurar na Evolution. No boot, o processo avisa quando `EVOLUTION_AI_INSTANCE_NAME`/`EVOLUTION_WEBHOOK_SECRET` faltam.
 
+## Controle master do WhatsApp
+
+- `PlatformWhatsAppSetting` é um singleton (`id = "global"`). `aiGloballyEnabled` e `ownerBotGloballyEnabled` são kill switches globais; `outboundPaused` pausa **todo** envio de WhatsApp da plataforma.
+- O gate de `outboundPaused` fica em `sendWhatsAppMessageDetailed`/`sendWhatsAppMessage`/`sendWhatsAppMedia` (`shared/services/evolutionApiService.ts`), então vale para fila, campanhas, lembretes, indicações, reenvios e **OTP de login do cliente**. Não duplicar o gate nos workers.
+- Falha ao ler a configuração global → **modo seguro**: IA/assistente desligados e `outboundPaused = true` (não envia). Cache curto (5 s) é invalidado em toda escrita. No modo seguro **o OTP de login também fica bloqueado** (o gate de pausa vale para todo envio, inclusive o de autenticação).
+- Webhooks de entrada (`/webhooks/evolution/ai` e `/webhooks/evolution/platform`) checam o segredo antes do parser e respondem `{ success: true, data: { ignored: motivo } }` quando o kill switch do bot está desligado ou o evento é ignorado — sem enfileirar.
+- Reenvio de entrega só ocorre fora de `outboundPaused`, com motivo ≥10 caracteres, e bloqueia entrega em estado terminal. Supressão é consultada por `destinationHash` + canal; preferência é consultada por **salão + tipo** e **não** é consultada quando `NotificationDelivery.barbershopId` é nulo (evita bloquear por preferência de outro salão).
+- Ações de mutação do painel master exigem `WHATSAPP_MANAGE`; leitura exige `WHATSAPP_READ`. O `/auth/me` devolve `internalPermissions` para `MASTER_ADMIN` (lista vazia = acesso total, mesma regra do backend) e o front esconde ações sem permissão.
+- Lote de salões aceita 1–50 ids únicos; cada salão alterado gera uma linha de auditoria própria.
+- Reconectar/deslogar instância exige apenas `reason` (schema estrito) e é auditado; reconexão pode devolver `qrcodeBase64` para leitura no painel.
+- Filas expõem telefone **mascarado** (`phoneMasked`), nunca o número completo.
+- **Lista de instâncias** (`GET /admin/whatsapp/instances`) pagina as instâncias de salão (`page`, `limit` padrão 20, máximo 50) e devolve `meta { total, page, limit, totalPages }`. As instâncias da IA e da plataforma aparecem sempre na **primeira página** e ficam **fora** da contagem de salões. O estado de cada instância da página é resolvido com concorrência máxima de **5** e timeout de **3 s por chamada**: erro, timeout ou Evolution não configurada → `unreachable` com `error` curto (sem stack e sem segredo); `close` só quando a Evolution respondeu que a instância está fechada. O overview usa a mesma resolução (`allSettled`), sem derrubar a tela.
+- **Filas do painel master**: o gateway reusa as filas já instanciadas (`whatsappQueue`, `whatsappAiQueue`, `ownerBotQueue`) — nenhuma conexão nova por request. O parâmetro `:queue` é validado por enum Zod na rota. `reprocess` só aceita job no estado `failed` (outro estado → 409 com o estado atual); `clean` só aceita `failed` ou `completed` (job `active`, `waiting` ou `delayed` → 409). Leitura indisponível **não** é engolida: a fila vem como `{ available: false, error }` e o front mostra "fila indisponível" em vez de zeros.
+- **Falhas de envio**: `GET /admin/whatsapp/notifications/failed` devolve `retryable: boolean` e, quando `false`, `notRetryableReason` ("Envios pausados globalmente", "Destinatário suprimido", "Reclamação do destinatário", "Envios rejeitados pelo destinatário", "Preferência de WhatsApp desligada"), calculado com a mesma regra do reenvio — a UI nunca oferece o que a API recusa.
+
 ## Importação de planilhas (assistente do dono)
 
 - Só o **dono** importa (`authorize(["MASTER_ADMIN","OWNER"])` + `setRlsContext`): importar dado é decisão do responsável pelo salão.

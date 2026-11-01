@@ -37,6 +37,17 @@ import {
   adminRevokeUserSessionsSchema,
 } from "@/modules/admin/schemas/adminSchemas";
 import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
+import {
+  whatsappBatchAiSchema,
+  whatsappBatchOwnerBotSchema,
+  whatsappInstanceReasonSchema,
+  whatsappPaginationQuerySchema,
+  whatsappQueueParamsSchema,
+  whatsappPatchShopAiSchema,
+  whatsappPatchShopOwnerBotSchema,
+  whatsappPlatformSettingsPutSchema,
+  whatsappReasonSchema,
+} from "@/modules/admin/schemas/adminWhatsAppSchemas";
 import { getNotificationOperationsHealth } from "@/modules/notifications/services/notificationOperationsService";
 
 const dashboardController = new AdminDashboardController();
@@ -170,60 +181,62 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // ─── WhatsApp (controle) ───────────────────────────────────────────────
   app.get("/admin/whatsapp/overview", { preHandler: whatsappRead }, whatsappController.overview.bind(whatsappController));
-  app.get("/admin/whatsapp/instances", { preHandler: whatsappRead }, whatsappController.instances.bind(whatsappController));
+  app.get("/admin/whatsapp/instances", {
+    preHandler: [...whatsappRead, validateSchema(whatsappPaginationQuerySchema, "query")],
+  }, whatsappController.instances.bind(whatsappController));
   app.get("/admin/whatsapp/platform-settings", { preHandler: whatsappRead }, whatsappController.platformSettingsGet.bind(whatsappController));
   app.put("/admin/whatsapp/platform-settings", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappPlatformSettingsPutSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.platformSettingsPut.bind(whatsappController));
   app.get("/admin/whatsapp/shops", { preHandler: whatsappRead }, whatsappController.shops.bind(whatsappController));
   app.post("/admin/whatsapp/shops/batch/ai", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappBatchAiSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.batchPatchShopAi.bind(whatsappController));
   app.post("/admin/whatsapp/shops/batch/owner-bot", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappBatchOwnerBotSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.batchPatchShopOwnerBot.bind(whatsappController));
   app.patch("/admin/whatsapp/shops/:id/ai", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappPatchShopAiSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.patchShopAi.bind(whatsappController));
   app.patch("/admin/whatsapp/shops/:id/owner-bot", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappPatchShopOwnerBotSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.patchShopOwnerBot.bind(whatsappController));
   app.post("/admin/whatsapp/shops/:id/instance/reconnect", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappInstanceReasonSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.shopInstanceReconnect.bind(whatsappController));
   app.post("/admin/whatsapp/shops/:id/instance/logout", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappInstanceReasonSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.shopInstanceLogout.bind(whatsappController));
   app.get("/admin/whatsapp/ai/conversations", { preHandler: whatsappRead }, whatsappController.aiConversations.bind(whatsappController));
   app.get("/admin/whatsapp/ai/conversations/:id", { preHandler: whatsappRead }, whatsappController.aiConversationDetail.bind(whatsappController));
   app.post("/admin/whatsapp/ai/conversations/:id/transfer", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappReasonSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.aiTransfer.bind(whatsappController));
   app.get("/admin/whatsapp/owner-bot/action-logs", { preHandler: whatsappRead }, whatsappController.ownerBotActionLogs.bind(whatsappController));
   app.get("/admin/whatsapp/notifications/failed", { preHandler: whatsappRead }, whatsappController.failedNotifications.bind(whatsappController));
   app.post("/admin/whatsapp/notifications/:id/retry", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappReasonSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.retryDelivery.bind(whatsappController));
   app.post("/admin/whatsapp/outbox/:id/retry", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappReasonSchema, "body")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.retryOutbox.bind(whatsappController));
   app.get("/admin/whatsapp/queues", { preHandler: whatsappRead }, whatsappController.queues.bind(whatsappController));
   app.post("/admin/whatsapp/queues/:queue/:jobId/reprocess", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappReasonSchema, "body"), validateSchema(whatsappQueueParamsSchema, "params")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.reprocessJob.bind(whatsappController));
   app.post("/admin/whatsapp/queues/:queue/:jobId/clean", {
-    preHandler: whatsappManage,
+    preHandler: [...whatsappManage, validateSchema(whatsappReasonSchema, "body"), validateSchema(whatsappQueueParamsSchema, "params")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.cleanJob.bind(whatsappController));
 

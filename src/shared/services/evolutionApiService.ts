@@ -467,6 +467,23 @@ export async function fetchEvolutionConnectionState(
   return extractConnectionState(res.json);
 }
 
+/**
+ * Igual a `fetchEvolutionConnectionState`, mas falha (lança) quando a Evolution
+ * não responde com 2xx — usado pelo painel master para diferenciar
+ * "instância fechada" de "Evolution inacessível".
+ */
+export async function fetchEvolutionConnectionStateStrict(
+  instanceName: string
+): Promise<EvolutionConnectionState> {
+  const res = await evolutionRequest(
+    `/instance/connectionState/${encodeURIComponent(instanceName)}`
+  );
+  if (!res.ok) {
+    throw new Error(`Evolution respondeu ${res.status}`);
+  }
+  return extractConnectionState(res.json);
+}
+
 export async function logoutEvolutionInstance(instanceName: string): Promise<void> {
   await evolutionRequest(`/instance/logout/${encodeURIComponent(instanceName)}`, {
     method: "DELETE",

@@ -6,6 +6,11 @@ vi.mock("@/shared/infra/queue/ownerBotQueue", () => ({
   enqueueOwnerBotMessage: mocks.enqueue,
 }));
 
+vi.mock("@/shared/services/platformWhatsAppSettings", () => ({
+  getPlatformWhatsAppSettings: vi.fn().mockResolvedValue({ aiGloballyEnabled: true, ownerBotGloballyEnabled: true, outboundPaused: false }),
+  invalidatePlatformWhatsAppSettingsCache: vi.fn(),
+}));
+
 vi.mock("@/libs/prismaClient", () => ({
   prisma: {
     ownerBotLinkCode: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },

@@ -35,6 +35,9 @@ export class MeController {
         avatarUrl: user.avatarUrl ?? undefined,
         emailVerified: user.emailVerified ?? false,
         permissions,
+        // Permissões internas do painel master (vazio = acesso total, como no back).
+        internalPermissions:
+          sessionRole === "MASTER_ADMIN" ? (user.permissions ?? []) : undefined,
       }
     });
   }

@@ -45,6 +45,27 @@ O assistente de importação de planilhas tem rotas próprias em
 `modules/dataImport/dataImport.routes.ts` (`/barbershops/:barbershopId/imports*`,
 dono-only com `setRlsContext`) e worker na fila `data-import`.
 
+O controle master do WhatsApp fica em `modules/admin/controllers/AdminWhatsAppController.ts`
+(controller fino: parse de schema + delegação), com schemas Zod em
+`modules/admin/schemas/adminWhatsAppSchemas.ts`, use cases em
+`modules/admin/useCases/whatsapp/` e repositórios em `modules/admin/repositories/`.
+Repositórios por responsabilidade: `PlatformWhatsAppSettingsRepository`,
+`AdminWhatsAppAuditRepository`, `AdminWhatsAppOverviewRepository`,
+`AdminWhatsAppInstanceRepository`, `AdminWhatsAppShopRepository`,
+`AdminWhatsAppConversationRepository`, `AdminWhatsAppOwnerBotLogRepository`,
+`AdminWhatsAppNotificationRepository` e o gateway de filas `AdminWhatsAppQueueGateway`.
+Use cases: leitura (`GetWhatsAppOverviewUseCase`, `ListWhatsAppInstancesUseCase` (paginado, estado com concorrência 5 e timeout 3 s),
+`ListWhatsAppShopsUseCase`, `ListAiConversationsUseCase`, `GetAiConversationUseCase`,
+`ListOwnerBotActionLogsUseCase`, `ListFailedWhatsAppNotificationsUseCase`,
+`ListWhatsAppQueuesUseCase` (fila indisponível → `available: false`)) e escrita (`UpdatePlatformWhatsAppSettingsUseCase`,
+`SetShopAiEnabledUseCase`, `BatchSetShopAiEnabledUseCase`, `SetShopOwnerBotUseCase`,
+`BatchSetShopOwnerBotUseCase`, `ReconnectWhatsAppInstanceUseCase`,
+`LogoutWhatsAppInstanceUseCase`, `TransferAiConversationUseCase`,
+`RetryWhatsAppDeliveryUseCase`, `RetryWhatsAppOutboxUseCase`,
+`ReprocessWhatsAppJobUseCase`, `CleanWhatsAppJobUseCase`). Rotas em
+`shared/infra/http/routes/admin.routes.ts` sob `/api/admin/whatsapp/*`, protegidas por
+`requireInternalPermission(WHATSAPP_READ|WHATSAPP_MANAGE)`.
+
 Prefixo da API: **`/api`** (exceto health/métricas conforme app).
 
 ## Middlewares

@@ -1,5 +1,6 @@
 import { prisma } from "@/libs/prismaClient";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { getCorrelationId } from "@/shared/utils/correlationContext";
 
 const logger = getModuleLogger("platform-whatsapp-settings");
 
@@ -10,6 +11,26 @@ export type PlatformWhatsAppSettings = {
   reason: string | null;
   updatedBy: string | null;
   updatedAt: Date;
+};
+
+// Defaults documentados (primeira execução): IA e assistente ligados, envios ativos.
+const DEFAULT_SETTINGS: PlatformWhatsAppSettings = {
+  aiGloballyEnabled: true,
+  ownerBotGloballyEnabled: true,
+  outboundPaused: false,
+  reason: null,
+  updatedBy: null,
+  updatedAt: new Date(),
+};
+
+// Modo seguro (falha de leitura): tudo pausado.
+const SAFE_SETTINGS: PlatformWhatsAppSettings = {
+  aiGloballyEnabled: false,
+  ownerBotGloballyEnabled: false,
+  outboundPaused: true,
+  reason: null,
+  updatedBy: null,
+  updatedAt: new Date(),
 };
 
 const CACHE_TTL_MS = 5_000;
@@ -24,21 +45,15 @@ export async function getPlatformWhatsAppSettings(): Promise<PlatformWhatsAppSet
   if (cache && cache.expiresAt > now) return cache.value;
 
   try {
-    if (!(prisma as any).platformWhatsAppSetting) {
-      return {
-        aiGloballyEnabled: true,
-        ownerBotGloballyEnabled: true,
-        outboundPaused: false,
-        reason: null,
-        updatedBy: null,
-        updatedAt: new Date(),
-      };
-    }
     let row = await prisma.platformWhatsAppSetting.findUnique({ where: { id: "global" } });
     if (!row) {
-      row = await prisma.platformWhatsAppSetting.create({
-        data: { id: "global" },
-      });
+      try {
+        row = await prisma.platformWhatsAppSetting.create({ data: { id: "global" } });
+      } catch (createErr) {
+        // corrida: tenta ler de novo
+        row = await prisma.platformWhatsAppSetting.findUnique({ where: { id: "global" } });
+        if (!row) throw createErr;
+      }
     }
     const value: PlatformWhatsAppSettings = {
       aiGloballyEnabled: row.aiGloballyEnabled,
@@ -51,16 +66,8 @@ export async function getPlatformWhatsAppSettings(): Promise<PlatformWhatsAppSet
     cache = { value, expiresAt: now + CACHE_TTL_MS };
     return value;
   } catch (err) {
-    logger.error({ err }, "Falha ao ler configuração global de WhatsApp — modo seguro");
-    const safe: PlatformWhatsAppSettings = {
-      aiGloballyEnabled: false,
-      ownerBotGloballyEnabled: false,
-      outboundPaused: true,
-      reason: null,
-      updatedBy: null,
-      updatedAt: new Date(),
-    };
-    return safe;
+    logger.error({ err, correlationId: getCorrelationId() }, "Falha ao ler configuração global de WhatsApp — modo seguro (pausado)");
+    return SAFE_SETTINGS;
   }
 }
 
@@ -75,9 +82,9 @@ export async function updatePlatformWhatsAppSettings(input: {
     where: { id: "global" },
     create: {
       id: "global",
-      aiGloballyEnabled: input.aiGloballyEnabled ?? true,
-      ownerBotGloballyEnabled: input.ownerBotGloballyEnabled ?? true,
-      outboundPaused: input.outboundPaused ?? false,
+      aiGloballyEnabled: input.aiGloballyEnabled ?? DEFAULT_SETTINGS.aiGloballyEnabled,
+      ownerBotGloballyEnabled: input.ownerBotGloballyEnabled ?? DEFAULT_SETTINGS.ownerBotGloballyEnabled,
+      outboundPaused: input.outboundPaused ?? DEFAULT_SETTINGS.outboundPaused,
       reason: input.reason ?? null,
       updatedBy: input.updatedBy ?? null,
     },

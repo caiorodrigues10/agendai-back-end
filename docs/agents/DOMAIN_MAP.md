@@ -35,6 +35,7 @@ Persistência: Prisma 6.4 + PostgreSQL (`@prisma/adapter-pg`). RLS via `setRlsCo
 | Assinaturas / planos / pagamentos | `/subscriptions`, `/plans`, `/payments`, webhooks | `Subscription`, `Plan`, `Invoice`, `Payment`, `BlockedEntity` |
 | Feed / posts / perfil social | `/feed`, `/posts`, `/salons/:salonId/posts/:postId`, `/salons/:salonId/stories`, `/salons/:salonId/tagged`; rotas legadas `POST /posts/:id/schedule`, `POST /posts/:id/cancel-schedule`, `GET /posts/scheduled` mantidas por compat (sem consumidores no front) | `FeedPost`, `PostMedia`, `PostComment`, `PostTag`; comentários por JWT staff ou sessão OTP do cliente, marcações aprovadas pelo owner |
 | Admin | `/admin/*` | agregações + audit/notifications |
+| Controle master do WhatsApp | `/admin/whatsapp/*` (overview, instâncias, `platform-settings` GET/PUT, salões + lote IA/assistente, conversas/transferência, logs do assistente, falhas/outbox + retry, filas + reprocess/clean) — leitura `WHATSAPP_READ`, mutação `WHATSAPP_MANAGE` | `PlatformWhatsAppSetting` (global, singleton `id=global`), `NotificationDelivery`, `NotificationOutbox`, `NotificationSuppression`, `NotificationPreference`, `Barbershop.whatsappAiEnabled`, `OwnerBotPreference`, `AiConversation`; audit em `AuditLog` |
 | Notificações | `/notifications` + filas | deliveries / Evolution |
 | NPS | `/admin/nps/*` (master) + `/nps/:surveyId` (público, com rate limit) | `NpsSurvey`, `NpsResponse`; gating via `NotificationPreference` (`NPS_SURVEY`) e `NotificationSuppression` |
 | Referrals | `/referrals` | `ReferralCode`, `Referral` |

@@ -4,6 +4,27 @@ import {
   sendWhatsAppMessage,
   isWhatsAppGatewayConfigured,
 } from "./whatsappNotificationService";
+import { sendWhatsAppMessageDetailed } from "./evolutionApiService";
+
+const mocks = vi.hoisted(() => ({
+  getPlatformWhatsAppSettings: vi.fn(),
+}));
+
+vi.mock("@/shared/services/platformWhatsAppSettings", () => ({
+  getPlatformWhatsAppSettings: mocks.getPlatformWhatsAppSettings,
+}));
+
+function platformSettings(overrides: Record<string, unknown> = {}) {
+  return {
+    aiGloballyEnabled: true,
+    ownerBotGloballyEnabled: true,
+    outboundPaused: false,
+    reason: null,
+    updatedBy: null,
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
 
 describe("normalizeWhatsAppPhone", () => {
   it("prefixa 55 para números BR com DDD", () => {
@@ -23,6 +44,7 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
     process.env.EVOLUTION_API_URL = "http://localhost:8080";
     process.env.EVOLUTION_API_KEY = "evo-key-1";
     process.env.EVOLUTION_INSTANCE_NAME = "barberqueue";
+    mocks.getPlatformWhatsAppSettings.mockResolvedValue(platformSettings());
   });
 
   afterEach(() => {
@@ -171,5 +193,90 @@ describe("sendWhatsAppMessage (Evolution API)", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       "http://localhost:8080/message/sendText/barberqueue"
     );
+  });
+});
+
+describe("kill switch global de envios (outboundPaused)", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    process.env.EVOLUTION_API_URL = "http://localhost:8080";
+    process.env.EVOLUTION_API_KEY = "evo-key-1";
+    process.env.EVOLUTION_INSTANCE_NAME = "barberqueue";
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    delete process.env.EVOLUTION_API_URL;
+    delete process.env.EVOLUTION_API_KEY;
+    delete process.env.EVOLUTION_INSTANCE_NAME;
+    vi.restoreAllMocks();
+  });
+
+  it("sendWhatsAppMessageDetailed não chama a Evolution e retorna OUTBOUND_PAUSED", async () => {
+    mocks.getPlatformWhatsAppSettings.mockResolvedValue(
+      platformSettings({ outboundPaused: true })
+    );
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as any;
+
+    const result = await sendWhatsAppMessageDetailed("11988887777", "Olá", {
+      platform: true,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      errorCode: "OUTBOUND_PAUSED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sendWhatsAppMessage retorna false sem chamar a Evolution", async () => {
+    mocks.getPlatformWhatsAppSettings.mockResolvedValue(
+      platformSettings({ outboundPaused: true })
+    );
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as any;
+
+    const sent = await sendWhatsAppMessage("11988887777", "Olá", {
+      platform: true,
+    });
+
+    expect(sent).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("controle positivo: com outboundPaused=false o envio acontece", async () => {
+    mocks.getPlatformWhatsAppSettings.mockResolvedValue(
+      platformSettings({ outboundPaused: false })
+    );
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => "{}",
+    });
+    globalThis.fetch = fetchMock as any;
+
+    const sent = await sendWhatsAppMessage("11988887777", "Olá", {
+      platform: true,
+    });
+
+    expect(sent).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("falha ao ler a configuração global não envia (modo seguro)", async () => {
+    mocks.getPlatformWhatsAppSettings.mockRejectedValue(new Error("db down"));
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as any;
+
+    const result = await sendWhatsAppMessageDetailed("11988887777", "Olá", {
+      platform: true,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      errorCode: "OUTBOUND_PAUSED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

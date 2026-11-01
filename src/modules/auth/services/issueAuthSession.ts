@@ -133,6 +133,7 @@ export async function issueAuthSession(
       // Mesma convenção de GET /auth/me: EMPLOYEE carrega permissões;
       // papéis privilegiados vêm implícitos no papel.
       permissions: mapRole(user.role) === "employee" ? (user.permissions ?? []) : undefined,
+      internalPermissions: user.role === "MASTER_ADMIN" ? (user.permissions ?? []) : undefined,
     },
     accessToken,
   };

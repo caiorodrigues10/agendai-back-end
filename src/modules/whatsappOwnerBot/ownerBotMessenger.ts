@@ -1,4 +1,5 @@
 import { sendWhatsAppMessageDetailed } from "@/shared/services/evolutionApiService";
+import { getPlatformWhatsAppSettings } from "@/shared/services/platformWhatsAppSettings";
 import { getModuleLogger } from "@/shared/utils/logger";
 
 /**
@@ -18,6 +19,8 @@ export interface OwnerBotMessenger {
 
 export class EvolutionOwnerBotMessenger implements OwnerBotMessenger {
   async send(phone: string, text: string): Promise<boolean> {
+    const settings = await getPlatformWhatsAppSettings();
+    if (!settings.ownerBotGloballyEnabled) return false;
     const result = await sendWhatsAppMessageDetailed(phone, text, { platform: true });
     if (!result.ok) {
       logger.warn(

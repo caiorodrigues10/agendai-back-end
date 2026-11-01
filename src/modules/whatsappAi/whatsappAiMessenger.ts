@@ -1,4 +1,5 @@
 import { sendWhatsAppMessageDetailed } from "@/shared/services/evolutionApiService";
+import { getPlatformWhatsAppSettings } from "@/shared/services/platformWhatsAppSettings";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { maskAiPhone } from "./whatsappAiPhone";
 
@@ -41,6 +42,8 @@ export function splitAiMessage(text: string, max = AI_MAX_MESSAGE_LENGTH): strin
 
 export class EvolutionWhatsAppAiMessenger implements WhatsAppAiMessenger {
   async send(phone: string, text: string, instanceName?: string): Promise<boolean> {
+    const settings = await getPlatformWhatsAppSettings();
+    if (!settings.aiGloballyEnabled) return false;
     const parts = splitAiMessage(text);
     if (parts.length === 0) return false;
 
