@@ -327,7 +327,7 @@ export class AdminFinancialController {
       }
       : undefined;
 
-    const [expenses, fiados, overdueCount] = await Promise.all([
+    const [expenses, fiados, overdueCount, invoiceRows, invoiceStatusAggs, paymentAgg, refundAgg] = await Promise.all([
       prisma.expense.findMany({
         where: {
           barbershopId,
@@ -356,6 +356,42 @@ export class AdminFinancialController {
           dueDate: { lt: new Date() },
         },
       }),
+      prisma.invoice.findMany({
+        where: { subscription: { barbershopId } },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          dueDate: true,
+          paidAt: true,
+          createdAt: true,
+          plan: { select: { name: true } },
+        },
+      }),
+      prisma.invoice.groupBy({
+        by: ["status"],
+        where: { subscription: { barbershopId } },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      prisma.payment.aggregate({
+        where: {
+          barbershopId,
+          ...(dateFilter && { createdAt: dateFilter }),
+        },
+        _count: { _all: true },
+        _sum: { transactionAmount: true },
+      }),
+      prisma.refund.aggregate({
+        where: {
+          barbershopId,
+          ...(dateFilter && { createdAt: dateFilter }),
+        },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
     ]);
 
     type ExpenseDetail = typeof expenses[number];
@@ -372,6 +408,46 @@ export class AdminFinancialController {
       .filter((f: FiadoDetail) => f.dueDate && f.dueDate < now)
       .reduce((s: number, f: FiadoDetail) => s + remainingFiado(f), 0);
 
+    const expenseByType = new Map<string, { total: number; count: number }>();
+    const expenseByCategory = new Map<string, { total: number; count: number }>();
+    for (const expense of expenses as ExpenseDetail[]) {
+      const typeEntry = expenseByType.get(expense.type) ?? { total: 0, count: 0 };
+      expenseByType.set(expense.type, {
+        total: typeEntry.total + expense.amount,
+        count: typeEntry.count + 1,
+      });
+      const categoryName = expense.category?.name ?? "Sem categoria";
+      const categoryEntry = expenseByCategory.get(categoryName) ?? { total: 0, count: 0 };
+      expenseByCategory.set(categoryName, {
+        total: categoryEntry.total + expense.amount,
+        count: categoryEntry.count + 1,
+      });
+    }
+
+    const invoiceSummary = {
+      total: 0,
+      paid: 0,
+      pending: 0,
+      overdue: 0,
+      cancelled: 0,
+      sumPaid: 0,
+      sumOverdue: 0,
+    };
+    for (const agg of invoiceStatusAggs) {
+      invoiceSummary.total += agg._count._all;
+      if (agg.status === "PAID") {
+        invoiceSummary.paid += agg._count._all;
+        invoiceSummary.sumPaid += agg._sum.amount ?? 0;
+      } else if (agg.status === "PENDING") {
+        invoiceSummary.pending += agg._count._all;
+      } else if (agg.status === "OVERDUE") {
+        invoiceSummary.overdue += agg._count._all;
+        invoiceSummary.sumOverdue += agg._sum.amount ?? 0;
+      } else if (agg.status === "CANCELLED") {
+        invoiceSummary.cancelled += agg._count._all;
+      }
+    }
+
     return reply.send({
       success: true,
       data: {
@@ -384,6 +460,26 @@ export class AdminFinancialController {
           createdAt: barbershop.createdAt,
           subscription: barbershop.subscriptions[0] ?? null,
         },
+        invoices: {
+          summary: invoiceSummary,
+          records: invoiceRows.map((invoice) => ({
+            id: invoice.id,
+            amount: invoice.amount,
+            status: invoice.status,
+            dueDate: invoice.dueDate,
+            paidAt: invoice.paidAt,
+            createdAt: invoice.createdAt,
+            planName: invoice.plan?.name ?? null,
+          })),
+        },
+        payments: {
+          count: paymentAgg._count._all,
+          total: paymentAgg._sum.transactionAmount ?? 0,
+        },
+        refunds: {
+          count: refundAgg._count._all,
+          total: refundAgg._sum.amount ?? 0,
+        },
         expenses: {
           summary: {
             total: totalExpenses,
@@ -391,6 +487,14 @@ export class AdminFinancialController {
             totalPending: totalExpenses - totalExpPaid,
             count: expenses.length,
           },
+          byType: [...expenseByType.entries()].map(([type, value]) => ({
+            type,
+            ...value,
+          })),
+          byCategory: [...expenseByCategory.entries()].map(([category, value]) => ({
+            category,
+            ...value,
+          })),
           records: expenses.map((e: ExpenseDetail) => ({
             id: e.id,
             title: e.title,

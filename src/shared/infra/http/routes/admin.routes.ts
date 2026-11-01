@@ -9,6 +9,8 @@ import { AdminReferralsController } from "@/modules/admin/controllers/AdminRefer
 import { AdminOverviewController } from "@/modules/admin/controllers/AdminOverviewController";
 import { AdminAccountsController } from "@/modules/admin/controllers/AdminAccountsController";
 import { AdminAccountActionsController } from "@/modules/admin/controllers/AdminAccountActionsController";
+import { AdminSegmentsController } from "@/modules/admin/controllers/AdminSegmentsController";
+import { AdminCrmBackfillController } from "@/modules/admin/controllers/AdminCrmBackfillController";
 import { AdminOperationsController } from "@/modules/admin/controllers/AdminOperationsController";
 import { AdminWhatsAppController } from "@/modules/admin/controllers/AdminWhatsAppController";
 import { AdminProductController } from "@/modules/admin/controllers/AdminProductController";
@@ -36,6 +38,11 @@ import {
   adminRevokeSessionSchema,
   adminRevokeUserSessionsSchema,
 } from "@/modules/admin/schemas/adminSchemas";
+import {
+  adminBarbershopSegmentBodySchema,
+  adminBarbershopSegmentParamsSchema,
+} from "@/modules/admin/schemas/adminSegmentsSchemas";
+import { adminCrmBackfillRunsQuerySchema } from "@/modules/admin/schemas/adminCrmBackfillSchemas";
 import { INTERNAL_PERMISSIONS } from "@/modules/admin/internalPermissions";
 import {
   whatsappBatchAiSchema,
@@ -60,6 +67,8 @@ const referralsController = new AdminReferralsController();
 const overviewController = new AdminOverviewController();
 const accountsController = new AdminAccountsController();
 const accountActionsController = new AdminAccountActionsController();
+const segmentsController = new AdminSegmentsController();
+const crmBackfillController = new AdminCrmBackfillController();
 const operationsController = new AdminOperationsController();
 const whatsappController = new AdminWhatsAppController();
 const productController = new AdminProductController();
@@ -101,6 +110,17 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.list.bind(barbershopController));
   app.post("/admin/barbershops", { preHandler: barbershopsManage }, barbershopController.create.bind(barbershopController));
   app.patch("/admin/barbershops/:id/status", { preHandler: barbershopsManage }, barbershopController.updateStatus.bind(barbershopController));
+
+  // ─── Segmentos (catálogo versionado em código; troca com motivo + auditoria) ──
+  app.get("/admin/segments", { preHandler: dashboardRead }, segmentsController.list.bind(segmentsController));
+  app.patch("/admin/barbershops/:id/segment", {
+    preHandler: [
+      ...accountsManage,
+      validateSchema(adminBarbershopSegmentParamsSchema, "params"),
+      validateSchema(adminBarbershopSegmentBodySchema, "body"),
+    ],
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, segmentsController.updateSegment.bind(segmentsController));
   app.post("/admin/barbershops/:id/resend-invite", {
     preHandler: barbershopsManage,
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
@@ -239,6 +259,11 @@ export async function adminRoutes(app: FastifyInstance) {
     preHandler: [...whatsappManage, validateSchema(whatsappReasonSchema, "body"), validateSchema(whatsappQueueParamsSchema, "params")],
     config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
   }, whatsappController.cleanJob.bind(whatsappController));
+
+  // ─── CRM: histórico de execuções do backfill ──────────────────────────────
+  app.get("/admin/crm/backfill/runs", {
+    preHandler: [...dashboardRead, validateSchema(adminCrmBackfillRunsQuerySchema, "query")],
+  }, crmBackfillController.runs.bind(crmBackfillController));
 
   // ─── Indicações ───────────────────────────────────────────────────────────
   app.get("/admin/referrals", { preHandler: referralsRead }, referralsController.getStats.bind(referralsController));

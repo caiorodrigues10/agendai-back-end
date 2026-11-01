@@ -61,6 +61,8 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Ficha auxiliar do cliente por segmento (`auxiliaryProfile`): `pet` (petshop/veterinária), `vehicle` (lava jato/oficina), `case` (advocacia). Em advocacia a ficha é **caso/processo**: apelido, área de atuação e número do processo — sempre restritos à equipe.
 - Sigilo: área de atuação, número de processo e apelido de caso **não** aparecem em mensagem ao cliente, no perfil público nem no assistente do dono (`stripCaseData` no bot).
 - Cadastro: `seedBarbershopDefaults` aplica catálogo, preset de horário, modo de atendimento e preferências **por segmento**; onboarding usa o vocabulário do segmento (`shopNoun`, `service`, `servicePlural`).
+- Troca de segmento pelo master (`PATCH /admin/barbershops/:id/segment`, permissão `ACCOUNTS_MANAGE`): exige motivo (10–500), recusa o mesmo segmento (409), detecta dados incompatíveis (`Product`, `Equipment`, `CommissionEntry`, `CashMovement` de gorjeta, `SalonClient`) e responde 409 `SEGMENT_CHANGE_REQUIRES_CONFIRMATION` com `{ requiresConfirmation, conflicts, impact }`; só aplica com `confirm: true`. Limpa `businessSegmentOther` fora de `OTHER`, zera `targetAudience` quando o novo segmento não o usa e registra `AuditLog` `ACCOUNT_CHANGE_SEGMENT` com before/after, impacto e conflitos.
+- Impacto da troca vem de `shared/segments/segmentImpact.ts` (`diffSegmentImpact`): módulos/abas ocultados ou liberados, features perdidas/ganhas e mudança de publicidade — a mesma fonte usada pela prévia do front.
 
 ### Feature por segmento (`features`)
 
@@ -171,6 +173,12 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - **Lista de instâncias** (`GET /admin/whatsapp/instances`) pagina as instâncias de salão (`page`, `limit` padrão 20, máximo 50) e devolve `meta { total, page, limit, totalPages }`. As instâncias da IA e da plataforma aparecem sempre na **primeira página** e ficam **fora** da contagem de salões. O estado de cada instância da página é resolvido com concorrência máxima de **5** e timeout de **3 s por chamada**: erro, timeout ou Evolution não configurada → `unreachable` com `error` curto (sem stack e sem segredo); `close` só quando a Evolution respondeu que a instância está fechada. O overview usa a mesma resolução (`allSettled`), sem derrubar a tela.
 - **Filas do painel master**: o gateway reusa as filas já instanciadas (`whatsappQueue`, `whatsappAiQueue`, `ownerBotQueue`) — nenhuma conexão nova por request. O parâmetro `:queue` é validado por enum Zod na rota. `reprocess` só aceita job no estado `failed` (outro estado → 409 com o estado atual); `clean` só aceita `failed` ou `completed` (job `active`, `waiting` ou `delayed` → 409). Leitura indisponível **não** é engolida: a fila vem como `{ available: false, error }` e o front mostra "fila indisponível" em vez de zeros.
 - **Falhas de envio**: `GET /admin/whatsapp/notifications/failed` devolve `retryable: boolean` e, quando `false`, `notRetryableReason` ("Envios pausados globalmente", "Destinatário suprimido", "Reclamação do destinatário", "Envios rejeitados pelo destinatário", "Preferência de WhatsApp desligada"), calculado com a mesma regra do reenvio — a UI nunca oferece o que a API recusa.
+
+## Reprocessamento de CRM (backfill)
+
+- `CrmBackfillRun` registra cada execução com `scope` (`TENANT` = um salão via `POST /crm/backfill`; `GLOBAL` = lote do master via `POST /crm/backfill/all`) e `triggeredById`. Índice `(scope, startedAt)` para o histórico.
+- Um segundo backfill do mesmo salão enquanto o anterior está `RUNNING` responde **409** ("Já existe um reprocessamento em andamento para este salão"); o lote global também recusa quando já há run `GLOBAL` em andamento.
+- Histórico do master: `GET /admin/crm/backfill/runs` (`DASHBOARD_READ`) pagina (`page`/`limit`, máx. 50) com filtros `status`/`scope`/`barbershopId`, devolve o nome do salão, `triggeredBy { id, name, email }` e `meta.running`/`meta.runningGlobal`. `runningGlobal` conta runs `GLOBAL` em `RUNNING` **independente dos filtros** — é a trava usada pelo front para bloquear um novo disparo global mesmo com a página/filtro atual sem esse registro.
 
 ## Importação de planilhas (assistente do dono)
 

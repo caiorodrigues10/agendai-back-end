@@ -1,11 +1,15 @@
 /// <reference types="vitest/globals" />
 
-const { upsert } = vi.hoisted(() => ({ upsert: vi.fn() }));
+const { upsert, findFirst, create } = vi.hoisted(() => ({
+  upsert: vi.fn(),
+  findFirst: vi.fn(),
+  create: vi.fn(),
+}));
 vi.mock("@/libs/prismaClient", () => ({
-  prisma: { crmFinancialEvent: { upsert } },
+  prisma: { crmFinancialEvent: { upsert }, crmBackfillRun: { findFirst, create } },
 }));
 
-import { recordCrmFinancialEvent } from "./crmLedger";
+import { recordCrmFinancialEvent, runCrmBackfill } from "./crmLedger";
 
 describe("recordCrmFinancialEvent", () => {
   beforeEach(() => upsert.mockReset().mockResolvedValue({ id: "event-1" }));
@@ -22,5 +26,38 @@ describe("recordCrmFinancialEvent", () => {
       create: expect.objectContaining({ grossAmount: 55, receivedAmount: 55, outstandingDelta: 0 }),
       update: {},
     }));
+  });
+});
+
+describe("runCrmBackfill", () => {
+  beforeEach(() => {
+    findFirst.mockReset().mockResolvedValue(null);
+    create.mockReset().mockResolvedValue({ id: "run-1" });
+  });
+
+  it("bloqueia uma segunda execução enquanto houver uma em andamento no salão", async () => {
+    findFirst.mockResolvedValue({ id: "run-running" });
+
+    await expect(
+      runCrmBackfill("shop-1", { scope: "TENANT", triggeredById: "master-1" }),
+    ).rejects.toThrow(/em andamento/i);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("registra quem disparou e o escopo da execução", async () => {
+    await expect(
+      runCrmBackfill("shop-1", { scope: "GLOBAL", triggeredById: "master-1" }),
+    ).rejects.toThrow();
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          barbershopId: "shop-1",
+          scope: "GLOBAL",
+          triggeredById: "master-1",
+          status: "RUNNING",
+        }),
+      }),
+    );
   });
 });

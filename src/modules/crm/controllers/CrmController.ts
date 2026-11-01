@@ -56,18 +56,23 @@ export class CrmController {
 
   async backfill(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const shop = resolveShop(request, (request.body as { barbershopId?: string } | undefined)?.barbershopId);
-    const data = await container.resolve(BackfillCrmUseCase).execute(shop, request.user!);
+    const data = await container.resolve(BackfillCrmUseCase).execute(shop, request.user!, { scope: "TENANT" });
     reply.send({ success: true, data });
   }
 
   async backfillAll(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     if (request.user!.role !== "MASTER_ADMIN") throw new AppError("Apenas o administrador da plataforma pode executar o backfill global", 403);
+    const runningGlobal = await prisma.crmBackfillRun.findFirst({
+      where: { scope: "GLOBAL", status: "RUNNING" },
+      select: { id: true },
+    });
+    if (runningGlobal) throw new AppError("Já existe um reprocessamento global em andamento", 409);
     const shops = await prisma.barbershop.findMany({ where: { active: true }, select: { id: true } });
     const useCase = container.resolve(BackfillCrmUseCase);
     const results = [];
     for (const shop of shops) {
       try {
-        results.push({ barbershopId: shop.id, run: await useCase.execute(shop.id, request.user!) });
+        results.push({ barbershopId: shop.id, run: await useCase.execute(shop.id, request.user!, { scope: "GLOBAL" }) });
       } catch (error) {
         results.push({ barbershopId: shop.id, error: error instanceof Error ? error.message : "Erro desconhecido" });
       }

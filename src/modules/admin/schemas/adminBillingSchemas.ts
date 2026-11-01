@@ -8,6 +8,7 @@ export const billingStatementQuerySchema = z
     status: z.enum(INVOICE_STATUSES).optional(),
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
+    barbershopId: z.string().uuid("id inválido").optional(),
   })
   .strict();
 

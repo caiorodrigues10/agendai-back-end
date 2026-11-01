@@ -279,6 +279,7 @@ export class AdminBillingInsightsController {
     const query = request.query as BillingStatementQuery;
     const where: Record<string, unknown> = {};
     if (query.status) where.status = query.status;
+    if (query.barbershopId) where.subscription = { barbershopId: query.barbershopId };
     if (query.from || query.to) {
       where.createdAt = {
         ...(query.from ? { gte: query.from } : {}),

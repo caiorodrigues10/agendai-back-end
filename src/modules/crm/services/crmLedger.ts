@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { AppError } from "@/shared/errors/AppError";
 
 type EventInput = {
   barbershopId: string;
@@ -227,8 +228,46 @@ export async function backfillCrmLedger(barbershopId: string): Promise<{ linked:
   return { linked, events, createdEvents: events - eventsBefore };
 }
 
-export async function runCrmBackfill(barbershopId: string, version = "crm-ledger-v1") {
-  const run = await prisma.crmBackfillRun.create({ data: { barbershopId, version, status: "RUNNING" } });
+export type CrmBackfillScope = "TENANT" | "GLOBAL";
+
+export type CrmBackfillOptions = {
+  version?: string;
+  scope?: CrmBackfillScope;
+  triggeredById?: string | null;
+};
+
+/**
+ * Executa o backfill do ledger de CRM de um salão.
+ *
+ * Cada execução vira um registro em `crm_backfill_runs` (quem disparou,
+ * escopo, início/fim, status, contadores e mensagem de erro). Uma execução
+ * em andamento para o mesmo salão bloqueia uma nova — reprocessar duas
+ * vezes ao mesmo tempo duplica trabalho sem ganho.
+ */
+export async function runCrmBackfill(barbershopId: string, options: CrmBackfillOptions = {}) {
+  const version = options.version ?? "crm-ledger-v1";
+  const scope = options.scope ?? "TENANT";
+
+  const running = await prisma.crmBackfillRun.findFirst({
+    where: { barbershopId, status: "RUNNING" },
+    select: { id: true },
+  });
+  if (running) {
+    throw new AppError(
+      "Já existe um reprocessamento em andamento para este salão",
+      409,
+    );
+  }
+
+  const run = await prisma.crmBackfillRun.create({
+    data: {
+      barbershopId,
+      version,
+      scope,
+      triggeredById: options.triggeredById ?? null,
+      status: "RUNNING",
+    },
+  });
   try {
     const result = await backfillCrmLedger(barbershopId);
     return await prisma.crmBackfillRun.update({

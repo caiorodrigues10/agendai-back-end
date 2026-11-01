@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BusinessSegment } from "@prisma/client";
 
 export const adminAccountsQuerySchema = z
   .object({
@@ -7,6 +8,7 @@ export const adminAccountsQuerySchema = z
     search: z.string().max(100).optional(),
     status: z.enum(["active", "inactive"]).optional(),
     approval: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+    segment: z.nativeEnum(BusinessSegment).optional(),
     sort: z.enum(["recent", "oldest", "name"]).optional().default("recent"),
   })
   .strict();

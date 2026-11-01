@@ -23,11 +23,13 @@ function accountWhere(query: {
   search?: string;
   status?: "active" | "inactive";
   approval?: "PENDING" | "APPROVED" | "REJECTED";
+  segment?: string;
 }): any {
   const where: any = {};
   if (query.status === "active") where.active = true;
   if (query.status === "inactive") where.active = false;
   if (query.approval) where.approvalStatus = query.approval;
+  if (query.segment) where.businessSegment = query.segment;
   if (query.search) {
     where.OR = [
       { name: { contains: query.search, mode: "insensitive" } },
@@ -42,10 +44,10 @@ function accountWhere(query: {
 
 export class AdminAccountsController {
   async list(request: FastifyRequest, reply: FastifyReply) {
-    const { page, limit, search, status, approval, sort } =
+    const { page, limit, search, status, approval, segment, sort } =
       adminAccountsQuerySchema.parse(request.query);
 
-    const where = accountWhere({ search, status, approval });
+    const where = accountWhere({ search, status, approval, segment });
     const orderBy =
       sort === "name"
         ? { name: "asc" as const }
@@ -69,6 +71,7 @@ export class AdminAccountsController {
             city: true,
             active: true,
             approvalStatus: true,
+            businessSegment: true,
             createdAt: true,
             _count: {
               select: { users: true, appointments: true, tickets: true, queue: true },
@@ -104,6 +107,7 @@ export class AdminAccountsController {
         city: string | null;
         active: boolean;
         approvalStatus: string;
+        businessSegment: string;
         createdAt: Date;
         _count: { users: number; appointments: number; tickets: number; queue: number };
         subscriptions: {
@@ -121,6 +125,7 @@ export class AdminAccountsController {
         city: account.city,
         active: account.active,
         approvalStatus: account.approvalStatus,
+        businessSegment: account.businessSegment,
         createdAt: account.createdAt,
         counts: account._count,
         subscription: account.subscriptions[0] ?? null,

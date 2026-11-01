@@ -4,7 +4,7 @@ import { AppError } from "@/shared/errors/AppError";
 import { ICrmRepository } from "../repositories/ICrmRepository";
 import { CrmForecastDTO, CrmSegment } from "../dtos/ICrmDTO";
 import { IWeatherProvider } from "@/shared/container/providers/WeatherProvider/IWeatherProvider";
-import { runCrmBackfill } from "../services/crmLedger";
+import { runCrmBackfill, type CrmBackfillOptions } from "../services/crmLedger";
 
 export type CrmUser = { id: string; role: string; barbershopId?: string };
 export type CrmPermission = "CRM_ANALYTICS_VIEW" | "CRM_CAMPAIGNS_MANAGE";
@@ -56,10 +56,13 @@ export class MergeCrmClientsUseCase {
 
 @injectable()
 export class BackfillCrmUseCase {
-  async execute(barbershopId: string, user: CrmUser) {
+  async execute(barbershopId: string, user: CrmUser, options: CrmBackfillOptions = {}) {
     if (user.role !== "MASTER_ADMIN" && user.role !== "OWNER") throw new AppError("Apenas o proprietário pode executar o backfill", 403);
     if (user.role !== "MASTER_ADMIN" && user.barbershopId !== barbershopId) throw new AppError("Acesso negado", 403);
-    return runCrmBackfill(barbershopId);
+    return runCrmBackfill(barbershopId, {
+      ...options,
+      triggeredById: options.triggeredById ?? user.id,
+    });
   }
 }
 
