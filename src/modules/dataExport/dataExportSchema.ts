@@ -36,6 +36,8 @@ const moduleKeySchema = z.enum([
   "loyalty",
   "posts",
   "settings",
+  "cases",
+  "caseFees",
 ]);
 
 /** POST /barbershops/:barbershopId/exports */

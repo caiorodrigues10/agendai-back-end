@@ -46,7 +46,9 @@ export type ExportModuleKey =
   | "reviews"
   | "loyalty"
   | "posts"
-  | "settings";
+  | "settings"
+  | "cases"
+  | "caseFees";
 
 /** Opções de emissão. */
 export interface ExportOptions {

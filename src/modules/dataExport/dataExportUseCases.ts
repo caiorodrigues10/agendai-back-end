@@ -13,6 +13,7 @@
 import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/libs/prismaClient";
 import { isModuleEnabled } from "@/shared/segments/segmentGate";
+import { hasSegmentFeature } from "@/shared/segments";
 import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 import { exportJobRepository } from "./repositories/ExportJobRepository";
 import {
@@ -90,6 +91,9 @@ export class DataExportUseCases {
       }
       if (module === "commissions") {
         return isModuleEnabled(segment, "commissions");
+      }
+      if (module === "cases" || module === "caseFees") {
+        return hasSegmentFeature(segment, "caseManagement");
       }
       return true;
     });

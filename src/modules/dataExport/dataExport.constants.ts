@@ -48,6 +48,8 @@ export const EXPORT_MODULES: ExportModuleKey[] = [
   "loyalty",
   "posts",
   "settings",
+  "cases",
+  "caseFees",
 ];
 
 /** Rótulos em PT-BR (vocabulário do dono, não o técnico). */
@@ -68,6 +70,8 @@ export const MODULE_LABELS: Record<ExportModuleKey, string> = {
   loyalty: "Fidelidade, indicações e vouchers",
   posts: "Posts e galeria",
   settings: "Configurações do negócio",
+  cases: "Processos",
+  caseFees: "Honorários de êxito",
 };
 
 /** Preset "Relatório gerencial": o essencial para quem olha o número. */

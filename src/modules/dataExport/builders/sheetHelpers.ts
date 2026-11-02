@@ -11,6 +11,7 @@
  */
 import type ExcelJS from "exceljs";
 import { safeBool, safeNumber, safeText } from "../utils/cellSafety";
+import type { ExportModuleKey } from "../dataExport.types";
 
 export type ColumnType =
   | "text"
@@ -80,6 +81,8 @@ export interface SheetContext {
   generatedAt: Date;
   /** Avisos coletados durante a geração (aparecem no Resumo e no Leia-me). */
   warnings: string[];
+  /** Módulos realmente disponíveis para esta planilha (após gating de segmento/opções). */
+  available: Set<ExportModuleKey>;
   /** Abas que entram nesta planilha (o Leia-me explica cada uma). */
   includedSheets: Array<{ key: string; name: string; description: string }>;
 }

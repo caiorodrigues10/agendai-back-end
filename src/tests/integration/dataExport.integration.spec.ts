@@ -89,11 +89,13 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
         | "fiado"
         | "queue"
         | "waitlist"
-        | "reviews"
-        | "loyalty"
-        | "posts"
-        | "settings"
-      >;
+      | "reviews"
+      | "loyalty"
+      | "posts"
+      | "settings"
+      | "cases"
+      | "caseFees"
+    >;
       format?: "XLSX" | "CSV_ZIP";
       anonymize?: boolean;
       includeCase?: boolean;
@@ -444,6 +446,114 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
       .map((row) => row.join(" "))
       .join("\n");
     expect(readmeWithoutCase).not.toContain("Sigilo profissional");
+  });
+
+  it("LAW_FIRM exporta processos e honorários de êxito (sem caixa), sigilo respeitado", async () => {
+    if (!lawFirmShopId) throw new Error("lawFirmShopId não definido");
+
+    const lawStaff = await prisma.user.create({
+      data: {
+        name: "Advogado Honorário Exportação",
+        email: `lawyer-fee-export-${randomUUID()}@qa.local`,
+        password: "x",
+        role: "EMPLOYEE",
+        barbershopId: lawFirmShopId,
+      },
+      select: { id: true },
+    });
+
+    // Criar processo e honorário para o escritório jurídico
+    const lawClient = await prisma.salonClient.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        name: "Cliente Honorário",
+        whatsapp: "11988880014",
+      },
+      select: { id: true },
+    });
+    const lawsuit = await prisma.clientCase.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        clientId: lawClient.id,
+        nickname: "Ação Honorário",
+        caseNumber: "0025900-78.2020.8.26.0100",
+        practiceArea: "Cível",
+        status: "ACTIVE",
+        priority: "HIGH",
+        claimedAmount: 50000,
+        awardedAmount: 30000,
+        openedAt: new Date("2027-03-01T00:00:00Z"),
+        responsibleStaffId: lawStaff.id,
+        shareWithClient: false,
+      },
+      select: { id: true },
+    });
+    await prisma.caseSuccessFee.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        caseId: lawsuit.id,
+        percent: 20,
+        baseAmount: 30000,
+        amount: 6000,
+        status: "PAID",
+        dueDate: new Date("2027-04-01T00:00:00Z"),
+        installments: 1,
+        notes: "Honorário de êxito",
+      },
+    });
+
+    const period = {
+      from: new Date("2027-01-01T00:00:00Z"),
+      to: new Date("2027-12-31T23:59:59Z"),
+      barbershopId: lawFirmShopId,
+    };
+
+    // Sem includeCase: cases não entra, caseFees entra sem dados do caso
+    const withoutCase = await generate({
+      ...period,
+      modules: ["cases", "caseFees"],
+      includeCase: false,
+    });
+    const sheetNamesWithout = (await readSheet(withoutCase.filePath, "Resumo"))
+      .map((r) => r.join(" "))
+      .join("\n");
+    // cases não deve aparecer na planilha sem includeCase
+    expect(
+      (await readSheet(withoutCase.filePath, "Leia-me")).map((r) => r.join(" ")).join("\n"),
+    ).not.toContain("Processos");
+    // caseFees entra, mas número do processo e apelido vêm vazios
+    const feeHeaders = await readHeaders(withoutCase.filePath, "Honorários de êxito");
+    expect(feeHeaders).toContain("Percentual (%)");
+    const feeRows = await readSheet(withoutCase.filePath, "Honorários de êxito");
+    expect((feeRows[1]?.[0] ?? "")).toBe(""); // número do processo vazio
+    expect((feeRows[1]?.[1] ?? "")).toBe(""); // apelido vazio
+    expect(feeRows[1]?.[4]).toBe("6000"); // valor do honorário presente
+
+    // Com includeCase: cases entra com todos os dados, caseFees com número e apelido
+    const withCase = await generate({
+      ...period,
+      modules: ["cases", "caseFees"],
+      includeCase: true,
+    });
+    const casesHeaders = await readHeaders(withCase.filePath, "Processos");
+    expect(casesHeaders).toContain("Número do processo");
+    expect(casesHeaders).toContain("Valor da causa");
+    expect(casesHeaders).toContain("Valor obtido");
+    const casesRows = await readSheet(withCase.filePath, "Processos");
+    expect(casesRows[1]?.[1]).toBe("0025900-78.2020.8.26.0100");
+    expect(casesRows[1]?.[10]).toBe("50000"); // valor da causa
+    expect(casesRows[1]?.[11]).toBe("30000"); // valor obtido
+
+    const feeHeadersWith = await readHeaders(withCase.filePath, "Honorários de êxito");
+    const feeRowsWith = await readSheet(withCase.filePath, "Honorários de êxito");
+    expect(feeRowsWith[1]?.[0]).toBe("0025900-78.2020.8.26.0100"); // número do processo
+    expect(feeRowsWith[1]?.[1]).toBe("Ação Honorário"); // apelido
+    expect(feeRowsWith[1]?.[4]).toBe("6000"); // valor do honorário
+
+    // Sem lançamento de caixa: o Resumo não deve ter faturamento vindo de honorários
+    const resumoRows = await readSheet(withCase.filePath, "Resumo");
+    const resumoText = resumoRows.map((r) => r.join(" ")).join("\n");
+    expect(resumoText).not.toContain("Honorário");
   });
 
   it("anonimiza dados pessoais quando pedido", async () => {

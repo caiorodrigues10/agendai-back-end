@@ -13,6 +13,7 @@ import archiver from "archiver";
 import PDFDocument from "pdfkit";
 import { prisma } from "@/libs/prismaClient";
 import { isModuleEnabled } from "@/shared/segments/segmentGate";
+import { hasSegmentFeature } from "@/shared/segments";
 import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 import {
   exportFileName,
@@ -52,6 +53,10 @@ import {
   stockSheet,
 } from "./sheets/commerceSheets";
 import {
+  caseFeesSheet,
+  casesSheet,
+} from "./sheets/caseSheets";
+import {
   loyaltySheet,
   postsSheet,
   queueSheet,
@@ -87,6 +92,8 @@ const ALL_SHEETS: SheetBuilder[] = [
   recurringPackagesSheet,
   fiadoSheet,
   fiadoPaymentsSheet,
+  casesSheet,
+  caseFeesSheet,
   queueSheet,
   waitlistSheet,
   reviewsSheet,
@@ -122,6 +129,8 @@ const SHEET_MODULE: Record<string, ExportModuleKey | "core"> = {
   recurringPackages: "packages",
   fiado: "fiado",
   fiadoPayments: "fiado",
+  cases: "cases",
+  caseFees: "caseFees",
   queue: "queue",
   waitlist: "waitlist",
   reviews: "reviews",
@@ -157,6 +166,8 @@ const SHEET_DESCRIPTIONS: Record<string, string> = {
   recurringPackages: "Assinaturas/pacotes recorrentes e uso no período.",
   fiado: "Dívidas de fiado e saldo em aberto.",
   fiadoPayments: "Pagamentos de fiado no período.",
+  cases: "Processos do escritório (só para segmento jurídico, com opção de sigilo ligada).",
+  caseFees: "Honorários de êxito de processos (valor derivado do resultado obtido no caso).",
   queue: "Atendimentos da fila no período.",
   waitlist: "Entradas e ofertas da lista de espera.",
   reviews: "Avaliações publicadas e Respondidas.",
@@ -215,12 +226,11 @@ async function buildContext(opts: BuildExportOptions): Promise<SheetContext> {
       if (!isModuleEnabled(segment, "products")) continue;
     }
     if (module === "commissions" && !isModuleEnabled(segment, "commissions")) continue;
-    if (
-      (module === "reviews" || module === "loyalty") &&
-      isAdvertisingRestricted(segment)
-    ) {
-      continue;
-    }
+    if ((module === "reviews" || module === "loyalty") && isAdvertisingRestricted(segment)) continue;
+    // Casos e honorários só para segmento jurídico; cases precisa de
+    // includeCase explícito (senão nenhum dado de caso sai da planilha).
+    if ((module === "cases" || module === "caseFees") && !hasSegmentFeature(segment, "caseManagement")) continue;
+    if (module === "cases" && opts.options.includeCase !== true) continue;
     available.add(module);
   }
 
@@ -244,23 +254,24 @@ async function buildContext(opts: BuildExportOptions): Promise<SheetContext> {
     segment: shop.businessSegment,
     generatedAt: opts.generatedAt,
     warnings,
+    available,
     includedSheets: [],
   };
 }
 
 /** Abas que entram na planilha (módulo pedido + gate do segmento). */
-export function selectSheets(modules: ExportModuleKey[]): SheetBuilder[] {
+export function selectSheets(available: Set<ExportModuleKey>): SheetBuilder[] {
   return ALL_SHEETS.filter((sheet) => {
     const module = SHEET_MODULE[sheet.key];
     if (module === "core") return true;
-    return modules.includes(module);
+    return available.has(module);
   });
 }
 
 /** Gera o arquivo da exportação (xlsx ou zip de csvs). */
 export async function buildExportFile(opts: BuildExportOptions): Promise<BuildExportResult> {
   const ctx = await buildContext(opts);
-  const sheets = selectSheets(opts.modules);
+  const sheets = selectSheets(ctx.available);
   ctx.includedSheets = sheets.map((sheet) => ({
     key: sheet.key,
     name: sheet.name,
