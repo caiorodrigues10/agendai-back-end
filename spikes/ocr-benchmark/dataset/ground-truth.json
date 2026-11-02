@@ -1,0 +1,2625 @@
+{
+  "geradoEm": "2026-11-02T05:06:33.367Z",
+  "descricao": "Dataset sintético: tabela de clientes (nome/telefone/valor) renderizada e degradada. Ground truth por linha, no formato exato exibido na imagem.",
+  "colunas": [
+    "nome",
+    "telefone",
+    "valor"
+  ],
+  "naoCoberto": [
+    "manuscrito (letra de mão)",
+    "PDF escaneado (documento inteiro, várias páginas)",
+    "tabela com células mescladas",
+    "foto com fundo não branco / sombra forte",
+    "duas tabelas na mesma imagem"
+  ],
+  "casos": [
+    {
+      "id": "caso-01-print-limpo",
+      "degradation": "print-limpo",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "8109752615",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "2109754404",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "6109913097",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "1109475326",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "5109089117",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "2109864415",
+          "valor": "250,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-02-print-limpo",
+      "degradation": "print-limpo",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "6109791722",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "1109867922",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "2109681338",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "7109714988",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "8509026439",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "4109150008",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "4109580256",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-03-print-limpo",
+      "degradation": "print-limpo",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "3109288157",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "3109234876",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "6109851147",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "1109667117",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "1109285031",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "4809991038",
+          "valor": "210,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-04-print-limpo",
+      "degradation": "print-limpo",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "5109947946",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "7109590589",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "2109121827",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "6109872188",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8509745976",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "8109049276",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8509638760",
+          "valor": "1.480,50"
+        }
+      ]
+    },
+    {
+      "id": "caso-05-print-limpo",
+      "degradation": "print-limpo",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "5109041247",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "4109798897",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "4809111795",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "1109602574",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "5109014084",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "2109871481",
+          "valor": "210,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-06-print-limpo",
+      "degradation": "print-limpo",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "5109540356",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "4809851340",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "2109639241",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "1109337307",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "8509368655",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "2109496909",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "5109149933",
+          "valor": "5.430,10"
+        }
+      ]
+    },
+    {
+      "id": "caso-07-jpeg-whatsapp",
+      "degradation": "jpeg-whatsapp",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "8109619632",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "6109073051",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "1109932571",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "6109171676",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109404923",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "4809072207",
+          "valor": "3.200,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-08-jpeg-whatsapp",
+      "degradation": "jpeg-whatsapp",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "4109765737",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "5109500515",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "8509487423",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "4809768393",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "3109790111",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "6109386894",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "8109193066",
+          "valor": "1.250,75"
+        }
+      ]
+    },
+    {
+      "id": "caso-09-jpeg-whatsapp",
+      "degradation": "jpeg-whatsapp",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "4109641658",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "3109047265",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "1109067567",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "8509826426",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "7109515127",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "8109986872",
+          "valor": "250,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-10-jpeg-whatsapp",
+      "degradation": "jpeg-whatsapp",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "6109463704",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "8109620726",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "2109787102",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8509980282",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "8509314681",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "2109285198",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "4809272465",
+          "valor": "3.200,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-11-jpeg-whatsapp",
+      "degradation": "jpeg-whatsapp",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "2109680276",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "8109497679",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "6109554406",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "2109988262",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "6109051158",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "6109696371",
+          "valor": "38,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-12-jpeg-whatsapp",
+      "degradation": "jpeg-whatsapp",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "4109569941",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "5109285513",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "3109204203",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "4809014086",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "8109527202",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "8109244589",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "4109556833",
+          "valor": "210,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-13-foto-escurecida",
+      "degradation": "foto-escurecida",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "2109145110",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "5109865354",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "7109607072",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "4809407436",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "3109287058",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "4109465493",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-14-foto-escurecida",
+      "degradation": "foto-escurecida",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "8109975215",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109381223",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "5109593035",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "5109221868",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "7109821413",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "4109413814",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "8509360050",
+          "valor": "1.250,75"
+        }
+      ]
+    },
+    {
+      "id": "caso-15-foto-escurecida",
+      "degradation": "foto-escurecida",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "5109638525",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8509603227",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "5109197272",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "5109564643",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "8509185375",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "7109494947",
+          "valor": "12.900,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-16-foto-escurecida",
+      "degradation": "foto-escurecida",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109257064",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "4809038801",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "8509706969",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4109607041",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "3109256220",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "4109504363",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "3109828715",
+          "valor": "38,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-17-foto-escurecida",
+      "degradation": "foto-escurecida",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "8509078146",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "1109608684",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "3109063894",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "4109503005",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "5109844170",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "4809428564",
+          "valor": "3.200,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-18-foto-escurecida",
+      "degradation": "foto-escurecida",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "3109231368",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "1109421998",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "6109760275",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "4809991411",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "5109124204",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "1109031907",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "6109182010",
+          "valor": "12.900,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-19-baixa-resolucao",
+      "degradation": "baixa-resolucao",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8509154273",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "5109085396",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "2109650964",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "7109546629",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "4109924856",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "4109433694",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-20-baixa-resolucao",
+      "degradation": "baixa-resolucao",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "8509376729",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "1109888217",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "2109972995",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "2109171495",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "3109482371",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "6109223285",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "7109709086",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-21-baixa-resolucao",
+      "degradation": "baixa-resolucao",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "8509559931",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "8109162772",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "3109908641",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "2109481567",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "4809278096",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "3109552092",
+          "valor": "1.480,50"
+        }
+      ]
+    },
+    {
+      "id": "caso-22-baixa-resolucao",
+      "degradation": "baixa-resolucao",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "5109309863",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "8509582899",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "1109491738",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "4809891804",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "8509713036",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "4109102056",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "2109429100",
+          "valor": "250,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-23-baixa-resolucao",
+      "degradation": "baixa-resolucao",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "5109299320",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "8509493841",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "8109612789",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "6109852665",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "3109333645",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "4809974710",
+          "valor": "1.480,50"
+        }
+      ]
+    },
+    {
+      "id": "caso-24-baixa-resolucao",
+      "degradation": "baixa-resolucao",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "4809853855",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4109417614",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "8109440010",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "1109854095",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "2109955256",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "5109955698",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "5109851303",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-25-torta",
+      "degradation": "torta",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "7109459746",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "7109200435",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "4809186862",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "6109034237",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "7109637888",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "7109178645",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-26-torta",
+      "degradation": "torta",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "4109890138",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "4809920284",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "4109261027",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "1109863200",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "3109750001",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "4809497990",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "8509225129",
+          "valor": "12.900,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-27-torta",
+      "degradation": "torta",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "8509912842",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "8109972993",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "4109529032",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "5109111179",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "7109990108",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "5109132055",
+          "valor": "47,35"
+        }
+      ]
+    },
+    {
+      "id": "caso-28-torta",
+      "degradation": "torta",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "4109158583",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "6109497972",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "3109190430",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "2109262763",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109671676",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "3109357941",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "6109563298",
+          "valor": "1.250,75"
+        }
+      ]
+    },
+    {
+      "id": "caso-29-torta",
+      "degradation": "torta",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "2109825884",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "6109026805",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "1109976784",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "8509423322",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "3109599010",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "1109540946",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-30-torta",
+      "degradation": "torta",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "1109414808",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "1109399783",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "3109478394",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "7109494205",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "2109338896",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "8109456002",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "4109372555",
+          "valor": "210,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-31-ruido",
+      "degradation": "ruido",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "4809761912",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "1109138882",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "8509328282",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "7109233552",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109213490",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "3109856199",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-32-ruido",
+      "degradation": "ruido",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "8509812194",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "6109044629",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "4109433637",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "7109340579",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4809807687",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "4809867862",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "4109477720",
+          "valor": "210,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-33-ruido",
+      "degradation": "ruido",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "4809448902",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "1109801228",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "2109167146",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "4109496848",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "2109768054",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "1109827863",
+          "valor": "5.430,10"
+        }
+      ]
+    },
+    {
+      "id": "caso-34-ruido",
+      "degradation": "ruido",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "3109913474",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "2109399600",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "2109198931",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "4809836990",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "5109610075",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "8109097226",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4809033239",
+          "valor": "1.250,75"
+        }
+      ]
+    },
+    {
+      "id": "caso-35-ruido",
+      "degradation": "ruido",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "1109091598",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "4809467497",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "8509485183",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "6109743185",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4809186540",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "4109114317",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-36-ruido",
+      "degradation": "ruido",
+      "estrutura": "baseline",
+      "rows": [
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "6109803795",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "6109649104",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "5109679488",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "2109205479",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "4809712976",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "6109372523",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "2109438097",
+          "valor": "47,35"
+        }
+      ]
+    },
+    {
+      "id": "caso-37-estrutura-grade",
+      "degradation": "estrutura-grade",
+      "estrutura": "grade",
+      "rows": [
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "2109661669",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4809905887",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "8109393461",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "4109311090",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "8109042288",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "4109619847",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-38-estrutura-grade",
+      "degradation": "estrutura-grade",
+      "estrutura": "grade",
+      "rows": [
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "4109642950",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "6109613657",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "8509492006",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "4809727310",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "2109461554",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "7109074520",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "8509588817",
+          "valor": "210,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-39-estrutura-grade",
+      "degradation": "estrutura-grade",
+      "estrutura": "grade",
+      "rows": [
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "2109398315",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "2109845199",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "3109004879",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "2109895300",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "7109038331",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "8109003321",
+          "valor": "3.200,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-40-estrutura-grade",
+      "degradation": "estrutura-grade",
+      "estrutura": "grade",
+      "rows": [
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "2109327667",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "8109204727",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "4109511264",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "2109553962",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "3109828396",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "6109358185",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "5109681619",
+          "valor": "38,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-41-estrutura-grade",
+      "degradation": "estrutura-grade",
+      "estrutura": "grade",
+      "rows": [
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "4809317708",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "4809149784",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "8109030843",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "5109799590",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "8509950053",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8109427056",
+          "valor": "12.900,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-42-estrutura-grade",
+      "degradation": "estrutura-grade",
+      "estrutura": "grade",
+      "rows": [
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "6109350787",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "3109232306",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "7109015244",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "7109118235",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109821995",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "3109473040",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "3109752515",
+          "valor": "3.200,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-43-estrutura-sem-grade",
+      "degradation": "estrutura-sem-grade",
+      "estrutura": "sem-grade",
+      "rows": [
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "7109333393",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "8509792394",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "8509602551",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8109110659",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "5109688774",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "4809579809",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-44-estrutura-sem-grade",
+      "degradation": "estrutura-sem-grade",
+      "estrutura": "sem-grade",
+      "rows": [
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "8109710670",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "4109303903",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "4809417266",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "5109155962",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "8109790777",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8509489302",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4109179312",
+          "valor": "38,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-45-estrutura-sem-grade",
+      "degradation": "estrutura-sem-grade",
+      "estrutura": "sem-grade",
+      "rows": [
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "7109511268",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "1109735850",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "3109198296",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "6109079942",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "8509191439",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109889389",
+          "valor": "47,35"
+        }
+      ]
+    },
+    {
+      "id": "caso-46-estrutura-sem-grade",
+      "degradation": "estrutura-sem-grade",
+      "estrutura": "sem-grade",
+      "rows": [
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "6109566242",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "2109490426",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "3109028106",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "6109349656",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "5109637316",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "5109084506",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "2109891581",
+          "valor": "5.430,10"
+        }
+      ]
+    },
+    {
+      "id": "caso-47-estrutura-sem-grade",
+      "degradation": "estrutura-sem-grade",
+      "estrutura": "sem-grade",
+      "rows": [
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8509710085",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "8509496789",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "5109078982",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "2109003708",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "1109164193",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "2109619083",
+          "valor": "47,35"
+        }
+      ]
+    },
+    {
+      "id": "caso-48-estrutura-sem-grade",
+      "degradation": "estrutura-sem-grade",
+      "estrutura": "sem-grade",
+      "rows": [
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "1109575705",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "3109655213",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "6109596332",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "4809953364",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "7109647236",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "8109373202",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "7109483861",
+          "valor": "1.250,75"
+        }
+      ]
+    },
+    {
+      "id": "caso-49-estrutura-total",
+      "degradation": "estrutura-total",
+      "estrutura": "total",
+      "rows": [
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "4809408572",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "8509847399",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "1109577297",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "4809374078",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "8109899723",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "5109974148",
+          "valor": "38,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-50-estrutura-total",
+      "degradation": "estrutura-total",
+      "estrutura": "total",
+      "rows": [
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "2109916814",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "2109482118",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "5109274173",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "7109037709",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "1109113443",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "2109247056",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "2109842711",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-51-estrutura-total",
+      "degradation": "estrutura-total",
+      "estrutura": "total",
+      "rows": [
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "1109667930",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "4809275894",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "4809632029",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "7109486519",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "2109461177",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "8509211809",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-52-estrutura-total",
+      "degradation": "estrutura-total",
+      "estrutura": "total",
+      "rows": [
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "4809965568",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "8109898782",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "8509265725",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "5109542310",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "2109455618",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "3109265345",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "5109099357",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-53-estrutura-total",
+      "degradation": "estrutura-total",
+      "estrutura": "total",
+      "rows": [
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "4109445602",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "4809277832",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "6109624493",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "6109123859",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "2109809005",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "4809186700",
+          "valor": "210,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-54-estrutura-total",
+      "degradation": "estrutura-total",
+      "estrutura": "total",
+      "rows": [
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "4809060779",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "7109197940",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "8109104390",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "4109585734",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "3109222898",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "6109337481",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "7109205222",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-55-estrutura-acentos",
+      "degradation": "estrutura-acentos",
+      "estrutura": "acentos",
+      "rows": [
+        {
+          "nome": "José Ângelo Conceição",
+          "telefone": "4109712878",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Íris Gonçalves Assunção",
+          "telefone": "4109404030",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Wagner Luís Coelho",
+          "telefone": "1109078356",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Lívia Ferreira Nunes",
+          "telefone": "2109614767",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Antônio José da Silva",
+          "telefone": "2109979890",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Márcia Letícia Peçanha",
+          "telefone": "4809968757",
+          "valor": "675,40"
+        }
+      ]
+    },
+    {
+      "id": "caso-56-estrutura-acentos",
+      "degradation": "estrutura-acentos",
+      "estrutura": "acentos",
+      "rows": [
+        {
+          "nome": "Lívia Ferreira Nunes",
+          "telefone": "8109882395",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Antônio José da Silva",
+          "telefone": "1109931615",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Márcia Letícia Peçanha",
+          "telefone": "6109764404",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Célio Araújo Siqueira",
+          "telefone": "3109200751",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Bárbara Cristóvão",
+          "telefone": "8109210576",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Ubiratã Mendonça",
+          "telefone": "6109831240",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Débora Régis Lima",
+          "telefone": "1109088515",
+          "valor": "3.200,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-57-estrutura-acentos",
+      "degradation": "estrutura-acentos",
+      "estrutura": "acentos",
+      "rows": [
+        {
+          "nome": "Célio Araújo Siqueira",
+          "telefone": "4109620092",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Bárbara Cristóvão",
+          "telefone": "8109564231",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Ubiratã Mendonça",
+          "telefone": "3109140269",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Débora Régis Lima",
+          "telefone": "1109184536",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Ítalo Guimarães",
+          "telefone": "6109735891",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Vera Lúcia Bráz",
+          "telefone": "4809012586",
+          "valor": "1.480,50"
+        }
+      ]
+    },
+    {
+      "id": "caso-58-estrutura-acentos",
+      "degradation": "estrutura-acentos",
+      "estrutura": "acentos",
+      "rows": [
+        {
+          "nome": "Débora Régis Lima",
+          "telefone": "8509704893",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Ítalo Guimarães",
+          "telefone": "3109325601",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Vera Lúcia Bráz",
+          "telefone": "4809379057",
+          "valor": "38,00"
+        },
+        {
+          "nome": "José Ângelo Conceição",
+          "telefone": "5109641660",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Íris Gonçalves Assunção",
+          "telefone": "5109342281",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Wagner Luís Coelho",
+          "telefone": "2109236758",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Lívia Ferreira Nunes",
+          "telefone": "3109908689",
+          "valor": "250,00"
+        }
+      ]
+    },
+    {
+      "id": "caso-59-estrutura-acentos",
+      "degradation": "estrutura-acentos",
+      "estrutura": "acentos",
+      "rows": [
+        {
+          "nome": "José Ângelo Conceição",
+          "telefone": "4109666012",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Íris Gonçalves Assunção",
+          "telefone": "8509110177",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Wagner Luís Coelho",
+          "telefone": "4109722510",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Lívia Ferreira Nunes",
+          "telefone": "1109595579",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Antônio José da Silva",
+          "telefone": "7109577690",
+          "valor": "38,00"
+        },
+        {
+          "nome": "Márcia Letícia Peçanha",
+          "telefone": "4109285258",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-60-estrutura-acentos",
+      "degradation": "estrutura-acentos",
+      "estrutura": "acentos",
+      "rows": [
+        {
+          "nome": "Lívia Ferreira Nunes",
+          "telefone": "7109477952",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Antônio José da Silva",
+          "telefone": "7109655016",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Márcia Letícia Peçanha",
+          "telefone": "4809388812",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Célio Araújo Siqueira",
+          "telefone": "4809136466",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Bárbara Cristóvão",
+          "telefone": "8109918630",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Ubiratã Mendonça",
+          "telefone": "2109713125",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Débora Régis Lima",
+          "telefone": "7109678899",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-61-estrutura-mascara",
+      "degradation": "estrutura-mascara",
+      "estrutura": "mascara",
+      "rows": [
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "(71) 09331-904",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "31 0 9309-405",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "+55 41 09559-131",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "3109037200",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "085 09968-556",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "(48)0 9285-453",
+          "valor": "89,90"
+        }
+      ]
+    },
+    {
+      "id": "caso-62-estrutura-mascara",
+      "degradation": "estrutura-mascara",
+      "estrutura": "mascara",
+      "rows": [
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "85 0 9542-837",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "+55 81 09206-149",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Fernanda Lopes Martins",
+          "telefone": "5109890824",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "048 09821-989",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "(71)0 9261-895",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "(61) 09750-918",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "21 0 9668-033",
+          "valor": "1.480,50"
+        }
+      ]
+    },
+    {
+      "id": "caso-63-estrutura-mascara",
+      "degradation": "estrutura-mascara",
+      "estrutura": "mascara",
+      "rows": [
+        {
+          "nome": "Thiago Barbosa Cardoso",
+          "telefone": "+55 81 09655-484",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "6109609391",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Diego Antunes Farias",
+          "telefone": "061 09382-702",
+          "valor": "250,00"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "(51)0 9857-803",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Igor Valença Machado",
+          "telefone": "(31) 09708-636",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Camila Rezende Pinheiro",
+          "telefone": "61 0 9447-984",
+          "valor": "675,40"
+        }
+      ]
+    },
+    {
+      "id": "caso-64-estrutura-mascara",
+      "degradation": "estrutura-mascara",
+      "estrutura": "mascara",
+      "rows": [
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "7109457667",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "011 09125-230",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "(51)0 9519-936",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Bruno Siqueira Castro",
+          "telefone": "(51) 09924-994",
+          "valor": "5.430,10"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "31 0 9985-589",
+          "valor": "47,35"
+        },
+        {
+          "nome": "Otávio Bandeira Melo",
+          "telefone": "+55 85 09682-358",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Rafael Monteiro Dias",
+          "telefone": "2109196821",
+          "valor": "47,35"
+        }
+      ]
+    },
+    {
+      "id": "caso-65-estrutura-mascara",
+      "degradation": "estrutura-mascara",
+      "estrutura": "mascara",
+      "rows": [
+        {
+          "nome": "Sabrina Távora Cunha",
+          "telefone": "041 09569-506",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "(11)0 9863-251",
+          "valor": "89,90"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "(51) 09363-165",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "61 0 9979-403",
+          "valor": "12.900,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "+55 41 09646-213",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "5109546383",
+          "valor": "99,99"
+        }
+      ]
+    },
+    {
+      "id": "caso-66-estrutura-mascara",
+      "degradation": "estrutura-mascara",
+      "estrutura": "mascara",
+      "rows": [
+        {
+          "nome": "Ana Beatriz Nogueira",
+          "telefone": "(11)0 9046-244",
+          "valor": "210,00"
+        },
+        {
+          "nome": "Carlos Eduardo Ramos",
+          "telefone": "(31) 09121-960",
+          "valor": "3.200,00"
+        },
+        {
+          "nome": "Marcos Vinícius Alves",
+          "telefone": "61 0 9998-683",
+          "valor": "1.250,75"
+        },
+        {
+          "nome": "Renata Coelho Amaral",
+          "telefone": "+55 11 09242-315",
+          "valor": "99,99"
+        },
+        {
+          "nome": "Larissa Fontes Duarte",
+          "telefone": "8509962680",
+          "valor": "675,40"
+        },
+        {
+          "nome": "Patrícia Nogueira Rocha",
+          "telefone": "061 09028-804",
+          "valor": "1.480,50"
+        },
+        {
+          "nome": "Juliana Prado Ferreira",
+          "telefone": "(48)0 9953-771",
+          "valor": "5.430,10"
+        }
+      ]
+    }
+  ]
+}

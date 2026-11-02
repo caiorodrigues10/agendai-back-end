@@ -1,0 +1,2433 @@
+{
+  "executadoEm": "2026-11-02T05:09:55.794Z",
+  "imagens": 66,
+  "repeticoes": 1,
+  "concorrencia": 1,
+  "degradacoesPuladas": [],
+  "candidatos": [
+    {
+      "id": "C-macos-vision",
+      "label": "Vision (macOS nativo)",
+      "description": "Framework Vision do macOS (OCR nativo do sistema), offline, via pyobjc. Não deployável no Docker Linux.",
+      "costPerImageUsd": 0,
+      "requiresNetwork": false,
+      "images": [
+        {
+          "id": "caso-01-print-limpo",
+          "degradation": "print-limpo",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-02-print-limpo",
+          "degradation": "print-limpo",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-03-print-limpo",
+          "degradation": "print-limpo",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-04-print-limpo",
+          "degradation": "print-limpo",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-05-print-limpo",
+          "degradation": "print-limpo",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-06-print-limpo",
+          "degradation": "print-limpo",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-07-jpeg-whatsapp",
+          "degradation": "jpeg-whatsapp",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-08-jpeg-whatsapp",
+          "degradation": "jpeg-whatsapp",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-09-jpeg-whatsapp",
+          "degradation": "jpeg-whatsapp",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-10-jpeg-whatsapp",
+          "degradation": "jpeg-whatsapp",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-11-jpeg-whatsapp",
+          "degradation": "jpeg-whatsapp",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-12-jpeg-whatsapp",
+          "degradation": "jpeg-whatsapp",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-13-foto-escurecida",
+          "degradation": "foto-escurecida",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-14-foto-escurecida",
+          "degradation": "foto-escurecida",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-15-foto-escurecida",
+          "degradation": "foto-escurecida",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-16-foto-escurecida",
+          "degradation": "foto-escurecida",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-17-foto-escurecida",
+          "degradation": "foto-escurecida",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-18-foto-escurecida",
+          "degradation": "foto-escurecida",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-19-baixa-resolucao",
+          "degradation": "baixa-resolucao",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 4,
+          "linhasFantasma": 0,
+          "linhasCompletas": 0,
+          "linhasRevisao": 6,
+          "linhasFalsoConfiante": 2,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 2,
+              "ausentes": 4,
+              "falsoConfiante": 2,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 1,
+              "erradas": 1,
+              "ausentes": 4,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 1,
+              "erradas": 1,
+              "ausentes": 4,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-20-baixa-resolucao",
+          "degradation": "baixa-resolucao",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 0,
+          "linhasCompletas": 5,
+          "linhasRevisao": 2,
+          "linhasFalsoConfiante": 1,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 6,
+              "erradas": 1,
+              "ausentes": 0,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 6,
+              "erradas": 1,
+              "ausentes": 0,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-21-baixa-resolucao",
+          "degradation": "baixa-resolucao",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 5,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 1,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 5,
+              "erradas": 1,
+              "ausentes": 0,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-22-baixa-resolucao",
+          "degradation": "baixa-resolucao",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 6,
+          "linhasFantasma": 0,
+          "linhasCompletas": 0,
+          "linhasRevisao": 7,
+          "linhasFalsoConfiante": 1,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 1,
+              "ausentes": 6,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 1,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 1,
+              "ausentes": 6,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-23-baixa-resolucao",
+          "degradation": "baixa-resolucao",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 5,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 1,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 5,
+              "erradas": 1,
+              "ausentes": 0,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-24-baixa-resolucao",
+          "degradation": "baixa-resolucao",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-25-torta",
+          "degradation": "torta",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 2,
+          "linhasFantasma": 0,
+          "linhasCompletas": 3,
+          "linhasRevisao": 3,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 3,
+              "erradas": 1,
+              "ausentes": 2,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 4,
+              "erradas": 0,
+              "ausentes": 2,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 4,
+              "erradas": 0,
+              "ausentes": 2,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-26-torta",
+          "degradation": "torta",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 1,
+          "linhasFantasma": 0,
+          "linhasCompletas": 3,
+          "linhasRevisao": 4,
+          "linhasFalsoConfiante": 2,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 3,
+              "erradas": 3,
+              "ausentes": 1,
+              "falsoConfiante": 3,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 5,
+              "erradas": 1,
+              "ausentes": 1,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 5,
+              "erradas": 1,
+              "ausentes": 1,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-27-torta",
+          "degradation": "torta",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-28-torta",
+          "degradation": "torta",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 6,
+          "linhasFantasma": 0,
+          "linhasCompletas": 0,
+          "linhasRevisao": 7,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 1,
+              "ausentes": 6,
+              "falsoConfiante": 1,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 1,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 1,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-29-torta",
+          "degradation": "torta",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-30-torta",
+          "degradation": "torta",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-31-ruido",
+          "degradation": "ruido",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 6,
+          "linhasFantasma": 0,
+          "linhasCompletas": 0,
+          "linhasRevisao": 6,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-32-ruido",
+          "degradation": "ruido",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 7,
+          "linhasFantasma": 2,
+          "linhasCompletas": 0,
+          "linhasRevisao": 7,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-33-ruido",
+          "degradation": "ruido",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 6,
+          "linhasFantasma": 3,
+          "linhasCompletas": 0,
+          "linhasRevisao": 6,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-34-ruido",
+          "degradation": "ruido",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 7,
+          "linhasFantasma": 5,
+          "linhasCompletas": 0,
+          "linhasRevisao": 7,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-35-ruido",
+          "degradation": "ruido",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 6,
+          "linhasFantasma": 4,
+          "linhasCompletas": 0,
+          "linhasRevisao": 6,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 6,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-36-ruido",
+          "degradation": "ruido",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 7,
+          "linhasFantasma": 5,
+          "linhasCompletas": 0,
+          "linhasRevisao": 7,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 0,
+              "erradas": 0,
+              "ausentes": 7,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-37-estrutura-grade",
+          "degradation": "estrutura-grade",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-38-estrutura-grade",
+          "degradation": "estrutura-grade",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-39-estrutura-grade",
+          "degradation": "estrutura-grade",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-40-estrutura-grade",
+          "degradation": "estrutura-grade",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-41-estrutura-grade",
+          "degradation": "estrutura-grade",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-42-estrutura-grade",
+          "degradation": "estrutura-grade",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-43-estrutura-sem-grade",
+          "degradation": "estrutura-sem-grade",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-44-estrutura-sem-grade",
+          "degradation": "estrutura-sem-grade",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-45-estrutura-sem-grade",
+          "degradation": "estrutura-sem-grade",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-46-estrutura-sem-grade",
+          "degradation": "estrutura-sem-grade",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-47-estrutura-sem-grade",
+          "degradation": "estrutura-sem-grade",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-48-estrutura-sem-grade",
+          "degradation": "estrutura-sem-grade",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-49-estrutura-total",
+          "degradation": "estrutura-total",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 2,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-50-estrutura-total",
+          "degradation": "estrutura-total",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 2,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-51-estrutura-total",
+          "degradation": "estrutura-total",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 2,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-52-estrutura-total",
+          "degradation": "estrutura-total",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 2,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-53-estrutura-total",
+          "degradation": "estrutura-total",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 2,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-54-estrutura-total",
+          "degradation": "estrutura-total",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 2,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-55-estrutura-acentos",
+          "degradation": "estrutura-acentos",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-56-estrutura-acentos",
+          "degradation": "estrutura-acentos",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-57-estrutura-acentos",
+          "degradation": "estrutura-acentos",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-58-estrutura-acentos",
+          "degradation": "estrutura-acentos",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-59-estrutura-acentos",
+          "degradation": "estrutura-acentos",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-60-estrutura-acentos",
+          "degradation": "estrutura-acentos",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 7,
+          "linhasRevisao": 0,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-61-estrutura-mascara",
+          "degradation": "estrutura-mascara",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 5,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 5,
+              "erradas": 0,
+              "ausentes": 1,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-62-estrutura-mascara",
+          "degradation": "estrutura-mascara",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 1,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-63-estrutura-mascara",
+          "degradation": "estrutura-mascara",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 5,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 5,
+              "erradas": 0,
+              "ausentes": 1,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-64-estrutura-mascara",
+          "degradation": "estrutura-mascara",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 1,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-65-estrutura-mascara",
+          "degradation": "estrutura-mascara",
+          "totalLinhasTruth": 6,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 5,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 6,
+              "corretas": 5,
+              "erradas": 0,
+              "ausentes": 1,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 6,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        },
+        {
+          "id": "caso-66-estrutura-mascara",
+          "degradation": "estrutura-mascara",
+          "totalLinhasTruth": 7,
+          "linhasNaoLocalizadas": 0,
+          "linhasFantasma": 1,
+          "linhasCompletas": 6,
+          "linhasRevisao": 1,
+          "linhasFalsoConfiante": 0,
+          "colunas": {
+            "nome": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "telefone": {
+              "total": 7,
+              "corretas": 6,
+              "erradas": 0,
+              "ausentes": 1,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            },
+            "valor": {
+              "total": 7,
+              "corretas": 7,
+              "erradas": 0,
+              "ausentes": 0,
+              "falsoConfiante": 0,
+              "erroDetectavel": 0
+            }
+          }
+        }
+      ],
+      "totais": {
+        "nome": {
+          "total": 429,
+          "corretas": 362,
+          "erradas": 9,
+          "ausentes": 58,
+          "falsoConfiante": 9,
+          "erroDetectavel": 0
+        },
+        "telefone": {
+          "total": 429,
+          "corretas": 363,
+          "erradas": 2,
+          "ausentes": 64,
+          "falsoConfiante": 2,
+          "erroDetectavel": 0
+        },
+        "valor": {
+          "total": 429,
+          "corretas": 365,
+          "erradas": 6,
+          "ausentes": 58,
+          "falsoConfiante": 6,
+          "erroDetectavel": 0
+        }
+      },
+      "tempoTotalMs": 49872,
+      "tempoMedioMs": 756,
+      "imagensComErro": 0,
+      "erros": [],
+      "execucoesPorImagem": 1,
+      "chamadasComRetry": 0,
+      "execucoesComErro": 0,
+      "execucoesTotais": 66,
+      "linhasTotal": 429,
+      "linhasCompletas": 353,
+      "linhasRevisao": 76,
+      "linhasFalsoConfiante": 8,
+      "linhasFantasma": 79
+    }
+  ]
+}

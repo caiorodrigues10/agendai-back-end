@@ -1,0 +1,282 @@
+{
+  "geradoEm": "2026-11-02T05:07:57.894Z",
+  "fonte": "Tesseract (candidato B), menor confiança de palavra por célula",
+  "imagens": 66,
+  "totalCelulas": 1287,
+  "totalFalsoConfiante": 1,
+  "porFaixa": [
+    {
+      "coluna": "nome",
+      "faixas": [
+        {
+          "faixa": "0–49",
+          "celulas": 75,
+          "corretas": 5,
+          "erradas": 4,
+          "ausentes": 66,
+          "falsoConfiante": 4
+        },
+        {
+          "faixa": "50–59",
+          "celulas": 9,
+          "corretas": 5,
+          "erradas": 4,
+          "ausentes": 0,
+          "falsoConfiante": 4
+        },
+        {
+          "faixa": "60–69",
+          "celulas": 7,
+          "corretas": 5,
+          "erradas": 2,
+          "ausentes": 0,
+          "falsoConfiante": 2
+        },
+        {
+          "faixa": "70–79",
+          "celulas": 16,
+          "corretas": 7,
+          "erradas": 9,
+          "ausentes": 0,
+          "falsoConfiante": 9
+        },
+        {
+          "faixa": "80–89",
+          "celulas": 38,
+          "corretas": 30,
+          "erradas": 8,
+          "ausentes": 0,
+          "falsoConfiante": 8
+        },
+        {
+          "faixa": "90–100",
+          "celulas": 284,
+          "corretas": 280,
+          "erradas": 4,
+          "ausentes": 0,
+          "falsoConfiante": 4
+        }
+      ]
+    },
+    {
+      "coluna": "telefone",
+      "faixas": [
+        {
+          "faixa": "0–49",
+          "celulas": 77,
+          "corretas": 3,
+          "erradas": 1,
+          "ausentes": 73,
+          "falsoConfiante": 1
+        },
+        {
+          "faixa": "50–59",
+          "celulas": 0,
+          "corretas": 0,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "60–69",
+          "celulas": 5,
+          "corretas": 2,
+          "erradas": 0,
+          "ausentes": 3,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "70–79",
+          "celulas": 2,
+          "corretas": 1,
+          "erradas": 0,
+          "ausentes": 1,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "80–89",
+          "celulas": 9,
+          "corretas": 9,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "90–100",
+          "celulas": 336,
+          "corretas": 336,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        }
+      ]
+    },
+    {
+      "coluna": "valor",
+      "faixas": [
+        {
+          "faixa": "0–49",
+          "celulas": 78,
+          "corretas": 0,
+          "erradas": 0,
+          "ausentes": 78,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "50–59",
+          "celulas": 2,
+          "corretas": 2,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "60–69",
+          "celulas": 1,
+          "corretas": 1,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "70–79",
+          "celulas": 12,
+          "corretas": 12,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "80–89",
+          "celulas": 100,
+          "corretas": 100,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        },
+        {
+          "faixa": "90–100",
+          "celulas": 236,
+          "corretas": 236,
+          "erradas": 0,
+          "ausentes": 0,
+          "falsoConfiante": 0
+        }
+      ]
+    }
+  ],
+  "limiares": [
+    {
+      "limiar": 50,
+      "celulas": 858,
+      "auto": 703,
+      "revisao": 155,
+      "revisaoPct": 18.065268065268064,
+      "autoCorretas": 699,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 88,
+      "linhasRevisaoPct": 20.512820512820515
+    },
+    {
+      "limiar": 60,
+      "celulas": 858,
+      "auto": 701,
+      "revisao": 157,
+      "revisaoPct": 18.2983682983683,
+      "autoCorretas": 697,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 96,
+      "linhasRevisaoPct": 22.377622377622377
+    },
+    {
+      "limiar": 70,
+      "celulas": 858,
+      "auto": 695,
+      "revisao": 163,
+      "revisaoPct": 18.997668997669,
+      "autoCorretas": 694,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 103,
+      "linhasRevisaoPct": 24.009324009324008
+    },
+    {
+      "limiar": 75,
+      "celulas": 858,
+      "auto": 689,
+      "revisao": 169,
+      "revisaoPct": 19.696969696969695,
+      "autoCorretas": 689,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 115,
+      "linhasRevisaoPct": 26.806526806526808
+    },
+    {
+      "limiar": 80,
+      "celulas": 858,
+      "auto": 681,
+      "revisao": 177,
+      "revisaoPct": 20.62937062937063,
+      "autoCorretas": 681,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 129,
+      "linhasRevisaoPct": 30.06993006993007
+    },
+    {
+      "limiar": 85,
+      "celulas": 858,
+      "auto": 655,
+      "revisao": 203,
+      "revisaoPct": 23.65967365967366,
+      "autoCorretas": 655,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 159,
+      "linhasRevisaoPct": 37.06293706293706
+    },
+    {
+      "limiar": 90,
+      "celulas": 858,
+      "auto": 572,
+      "revisao": 286,
+      "revisaoPct": 33.333333333333336,
+      "autoCorretas": 572,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 244,
+      "linhasRevisaoPct": 56.87645687645688
+    },
+    {
+      "limiar": 95,
+      "celulas": 858,
+      "auto": 335,
+      "revisao": 523,
+      "revisaoPct": 60.955710955710956,
+      "autoCorretas": 335,
+      "autoErradas": 0,
+      "autoFalsoConfiante": 0,
+      "falsoEvitado": 1,
+      "linhas": 429,
+      "linhasRevisao": 419,
+      "linhasRevisaoPct": 97.66899766899768
+    }
+  ]
+}

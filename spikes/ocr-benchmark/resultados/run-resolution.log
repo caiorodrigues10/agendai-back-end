@@ -1,0 +1,15 @@
+
+> agendai-ocr-benchmark@0.0.0 resolution
+> tsx src/sweep-resolution.ts
+
+100% · A-tesseract-texto: tel 39/39
+100% · B-tesseract-layout: tel 39/39
+75% · A-tesseract-texto: tel 39/39
+75% · B-tesseract-layout: tel 39/39
+50% · A-tesseract-texto: tel 20/39
+50% · B-tesseract-layout: tel 13/39
+35% · A-tesseract-texto: tel 0/39
+35% · B-tesseract-layout: tel 0/39
+
+Resolução em /Users/viniciusvieira/agendai-projeto/backend/spikes/ocr-benchmark/resultados/resolucao.json
+menor escala que funciona: 75%

@@ -1,0 +1,235 @@
+{
+  "geradoEm": "2026-11-02T05:42:44.570Z",
+  "bases": [
+    "caso-01-print-limpo",
+    "caso-02-print-limpo",
+    "caso-03-print-limpo",
+    "caso-04-print-limpo",
+    "caso-05-print-limpo",
+    "caso-06-print-limpo"
+  ],
+  "escalas": [
+    {
+      "escala": 100,
+      "candidatos": [
+        {
+          "candidato": "A-tesseract-texto",
+          "larguraPx": 960,
+          "larguraTabelaPx": 924,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 37,
+              "ausentes": 0,
+              "falsoConfiante": 2
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 39,
+              "ausentes": 0,
+              "falsoConfiante": 0
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 39,
+              "ausentes": 0,
+              "falsoConfiante": 0
+            }
+          }
+        },
+        {
+          "candidato": "B-tesseract-layout",
+          "larguraPx": 960,
+          "larguraTabelaPx": 924,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 37,
+              "ausentes": 0,
+              "falsoConfiante": 2
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 39,
+              "ausentes": 0,
+              "falsoConfiante": 0
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 39,
+              "ausentes": 0,
+              "falsoConfiante": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "escala": 75,
+      "candidatos": [
+        {
+          "candidato": "A-tesseract-texto",
+          "larguraPx": 720,
+          "larguraTabelaPx": 693,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 35,
+              "ausentes": 0,
+              "falsoConfiante": 4
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 39,
+              "ausentes": 0,
+              "falsoConfiante": 0
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 39,
+              "ausentes": 0,
+              "falsoConfiante": 0
+            }
+          }
+        },
+        {
+          "candidato": "B-tesseract-layout",
+          "larguraPx": 720,
+          "larguraTabelaPx": 693,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 35,
+              "ausentes": 0,
+              "falsoConfiante": 4
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 39,
+              "ausentes": 0,
+              "falsoConfiante": 0
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 32,
+              "ausentes": 7,
+              "falsoConfiante": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "escala": 50,
+      "candidatos": [
+        {
+          "candidato": "A-tesseract-texto",
+          "larguraPx": 480,
+          "larguraTabelaPx": 462,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 24,
+              "ausentes": 6,
+              "falsoConfiante": 9
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 20,
+              "ausentes": 10,
+              "falsoConfiante": 9
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 18,
+              "ausentes": 10,
+              "falsoConfiante": 11
+            }
+          }
+        },
+        {
+          "candidato": "B-tesseract-layout",
+          "larguraPx": 480,
+          "larguraTabelaPx": 462,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 24,
+              "ausentes": 9,
+              "falsoConfiante": 6
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 13,
+              "ausentes": 22,
+              "falsoConfiante": 4
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 6,
+              "ausentes": 33,
+              "falsoConfiante": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "escala": 35,
+      "candidatos": [
+        {
+          "candidato": "A-tesseract-texto",
+          "larguraPx": 336,
+          "larguraTabelaPx": 323,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 1,
+              "ausentes": 38,
+              "falsoConfiante": 0
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 0,
+              "ausentes": 39,
+              "falsoConfiante": 0
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 0,
+              "ausentes": 39,
+              "falsoConfiante": 0
+            }
+          }
+        },
+        {
+          "candidato": "B-tesseract-layout",
+          "larguraPx": 336,
+          "larguraTabelaPx": 323,
+          "colunas": {
+            "nome": {
+              "total": 39,
+              "corretas": 1,
+              "ausentes": 38,
+              "falsoConfiante": 0
+            },
+            "telefone": {
+              "total": 39,
+              "corretas": 0,
+              "ausentes": 39,
+              "falsoConfiante": 0
+            },
+            "valor": {
+              "total": 39,
+              "corretas": 0,
+              "ausentes": 39,
+              "falsoConfiante": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "criterio": "telefone e valor ≥90% exatos e 0 falso confiante em telefone/valor",
+  "menorEscalaQueFunciona": 75
+}

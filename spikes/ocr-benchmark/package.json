@@ -1,0 +1,27 @@
+{
+  "name": "agendai-ocr-benchmark",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Spike: benchmark de extração de tabela a partir de imagem (Fase 2 — OCR). Autocontido: não altera o package.json do backend.",
+  "type": "commonjs",
+  "scripts": {
+    "dataset": "tsx src/generate-dataset.ts",
+    "bench": "tsx src/run.ts tesseract && tsx src/run.ts macos && SKIP_DEGRADATIONS=ruido REPEAT=2 CONCURRENCY=3 tsx src/run.ts llm && tsx src/ablate-gate.ts",
+    "bench:local": "tsx src/run.ts tesseract && tsx src/run.ts macos",
+    "bench:llm": "SKIP_DEGRADATIONS=ruido REPEAT=2 CONCURRENCY=3 tsx src/run.ts llm",
+    "ablation": "tsx src/ablate-gate.ts",
+    "report": "tsx src/build-report.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "calibration": "tsx src/calibrate.ts",
+    "resolution": "tsx src/sweep-resolution.ts"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "sharp": "^0.34.4",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
