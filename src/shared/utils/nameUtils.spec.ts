@@ -55,6 +55,17 @@ describe("namesMatch", () => {
     expect(namesMatch("José A. Silva", "José Antonio Silva")).toBe(true);
   });
 
+  it("nome do meio diferente não é match (não é inicial compatível)", () => {
+    expect(namesMatch("João Pedro Silva", "João Carlos Silva")).toBe(false);
+    expect(namesMatch("João Carlos Silva", "João Pedro Silva")).toBe(false);
+  });
+
+  it("sem nome do meio de um lado é tolerado", () => {
+    expect(namesMatch("João Silva", "João A. Silva")).toBe(true);
+    expect(namesMatch("João A. Silva", "João Silva")).toBe(true);
+    expect(namesMatch("Maria Silva", "Maria S. Silva")).toBe(true);
+  });
+
   // --- Regras de ordem e quantidade (restrições da nova versão) ---
 
   it("nome com uma só palavra não bate contra nome composto", () => {

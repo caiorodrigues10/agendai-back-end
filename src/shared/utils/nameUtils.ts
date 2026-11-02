@@ -33,11 +33,23 @@ export function normalizeNameWords(name: string | null | undefined): string[] {
 }
 
 /**
+ * Duas palavras do meio são compatíveis se são iguais ou se uma é inicial
+ * (1 letra) da outra. Ex.: "antonio" casa com "a"; "pedro" não casa com "carlos".
+ */
+function wordCompatible(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length === 1 && b.startsWith(a)) return true;
+  if (b.length === 1 && a.startsWith(b)) return true;
+  return false;
+}
+
+/**
  * Compara dois nomes de forma tolerante:
  * - exige >= 2 palavras significativas em cada lado
  * - primeiro nome e último sobrenome iguais (ordem preservada)
  * - ignora preposições, acento, caixa e pontuação
- * - iniciais do nome do meio são toleradas (não comparadas)
+ * - iniciais do nome do meio são toleradas: quando ambos têm nomes do meio,
+ *   cada par posição-a-posição deve ser igual ou inicial compatível
  *
  * Retorna true quando os nomes se referem provavelmente à mesma pessoa.
  */
@@ -51,6 +63,17 @@ export function namesMatch(nameA: string | null | undefined, nameB: string | nul
   // Primeiro nome e último sobrenome devem coincidir (ordem preservada).
   if (wordsA[0] !== wordsB[0]) return false;
   if (wordsA[wordsA.length - 1] !== wordsB[wordsB.length - 1]) return false;
+
+  // Nomes do meio: quando ambos têm, cada par posição-a-posição deve ser
+  // igual ou inicial compatível. Se apenas um tem, é tolerado (não comparado).
+  const middleA = wordsA.slice(1, -1);
+  const middleB = wordsB.slice(1, -1);
+  if (middleA.length > 0 && middleB.length > 0) {
+    const maxLen = Math.max(middleA.length, middleB.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (!wordCompatible(middleA[i] ?? "", middleB[i] ?? "")) return false;
+    }
+  }
 
   return true;
 }
