@@ -903,6 +903,121 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     }
   });
 
+  it("anonymize + includeCase na aba Honorários: número e apelido mascarados e Observações vazias", async () => {
+    const lawFirmShopId = (await prisma.barbershop.create({
+      data: {
+        name: "QA Escritório Honorários Anonymize",
+        whatsapp: "11900000037",
+        businessSegment: "LAW_FIRM",
+      },
+      select: { id: true },
+    })).id;
+    try {
+      const lawClient = await prisma.salonClient.create({
+        data: {
+          barbershopId: lawFirmShopId,
+          name: "Cliente Honorário Anonymize",
+          whatsapp: "11988880037",
+        },
+        select: { id: true },
+      });
+      const lawsuit = await prisma.clientCase.create({
+        data: {
+          barbershopId: lawFirmShopId,
+          clientId: lawClient.id,
+          nickname: "Ação Honorário Anonymize",
+          caseNumber: "1000003-18.2026.8.26.0100",
+          status: "ACTIVE",
+          openedAt: new Date("2027-03-01T00:00:00Z"),
+          shareWithClient: false,
+        },
+        select: { id: true },
+      });
+      await prisma.caseSuccessFee.create({
+        data: {
+          barbershopId: lawFirmShopId,
+          caseId: lawsuit.id,
+          percent: 30,
+          baseAmount: 50000,
+          amount: 15000,
+          status: "PENDING",
+          dueDate: new Date("2027-04-01T00:00:00Z"),
+          installments: 1,
+          notes: "Observação sigilosa do honorário anonymize",
+          createdAt: new Date("2027-03-15T00:00:00Z"),
+        },
+      });
+
+      const result = await generate({
+        from: new Date("2027-01-01T00:00:00Z"),
+        to: new Date("2027-12-31T23:59:59Z"),
+        barbershopId: lawFirmShopId,
+        modules: ["caseFees"],
+        anonymize: true,
+        includeCase: true,
+      });
+
+      const feeRows = await readSheet(result.filePath, "Honorários de êxito");
+      const feeRow = feeRows[1];
+
+      // Número do processo e apelido saem mascarados: não podem aparecer crus.
+      expect(feeRow?.join(" ")).not.toContain("1000003-18.2026.8.26.0100");
+      expect(feeRow?.join(" ")).not.toContain("Ação Honorário Anonymize");
+      // Observações saem vazias com anonymize.
+      expect((feeRow?.[8] ?? "")).toBe("");
+      expect(feeRow?.join(" ")).not.toContain("Observação sigilosa do honorário anonymize");
+      // Valores permanecem visíveis.
+      expect(feeRow?.join(" ")).toContain("15000");
+    } finally {
+      await prisma.barbershop.delete({ where: { id: lawFirmShopId } });
+    }
+  });
+
+  it("Leia-me com anonymize+includeCase explica o mascaramento; sem includeCase a linha some", async () => {
+    const lawFirmShopId = (await prisma.barbershop.create({
+      data: {
+        name: "QA Escritório Leia-me Anonymize",
+        whatsapp: "11900000038",
+        businessSegment: "LAW_FIRM",
+      },
+      select: { id: true },
+    })).id;
+    try {
+      const period = {
+        from: new Date("2027-01-01T00:00:00Z"),
+        to: new Date("2027-12-31T23:59:59Z"),
+        barbershopId: lawFirmShopId,
+      };
+
+      // anonymize + includeCase: a linha de mascaramento está presente.
+      const withCase = await generate({
+        ...period,
+        modules: ["cases", "caseFees"],
+        anonymize: true,
+        includeCase: true,
+      });
+      const readmeWithCase = (await readSheet(withCase.filePath, "Leia-me"))
+        .map((row) => row.join(" "))
+        .join("\n");
+      expect(readmeWithCase).toContain("Anonimizar nas abas Processos e Honorários");
+      expect(readmeWithCase).toContain("Observações saem vazias");
+
+      // anonymize sem includeCase: a linha some.
+      const withoutCase = await generate({
+        ...period,
+        modules: ["cases", "caseFees"],
+        anonymize: true,
+        includeCase: false,
+      });
+      const readmeWithoutCase = (await readSheet(withoutCase.filePath, "Leia-me"))
+        .map((row) => row.join(" "))
+        .join("\n");
+      expect(readmeWithoutCase).not.toContain("Anonimizar nas abas Processos e Honorários");
+    } finally {
+      await prisma.barbershop.delete({ where: { id: lawFirmShopId } });
+    }
+  });
+
   it("anonimiza dados pessoais quando pedido", async () => {
     const result = await generate({ modules: ["clients"], anonymize: true });
     const rows = await readSheet(result.filePath, "Clientes");

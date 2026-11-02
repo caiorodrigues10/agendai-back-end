@@ -10,13 +10,18 @@
  *     quando a opção está desligada.
  *   • Honorários nunca entram no caixa nem no financeiro: não há coluna de
  *     pagamento, lançamento ou recebimento.
- *   • Período: ambas as abas respeitam o intervalo `from`/`to` informado pelo
- *     dono — casos filtram por `openedAt`, honorários por `createdAt`. Quando o
- *     período é "Tudo" (sem from/to), não há filtro de data.
- *   • Anonimização: `cases` PODE ser exportado com `anonymize` ligado. Nesse
- *     caso todos os campos pessoais da aba Processos são mascarados — nome e
- *     WhatsApp do cliente, número do processo, apelido do caso, parte
- *     adversária, título e advogado responsável. Valores, datas, situação,
+ *   • Período: a aba Processos NÃO filtra por período — exporta todos os
+ *     processos do escritório (backup completo), independentemente da data de
+ *     abertura. Honorários de êxito filtram por vencimento (`dueDate`) dentro
+ *     do período escolhido, com fallback para `createdAt` quando o honorário
+ *     não tem vencimento. Quando o período é "Tudo" (sem from/to), não há
+ *     filtro de data.
+ *   • Anonimização: `cases` e `caseFees` PODEM ser exportados com `anonymize`
+ *     ligado. Na aba Processos, todos os campos pessoais saem mascarados —
+ *     nome e WhatsApp do cliente, número do processo, apelido do caso, parte
+ *     adversária, título e advogado responsável. Na aba Honorários de êxito,
+ *     número do processo e apelido saem mascarados e as Observações saem
+ *     vazias (nota interna do escritório). Valores, datas, situação,
  *     prioridade e área de atuação permanecem legíveis.
  */
 import { prisma } from "@/libs/prismaClient";
@@ -213,11 +218,23 @@ export const caseFeesSheet: SheetBuilder = {
     });
 
     for (const item of fees) {
-      const caseNumber = showCaseData ? (item.case?.caseNumber ?? "") : "";
-      const caseName = showCaseData ? (item.case?.nickname ?? "") : "";
-      // Sem includeCase,Observações não sai (sigilo: não expõe nota interna
-      // do honorário sem o contexto do processo).
-      const notes = showCaseData ? (item.notes ?? "") : "";
+      // Com anonymize, número do processo e apelido saem mascarados (mesma
+      // regra da aba Processos). Sem includeCase, saem vazios.
+      const caseNumber = showCaseData
+        ? ctx.options.anonymize
+          ? (anonymizeName(item.case?.caseNumber ?? null) ?? "")
+          : (safeText(item.case?.caseNumber ?? null) ?? "")
+        : "";
+      const caseName = showCaseData
+        ? ctx.options.anonymize
+          ? (anonymizeName(item.case?.nickname ?? null) ?? "")
+          : (safeText(item.case?.nickname ?? null) ?? "")
+        : "";
+      // Sem includeCase, Observações não sai (sigilo: não expõe nota interna
+      // do honorário sem o contexto do processo). Com anonymize, Observações
+      // sai vazia mesmo com includeCase ligado: a nota interna do escritório
+      // não é mascarável campo a campo.
+      const notes = showCaseData && !ctx.options.anonymize ? (safeText(item.notes) ?? "") : "";
 
       addRow(sheet, CASE_FEES_COLUMNS, [
         caseNumber,

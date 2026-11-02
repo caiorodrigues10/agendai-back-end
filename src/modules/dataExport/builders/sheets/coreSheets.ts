@@ -118,8 +118,8 @@ export const leiaMeSheet: SheetBuilder = {
     if (ctx.options.anonymize && ctx.options.includeCase) {
       addReportRow(
         sheet,
-        "Anonimizar na aba Processos",
-        "Com anonimização ligada, a aba Processos sai com todos os campos pessoais mascarados: nome e WhatsApp do cliente, número do processo, apelido do caso, parte adversária, título e advogado responsável. Valores, datas, situação, prioridade e área de atuação permanecem legíveis.",
+        "Anonimizar nas abas Processos e Honorários",
+        "Com anonimização ligada, a aba Processos sai com todos os campos pessoais mascarados: nome e WhatsApp do cliente, número do processo, apelido do caso, parte adversária, título e advogado responsável. Na aba Honorários de êxito, o número do processo e o apelido saem mascarados e as Observações saem vazias. Valores, datas, situação, prioridade e área de atuação permanecem legíveis.",
       );
     }
 
