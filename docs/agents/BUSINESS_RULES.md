@@ -239,6 +239,15 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
   - **Processos**: não filtra por período. Exporta todos os processos do escritório (backup completo), independentemente da data de abertura.
   - **Honorários de êxito**: filtra por vencimento (`dueDate`) dentro do período escolhido. Quando o período é "Tudo", exporta todos os honorários.
   - Honorários nunca entram no caixa nem no financeiro: não há coluna de pagamento, lançamento ou recebimento.
+- **Anonimização na aba Processos (`cases`)**: a aba `Processos` **pode** ser exportada com `anonymize` ligado — a anonimização não é bloqueio, é mascaramento. Com `anonymize=true` **e** `includeCase=true`, saem mascarados **todos** os campos pessoais da aba:
+  - nome e WhatsApp do cliente;
+  - número do processo;
+  - apelido do caso (`nickname`);
+  - parte adversária (`opponent`);
+  - título do processo (`title`);
+  - advogado responsável (`responsibleStaff.name`).
+
+  Permanecem legíveis: valores (`claimedAmount`, `awardedAmount`), datas, situação, prioridade, área de atuação e órgão julgador. A exigência de `includeCase=true` para a aba `Processos` continua valendo com `anonymize` ligado — o que muda é apenas o conteúdo das células, não o gate.
 - **Campos de valor** (`claimedAmount`, `awardedAmount`, `percent`, `baseAmount`, `amount`) são dados do processo, não do faturamento.
 
 ## Notificações

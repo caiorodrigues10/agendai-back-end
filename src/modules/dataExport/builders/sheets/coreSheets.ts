@@ -115,6 +115,13 @@ export const leiaMeSheet: SheetBuilder = {
       "Anonimizar",
       "Ao marcar “Anonimizar dados pessoais” na emissão, nome, telefone e e-mail de clientes saem mascarados — ideal para compartilhar com contador.",
     );
+    if (ctx.options.anonymize && ctx.options.includeCase) {
+      addReportRow(
+        sheet,
+        "Anonimizar na aba Processos",
+        "Com anonimização ligada, a aba Processos sai com todos os campos pessoais mascarados: nome e WhatsApp do cliente, número do processo, apelido do caso, parte adversária, título e advogado responsável. Valores, datas, situação, prioridade e área de atuação permanecem legíveis.",
+      );
+    }
 
     addBlankRow(sheet);
     addSectionRow(sheet, "Como reimportar esta planilha");
