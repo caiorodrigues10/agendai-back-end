@@ -778,7 +778,7 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     expect(data).toContain("Ação Anonimizar");
 
     // Limpar escritório criado neste teste
-    await prisma.barbershop.delete({ where: { id: lawFirmShopId } }).catch(() => undefined);
+    await prisma.barbershop.delete({ where: { id: lawFirmShopId } });
   });
 
   it("anonymize + honorários: Observações vazias sem includeCase", async () => {
