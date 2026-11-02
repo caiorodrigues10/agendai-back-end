@@ -783,7 +783,7 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     const rows = await readSheet(result.filePath, "Processos");
     const data = rows.slice(1).map((row) => row.join(" ")).join("\n");
     expect(data).not.toContain("Cliente Sigiloso Anonimizar");
-    expect(data).not.toContain("11988880015");
+    expect(data).not.toContain("11988880035");
     // Apelido do caso (interno do escritório) NÃO é anonimizado
     expect(data).toContain("Ação Anonimizar");
     } finally {
