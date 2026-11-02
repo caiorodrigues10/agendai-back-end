@@ -134,7 +134,10 @@ describe("RegisterUseCase — schedule", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useCase = new RegisterUseCase({ hash: vi.fn().mockResolvedValue("hashed") } as any);
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      { verify: vi.fn().mockResolvedValue({ status: "unavailable" }) } as any,
+    );
   });
 
   it("creates 7 schedule rows with provided schedule", async () => {
@@ -213,7 +216,10 @@ describe("RegisterUseCase — indicação", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useCase = new RegisterUseCase({ hash: vi.fn().mockResolvedValue("hashed") } as any);
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      { verify: vi.fn().mockResolvedValue({ status: "unavailable" }) } as any,
+    );
   });
 
   it("gera código de indicação nos segmentos normais", async () => {
@@ -238,7 +244,10 @@ describe("RegisterUseCase — unicidade de CPF", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useCase = new RegisterUseCase({ hash: vi.fn().mockResolvedValue("hashed") } as any);
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      { verify: vi.fn().mockResolvedValue({ status: "unavailable" }) } as any,
+    );
   });
 
   it("rejeita CPF já cadastrado mesmo vindo com máscara (409)", async () => {

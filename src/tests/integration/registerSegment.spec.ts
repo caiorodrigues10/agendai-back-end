@@ -42,10 +42,13 @@ function validCpf(seed: number): string {
 
 let seq = 0;
 
-const useCase = new RegisterUseCase({
-  hash: async (v: string) => `hashed:${v}`,
-  compare: async () => true,
-} as never);
+const useCase = new RegisterUseCase(
+  {
+    hash: async (v: string) => `hashed:${v}`,
+    compare: async () => true,
+  } as never,
+  { verify: async () => ({ status: "unavailable" } as const) } as never,
+);
 
 async function register(
   segment?: string,
