@@ -13,6 +13,11 @@
  *   • Período: ambas as abas respeitam o intervalo `from`/`to` informado pelo
  *     dono — casos filtram por `openedAt`, honorários por `createdAt`. Quando o
  *     período é "Tudo" (sem from/to), não há filtro de data.
+ *   • Anonimização: `cases` PODE ser exportado com `anonymize` ligado. Nesse
+ *     caso todos os campos pessoais da aba Processos são mascarados — nome e
+ *     WhatsApp do cliente, número do processo, apelido do caso, parte
+ *     adversária, título e advogado responsável. Valores, datas, situação,
+ *     prioridade e área de atuação permanecem legíveis.
  */
 import { prisma } from "@/libs/prismaClient";
 import {
@@ -111,28 +116,37 @@ export const casesSheet: SheetBuilder = {
     });
 
     for (const item of cases) {
-      const clientName = ctx.options.anonymize
-        ? anonymizeName(item.client?.name ?? null)
-        : safeText(item.client?.name ?? null);
+      // Com anonymize, TODOS os campos pessoais da aba Processos são mascarados:
+      // nome e WhatsApp do cliente, número do processo, apelido do caso, parte
+      // adversária, título e advogado responsável. Valores e datas permanecem.
+      const mask = (value: string | null | undefined): string =>
+        ctx.options.anonymize ? (anonymizeName(value) ?? "") : (safeText(value) ?? "");
+
+      const clientName = mask(item.client?.name ?? null);
       const clientWhatsapp = ctx.options.anonymize
-        ? anonymizePhone(item.client?.whatsapp ?? null)
-        : safeText(item.client?.whatsapp ?? null);
+        ? (anonymizePhone(item.client?.whatsapp ?? null) ?? "")
+        : (safeText(item.client?.whatsapp ?? null) ?? "");
+      const caseNickname = mask(item.nickname ?? null);
+      const caseNumber = mask(item.caseNumber ?? null);
+      const caseTitle = mask(item.title ?? null);
+      const opponent = mask(item.opponent ?? null);
+      const responsibleLawyer = mask(item.responsibleStaff?.name ?? null);
 
       addRow(sheet, CASES_COLUMNS, [
-        item.nickname,
-        item.caseNumber ?? "",
-        clientName ?? "",
-        clientWhatsapp ?? "",
+        caseNickname,
+        caseNumber,
+        clientName,
+        clientWhatsapp,
         item.practiceArea ?? "",
         CASE_STATUS_LABELS[item.status] ?? item.status,
         CASE_PRIORITY_LABELS[item.priority] ?? item.priority,
-        item.title ?? "",
+        caseTitle,
         item.courtName ?? "",
-        item.opponent ?? "",
+        opponent,
         item.claimedAmount ?? null,
         item.awardedAmount ?? null,
         item.openedAt,
-        item.responsibleStaff?.name ?? "",
+        responsibleLawyer,
         item.shareWithClient,
         item.id,
       ]);
