@@ -4,6 +4,13 @@
  * Usada na verificação de correspondência CPF × nome: como diferentes fontes
  * podem gravar o mesmo nome de formas distintas (com/sem preposições, com
  * iniciais, com/sem acento), a comparação não pode ser exata.
+ *
+ * Regra de igualdade tolerante:
+ *  - Exige pelo menos 2 palavras significativas em cada lado (nomes de uma
+ *    única palavra nunca batem contra nomes compostos).
+ *  - Primeiro nome e último sobrenome devem coincidir (ordem preservada).
+ *  - Ignora preposições (de, da, do, dos, das, e), acento, caixa e pontuação.
+ *  - Iniciais do nome do meio são toleradas (não são comparadas).
  */
 
 /** Preposições/artigos que são ignoradas na comparação de nomes. */
@@ -26,21 +33,11 @@ export function normalizeNameWords(name: string | null | undefined): string[] {
 }
 
 /**
- * Uma palavra curta (inicial de 1 letra) corresponde a outra se essa outra
- * começa com a mesma letra. Ex.: "a" casa com "antonio".
- */
-function wordMatches(a: string, b: string): boolean {
-  if (a === b) return true;
-  if (a.length === 1 && b.startsWith(a)) return true;
-  if (b.length === 1 && a.startsWith(b)) return true;
-  return false;
-}
-
-/**
  * Compara dois nomes de forma tolerante:
- * - ignora preposições (de, da, do, dos, das, e)
- * - ignora acento, caixa e pontuação
- * - aceita inicial de um lado como abreviação do nome completo do outro
+ * - exige >= 2 palavras significativas em cada lado
+ * - primeiro nome e último sobrenome iguais (ordem preservada)
+ * - ignora preposições, acento, caixa e pontuação
+ * - iniciais do nome do meio são toleradas (não comparadas)
  *
  * Retorna true quando os nomes se referem provavelmente à mesma pessoa.
  */
@@ -48,24 +45,12 @@ export function namesMatch(nameA: string | null | undefined, nameB: string | nul
   const wordsA = normalizeNameWords(nameA);
   const wordsB = normalizeNameWords(nameB);
 
-  if (wordsA.length === 0 || wordsB.length === 0) return false;
-  if (wordsA.length === wordsB.length && wordsA.every((w, i) => w === wordsB[i])) return true;
+  // Exige pelo menos 2 palavras significativas em cada lado.
+  if (wordsA.length < 2 || wordsB.length < 2) return false;
 
-  // Comparação tolerante: cada palavra do lado menor deve encontrar uma
-  // correspondência no lado maior (exata ou por inicial).
-  const [shorter, longer] = wordsA.length <= wordsB.length ? [wordsA, wordsB] : [wordsB, wordsA];
+  // Primeiro nome e último sobrenome devem coincidir (ordem preservada).
+  if (wordsA[0] !== wordsB[0]) return false;
+  if (wordsA[wordsA.length - 1] !== wordsB[wordsB.length - 1]) return false;
 
-  const used = new Array(longer.length).fill(false);
-  for (const w of shorter) {
-    let found = false;
-    for (let i = 0; i < longer.length; i++) {
-      if (!used[i] && wordMatches(w, longer[i])) {
-        used[i] = true;
-        found = true;
-        break;
-      }
-    }
-    if (!found) return false;
-  }
   return true;
 }

@@ -55,8 +55,27 @@ describe("namesMatch", () => {
     expect(namesMatch("José A. Silva", "José Antonio Silva")).toBe(true);
   });
 
-  it("nomes diferentes não são match", () => {
+  // --- Regras de ordem e quantidade (restrições da nova versão) ---
+
+  it("nome com uma só palavra não bate contra nome composto", () => {
+    expect(namesMatch("Maria", "Maria Silva")).toBe(false);
+    expect(namesMatch("Maria Silva", "Maria")).toBe(false);
+  });
+
+  it("sobrenome sozinho não bate contra nome composto", () => {
+    expect(namesMatch("Silva", "Maria Silva")).toBe(false);
+    expect(namesMatch("Maria Silva", "Silva")).toBe(false);
+  });
+
+  it("ordem invertida não é match", () => {
+    expect(namesMatch("Silva Maria", "Maria Silva")).toBe(false);
+  });
+
+  it("primeiro nome diferente não é match", () => {
     expect(namesMatch("Maria Silva", "João Silva")).toBe(false);
+  });
+
+  it("sobrenome diferente não é match", () => {
     expect(namesMatch("Maria Silva", "Maria Santos")).toBe(false);
   });
 
@@ -64,9 +83,5 @@ describe("namesMatch", () => {
     expect(namesMatch(null, "Maria Silva")).toBe(false);
     expect(namesMatch("Maria Silva", undefined)).toBe(false);
     expect(namesMatch("", "")).toBe(false);
-  });
-
-  it("inicial sozinha não casa com nome que começa por letra diferente", () => {
-    expect(namesMatch("José B. Silva", "José Antonio Silva")).toBe(false);
   });
 });
