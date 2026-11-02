@@ -455,8 +455,109 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     expect(readmeWithoutCase).not.toContain("Sigilo profissional");
   });
 
-  it("LAW_FIRM com includeCase exporta processos e honorários de êxito (sem caixa)", async () => {
+  it("LAW_FIRM sem includeCase exporta caseFees sem dados do processo", async () => {
     if (!lawFirmShopId) throw new Error("lawFirmShopId não definido");
+
+    const lawStaff = await prisma.user.create({
+      data: {
+        name: "Advogado Sem IncludeCase",
+        email: `lawyer-no-include-${randomUUID()}@qa.local`,
+        password: "x",
+        role: "EMPLOYEE",
+        barbershopId: lawFirmShopId,
+      },
+      select: { id: true },
+    });
+
+    const lawClient = await prisma.salonClient.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        name: "Cliente Sem IncludeCase",
+        whatsapp: "11988880013",
+      },
+      select: { id: true },
+    });
+    const lawsuit = await prisma.clientCase.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        clientId: lawClient.id,
+        nickname: "Ação Sem IncludeCase",
+        caseNumber: "1024127-78.2020.8.26.0100",
+        status: "ACTIVE",
+        openedAt: new Date("2027-03-01T00:00:00Z"),
+        responsibleStaffId: lawStaff.id,
+        shareWithClient: false,
+      },
+      select: { id: true },
+    });
+    await prisma.caseSuccessFee.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        caseId: lawsuit.id,
+        percent: 20,
+        baseAmount: 30000,
+        amount: 6000,
+        status: "PENDING",
+        dueDate: new Date("2027-04-01T00:00:00Z"),
+        installments: 1,
+        notes: "Observação sigilosa",
+        createdAt: new Date("2027-03-10T00:00:00Z"),
+      },
+    });
+
+    const period = {
+      from: new Date("2027-01-01T00:00:00Z"),
+      to: new Date("2027-12-31T23:59:59Z"),
+      barbershopId: lawFirmShopId,
+    };
+
+    // Sem includeCase: cases não entra, caseFees entra SEM dados do processo
+    const result = await generate({
+      ...period,
+      modules: ["cases", "caseFees"],
+      includeCase: false,
+    });
+
+    // Todas as abas da planilha
+    const allSheetNames = await readAllSheetNames(result.filePath);
+    const allParts: string[] = [];
+    for (const name of allSheetNames) {
+      const rows = await readSheet(result.filePath, name);
+      allParts.push(rows.map((row) => row.join(" ")).join("\n"));
+    }
+    const allText = allParts.join("\n");
+
+    // cases não deve aparecer
+    expect(allText).not.toContain("Processos");
+    expect(allText).not.toContain("Ação Sem IncludeCase");
+    expect(allText).not.toContain("1024127-78.2020.8.26.0100");
+
+    // caseFees entra, mas número do processo e apelido vêm vazios
+    expect(allText).toContain("Honorários de êxito");
+    expect(allText).toContain("6000"); // valor do honorário presente
+    expect(allText).not.toContain("Observação sigilosa"); // observações vazias sem includeCase
+
+    // Verificar diretamente na aba de honorários
+    const feeRows = await readSheet(result.filePath, "Honorários de êxito");
+    const feeRow = feeRows[1];
+    expect((feeRow?.[0] ?? "")).toBe(""); // número do processo vazio
+    expect((feeRow?.[1] ?? "")).toBe(""); // apelido vazio
+    expect((feeRow?.[8] ?? "")).toBe(""); // observações vazias
+    expect(feeRow?.join(" ")).toContain("6000"); // valor presente
+
+    // Limpar escritório criado neste teste
+    await prisma.barbershop.delete({ where: { id: lawFirmShopId } });
+  });
+
+  it("LAW_FIRM com includeCase exporta processos e honorários de êxito (sem caixa)", async () => {
+    const lawFirmShopId = (await prisma.barbershop.create({
+      data: {
+        name: "QA Escritório IncludeCase",
+        whatsapp: "11900000019",
+        businessSegment: "LAW_FIRM",
+      },
+      select: { id: true },
+    })).id;
 
     const lawStaff = await prisma.user.create({
       data: {
@@ -545,6 +646,9 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     const resumoRows = await readSheet(withCase.filePath, "Resumo");
     const resumoText = resumoRows.map((r) => r.join(" ")).join("\n");
     expect(resumoText).not.toContain("Honorário");
+
+    // Limpar escritório criado neste teste
+    await prisma.barbershop.delete({ where: { id: lawFirmShopId } });
   });
 
   it("honorário com dueDate nulo aparece no período via createdAt", async () => {
@@ -627,7 +731,14 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
   });
 
   it("anonymize mascara nome e WhatsApp do cliente na aba Processos", async () => {
-    if (!lawFirmShopId) throw new Error("lawFirmShopId não definido");
+    const lawFirmShopId = (await prisma.barbershop.create({
+      data: {
+        name: "QA Escritório Anonymize",
+        whatsapp: "11900000020",
+        businessSegment: "LAW_FIRM",
+      },
+      select: { id: true },
+    })).id;
 
     const lawClient = await prisma.salonClient.create({
       data: {
@@ -665,6 +776,9 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     expect(data).not.toContain("11988880015");
     // Apelido do caso (interno do escritório) NÃO é anonimizado
     expect(data).toContain("Ação Anonimizar");
+
+    // Limpar escritório criado neste teste
+    await prisma.barbershop.delete({ where: { id: lawFirmShopId } }).catch(() => undefined);
   });
 
   it("anonymize + honorários: Observações vazias sem includeCase", async () => {
@@ -731,9 +845,20 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
       includeCase: false,
     });
 
-    // Sem includeCase, a aba de honorários não existe (regra de sigilo)
+    // Sem includeCase: caseFees entra (sem dados do processo), cases não entra
     const allSheetNames = await readAllSheetNames(result.filePath);
-    expect(allSheetNames).not.toContain("Honorários de êxito");
+    expect(allSheetNames).toContain("Honorários de êxito");
+    expect(allSheetNames).not.toContain("Processos");
+
+    const feeRows = await readSheet(result.filePath, "Honorários de êxito");
+    const feeRow = feeRows[1];
+    // Número do processo e apelido vazios (sem includeCase)
+    expect((feeRow?.[0] ?? "")).toBe("");
+    expect((feeRow?.[1] ?? "")).toBe("");
+    // Observações vazias (sem includeCase)
+    expect((feeRow?.[8] ?? "")).toBe("");
+    // Valor do honorário ainda presente
+    expect(feeRow?.join(" ")).toContain("10000");
 
     // Limpar escritório criado neste teste
     await prisma.barbershop.delete({ where: { id: lawFirmShopId } });

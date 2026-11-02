@@ -227,10 +227,12 @@ async function buildContext(opts: BuildExportOptions): Promise<SheetContext> {
     }
     if (module === "commissions" && !isModuleEnabled(segment, "commissions")) continue;
     if ((module === "reviews" || module === "loyalty") && isAdvertisingRestricted(segment)) continue;
-    // Casos e honorários só para segmento jurídico e com includeCase
-    // explícito (senão nenhum dado de caso/processo sai da planilha).
+    // Casos e honorários só para segmento jurídico.
+    // cases exige includeCase explícito (senão nenhum dado de caso/processo
+    // sai da planilha). caseFees entra sem includeCase, mas sem número/apelido
+    // do processo nem observações internas.
     if ((module === "cases" || module === "caseFees") && !hasSegmentFeature(segment, "caseManagement")) continue;
-    if ((module === "cases" || module === "caseFees") && opts.options.includeCase !== true) continue;
+    if (module === "cases" && opts.options.includeCase !== true) continue;
     available.add(module);
   }
 
