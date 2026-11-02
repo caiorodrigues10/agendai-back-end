@@ -37,6 +37,7 @@ const logger = getModuleLogger("data-import:undo");
 type UndoEntityType =
   | "APPOINTMENT"
   | "CASE"
+  | "CASE_FEE"
   | "CLIENT"
   | "SERVICE"
   | "STAFF_SCHEDULE"
@@ -69,6 +70,7 @@ export interface UndoImportResult {
 const UNDO_ORDER: UndoEntityType[] = [
   "APPOINTMENT",
   "CASE",
+  "CASE_FEE",
   "FIADO",
   "CLIENT_PACKAGE",
   "SERVICE_PACKAGE",
@@ -210,6 +212,8 @@ async function removeEntity(
         return undoAppointment(tx, barbershopId, entityId, referenceDate);
       case "CASE":
         return undoCase(tx, barbershopId, entityId, referenceDate);
+      case "CASE_FEE":
+        return undoCaseFee(tx, barbershopId, entityId, referenceDate);
       case "CLIENT":
         return undoClient(tx, barbershopId, entityId, referenceDate);
       case "SERVICE":
@@ -306,6 +310,24 @@ async function undoCase(
     return { action: "kept", reason: "O caso foi alterado depois da importação." };
   }
   await tx.clientCase.delete({ where: { id: entityId } });
+  return { action: "removed" };
+}
+
+async function undoCaseFee(
+  tx: AppTx,
+  barbershopId: string,
+  entityId: string,
+  referenceDate: Date,
+): Promise<RemoveOutcome> {
+  const fee = await tx.caseSuccessFee.findFirst({
+    where: { id: entityId, barbershopId },
+    select: { id: true, updatedAt: true },
+  });
+  if (!fee) return { action: "kept", reason: "Registro já não existe." };
+  if (fee.updatedAt.getTime() > referenceDate.getTime()) {
+    return { action: "kept", reason: "O honorário foi alterado depois da importação." };
+  }
+  await tx.caseSuccessFee.delete({ where: { id: entityId } });
   return { action: "removed" };
 }
 

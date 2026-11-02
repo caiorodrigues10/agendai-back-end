@@ -5,8 +5,11 @@ import { detectColumns } from "./utils/columnMapping";
 describe("availableImportTargets", () => {
   it("só oferece processos ao segmento jurídico", () => {
     expect(availableImportTargets("LAW_FIRM")).toContain("CASES");
+    expect(availableImportTargets("LAW_FIRM")).toContain("CASE_FEES");
     expect(availableImportTargets("BARBERSHOP")).not.toContain("CASES");
+    expect(availableImportTargets("BARBERSHOP")).not.toContain("CASE_FEES");
     expect(availableImportTargets(null)).not.toContain("CASES");
+    expect(availableImportTargets(null)).not.toContain("CASE_FEES");
   });
 
   it("mantém produtos fora do escritório e dentro dos demais segmentos", () => {
@@ -41,5 +44,22 @@ describe("availableImportTargets", () => {
     expect(IMPORT_TARGET_ORDER.indexOf("CLIENTS")).toBeLessThan(
       IMPORT_TARGET_ORDER.indexOf("CASES"),
     );
+  });
+
+  it("reconhece as colunas usuais de honorários", () => {
+    const detected = detectColumns(
+      ["Processo", "Percentual", "Situação", "Vencimento", "Parcelas", "Observações"],
+      "CASE_FEES",
+      "LAW_FIRM",
+    );
+
+    expect(detected).toMatchObject({
+      caseNumber: 0,
+      percent: 1,
+      feeStatus: 2,
+      feeDueDate: 3,
+      feeInstallments: 4,
+      feeNotes: 5,
+    });
   });
 });

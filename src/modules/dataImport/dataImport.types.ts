@@ -18,7 +18,8 @@ export type ImportTargetType =
   | "SERVICE_PACKAGES"
   | "CLIENT_PACKAGES"
   | "FIADOS"
-  | "CASES";
+  | "CASES"
+  | "CASE_FEES";
 
 /**
  * Formato aceito no upload — **detectado pelo conteúdo** (magic bytes).
@@ -72,7 +73,8 @@ export type ImportEntityType =
   | "PRODUCT_CATEGORY"
   | "SERVICE_PACKAGE"
   | "CLIENT_PACKAGE"
-  | "FIADO";
+  | "FIADO"
+  | "CASE_FEE";
 
 /** Situação de uma linha. Espelha o enum `ImportRowStatus`. */
 export type ImportRowStatus = "PENDING" | "IMPORTED" | "SKIPPED" | "FAILED";
@@ -158,7 +160,13 @@ export type ImportFieldKey =
   | "fiadoDescription"
   | "originalAmount"
   | "paidAmount"
-  | "dueDate";
+  | "dueDate"
+  // honorários de êxito de processos
+  | "percent"
+  | "feeStatus"
+  | "feeDueDate"
+  | "feeInstallments"
+  | "feeNotes";
 
 /** Definição de um campo de destino, com rótulo por segmento. */
 export interface ImportFieldDefinition {

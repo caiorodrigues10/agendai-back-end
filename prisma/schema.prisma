@@ -5545,6 +5545,8 @@ enum ImportTargetType {
   FIADOS
   /// Processos e casos do escritório.
   CASES
+  /// Honorários de êxito de processos.
+  CASE_FEES
   /// Lote com abas de tipos diferentes. O detalhe de cada aba vive no plano
   /// (JSON do mapeamento).
   MIXED
@@ -5608,6 +5610,8 @@ enum ImportEntityType {
   CLIENT_PACKAGE
   /// Dívida (fiado).
   FIADO
+  /// Honorário de êxito de um caso.
+  CASE_FEE
 }
 
 /// Lote de importação de planilha. Um lote por arquivo enviado.

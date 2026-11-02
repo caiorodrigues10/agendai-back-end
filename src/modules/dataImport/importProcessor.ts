@@ -33,6 +33,7 @@ import { importProductRow } from "./processors/productImporter";
 import { importServicePackageRow, importClientPackageRow } from "./processors/packageImporter";
 import { importFiadoRow } from "./processors/fiadoImporter";
 import { importCaseRow } from "./processors/caseImporter";
+import { importCaseFeeRow } from "./processors/caseFeeImporter";
 import { applyCrmCountersForBatch } from "./crmCounters";
 import type { ImportRowContext, ProcessedRow } from "./processors/importRowContext";
 import { CSV_SHEET_NAME, orderPlanSheets, readPlan, sheetKey } from "./importPlan";
@@ -327,6 +328,9 @@ async function processRow(
   }
   if (targetType === "CASES") {
     return importCaseRow(tx, barbershopId, row, context);
+  }
+  if (targetType === "CASE_FEES") {
+    return importCaseFeeRow(tx, barbershopId, row, context);
   }
   return importAppointmentRow(tx, barbershopId, row, context);
 }

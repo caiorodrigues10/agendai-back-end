@@ -792,6 +792,57 @@ const CASE_FIELDS: ImportFieldDefinition[] = [
   },
 ];
 
+const CASE_FEE_FIELDS: ImportFieldDefinition[] = [
+  {
+    key: "caseNumber",
+    label: "Número do processo",
+    required: true,
+    type: "text",
+    synonyms: ["numero do processo", "número do processo", "processo", "numero cnj", "número cnj", "cnj", "process number"],
+    hint: "Identifica o processo já existente (padrão CNJ).",
+  },
+  {
+    key: "percent",
+    label: "Percentual do honorário",
+    required: true,
+    type: "number",
+    synonyms: ["percentual", "percent", "percentual do honorario", "percentual do honorário", "taxa", "taxa de sucesso"],
+    hint: "Percentual sobre o valor obtido (ex.: 20 para 20%).",
+  },
+  {
+    key: "feeStatus",
+    label: "Situação",
+    required: false,
+    type: "text",
+    synonyms: ["situacao", "situação", "status", "estado", "fase"],
+    hint: "Pendente, faturado, pago ou cancelado.",
+  },
+  {
+    key: "feeDueDate",
+    label: "Vencimento",
+    required: false,
+    type: "date",
+    synonyms: ["vencimento", "due date", "data de vencimento", "prazo"],
+    hint: "Data de vencimento do honorário. Use dd/mm/aaaa.",
+  },
+  {
+    key: "feeInstallments",
+    label: "Parcelas",
+    required: false,
+    type: "number",
+    synonyms: ["parcelas", "installments", "numero de parcelas", "número de parcelas"],
+    hint: "Na importação só é aceito 1 parcela.",
+  },
+  {
+    key: "feeNotes",
+    label: "Observações",
+    required: false,
+    type: "text",
+    synonyms: ["observacoes", "observações", "obs", "notas", "notes", "comentarios", "comentários"],
+    hint: "Observação interna do honorário.",
+  },
+];
+
 /** Campos aceitos por alvo. */
 export const IMPORT_FIELDS_BY_TARGET: Record<ImportTargetType, ImportFieldDefinition[]> = {
   CLIENTS: CLIENT_FIELDS,
@@ -805,6 +856,7 @@ export const IMPORT_FIELDS_BY_TARGET: Record<ImportTargetType, ImportFieldDefini
   CLIENT_PACKAGES: CLIENT_PACKAGE_FIELDS,
   FIADOS: FIADO_FIELDS,
   CASES: CASE_FIELDS,
+  CASE_FEES: CASE_FEE_FIELDS,
 };
 
 /**
@@ -826,6 +878,7 @@ export const IMPORT_TARGET_ORDER: ImportTargetType[] = [
   "CLIENT_PACKAGES",
   "FIADOS",
   "CASES",
+  "CASE_FEES",
   "APPOINTMENTS",
 ];
 
@@ -842,6 +895,7 @@ export const IMPORT_TARGETS: ImportTargetType[] = [
   "CLIENT_PACKAGES",
   "FIADOS",
   "CASES",
+  "CASE_FEES",
 ];
 
 /**
@@ -859,6 +913,7 @@ export const IMPORT_TARGET_LABELS: Record<ImportTargetType, string> = {
   CLIENT_PACKAGES: "Pacotes dos clientes",
   FIADOS: "Fiado (dívidas)",
   CASES: "Processos",
+  CASE_FEES: "Honorários de êxito",
 };
 
 /**
@@ -876,7 +931,7 @@ export function availableImportTargets(
     targets = targets.filter((target) => target !== "PRODUCTS");
   }
   if (!hasSegmentFeature(segment, "caseManagement")) {
-    targets = targets.filter((target) => target !== "CASES");
+    targets = targets.filter((target) => target !== "CASES" && target !== "CASE_FEES");
   }
   return targets;
 }
@@ -974,6 +1029,7 @@ export const IMPORT_TEMPLATE_FILE_NAME: Record<ImportTargetType, string> = {
   CLIENT_PACKAGES: "modelo-importacao-pacotes-clientes.xlsx",
   FIADOS: "modelo-importacao-fiado.xlsx",
   CASES: "modelo-importacao-processos.xlsx",
+  CASE_FEES: "modelo-importacao-honorarios.xlsx",
 };
 
 /**

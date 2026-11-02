@@ -227,6 +227,26 @@ const EXAMPLES: Record<ImportTargetType, Array<Record<string, string>>> = {
       notes: "Cliente trouxe documentos.",
     },
   ],
+  CASE_FEES: [
+    {
+      caseNumber: "1001234-56.2026.8.26.0100",
+      percent: "20",
+      feeStatus: "Pendente",
+      feeDueDate: "15/11/2026",
+      feeInstallments: "1",
+      feeNotes: "Honorário de êxito sobre valor obtido.",
+    },
+    {
+      caseNumber: "",
+      caseName: "Ação de cobrança",
+      clientWhatsapp: "11987654321",
+      percent: "15",
+      feeStatus: "Pago",
+      feeDueDate: "",
+      feeInstallments: "1",
+      feeNotes: "",
+    },
+  ],
   FIADOS: [
     {
       customerName: "Maria da Silva",
@@ -303,6 +323,12 @@ const TARGET_RULES: Record<ImportTargetType, string[]> = {
     "Número CNJ com dígito inválido entra com aviso — a importação não bloqueia processos antigos.",
     "O advogado responsável é reconhecido pelo nome; ausente ou ambíguo entra sem responsável.",
     "Processo importado não lança caixa, receita, honorário nem comissão, e não é compartilhado com o cliente.",
+  ],
+  CASE_FEES: [
+    "O número do processo já precisa existir (importe processos antes dos honorários).",
+    "O percentual do honorário é obrigatório (0–100); o valor é calculado pelo sistema a partir do valor obtido do caso.",
+    "Na importação só é aceita 1 parcela; parcelas reais dependem do advogado e são criadas manualmente.",
+    "Honorário importado não lança caixa, receita, lucro nem comissão.",
   ],
 };
 

@@ -29,6 +29,7 @@ export interface ProcessedRow {
     | "SERVICE"
     | "APPOINTMENT"
     | "CASE"
+    | "CASE_FEE"
     | "STAFF_SCHEDULE"
     | "SHOP_SCHEDULE"
     | "TIME_OFF"

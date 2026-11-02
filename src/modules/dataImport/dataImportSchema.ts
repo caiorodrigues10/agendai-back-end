@@ -91,6 +91,12 @@ const importFieldKeySchema = z.enum([
   "originalAmount",
   "paidAmount",
   "dueDate",
+  // honorários de êxito de processos
+  "percent",
+  "feeStatus",
+  "feeDueDate",
+  "feeInstallments",
+  "feeNotes",
 ]);
 
 /** Tipos de alvo aceitos. */
@@ -106,6 +112,7 @@ export const importTargetSchema = z.enum([
   "CLIENT_PACKAGES",
   "FIADOS",
   "CASES",
+  "CASE_FEES",
 ]);
 
 export const importBatchParamsSchema = z.object({

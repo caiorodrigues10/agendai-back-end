@@ -46,6 +46,12 @@ const CSV_PROCESSOS = [
   "Cliente Processo Dois;11987670002;Reclamação trabalhista;1234567-89.2026.8.26.0100;Trabalhista;Em juízo;Normal;;8000,00",
 ].join("\n");
 
+const CSV_HONORARIOS = [
+  "Processo;Percentual;Situação;Vencimento;Parcelas;Observações",
+  "1024127-78.2020.8.26.0100;20;Pendente;15/11/2026;1;Honorário de êxito",
+  "1234567-89.2026.8.26.0100;15;Pago;;1;Honorário pago",
+].join("\n");
+
 const CSV_AGENDAMENTOS = [
   "Data;Hora;Cliente;WhatsApp;Serviço;Profissional;Situação",
   "05/11/2026;14:30;Ana Importada;11987650001;Corte Teste;João;Concluído",
@@ -436,6 +442,112 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
         }),
       }));
       expect(remaining).toEqual({ cases: 0, clients: 0 });
+    } finally {
+      await prisma.barbershop.update({
+        where: { id: shopId },
+        data: { businessSegment: "BARBERSHOP" },
+      });
+    }
+  });
+
+  it("importa honorários de êxito sobre processos existentes, sem caixa", async () => {
+    await prisma.barbershop.update({
+      where: { id: shopId },
+      data: { businessSegment: "LAW_FIRM" },
+    });
+
+    try {
+      // Primeiro importa os processos que serão referenciados pelos honorários
+      const batchProcessos = await upload("processos.csv", CSV_PROCESSOS);
+      await configureTarget(batchProcessos, "CASES");
+      await saveMapping(batchProcessos, {
+        "0": "clientName",
+        "1": "clientWhatsapp",
+        "2": "caseName",
+        "3": "caseNumber",
+        "4": "practiceArea",
+        "5": "caseStatus",
+        "6": "casePriority",
+        "7": "openedAt",
+        "8": "claimedAmount",
+      });
+      await validate(batchProcessos);
+      await confirm(batchProcessos);
+      await process(batchProcessos);
+
+      // Depois importa os honorários referenciando os processos
+      const batchId = await upload("honorarios.csv", CSV_HONORARIOS);
+      await configureTarget(batchId, "CASE_FEES");
+      await saveMapping(batchId, {
+        "0": "caseNumber",
+        "1": "percent",
+        "2": "feeStatus",
+        "3": "feeDueDate",
+        "4": "feeInstallments",
+        "5": "feeNotes",
+      });
+
+      const summary = await validate(batchId);
+      expect(summary).toMatchObject({ totalRows: 2, validRows: 2, failedRows: 0 });
+
+      await confirm(batchId);
+      const result = await process(batchId);
+      expect(result.importedRows).toBe(2);
+      expect(result.failedRows).toBe(0);
+
+      const fees = await inTenant(() =>
+        prisma.caseSuccessFee.findMany({
+          where: { barbershopId: shopId },
+          select: {
+            percent: true,
+            status: true,
+            installments: true,
+            case: { select: { caseNumber: true } },
+          },
+        }),
+      );
+      expect(fees).toHaveLength(2);
+      const percents = fees.map((f) => String(f.percent)).sort();
+      expect(percents).toEqual(["15", "20"]);
+      // Todos importados com 1 parcela (regra da importação)
+      expect(fees.every((f) => f.installments === 1)).toBe(true);
+      // Os casos referenciados existem
+      expect(fees.map((f) => f.case.caseNumber).sort()).toEqual([
+        "1024127-78.2020.8.26.0100",
+        "1234567-89.2026.8.26.0100",
+      ]);
+
+      // Sem lançamento financeiro
+      const efeitos = await inTenant(async () => ({
+        caixa: await prisma.cashMovement.count({ where: { barbershopId: shopId } }),
+        crm: await prisma.crmFinancialEvent.count({ where: { barbershopId: shopId } }),
+        notificacoes: await prisma.notificationDelivery.count({ where: { barbershopId: shopId } }),
+      }));
+      expect(efeitos).toEqual({ caixa: 0, crm: 0, notificacoes: 0 });
+
+      // Desfazer remove os honorários
+      const undoResponse = await app.inject({
+        method: "POST",
+        url: `/api/barbershops/${shopId}/imports/${batchId}/undo`,
+        headers,
+        payload: {},
+      });
+      expect(undoResponse.statusCode).toBe(200);
+      expect(undoResponse.json().data.removed).toBe(2);
+
+      const remainingFees = await inTenant(() =>
+        prisma.caseSuccessFee.count({ where: { barbershopId: shopId } }),
+      );
+      expect(remainingFees).toBe(0);
+
+      // Limpa os processos importados
+      const undoResponse2 = await app.inject({
+        method: "POST",
+        url: `/api/barbershops/${shopId}/imports/${batchProcessos}/undo`,
+        headers,
+        payload: {},
+      });
+      expect(undoResponse2.statusCode).toBe(200);
     } finally {
       await prisma.barbershop.update({
         where: { id: shopId },

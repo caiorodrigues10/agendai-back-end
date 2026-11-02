@@ -35,6 +35,10 @@ import {
   parseCaseStatus,
   resolveCaseStaff,
 } from "../processors/caseImporter";
+import {
+  feeInstallmentsWarning,
+  parseFeeStatus,
+} from "../processors/caseFeeImporter";
 import { lookupStaff, lookupService, lookupServicePackage } from "../processors/lookups";
 import { normalizeHeaderText } from "./columnMapping";
 
@@ -70,6 +74,9 @@ export async function validateRow(
   }
   if (targetType === "CASES") {
     return validateCaseRow(db, barbershopId, row, context, rowNumber);
+  }
+  if (targetType === "CASE_FEES") {
+    return validateCaseFeeRow(db, barbershopId, row, context, rowNumber);
   }
   return validateAppointmentRow(db, barbershopId, row, context, rowNumber);
 }
@@ -947,6 +954,113 @@ async function validateCaseRow(
   warnings.push(
     "O processo importado não lança caixa, receita, honorário nem comissão, e não é compartilhado com o cliente.",
   );
+
+  return { rowNumber, status: "VALID", warnings };
+}
+
+/** Honorários de êxito de processos (`CASE_FEES`). */
+async function validateCaseFeeRow(
+  db: AppTx,
+  barbershopId: string,
+  row: Record<string, string>,
+  context: ImportRowContext,
+  rowNumber: number,
+): Promise<RowValidationResult> {
+  const caseNumber = cellValue(row, context, "caseNumber").slice(0, 30);
+  const caseName = cellValue(row, context, "caseName").slice(0, 120);
+
+  if (!caseNumber && !caseName) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "caseNumber",
+      message: "Número do processo ou apelido do caso é obrigatório.",
+    };
+  }
+
+  // Se não há número, o cliente precisa existir para identificar o caso pelo apelido.
+  let clientId: string | null = null;
+  if (!caseNumber) {
+    const rawPhone = cellValue(row, context, "clientWhatsapp");
+    const phone = normalizePhone(rawPhone);
+    if (!phone) {
+      return {
+        rowNumber,
+        status: "FAILED",
+        field: "clientWhatsapp",
+        message: rawPhone
+          ? "Telefone do cliente inválido. Use DDD + número (10 ou 11 dígitos)."
+          : "Telefone do cliente é obrigatório quando não há número do processo.",
+      };
+    }
+    const client = await db.salonClient.findFirst({
+      where: { barbershopId, normalizedWhatsapp: phone },
+      select: { id: true },
+    });
+    if (!client) {
+      return {
+        rowNumber,
+        status: "FAILED",
+        field: "clientWhatsapp",
+        message: "Cliente não encontrado. Importe o cliente antes do honorário.",
+      };
+    }
+    clientId = client.id;
+  }
+
+  // O caso precisa já existir.
+  const caseWhere: Record<string, unknown> = { barbershopId };
+  if (caseNumber) {
+    caseWhere.caseNumber = caseNumber;
+  } else if (clientId) {
+    caseWhere.clientId = clientId;
+    caseWhere.nickname = { equals: caseName, mode: "insensitive" };
+  }
+
+  const existingCase = await db.clientCase.findFirst({
+    where: caseWhere,
+    select: { id: true },
+  });
+  if (!existingCase) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: caseNumber ? "caseNumber" : "caseName",
+      message: caseNumber
+        ? `Processo com número "${caseNumber}" não encontrado.`
+        : `Processo "${caseName}" não encontrado para o cliente.`,
+    };
+  }
+
+  const warnings: string[] = [];
+
+  const rawPercent = cellValue(row, context, "percent");
+  const percent = rawPercent ? normalizeMoney(rawPercent) : null;
+  if (percent === null || percent < 0 || percent > 100) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "percent",
+      message: "Percentual do honorário é obrigatório e deve estar entre 0 e 100.",
+    };
+  }
+
+  const status = parseFeeStatus(cellValue(row, context, "feeStatus"));
+  if (status.warning) warnings.push(status.warning);
+
+  const rawDueDate = cellValue(row, context, "feeDueDate");
+  if (rawDueDate && !normalizeDate(rawDueDate)) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "feeDueDate",
+      message: "Data de vencimento inválida. Use dd/mm/aaaa.",
+    };
+  }
+
+  const rawInstallments = cellValue(row, context, "feeInstallments");
+  const installmentsResult = rawInstallments ? feeInstallmentsWarning(rawInstallments) : { value: 1 };
+  if (installmentsResult?.warning) warnings.push(installmentsResult.warning);
 
   return { rowNumber, status: "VALID", warnings };
 }
