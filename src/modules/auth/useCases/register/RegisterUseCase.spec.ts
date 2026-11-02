@@ -1,13 +1,16 @@
 /// <reference types="vitest/globals" />
 
-// --- Mock do logger (objeto compartilhado via globalThis para acessar logger.warn nos testes) ---
-vi.mock("@/shared/utils/logger", () => {
-  const g = globalThis as any;
-  if (!g.__testLogger) {
-    g.__testLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  }
-  return { getModuleLogger: () => g.__testLogger };
-});
+// --- Mock do logger (objeto compartilhado via vi.hoisted para acessar logger.warn nos testes) ---
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
+vi.mock("@/shared/utils/logger", () => ({
+  getModuleLogger: () => mockLogger,
+}));
 
 // --- Mock prisma ---
 const mockCreate = vi.fn();
@@ -75,9 +78,6 @@ import { RegisterUseCase, IRegisterDTO } from "./RegisterUseCase";
 import { ensureReferralCode } from "@/modules/referrals/services/referralService";
 import { cpfNameVerificationMode } from "@/shared/services/cpfNameVerification/cpfNameVerification";
 import { maskCpfForLogs, maskNameForLogs } from "@/shared/utils/logPrivacy";
-import { getModuleLogger } from "@/shared/utils/logger";
-
-const logger = getModuleLogger("register");
 
 const BASE_INPUT: IRegisterDTO = {
   ownerName: "João Silva",
@@ -341,15 +341,15 @@ describe("RegisterUseCase — verificação CPF × nome", () => {
 
     expect(result).toBeDefined(); // cadastra (fail-open em warn)
     expect(verifier.verify).toHaveBeenCalledTimes(1);
-    expect(logger.warn as any).toHaveBeenCalledTimes(1);
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
 
-    const warnArg = (logger.warn as any).mock.calls[0][0];
-    // O objeto logado NÃO contém CPF nem nome completos.
-    expect(warnArg.cpf).not.toBe("45317829709");
-    expect(warnArg.name).not.toBe("João Silva");
+    // JSON.stringify de TODOS os args de logger.warn não contém CPF nem nome completos.
+    const warnJson = JSON.stringify(mockLogger.warn.mock.calls);
+    expect(warnJson).not.toContain("45317829709");
+    expect(warnJson).not.toContain("João Silva");
     // E contém as máscaras corretas.
-    expect(warnArg.cpf).toBe(maskCpfForLogs("45317829709"));
-    expect(warnArg.name).toBe(maskNameForLogs("João Silva"));
+    expect(warnJson).toContain(maskCpfForLogs("45317829709"));
+    expect(warnJson).toContain(maskNameForLogs("João Silva"));
   });
 
   it("modo enforce + mismatch: rejeita com 400, mensagem sem CPF nem nome", async () => {
