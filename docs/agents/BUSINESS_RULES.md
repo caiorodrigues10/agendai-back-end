@@ -199,6 +199,17 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Ações auditadas: `DATA_IMPORT_UPLOAD`, `DATA_IMPORT_CONFIRM`, `DATA_IMPORT_CANCEL`, `DATA_IMPORT_UNDO` (AuditLog, com `barbershopId`).
 - Imagens ainda não são convertidas em planilha automaticamente (sem OCR) — o assistente orienta o envio da planilha.
 
+## Importação de processos (`CASES`)
+
+- Alvo disponível apenas para o segmento `LAW_FIRM` (feature `caseManagement`); oculto para os demais segmentos via `availableImportTargets`.
+- Identidade do cliente: telefone (WhatsApp) é a chave; cliente com o mesmo telefone não é duplicado — criado se não existir.
+- Dedupe de processo: número do processo repetido já existente no salão → `SKIPPED`; sem número, dedupe por cliente + apelido do caso (case-insensitive).
+- CNJ: dígito verificador inválido gera **apenas aviso** na prévia, não bloqueia a importação (processos antigos podem não seguir o padrão).
+- Advogado responsável: resolvido pelo nome na equipe; ausente ou ambíguo entra sem responsável, com aviso, nunca rejeita a linha.
+- Sigilo: `shareWithClient` nasce `false`; número de processo, apelido, área, parte adversária, tribunal e observações não saem para o cliente nem em mensagens.
+- Sem lançamento financeiro: processo importado não cria caixa, receita, honorário, comissão nem `CashMovement`. `PAID` importado não lança caixa.
+- Campos de valor (`claimedAmount`, `awardedAmount`) são dados do processo, não do faturamento; honorário de êxito vem dos atendimentos concluídos vinculados ao caso (`Appointment.caseId`).
+
 ## Importação de planilhas (assistente do dono)
 
 - Só o **dono** importa (`authorize(["MASTER_ADMIN","OWNER"])` + `setRlsContext`): importar dado é decisão do responsável pelo salão.

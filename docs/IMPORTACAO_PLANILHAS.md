@@ -199,10 +199,11 @@ A detecção automática casa o cabeçalho da planilha com os sinônimos de cada
 campo (`IMPORT_FIELDS_BY_TARGET`, em `src/modules/dataImport/dataImport.constants.ts`).
 O dono pode trocar o mapeamento antes de confirmar.
 
-Os 10 alvos: `CLIENTS`, `SERVICES`, `APPOINTMENTS`, `STAFF_SCHEDULES`,
+Os 11 alvos: `CLIENTS`, `SERVICES`, `APPOINTMENTS`, `STAFF_SCHEDULES`,
 `SHOP_SCHEDULE`, `TIME_OFF`, `PRODUCTS`, `SERVICE_PACKAGES`, `CLIENT_PACKAGES`,
-`FIADOS`. O alvo `PRODUCTS` fica oculto para o segmento jurídico
-(`availableImportTargets`).
+`FIADOS`, `CASES`. O alvo `PRODUCTS` fica oculto para o segmento jurídico e o
+alvo `CASES` fica oculto para todos os segmentos que não tenham a feature
+`caseManagement` (`availableImportTargets`).
 
 ### Clientes (`CLIENTS`)
 
@@ -312,6 +313,35 @@ Por padrão dias que já têm horário são **mantidos**; a opção
 O fiado importado nasce com `origin: IMPORT`: ele **não entra no primeiro
 ciclo de cobrança**. `sendFiadoReminders` (desligado por padrão) é a única forma
 de disparar lembrete — e hoje também não dispara nada.
+
+### Processos (`CASES`)
+
+Disponível apenas para o segmento `LAW_FIRM` (feature `caseManagement`).
+
+| campo | obrigatório | Observações |
+|---|---|---|
+| Cliente | sim | telefone identifica o cliente no CRM; cria o cliente se não existir |
+| WhatsApp do cliente | sim | DDD + número (10 ou 11 dígitos); é a identidade do cliente |
+| Apelido do caso | sim | mínimo 2 caracteres; apelido interno do escritório, nunca aparece para o cliente |
+| Número do processo | não | padrão CNJ; dígito inválido entra com aviso, não bloqueia |
+| Área de atuação | não | texto livre, ex.: "Cível", "Trabalhista" |
+| Situação | não | `lead`, `em andamento`, `aguardando cliente`, `em juízo`, `suspenso`, `encerrado`, `arquivado` |
+| Prioridade | não | `baixa`, `normal`, `alta`, `urgente` |
+| Título do processo | não | texto livre |
+| Órgão julgador / vara | não | texto livre |
+| Parte adversária | não | texto livre |
+| Valor da causa | não | `R$ 1.234,56`; dados do processo, não entra no caixa nem no financeiro |
+| Valor obtido | não | `R$ 1.234,56`; base do honorário de êxito, não entra no caixa nem no financeiro |
+| Data de abertura | não | `dd/mm/aaaa`; padrão é a data da importação |
+| Advogado responsável | não | localizado pelo nome na equipe; ausente ou ambíguo entra sem responsável, com aviso |
+| Observações | não | até 2.000 caracteres; interno, nunca aparece para o cliente |
+
+**Regras de reimportação:**
+- Número do processo repetido já existente no salão → linha ignorada (`SKIPPED`), não duplica.
+- Sem número do processo: dedupe por cliente + apelido do caso (case-insensitive).
+- CNJ com dígito verificador inválido → aviso na prévia, processo entra assim mesmo (processos antigos podem não seguir o padrão).
+- O processo nasce com `shareWithClient: false` (sigilo): não aparece no portal do cliente nem em mensagens.
+- Processo importado **não** lança caixa, receita, honorário nem comissão.
 
 ---
 
