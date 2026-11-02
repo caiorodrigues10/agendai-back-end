@@ -343,9 +343,14 @@ describe("RegisterUseCase — verificação CPF × nome", () => {
     expect(verifier.verify).toHaveBeenCalledTimes(1);
     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
 
-    // JSON.stringify de TODOS os args de logger.warn não contém CPF nem nome completos.
+    // JSON.stringify de TODOS os args de logger.warn não contém CPF formatado
+    // nem casa com padrão de CPF.
     const warnJson = JSON.stringify(mockLogger.warn.mock.calls);
-    expect(warnJson).not.toContain("45317829709");
+    const cpfPattern = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/;
+    expect(warnJson).not.toContain("453.178.297-09"); // CPF formatado completo
+    expect(warnJson).not.toMatch(cpfPattern); // nenhum padrão de CPF cru
+    // A máscara "453.***.**-09" não casa com a regex de CPF.
+    expect(maskCpfForLogs("45317829709")).not.toMatch(cpfPattern);
     expect(warnJson).not.toContain("João Silva");
     // E contém as máscaras corretas.
     expect(warnJson).toContain(maskCpfForLogs("45317829709"));
