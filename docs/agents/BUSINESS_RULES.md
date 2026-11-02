@@ -237,7 +237,7 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - **Sigilo (`caseFees`)**: a aba `Honorários de êxito` entra para escritórios jurídicos mesmo sem `includeCase`, mas as colunas que identificam o processo (número e apelido) saem vazias quando `includeCase` está desligado. As observações internas do honorário também saem vazias sem `includeCase`.
 - **Período**:
   - **Processos**: não filtra por período. Exporta todos os processos do escritório (backup completo), independentemente da data de abertura.
-  - **Honorários de êxito**: filtra por vencimento (`dueDate`) dentro do período escolhido. Quando o período é "Tudo", exporta todos os honorários.
+  - **Honorários de êxito**: filtra por vencimento (`dueDate`) dentro do período escolhido, com fallback para `createdAt` quando o honorário não tem vencimento. Quando o período é "Tudo", exporta todos os honorários.
   - Honorários nunca entram no caixa nem no financeiro: não há coluna de pagamento, lançamento ou recebimento.
 - **Anonimização na aba Processos (`cases`)**: a aba `Processos` **pode** ser exportada com `anonymize` ligado — a anonimização não é bloqueio, é mascaramento. Com `anonymize=true` **e** `includeCase=true`, saem mascarados **todos** os campos pessoais da aba:
   - nome e WhatsApp do cliente;
@@ -248,6 +248,12 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
   - advogado responsável (`responsibleStaff.name`).
 
   Permanecem legíveis: valores (`claimedAmount`, `awardedAmount`), datas, situação, prioridade, área de atuação e órgão julgador. A exigência de `includeCase=true` para a aba `Processos` continua valendo com `anonymize` ligado — o que muda é apenas o conteúdo das células, não o gate.
+- **Anonimização na aba Honorários de êxito (`caseFees`)**: a aba também **pode** ser exportada com `anonymize` ligado. Com `anonymize=true` **e** `includeCase=true`:
+  - número do processo sai **mascarado** (não vazio, não cru);
+  - apelido do caso (`nickname`) sai **mascarado**;
+  - **Observações saem vazias** — a nota interna do escritório não é mascarável campo a campo, então é omitida por inteiro.
+
+  Sem `includeCase` (e com ou sem `anonymize`), número, apelido e Observações já saíam vazios. Valores (`percent`, `baseAmount`, `amount`), situação, vencimento, parcelas e data de criação permanecem legíveis.
 - **Campos de valor** (`claimedAmount`, `awardedAmount`, `percent`, `baseAmount`, `amount`) são dados do processo, não do faturamento.
 
 ## Notificações
