@@ -7,6 +7,7 @@ const {
   importBatchFindActive,
   importBatchCountStartedSince,
   barbershopFindUnique,
+  auditLogCreate,
 } = vi.hoisted(() => ({
   importBatchCreate: vi.fn(),
   importBatchFindFirst: vi.fn(),
@@ -14,6 +15,7 @@ const {
   importBatchFindActive: vi.fn(),
   importBatchCountStartedSince: vi.fn(),
   barbershopFindUnique: vi.fn(),
+  auditLogCreate: vi.fn(),
 }));
 
 vi.mock("@/libs/prismaClient", () => ({
@@ -26,6 +28,7 @@ vi.mock("@/libs/prismaClient", () => ({
       count: importBatchCountStartedSince,
     },
     barbershop: { findUnique: barbershopFindUnique },
+    auditLog: { create: auditLogCreate },
   },
 }));
 
@@ -106,6 +109,7 @@ describe("DataImportUseCases", () => {
     importBatchFindActive.mockReset().mockResolvedValue([]);
     importBatchCountStartedSince.mockReset().mockResolvedValue(0);
     barbershopFindUnique.mockReset().mockResolvedValue({ businessSegment: "BARBERSHOP" });
+    auditLogCreate.mockReset().mockResolvedValue({ id: "audit-1" });
   });
 
   describe("upload", () => {
@@ -133,14 +137,67 @@ describe("DataImportUseCases", () => {
       ).rejects.toThrow(/5 importações por hora/i);
     });
 
-    it("recusa arquivo com extensão não suportada", async () => {
+    it("recusa arquivo cujo conteúdo não é planilha (a extensão não decide)", async () => {
       await expect(
         new DataImportUseCases().upload({
           barbershopId: SHOP,
-          fileName: "clientes.txt",
-          buffer: Buffer.from("conteudo"),
+          fileName: "clientes.csv",
+          buffer: Buffer.from([0x00, 0x01, 0x02, 0x00]),
         }),
-      ).rejects.toThrow(/Formato não suportado/i);
+      ).rejects.toThrow(/texto/i);
+    });
+
+    it("aceita .txt quando o conteúdo é texto delimitado", async () => {
+      const result = await new DataImportUseCases().upload({
+        barbershopId: SHOP,
+        fileName: "clientes.txt",
+        buffer: Buffer.from("Nome;WhatsApp\nAna;11987654321"),
+      });
+
+      expect(result.fileFormat).toBe("CSV");
+    });
+
+    it("grava exatamente 1 AuditLog no upload do painel web, com o userId", async () => {
+      await new DataImportUseCases().upload({
+        barbershopId: SHOP,
+        userId: "user-web",
+        fileName: "clientes.csv",
+        buffer: Buffer.from("Nome;WhatsApp\nAna;11987654321"),
+        source: "WEB",
+      });
+
+      expect(auditLogCreate).toHaveBeenCalledTimes(1);
+      expect(auditLogCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: "user-web",
+            action: "DATA_IMPORT_UPLOAD",
+            barbershopId: SHOP,
+          }),
+        })
+      );
+    });
+
+    it("grava exatamente 1 AuditLog no upload pelo WhatsApp, com o userId", async () => {
+      await new DataImportUseCases().upload({
+        barbershopId: SHOP,
+        userId: "user-whatsapp",
+        fileName: "clientes.csv",
+        buffer: Buffer.from("Nome;WhatsApp\nAna;11987654321"),
+        source: "WHATSAPP_OWNER_BOT",
+      });
+
+      expect(auditLogCreate).toHaveBeenCalledTimes(1);
+      expect(auditLogCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: "user-whatsapp",
+            action: "DATA_IMPORT_UPLOAD",
+            barbershopId: SHOP,
+            details: expect.stringContaining("WHATSAPP_OWNER_BOT"),
+          }),
+        })
+      );
     });
 
     it("cria o lote com o cabeçalho lido", async () => {

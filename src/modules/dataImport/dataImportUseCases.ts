@@ -65,6 +65,7 @@ import type { ImportRowContext } from "./processors/importRowContext";
 import { deleteTempFile, saveTempFile } from "./utils/tempFiles";
 import { buildErrorCsv } from "./utils/sanitize";
 import { requestContext } from "@/shared/infra/http/requestContext";
+import { createAuditLog } from "@/shared/services/auditLogService";
 import {
   CSV_SHEET_NAME,
   orderPlanSheets,
@@ -95,8 +96,10 @@ export class DataImportUseCases {
     userId?: string | null;
     fileName: string;
     buffer: Buffer;
+    source?: string;
+    ipAddress?: string | null;
   }) {
-    const { barbershopId, userId, fileName, buffer } = params;
+    const { barbershopId, userId, fileName, buffer, source, ipAddress } = params;
 
     await this.assertQuota(barbershopId);
 
@@ -122,7 +125,20 @@ export class DataImportUseCases {
         headers: first.headers,
         createdById: userId ?? null,
         expiresAt,
+        source: source ?? "WEB",
       });
+
+      if (userId) {
+        await createAuditLog({
+          userId,
+          action: "DATA_IMPORT_UPLOAD",
+          resource: "ImportBatch",
+          resourceId: batch.id,
+          barbershopId,
+          ipAddress: ipAddress ?? undefined,
+          details: JSON.stringify({ fileName: validated.fileName, fileSize: validated.fileSize, format: validated.format, source: source ?? "WEB" }),
+        });
+      }
 
       return {
         id: batch.id,
@@ -570,6 +586,16 @@ export class DataImportUseCases {
     const batch = await this.batches.findById(batchId, barbershopId);
     if (!batch) throw new AppError("Importação não encontrada.", 404);
     return batch;
+  }
+
+  /**
+   * Cotas de importação — verificação pública.
+   *
+   * O assistente do dono precisa checar a cota ANTES de baixar o arquivo
+   * (para não gastar banda e memória com um arquivo que seria recusado).
+   */
+  async checkImportQuota(barbershopId: string): Promise<void> {
+    await this.assertQuota(barbershopId);
   }
 
   /** Cotas: no máximo 5 importações por hora e 1 importação ativa. */

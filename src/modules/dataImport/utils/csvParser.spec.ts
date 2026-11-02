@@ -50,7 +50,7 @@ describe("parseCsv", () => {
   });
 
   it("não vira registro a linha vazia do fim", () => {
-    const result = parseCsv(Buffer.from("Nome\nAna\n\n"));
+    const result = parseCsv(Buffer.from("Nome;WhatsApp\nAna;11999999999\n\n"));
     expect(result.rows).toHaveLength(1);
   });
 });

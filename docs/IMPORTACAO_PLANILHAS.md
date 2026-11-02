@@ -59,10 +59,137 @@ pendente (`GET .../imports/active`). Lote abandonado pode ser cancelado
 | Guarda do arquivo temporário | 7 dias | `IMPORT_FILE_RETENTION_DAYS` |
 | Bytes descomprimidos dentro do xlsx | 60 MB | `MAX_XLSX_UNCOMPRESSED_BYTES` (proteção contra ZIP bomb) |
 | Entradas dentro do zip | 500 | `MAX_XLSX_ENTRIES` |
+| Bytes declarados no container OLE2 (`.xls`) | 60 MB | `MAX_OLE2_DECLARED_BYTES` |
+| Bytes declarados nos objetos do PDF | 60 MB | `MAX_PDF_DECLARED_BYTES` |
+| Páginas de um PDF | 10 | `MAX_IMPORT_PDF_PAGES` |
+| Caracteres de texto extraídos de um PDF | 2.000.000 | `MAX_IMPORT_PDF_TEXT_CHARS` |
 
-Arquivos aceitos: `.xlsx` e `.csv`. A extensão não vale sozinha: o backend confere
-a assinatura binária do arquivo (`.xlsx` precisa começar com `PK`). `.xlsm`,
-`.xlsb`, `.xls`, `.ods` e `.zip` são recusados com mensagem explícita.
+Arquivos aceitos: `.xlsx`, `.xlsm`, `.xls` (Excel 97-2003), `.ods` (LibreOffice),
+PDF com texto selecionável e texto delimitado (`.csv`, `.tsv`, `.txt`).
+
+**O formato é decidido pelo conteúdo do arquivo (magic bytes), nunca pela
+extensão nem pelo mimetype.** A extensão é escrita por quem exportou a planilha
+e mente com frequência: um `.csv` que é na verdade XLSX é lido como XLSX, e um
+`.xlsx` que é na verdade CSV é lido como CSV. O nome enviado pelo dono é usado
+só para exibição.
+
+| formato | como é reconhecido | como é lido |
+|---|---|---|
+| `.xlsx` | ZIP com `xl/workbook.xml` | `exceljs` (sem avaliar fórmula) |
+| `.xlsm` | ZIP com `xl/workbook.xml` + `xl/vbaProject.bin` | idem — **a macro nunca é executada**, a parte é ignorada |
+| `.xls` | assinatura OLE2 (`D0 CF 11 E0`) | leitor de BIFF8 que só extrai valores |
+| `.ods` | ZIP do OpenDocument (`mimetype` + `content.xml`) | leitura do `content.xml` (só células) |
+| PDF | assinatura `%PDF-` | texto posicionado na página agrupado em linhas/colunas |
+| `.csv`/`.tsv`/`.txt` | texto sem NUL | separador detectado pelo conteúdo (`,` `;` tab `|`) |
+
+Recusados com mensagem clara: arquivo vazio, acima de 10 MB, binário disfarçado
+de texto, ZIP que não é planilha, PDF sem texto (digitalização), ZIP bomb,
+OpenDocument que não é planilha, `.xls` que declara um tamanho falso e PDF que
+declara um objeto gigante.
+
+### Guardas de tamanho declarado
+
+Dois formatos **declaram** o tamanho do conteúdo em vez de terem o tamanho
+medido: o `.xls` (container OLE2) e o PDF (objetos com `/Length`). Um arquivo
+malicioso declara gigabytes num arquivo de poucos KB — quem acredita na
+declaração aloca por ela e estoura a memória do processo.
+
+Por isso, antes de qualquer leitura:
+
+- **`inspectOle2`** (`utils/oleGuard.ts`) lê o cabeçalho e o diretório do
+  compound file e compara o que é declarado com o que o arquivo realmente tem.
+  Se o `.xls` declarar mais setores do que tem, ou declarar streams maiores que
+  o arquivo, ele é recusado — o tamanho declarado **não** é confiável.
+- **`inspectPdf`** (`utils/pdfGuard.ts`) soma os `/Length` diretos do arquivo
+  cru (sem interpretador de PDF) e recusa o PDF que declara mais do que 60 MB.
+  `/Length 12 0 R` (referência indireta) não entra na conta.
+
+As duas guardas rodam **no upload** (`validateImportFile`) e de novo na leitura
+(`parseXls`/`parsePdf`): o arquivo traiçoeiro nunca nem chega a ser gravado em
+disco.
+
+### Planilha do mundo real
+
+O dono manda a planilha como saiu do sistema dele. O leitor lida com isso:
+
+| caso | o que acontece |
+|---|---|
+| Mais de uma aba | cada aba é lida com o seu próprio cabeçalho (`parseXlsxSheets`/`parseXls`/`parseOds`); o dono escolhe o tipo de cada uma |
+| Células mescladas | o valor da célula mestra **não duplica** a linha (no `.xlsx`, a célula escrava da mescla é ignorada; no `.ods`, a célula coberta mantém a posição da coluna) |
+| Cabeçalho fora da 1ª linha | a primeira linha mais larga é o cabeçalho; as linhas de capa ("Clientes — abril/2026") viram aviso (`preambleRows`), não linha de cliente |
+| Linha de total ("TOTAL 2.334,46") | descartada e contada no aviso (`skippedTotalRows`) |
+| Rodapé ("Gerado em 01/05/2026") | descartado — só quando a linha tem **uma célula só** e a primeira parece rodapé (cliente de verdade tem nome **e** contato) |
+| Data em serial do Excel (`45900`) | o `.xls` entrega o número cru; a normalização (`normalizeDate`) converte para `2025-08-31` (45900 dias depois de 30/12/1899) |
+
+#### Limitações conhecidas (Fase 1)
+
+Estas duas limitações são **conhecidas e não resolvidas** na Fase 1. O dono
+precisa saber delas para não estranhar o resultado:
+
+**1. Mescla vertical: o valor não propaga para as linhas de baixo.**
+
+Quando a mesma célula está mesclada em várias linhas (A2:A3, por exemplo), o
+valor existe **só na célula mestra** (a de cima). O importador **não
+repropaga** esse valor para as linhas de baixo — cada linha da planilha vira
+uma linha de importação independente.
+
+O que o dono vê: a linha de cima entra com o valor; a linha de baixo entra com
+a coluna mesclada **vazia**. Se a coluna mesclada for "Nome" ou "WhatsApp", a
+linha de baixo é **rejeitada** na validação (falta o dado obrigatório) e
+aparece no relatório de erros — não vira cliente duplicado nem cliente pela
+metade.
+
+O que o dono faz: **desfazer a mescla** antes de enviar (o Excel/LibreOffice
+pede "manter só o valor da célula superior" ao colar) ou **repetir o valor em
+cada linha**. O importador prefere a linha rejeitada e explícita a um palpite
+silencioso sobre o que a mescla queria dizer.
+
+**2. Rodapé só é descartado quando o texto começa com palavra conhecida.**
+
+A regra de rodapé (`looksLikeFooterRow`, em `utils/sheetMatrix.ts`) só apaga a
+linha quando **todas** estas condições valem:
+
+1. a linha tem **uma célula preenchida só** (as outras colunas estão vazias);
+2. essa célula é a **primeira** da linha;
+3. o texto começa com `gerado`, `exportado`, `impresso`, `atualizado` ou
+   `criado` (sem diferenciar maiúsculas/minúsculas).
+
+Um rodapé escrito de outra forma — "Emitido pelo sistema X", "Fim do
+relatório", "Página 1 de 3" — **não** é apagado: ele vira uma linha de
+importação e, por não ter WhatsApp, aparece como linha **rejeitada** no
+relatório de erros. Isso é proposital: apagar linha por semelhança de texto
+arriscaria apagar um cliente de verdade (uma empresa chamada "Total
+Expressão", por exemplo).
+
+O que o dono faz: se o rodapé aparecer na prévia, apagar essa linha da
+planilha antes de confirmar. Nenhum dado é perdido — a linha rejeitada fica
+visível no relatório, com o motivo.
+
+### Fórmula e link externo
+
+A planilha é **dado**, nunca programa:
+
+- **Fórmula não é avaliada.** Entra o último valor literal guardado na célula
+  (`42`), nunca `SUM(...)`. Vale para `.xlsx`, `.xlsm`, `.xls` e `.ods`.
+- **Link externo não é resolvido.** Nenhuma requisição de rede é feita ao ler a
+  planilha (há teste com `fetch` espionado) e o endereço **não** entra no dado
+  importado: entra o rótulo do link ("Ver site").
+
+Cada formato novo tem **arquivo de exemplo e caso hostil** em
+`src/modules/dataImport/utils/fixtures/` (gerados por
+`scripts/generate-import-fixtures.mjs`).
+
+### Números que vêm da planilha
+
+- **Telefone sem zero à esquerda** (`11987654321`, 11 dígitos) é preservado
+  exatamente — é o formato que o Excel entrega quando a coluna é número.
+- **Telefone com zero à esquerda** (`011987654321`, prefixo de operadora/antigo
+  DDD) tem o zero removido; o número não muda.
+- **DDI 55** (`+55 11 98765-4321`) é removido.
+- **Notação científica** (`1,23456789E+10`) é **rejeitada**: os dígitos são
+  outros, e essa forma tem 11 dígitos — pareceria um telefone válido e viraria
+  a identidade errada de um cliente. CPF e documento devem estar como **texto**
+  na planilha.
 
 ---
 
@@ -301,7 +428,7 @@ etapa de upload.
 
 | tipo | onde | o que cobre |
 |---|---|---|
-| unit | `src/modules/dataImport/**/*.spec.ts` (19 arquivos) | processadores dos 10 alvos, plano multi-aba, desfazer 12 tipos com snapshot, contadores, parsers, rótulos |
+| unit | `src/modules/dataImport/**/*.spec.ts` (26 arquivos) | processadores dos 10 alvos, plano multi-aba, desfazer 12 tipos com snapshot, contadores, parsers (xlsx/xlsm/xls/ods/pdf/texto), **detecção por magic bytes**, **número → texto sem perder dígito**, rótulos |
 | integração | `src/tests/integration/dataImport.integration.spec.ts` | fluxo completo contra Postgres: dry-run não grava, sem efeitos colaterais, contadores, reimportação sem duplicar, desfazer remove só o criado, **multi-aba (MIXED) com desfazer multi-tipo e ordem de dependência** |
 | e2e | `frontend/e2e/data-import.spec.ts` | navegador: upload → alvo → colunas → prévia → confirmar → reimportar sem duplicar → desfazer, garantia de que **nenhuma mensagem** foi enviada, e **multi-aba** (atribuição de tipo por aba + desfazer) |
 

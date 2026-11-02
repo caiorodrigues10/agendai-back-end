@@ -83,13 +83,22 @@ describe("inspectZip", () => {
     expect(() => inspectZip(zip)).toThrow(/grande demais/i);
   });
 
-  it("recusa arquivo com macro (vbaProject.bin)", () => {
+  it("não recusa macro: o .xlsm é lido e a macro nunca é executada", () => {
     const zip = buildZip([
       { name: "[Content_Types].xml", uncompressedSize: 10 },
       { name: "xl/vbaProject.bin", uncompressedSize: 10 },
     ]);
 
-    expect(() => inspectZip(zip)).toThrow(/macros/i);
+    const result = inspectZip(zip);
+
+    expect(result.hasMacro).toBe(true);
+    expect(result.entryNames).toContain("xl/vbaProject.bin");
+  });
+
+  it("sinaliza quando o arquivo não tem macro", () => {
+    const zip = buildZip([{ name: "xl/workbook.xml", uncompressedSize: 10 }]);
+
+    expect(inspectZip(zip).hasMacro).toBe(false);
   });
 
   it("recusa arquivo que não é ZIP", () => {

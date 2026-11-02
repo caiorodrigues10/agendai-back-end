@@ -17,6 +17,119 @@ propósito como evidência do incidente e para impedir que um `migrate deploy`
 futuro recrie a tabela. `migrate status` não reporta o caso. Histórico completo
 em `EVOLUCAO-BACKEND-2026-09-29.md` §10.
 
+### Registro a mais no banco local `agendai` (branch lateral de posts)
+
+O `_prisma_migrations` do banco local `agendai` (dev) tem **126 linhas**; a pasta
+`prisma/migrations/` e o banco `agendai_db` (testes) têm **125**. A linha a mais
+é `20261027000000_post_media_gallery_default` — aplicada em 2026-10-27T03:35:52Z
+(`applied_steps_count=1`, sem logs).
+
+**Origem:** commit `bc33f9d` ("feat(posts): upload de mídia sempre entra na
+galeria do perfil"), que existe **apenas na branch lateral
+`feat/upload-galeria-cheia-sem-400`** e **não é ancestral de `main`**
+(`git merge-base --is-ancestor bc33f9d HEAD` → falso). A pasta da migration não
+foi removida do histórico — ela simplesmente nunca entrou na `main`.
+
+**Estado atual do schema:** o efeito da migration (`post_media.inGallery` com
+`DEFAULT true`) **não está no banco** — `information_schema` mostra
+`column_default = false`, igual ao `schema.prisma` da `main`.
+
+*Por que o default sumiu:* **provavelmente** um `db push` / re-sync de schema
+posterior (drift corrigido, ver AGENTS.md §Drift) revertido o default sem mexer
+em `_prisma_migrations`. **Isso NÃO foi verificado:** não existe log do `db push`
+que reverteu o default nem data de quando isso aconteceu — é inferência, não
+fato registrado. O que **foi** verificado: o default atual é `false` (igual ao
+`schema.prisma` da `main`), a linha em `_prisma_migrations` existe desde
+2026-10-27 e ninguém a removeu.
+
+**Impacto verificado (2026-11-01):** `prisma migrate status` → "Database schema
+is up to date!" em `agendai` e `agendai_db`; `prisma migrate diff --from-url …
+--to-schema-datamodel` → **vazio** nos dois. O Prisma só considera migrations
+**pendentes** (pasta sem registro) — registro a mais no banco é ignorado. Nada
+foi apagado (nenhum `DELETE` em `_prisma_migrations`).
+
+**Antes de mergear `feat/upload-galeria-cheia-sem-400` na `main`:**
+
+1. Conferir se a pasta `20261027000000_post_media_gallery_default/` entra na
+   `main`. Se entrar, a `main` passa a ter uma migration que **já está aplicada**
+   no `agendai` → em `staging`/produção ela rodará o SQL (o `SET DEFAULT true` e o
+   backfill das 30 fotos são idempotentes, mas o default ficará `true`).
+2. Decidir o efeito desejado: se a `main` **não** quer o default `true`, manter
+   a migration fora da `main` (ou adjustar o SQL antes do merge, num commit
+   próprio da branch).
+3. Se a migration for mergeada e o SQL **não** puder ser alterado: nos bancos que
+   já a têm aplicada, usar `prisma migrate resolve --applied` (não `DELETE`) para
+   manter o registro; nos bancos novos, ela roda normalmente.
+4. Nunca `DELETE` da tabela `_prisma_migrations` e nunca `migrate reset` para
+   alinhar o histórico — o procedimento aprovado está em §Uso excepcional de
+   `migrate resolve`.
+
+## Dívida técnica: renomear as migrations com prefixo inconsistente (prazo 2026-12-31)
+
+**Escopo real: 37 migrations.** O prefixo de data delas é **posterior ao dia em
+que a pasta foi criada** (medido pelo commit que adicionou cada pasta,
+`git log --diff-filter=A`). Isso quebra a leitura temporal do histórico: uma
+migration "de 2026-11-05" que entrou no git em 2026-10-30.
+
+Divisão do escopo:
+
+| grupo | quantidade | situação |
+|---|---|---|
+| série `20261105`…`20261110` (prefixo > 2026-11-01) | **11** | já aplicadas em `agendai` e `agendai_db`; 2 delas (`20261110120000`, `20261110130000`) ainda **untracked** |
+| migrations de `20260831`…`20260912` com o mesmo defeito | **26** | já aplicadas; podem ser renomeadas junto |
+| linha excedente em `_prisma_migrations` do `agendai` | **1** | `20261027000000_post_media_gallery_default` (aplicada sem pasta) — ver §"Registro a mais no banco local `agendai`" |
+
+Lista completa (prefixo | dia em que a pasta entrou no git):
+
+```
+20260831000000_seed_default_plans|2026-08-30
+20260831010000_restore_subscription_unique_constraint|2026-08-30
+20260831020000_defer_plan_activation_until_payment|2026-08-30
+20260831030000_add_service_commissions|2026-08-30
+20260904000000_products_sku_barcode_unique|2026-09-03
+20260909000000_add_cash_movement|2026-09-08
+20260909000001_extend_daily_closeout|2026-09-08
+20260909010000_add_loyalty|2026-09-08
+20260909020000_add_professional_goals|2026-09-08
+20260909030000_add_cashback|2026-09-08
+20260909040000_add_rls_v11_v12|2026-09-08
+20260910000000_add_deposit_policy|2026-09-08
+20260910000001_add_appointment_deposits|2026-09-08
+20260910000002_add_waitlist|2026-09-08
+20260910000003_add_memberships|2026-09-08
+20260910000004_extend_appointments_and_clients|2026-09-08
+20260910000005_add_rls_v13|2026-09-08
+20260911000001_add_showcase|2026-09-09
+20260911000002_add_advanced_catalog|2026-09-09
+20260911000003_add_visit_tab|2026-09-09
+20260911000004_add_client_portal_showcase|2026-09-09
+20260911000005_add_remaining_modules|2026-09-10
+20260911000006_add_e5_f1_f7|2026-09-10
+20260912000001_add_gift_cards_resources_profit_organizations|2026-09-09
+20260912000002_fix_resource_booking_start_at_type|2026-09-09
+20260912000003_add_client_procedure_records|2026-09-11
+20261105120000_data_import_phase2_targets|2026-10-30
+20261105120100_data_import_phase2_stock_fiado_origin|2026-10-30
+20261105120200_data_import_phase2_snapshots|2026-10-30
+20261105120300_data_import_phase2_mixed_target|2026-10-30
+20261106120000_data_export_jobs|2026-10-30
+20261106120100_data_export_pdf_format|2026-10-30
+20261107120000_whatsapp_ai_realtime|2026-10-31
+20261108120000_platform_whatsapp_settings|2026-10-31
+20261109120000_crm_backfill_run_scope|2026-11-01
+20261110120000_import_batch_source|(untracked)
+20261110130000_import_file_formats|(untracked)
+```
+
+**Renomear para o dia real preserva a ordem relativa dos prefixos** — é
+obrigatório manter a ordem relativa (não basta trocar a data: os prefixos
+precisam continuar monotônicos, porque o Prisma ordena pelo nome da pasta).
+
+Procedimento e passos de verificação: `AGENTS.md` §"Dívida técnica — renomear
+as migrations com prefixo inconsistente". Enquanto a dívida não for paga, vale
+a regra do passo 1 de `AGENTS.md` §"migrations com timestamp futuro" (prefixo
+novo > maior prefixo da pasta). Nada trava — é higiene de histórico.
+
 ## Invariantes
 
 - Nunca usar `prisma db push` fora de desenvolvimento descartável.

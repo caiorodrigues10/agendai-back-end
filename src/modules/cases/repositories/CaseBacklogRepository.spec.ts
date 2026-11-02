@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { caseTransferUpdate, caseTransferFindFirst, clientSalonLinkFindMany, clientCaseFindMany } =
-  vi.hoisted(() => ({
-    caseTransferUpdate: vi.fn(),
-    caseTransferFindFirst: vi.fn(),
-    clientSalonLinkFindMany: vi.fn(),
-    clientCaseFindMany: vi.fn(),
-  }));
+const {
+  caseTransferUpdate,
+  caseTransferFindFirst,
+  clientSalonLinkFindMany,
+  clientCaseFindMany,
+  caseSuccessFeeFindMany,
+} = vi.hoisted(() => ({
+  caseTransferUpdate: vi.fn(),
+  caseTransferFindFirst: vi.fn(),
+  clientSalonLinkFindMany: vi.fn(),
+  clientCaseFindMany: vi.fn(),
+  caseSuccessFeeFindMany: vi.fn(),
+}));
 
 vi.mock("@/libs/prismaClient", () => ({
   prisma: {
@@ -19,6 +25,9 @@ vi.mock("@/libs/prismaClient", () => ({
     },
     clientCase: {
       findMany: clientCaseFindMany,
+    },
+    caseSuccessFee: {
+      findMany: caseSuccessFeeFindMany,
     },
   },
 }));
@@ -103,5 +112,69 @@ describe("CaseBacklogRepository.listClientPortalCasesByIdentity", () => {
 
     const args = clientCaseFindMany.mock.calls[0][0];
     expect(args.where.shareWithClient).toBe(true);
+  });
+});
+
+describe("CaseBacklogRepository.successFeesReport", () => {
+  const repository = new CaseBacklogRepository();
+
+  it("filtra pelo salão e consolida o relatório de honorários", async () => {
+    caseSuccessFeeFindMany.mockResolvedValue([
+      {
+        id: "fee-1",
+        barbershopId: "shop-a",
+        caseId: "case-1",
+        case: {
+          id: "case-1",
+          nickname: "Ação de cobrança",
+          caseNumber: "0000001-78.2020.8.26.0100",
+          client: { name: "Maria" },
+        },
+        percent: 20,
+        baseAmount: 10000,
+        amount: 2000,
+        installments: 1,
+        status: "PENDING",
+        dueDate: null,
+        paidAt: null,
+        notes: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: "fee-2",
+        barbershopId: "shop-a",
+        caseId: "case-2",
+        case: {
+          id: "case-2",
+          nickname: "Inventário",
+          caseNumber: null,
+          client: { name: "João" },
+        },
+        percent: 10,
+        baseAmount: 5000,
+        amount: 500,
+        installments: 1,
+        status: "PAID",
+        dueDate: null,
+        paidAt: new Date(),
+        notes: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const report = await repository.successFeesReport("shop-a");
+
+    expect(caseSuccessFeeFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { barbershopId: "shop-a" } })
+    );
+    expect(report.rows).toHaveLength(2);
+    expect(report.rows[0]).toEqual(
+      expect.objectContaining({ clientName: "Maria", caseNumber: "0000001-78.2020.8.26.0100" })
+    );
+    expect(report.summary.totalAmount).toBe(2500);
+    expect(report.summary.receivableAmount).toBe(2000);
+    expect(report.summary.paidAmount).toBe(500);
   });
 });

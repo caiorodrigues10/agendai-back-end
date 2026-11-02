@@ -12,6 +12,8 @@
  *      planilha multi-aba).
  */
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { sign, type Secret } from "jsonwebtoken";
 import ExcelJS from "exceljs";
 import auth from "@/config/auth";
@@ -36,6 +38,12 @@ const CSV_CLIENTES_DESFAZER = [
   "Ana Desfazida;11987660001;",
   "Bruno Desfeito;11987660002;",
   "Carla Desfeita;11987660003;",
+].join("\n");
+
+const CSV_PROCESSOS = [
+  "Cliente;WhatsApp;Caso;Processo;Área;Situação;Prioridade;Data de abertura;Valor da causa",
+  "Cliente Processo;11987670001;Ação de cobrança;1024127-78.2020.8.26.0100;Cível;Em andamento;Alta;01/10/2026;15000,00",
+  "Cliente Processo Dois;11987670002;Reclamação trabalhista;1234567-89.2026.8.26.0100;Trabalhista;Em juízo;Normal;;8000,00",
 ].join("\n");
 
 const CSV_AGENDAMENTOS = [
@@ -98,6 +106,24 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
     const batchId = response.json().data.id as string;
     pendingBatches.push(batchId);
     return batchId;
+  }
+
+  /** Upload que deve ser **recusado** — devolve a resposta para o teste. */
+  async function uploadEsperandoRecusa(
+    fileName: string,
+    content: string | Buffer,
+  ): Promise<{ statusCode: number; message: string }> {
+    const { body, contentType } = multipart(fileName, content);
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/barbershops/${shopId}/imports`,
+      headers: { ...headers, "content-type": contentType },
+      payload: body,
+    });
+    return {
+      statusCode: response.statusCode,
+      message: String(response.json().message ?? response.json().error?.message ?? ""),
+    };
   }
 
   async function configureTarget(batchId: string, targetType: string): Promise<void> {
@@ -279,6 +305,9 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
   });
 
   it("confirmar processa o lote sem notificar, convidar, comissionar nem lançar no caixa", async () => {
+    // `email_deliveries` não tem tenant: mede o delta para não herdar e-mails
+    // de outros testes que compartilham o Postgres local.
+    const emailsBefore = await prisma.emailDelivery.count();
     const batchId = await upload("clientes.csv", CSV_CLIENTES);
     await configureTarget(batchId, "CLIENTS");
     await saveMapping(batchId, { "0": "name", "1": "whatsapp", "2": "notes" });
@@ -303,7 +332,7 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
     const efeitos = await inTenant(async () => ({
       notifications: await prisma.notificationDelivery.count({ where: { barbershopId: shopId } }),
       outbox: await prisma.notificationOutbox.count(),
-      emails: await prisma.emailDelivery.count(),
+      emails: (await prisma.emailDelivery.count()) - emailsBefore,
       reviews: await prisma.reviewInvitation.count({ where: { barbershopId: shopId } }),
       nps: await prisma.npsSurvey.count({ where: { barbershopId: shopId } }),
       comissoes: await prisma.commissionEntry.count({ where: { barbershopId: shopId } }),
@@ -322,6 +351,97 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
       caixa: 0,
       fiado: 0,
     });
+  });
+
+  it("importa processos do escritório sem lançar caixa, honorário ou receita", async () => {
+    await prisma.barbershop.update({
+      where: { id: shopId },
+      data: { businessSegment: "LAW_FIRM" },
+    });
+
+    try {
+      const batchId = await upload("processos.csv", CSV_PROCESSOS);
+      await configureTarget(batchId, "CASES");
+      await saveMapping(batchId, {
+        "0": "clientName",
+        "1": "clientWhatsapp",
+        "2": "caseName",
+        "3": "caseNumber",
+        "4": "practiceArea",
+        "5": "caseStatus",
+        "6": "casePriority",
+        "7": "openedAt",
+        "8": "claimedAmount",
+      });
+
+      const summary = await validate(batchId);
+      expect(summary).toMatchObject({ totalRows: 2, validRows: 2, failedRows: 0 });
+
+      await confirm(batchId);
+      const result = await process(batchId);
+      expect(result.importedRows).toBe(2);
+      expect(result.failedRows).toBe(0);
+
+      const cases = await inTenant(() =>
+        prisma.clientCase.findMany({
+          where: { barbershopId: shopId, client: { normalizedWhatsapp: { startsWith: "1198767" } } },
+          select: {
+            nickname: true,
+            status: true,
+            priority: true,
+            caseNumber: true,
+            shareWithClient: true,
+            claimedAmount: true,
+            client: { select: { normalizedWhatsapp: true } },
+          },
+          orderBy: { nickname: "asc" },
+        }),
+      );
+      expect(cases).toHaveLength(2);
+      expect(cases.every((item) => item.shareWithClient === false)).toBe(true);
+      expect(cases.map((item) => item.nickname)).toEqual([
+        "Ação de cobrança",
+        "Reclamação trabalhista",
+      ]);
+      expect(cases[0]).toMatchObject({
+        status: "ACTIVE",
+        priority: "HIGH",
+        caseNumber: "1024127-78.2020.8.26.0100",
+      });
+      expect(cases[1]).toMatchObject({ status: "IN_COURT", priority: "NORMAL" });
+
+      const efeitos = await inTenant(async () => ({
+        caixa: await prisma.cashMovement.count({ where: { barbershopId: shopId } }),
+        honorarios: await prisma.caseSuccessFee.count({ where: { barbershopId: shopId } }),
+        crm: await prisma.crmFinancialEvent.count({ where: { barbershopId: shopId } }),
+        notificacoes: await prisma.notificationDelivery.count({ where: { barbershopId: shopId } }),
+      }));
+      expect(efeitos).toEqual({ caixa: 0, honorarios: 0, crm: 0, notificacoes: 0 });
+
+      const undoResponse = await app.inject({
+        method: "POST",
+        url: `/api/barbershops/${shopId}/imports/${batchId}/undo`,
+        headers,
+        payload: {},
+      });
+      expect(undoResponse.statusCode).toBe(200);
+      expect(undoResponse.json().data.removed).toBe(4);
+
+      const remaining = await inTenant(async () => ({
+        cases: await prisma.clientCase.count({
+          where: { barbershopId: shopId, client: { normalizedWhatsapp: { startsWith: "1198767" } } },
+        }),
+        clients: await prisma.salonClient.count({
+          where: { barbershopId: shopId, normalizedWhatsapp: { startsWith: "1198767" } },
+        }),
+      }));
+      expect(remaining).toEqual({ cases: 0, clients: 0 });
+    } finally {
+      await prisma.barbershop.update({
+        where: { id: shopId },
+        data: { businessSegment: "BARBERSHOP" },
+      });
+    }
   });
 
   it("importar a agenda atualiza os contadores de CRM sem virar receita", async () => {
@@ -634,6 +754,243 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
       }),
     );
     expect(client).not.toBeNull();
+  });
+
+  it("Fase 1: planilha .ods (formato detectado pelo conteúdo) entra e importa", async () => {
+    // O arquivo é um OpenDocument de verdade; o nome e o mimetype enviados
+    // (o multipart manda "text/csv" para qualquer coisa que não seja .xlsx)
+    // não valem nada — o backend olha a assinatura do conteúdo.
+    const ods = readFileSync(
+      join(__dirname, "..", "..", "modules", "dataImport", "utils", "fixtures", "exemplo-clientes.ods"),
+    );
+
+    const batchId = await upload("clientes.ods", ods);
+
+    const batch = await inTenant(() =>
+      prisma.importBatch.findUnique({
+        where: { id: batchId },
+        select: { fileFormat: true },
+      }),
+    );
+    expect(batch?.fileFormat).toBe("ODS");
+
+    await configureTarget(batchId, "CLIENTS");
+    await saveMapping(batchId, { "0": "name", "1": "whatsapp" });
+    const summary = await validate(batchId);
+    expect(summary.totalRows).toBe(3);
+    expect(summary.validRows).toBe(3);
+    expect(summary.failedRows).toBe(0);
+
+    await confirm(batchId);
+    const result = await process(batchId);
+    expect(result.importedRows).toBe(3);
+    expect(result.failedRows).toBe(0);
+
+    const clients = await inTenant(() =>
+      prisma.salonClient.findMany({
+        where: { barbershopId: shopId, normalizedWhatsapp: { startsWith: "1198" } },
+        select: { id: true, name: true },
+      }),
+    );
+    expect(clients.length).toBeGreaterThanOrEqual(3);
+    expect(clients.some((client) => client.name === "Ana Souza")).toBe(true);
+
+    await inTenant(() =>
+      prisma.salonClient.deleteMany({
+        where: { barbershopId: shopId, normalizedWhatsapp: { startsWith: "1198" } },
+      }),
+    );
+  });
+
+  it("Fase 1: .xls com tamanho declarado falso é recusado no upload", async () => {
+    const xls = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "modules",
+        "dataImport",
+        "utils",
+        "fixtures",
+        "hostil-xls-tamanho-falso.xls",
+      ),
+    );
+
+    const response = await uploadEsperandoRecusa("clientes.xls", xls);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.message).toMatch(/tamanho maior do que o arquivo tem/i);
+  });
+
+  it("Fase 1: PDF com objeto gigante é recusado no upload", async () => {
+    const pdf = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "modules",
+        "dataImport",
+        "utils",
+        "fixtures",
+        "hostil-pdf-objeto-gigante.pdf",
+      ),
+    );
+
+    const response = await uploadEsperandoRecusa("clientes.pdf", pdf);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.message).toMatch(/grande demais/i);
+  });
+
+  it("Fase 1: PDF com 12 páginas é recusado no upload", async () => {
+    const pdf = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "modules",
+        "dataImport",
+        "utils",
+        "fixtures",
+        "hostil-pdf-muitas-paginas.pdf",
+      ),
+    );
+
+    const response = await uploadEsperandoRecusa("clientes.pdf", pdf);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.message).toMatch(/12 páginas|limite é 10/i);
+  });
+
+  it("Fase 1: .xls multi-aba entra e importa a aba escolhida", async () => {
+    const xls = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "modules",
+        "dataImport",
+        "utils",
+        "fixtures",
+        "exemplo-clientes-2abas.xls",
+      ),
+    );
+
+    // Os telefones da fixture podem já existir de outro teste: o teste
+    // precisa ser independente da ordem de execução.
+    await inTenant(() =>
+      prisma.salonClient.deleteMany({
+        where: {
+          barbershopId: shopId,
+          normalizedWhatsapp: { in: ["11987654321", "11988887777", "11977776666"] },
+        },
+      }),
+    );
+
+    const batchId = await upload("duas-abas.xls", xls);
+
+    const batch = await inTenant(() =>
+      prisma.importBatch.findUnique({
+        where: { id: batchId },
+        select: { fileFormat: true },
+      }),
+    );
+    expect(batch?.fileFormat).toBe("XLS");
+
+    await configureTargets(batchId, [
+      { sheetName: "Clientes", targetType: "CLIENTS" },
+      { sheetName: "Serviços", targetType: "SERVICES" },
+    ]);
+    await saveMappingSheets(batchId, [
+      {
+        sheetName: "Clientes",
+        targetType: "CLIENTS",
+        columns: { "0": "name", "1": "whatsapp" },
+      },
+      {
+        sheetName: "Serviços",
+        targetType: "SERVICES",
+        columns: { "0": "serviceName", "1": "price", "2": "durationMinutes" },
+      },
+    ]);
+
+    const summary = await validate(batchId);
+    // 3 clientes da 1ª aba + 1 serviço da 2ª aba.
+    expect(summary.totalRows).toBe(4);
+
+    await confirm(batchId);
+    const result = await process(batchId);
+    // "Corte Teste" já existe no catálogo do salão (criado no setup): a linha
+    // de serviço entra como ignorada, não como duplicata.
+    expect(result.importedRows).toBe(3);
+    expect(result.skippedRows).toBe(1);
+    expect(result.failedRows).toBe(0);
+
+    const clients = await inTenant(() =>
+      prisma.salonClient.findMany({
+        where: { barbershopId: shopId, normalizedWhatsapp: { startsWith: "1198" } },
+        select: { name: true },
+      }),
+    );
+    expect(clients.some((client) => client.name === "Ana Souza")).toBe(true);
+
+    await inTenant(() =>
+      prisma.salonClient.deleteMany({
+        where: { barbershopId: shopId, normalizedWhatsapp: { startsWith: "1198" } },
+      }),
+    );
+  });
+
+  it("Fase 1: .xlsx com célula mesclada não duplica o cliente", async () => {
+    const xlsx = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "modules",
+        "dataImport",
+        "utils",
+        "fixtures",
+        "exemplo-celulas-mescladas.xlsx",
+      ),
+    );
+
+    await inTenant(() =>
+      prisma.salonClient.deleteMany({
+        where: { barbershopId: shopId, normalizedWhatsapp: "11987654321" },
+      }),
+    );
+
+    const batchId = await upload("mescladas.xlsx", xlsx);
+    await configureTarget(batchId, "CLIENTS");
+    await saveMapping(batchId, { "0": "name", "1": "whatsapp" });
+    const summary = await validate(batchId);
+    // Duas linhas na planilha: a mesclada ("Ana Souza") e a linha seguinte,
+    // que não tem nome nem WhatsApp (células vazias da mescla).
+    expect(summary.totalRows).toBe(2);
+    expect(summary.validRows).toBe(1);
+    expect(summary.failedRows).toBe(1);
+
+    await confirm(batchId);
+    const result = await process(batchId);
+    expect(result.importedRows).toBe(1);
+    expect(result.failedRows).toBe(1);
+
+    const clients = await inTenant(() =>
+      prisma.salonClient.findMany({
+        where: { barbershopId: shopId, normalizedWhatsapp: { startsWith: "1198" } },
+        select: { name: true },
+      }),
+    );
+    // A linha mesclada NÃO duplicou o cliente: "Ana Souza" entra uma vez só.
+    const ana = clients.filter((client) => client.name === "Ana Souza");
+    expect(ana).toHaveLength(1);
+
+    await inTenant(() =>
+      prisma.salonClient.deleteMany({
+        where: { barbershopId: shopId, normalizedWhatsapp: { startsWith: "1198" } },
+      }),
+    );
   });
 });
 

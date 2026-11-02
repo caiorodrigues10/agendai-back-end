@@ -8,9 +8,11 @@
 import type {
   ImportFieldDefinition,
   ImportFieldKey,
+  ImportFileFormat,
   ImportTargetType,
 } from "./dataImport.types";
 import { isModuleEnabled } from "@/shared/segments/segmentGate";
+import { hasSegmentFeature } from "@/shared/segments";
 import type { BusinessSegment } from "@prisma/client";
 
 /** ── Limites ─────────────────────────────────────────────────────────────── */
@@ -71,26 +73,35 @@ export const MAX_IMPORT_CELL_LENGTH = 500;
 
 /** ── Arquivos ────────────────────────────────────────────────────────────── */
 
-/** Extensões aceitas no upload. */
-export const ALLOWED_IMPORT_EXTENSIONS = [".xlsx", ".csv"] as const;
-
 /**
- * Assinaturas binárias aceitas. A extensão sozinha não vale: o conteúdo
- * precisa bater com o formato declarado.
+ * Extensão do arquivo temporário por formato **detectado**.
+ *
+ * A extensão do nome enviado pelo dono não decide nada: ela é ignorada na
+ * validação. Serve só para o arquivo guardado em disco ter a extensão do
+ * conteúdo que ele realmente tem.
  */
-export const IMPORT_FILE_SIGNATURES: Record<string, string[]> = {
-  XLSX: ["PK\u0003\u0004", "PK\u0005\u0006", "PK\u0007\u0008"],
-  CSV: [],
+export const IMPORT_FORMAT_EXTENSIONS: Record<ImportFileFormat, string> = {
+  XLSX: ".xlsx",
+  XLSM: ".xlsm",
+  XLS: ".xls",
+  ODS: ".ods",
+  PDF: ".pdf",
+  CSV: ".csv",
 };
 
-/** Extensões recusadas com mensagem explícita (macros, formatos legados). */
-export const REJECTED_IMPORT_EXTENSIONS: Record<string, string> = {
-  ".xlsm": "Arquivos .xlsm (com macros) não são aceitos. Salve como .xlsx.",
-  ".xlsb": "Arquivos .xlsb não são aceitos. Salve como .xlsx ou .csv.",
-  ".xls": "Arquivos .xls (Excel 97-2003) não são aceitos. Salve como .xlsx ou .csv.",
-  ".ods": "Arquivos .ods (LibreOffice) não são aceitos. Salve como .xlsx ou .csv.",
-  ".zip": "Compactas (.zip) não são aceitas. Envie a planilha diretamente.",
+/** Como cada formato é chamado para o dono (mensagens de erro e ajuda). */
+export const IMPORT_FORMAT_LABELS: Record<ImportFileFormat, string> = {
+  XLSX: ".xlsx",
+  XLSM: ".xlsm",
+  XLS: ".xls",
+  ODS: ".ods",
+  PDF: ".pdf",
+  CSV: ".csv/.tsv/.txt",
 };
+
+/** Formatos aceitos — a lista é para o texto de ajuda, não para validar. */
+export const IMPORT_SUPPORTED_FORMATS_LABEL =
+  ".xlsx, .xlsm, .xls, .ods, PDF com texto ou .csv/.tsv/.txt";
 
 /** ── Campos por alvo ─────────────────────────────────────────────────────── */
 
@@ -662,6 +673,125 @@ const FIADO_FIELDS: ImportFieldDefinition[] = [
   },
 ];
 
+
+const CASE_FIELDS: ImportFieldDefinition[] = [
+  {
+    key: "clientName",
+    label: "Cliente",
+    required: true,
+    type: "text",
+    synonyms: ["cliente", "nome do cliente", "client", "customer", "nome_cliente", "parte", "requerente"],
+    hint: "Nome do cliente do processo. O telefone identifica quem já existe.",
+  },
+  {
+    key: "clientWhatsapp",
+    label: "WhatsApp do cliente",
+    required: true,
+    type: "phone",
+    synonyms: ["whatsapp", "telefone", "celular", "fone", "phone", "contato", "telefone do cliente"],
+    hint: "Identidade do cliente no CRM. Com DDD.",
+  },
+  {
+    key: "caseName",
+    label: "Apelido do caso",
+    required: true,
+    type: "text",
+    synonyms: ["caso", "apelido", "apelido do caso", "nome do caso", "case", "acao", "ação", "demanda"],
+    hint: "Apelido interno do processo. Nunca aparece para o cliente.",
+  },
+  {
+    key: "caseNumber",
+    label: "Número do processo",
+    required: false,
+    type: "text",
+    synonyms: ["numero do processo", "número do processo", "processo", "numero cnj", "número cnj", "cnj", "process number"],
+    hint: "Padrão CNJ. Se o dígito não conferir, a prévia avisa — não bloqueia.",
+  },
+  {
+    key: "practiceArea",
+    label: "Área de atuação",
+    required: false,
+    type: "text",
+    synonyms: ["area", "área", "area de atuacao", "área de atuação", "pratica", "prática", "practice area", "especialidade"],
+  },
+  {
+    key: "caseStatus",
+    label: "Situação",
+    required: false,
+    type: "text",
+    synonyms: ["situacao", "situação", "status", "estado", "fase", "situacao do processo"],
+    hint: "Lead, em andamento, aguardando cliente, em juízo, suspenso, encerrado ou arquivado.",
+  },
+  {
+    key: "casePriority",
+    label: "Prioridade",
+    required: false,
+    type: "text",
+    synonyms: ["prioridade", "priority", "urgencia", "urgência"],
+  },
+  {
+    key: "caseTitle",
+    label: "Título do processo",
+    required: false,
+    type: "text",
+    synonyms: ["titulo", "título", "titulo do processo", "title", "classe", "assunto"],
+  },
+  {
+    key: "courtName",
+    label: "Órgão julgador / vara",
+    required: false,
+    type: "text",
+    synonyms: ["vara", "comarca", "orgao julgador", "órgão julgador", "tribunal", "court", "juizo", "juízo"],
+  },
+  {
+    key: "opponent",
+    label: "Parte adversária",
+    required: false,
+    type: "text",
+    synonyms: ["parte adversaria", "parte adversária", "adversario", "adversário", "requerido", "opponent", "re"],
+  },
+  {
+    key: "claimedAmount",
+    label: "Valor da causa",
+    required: false,
+    type: "money",
+    synonyms: ["valor da causa", "valor da acao", "valor da ação", "pretensao", "pretensão", "claimed amount", "valor pretendido"],
+    hint: "Valor da pretensão. Não entra no caixa nem nas receitas.",
+  },
+  {
+    key: "awardedAmount",
+    label: "Valor obtido",
+    required: false,
+    type: "money",
+    synonyms: ["valor obtido", "valor recebido", "exito", "êxito", "condenacao", "condenação", "acordo", "awarded amount"],
+    hint: "Valor efetivamente obtido. Base do honorário de êxito; não entra no caixa.",
+  },
+  {
+    key: "openedAt",
+    label: "Data de abertura",
+    required: false,
+    type: "date",
+    synonyms: ["data de abertura", "abertura", "data do caso", "data de inicio", "data de início", "opened at", "distribuicao", "distribuição"],
+    hint: "Data em que o escritório abriu o caso. Use dd/mm/aaaa.",
+  },
+  {
+    key: "staffName",
+    label: "Advogado responsável",
+    required: false,
+    type: "text",
+    synonyms: ["advogado", "advogada", "responsavel", "responsável", "advogado responsavel", "advogado responsável", "profissional"],
+    hint: "Nome de quem já está na equipe. Nome ambíguo entra sem responsável, com aviso.",
+  },
+  {
+    key: "notes",
+    label: "Observações",
+    required: false,
+    type: "text",
+    synonyms: ["observacoes", "observações", "obs", "notas", "notes", "comentarios", "comentários"],
+    hint: "Observação interna. Nunca aparece para o cliente.",
+  },
+];
+
 /** Campos aceitos por alvo. */
 export const IMPORT_FIELDS_BY_TARGET: Record<ImportTargetType, ImportFieldDefinition[]> = {
   CLIENTS: CLIENT_FIELDS,
@@ -674,6 +804,7 @@ export const IMPORT_FIELDS_BY_TARGET: Record<ImportTargetType, ImportFieldDefini
   SERVICE_PACKAGES: SERVICE_PACKAGE_FIELDS,
   CLIENT_PACKAGES: CLIENT_PACKAGE_FIELDS,
   FIADOS: FIADO_FIELDS,
+  CASES: CASE_FIELDS,
 };
 
 /**
@@ -694,6 +825,7 @@ export const IMPORT_TARGET_ORDER: ImportTargetType[] = [
   "TIME_OFF",
   "CLIENT_PACKAGES",
   "FIADOS",
+  "CASES",
   "APPOINTMENTS",
 ];
 
@@ -709,6 +841,7 @@ export const IMPORT_TARGETS: ImportTargetType[] = [
   "SERVICE_PACKAGES",
   "CLIENT_PACKAGES",
   "FIADOS",
+  "CASES",
 ];
 
 /**
@@ -725,6 +858,7 @@ export const IMPORT_TARGET_LABELS: Record<ImportTargetType, string> = {
   SERVICE_PACKAGES: "Pacotes (catálogo)",
   CLIENT_PACKAGES: "Pacotes dos clientes",
   FIADOS: "Fiado (dívidas)",
+  CASES: "Processos",
 };
 
 /**
@@ -737,8 +871,14 @@ export const IMPORT_TARGET_LABELS: Record<ImportTargetType, string> = {
 export function availableImportTargets(
   segment?: BusinessSegment | null,
 ): ImportTargetType[] {
-  if (isModuleEnabled(segment, "products")) return IMPORT_TARGETS;
-  return IMPORT_TARGETS.filter((target) => target !== "PRODUCTS");
+  let targets = IMPORT_TARGETS;
+  if (!isModuleEnabled(segment, "products")) {
+    targets = targets.filter((target) => target !== "PRODUCTS");
+  }
+  if (!hasSegmentFeature(segment, "caseManagement")) {
+    targets = targets.filter((target) => target !== "CASES");
+  }
+  return targets;
 }
 
 /** Opções padrão do assistente. */
@@ -833,6 +973,7 @@ export const IMPORT_TEMPLATE_FILE_NAME: Record<ImportTargetType, string> = {
   SERVICE_PACKAGES: "modelo-importacao-pacotes.xlsx",
   CLIENT_PACKAGES: "modelo-importacao-pacotes-clientes.xlsx",
   FIADOS: "modelo-importacao-fiado.xlsx",
+  CASES: "modelo-importacao-processos.xlsx",
 };
 
 /**

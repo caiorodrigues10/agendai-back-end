@@ -19,7 +19,7 @@ import {
   MAX_IMPORT_SHEETS,
 } from "../dataImport.constants";
 import { AppError } from "@/shared/errors/AppError";
-import { normalizeHeaders } from "./csvParser";
+import { buildSheetMatrix } from "./sheetMatrix";
 
 export interface XlsxParseResult {
   headers: string[];
@@ -120,6 +120,11 @@ export async function parseXlsxSheets(buffer: Buffer): Promise<XlsxSheetResult[]
       const cells: string[] = [];
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         if (colNumber > MAX_IMPORT_COLUMNS) return;
+        // Célula escrava de uma mescla: o valor está na célula mestra. Sem
+        // este cuidado, a linha inteira aparece repetida (o mesmo cliente
+        // viraria duas linhas — ou duas duplicidades).
+        const master = cell.master;
+        if (master && master.address !== cell.address) return;
         cells[colNumber - 1] = cellToText(cell.value).slice(0, MAX_IMPORT_CELL_LENGTH);
       });
       while (cells.length && cells[cells.length - 1] === "") cells.pop();
@@ -130,12 +135,7 @@ export async function parseXlsxSheets(buffer: Buffer): Promise<XlsxSheetResult[]
     // para ela. Só a aba que ele escolheu precisa ter conteúdo.
     if (!matrix.length) continue;
 
-    const headers = normalizeHeaders(matrix[0]);
-    const rows = matrix.slice(1).map((cells) => {
-      const limited = cells.slice(0, headers.length);
-      while (limited.length < headers.length) limited.push("");
-      return limited.slice(0, headers.length);
-    });
+    const { headers, rows } = buildSheetMatrix(matrix);
 
     if (rows.length > MAX_IMPORT_ROWS) {
       throw new AppError(

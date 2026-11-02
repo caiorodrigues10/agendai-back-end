@@ -9,6 +9,7 @@
 
 | Pacote | Versão | Categoria | Finalidade | Evidência de uso |
 |---|---|---|---|---|
+| `@e965/xlsx` | `^0.20.3` | Planilhas | Leitura de `.xls` (BIFF8) — mirror do SheetJS CE 0.20.3 (o `xlsx` do registry está parado em 0.18.5, com CVE) | modules/dataImport/utils/xlsParser.ts |
 | `@fastify/cookie` | `^9.4.0` | HTTP | Cookies | app Fastify |
 | `@fastify/cors` | `^9.0.1` | HTTP | CORS | app.ts |
 | `@fastify/helmet` | `^11.1.1` | HTTP | Headers de segurança | app.ts |
@@ -45,9 +46,11 @@
 | `pdfkit` | `^0.20.2` | PDF | Geração de relatório em PDF | modules/dataExport |
 | `archiver` | `^7.0.1` | Zip | Geração de .zip (exportação CSV) | modules/dataExport |
 | `fastify` | `^4.26.2` | HTTP | Framework HTTP | server/app |
+| `fast-xml-parser` | `^5.11.2` | XML | Leitura do `content.xml` do OpenDocument (`.ods`) | modules/dataImport/utils/odsParser.ts |
 | `google-auth-library` | `^11.0.2` | Auth | OAuth Google | Google login |
 | `ioredis` | `^6.0.0` | Cache | Cliente Redis | REDIS_URL / BullMQ |
 | `jsonwebtoken` | `^9.0.2` | Auth | JWT | authenticate / refresh |
+| `jszip` | `^3.10.2` | Zip | Leitura do container ZIP (`.ods`, `.xlsm`) | modules/dataImport/utils/odsParser.ts |
 | `mercadopago` | `^3.1.0` | Pagamentos | SDK Mercado Pago | MercadoPagoService (há também fetch direto) |
 | `node-cron` | `^4.6.0` | Jobs | Cron in-process | appointmentReminders / postPublisher |
 | `pg` | `^8.20.0` | Persistência | Driver PostgreSQL | Prisma adapter |
@@ -58,6 +61,7 @@
 | `satori` | `0.63.2` | Mídia | Layout → SVG (glifos em path) do motor de camadas | posts/templates/_engine/render.ts |
 | `sharp` | `^0.35.5` | Mídia | Decodificação/validação de imagens (dimensões, EXIF) | shared/utils/imageValidation.ts |
 | `tsconfig-paths` | `^4.2.0` | Build | Aliases runtime | tsx/dev |
+| `unpdf` | `^2.1.0` | PDF | Extração de texto posicionado de PDF | modules/dataImport/utils/pdfParser.ts |
 | `tsyringe` | `^4.8.0` | DI | Injeção de dependências | shared/container |
 | `zod` | `^3.23.8` | Validação | Schemas HTTP | modules/*/schemas |
 

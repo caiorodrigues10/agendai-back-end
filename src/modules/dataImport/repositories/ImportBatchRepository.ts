@@ -22,6 +22,7 @@ export interface CreateImportBatchData {
   headers?: string[];
   createdById?: string | null;
   expiresAt: Date;
+  source?: string;
 }
 
 export class ImportBatchRepository {
@@ -38,6 +39,7 @@ export class ImportBatchRepository {
         headers: data.headers ?? undefined,
         createdById: data.createdById ?? null,
         expiresAt: data.expiresAt,
+        source: data.source ?? "WEB",
       },
     });
   }

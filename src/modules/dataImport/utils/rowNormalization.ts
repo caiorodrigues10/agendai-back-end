@@ -8,6 +8,7 @@
  */
 import { salonClientWhatsappKey } from "@/modules/clients/utils/ensureSalonClient";
 import { IMPORT_WEEKDAYS } from "../dataImport.constants";
+import { looksScientificNotation } from "./numericText";
 
 /** Excel conta os dias a partir de 30/12/1899 (bug histórico do Excel). */
 const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30);
@@ -122,12 +123,34 @@ function isValidTime(hour: number, minute: number): boolean {
 /**
  * Telefone em dígitos nacionais (10–11), o formato usado no CRM.
  * Devolve null quando o número não serve como identidade.
+ *
+ * Regras:
+ *   • notação científica → null (os dígitos não são confiáveis);
+ *   • DDI 55 (12/13/14 dígitos) → removido;
+ *   • zero à esquerda (prefixo de operadora/antigo DDD) → removido;
+ *   • 10 ou 11 dígitos nacionais → aceitos como estão (inclusive **sem zero
+ *     à esquerda**, que é o formato que o Excel entrega).
  */
 export function normalizePhone(value: string): string | null {
   const text = String(value ?? "").trim();
   if (!text) return null;
-  const digits = text.replace(/\D/g, "");
+
+  if (looksScientificNotation(text)) return null;
+
+  let digits = text.replace(/\D/g, "");
   if (!digits) return null;
+
+  // DDI 55: 55 + DDD + número.
+  if ((digits.length === 13 || digits.length === 14) && digits.startsWith("55")) {
+    digits = digits.slice(2);
+  }
+
+  // Zero à esquerda (0 + DDD + número): some com o prefixo, não com o número.
+  if (digits.startsWith("0")) {
+    const semZero = digits.slice(1);
+    if (semZero.length === 10 || semZero.length === 11) digits = semZero;
+  }
+
   return salonClientWhatsappKey(digits);
 }
 

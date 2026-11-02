@@ -1,44 +1,40 @@
 /**
  * Validação de segurança do arquivo enviado na importação.
  *
+ * Regra central (Fase 1): **o formato vem do conteúdo** (magic bytes), nunca
+ * da extensão nem do mimetype. A extensão é escrita por quem exportou a
+ * planilha e mente com frequência: `.csv` que é XLSX, `.xlsx` que é CSV,
+ * `.xls` que é HTML. A assinatura do arquivo não mente.
+ *
  * Regras aplicadas (todas antes de qualquer leitura da planilha):
  *   • tamanho máximo;
- *   • extensão permitida — com mensagem específica para .xlsm/.xls/.ods;
- *   • assinatura real do conteúdo, compatível com a extensão declarada;
- *   • recusa de binário sem texto (CSV que é na verdade um .xls renomeado);
- *   • inspeção do ZIP (.xlsx): ZIP bomb e macros.
+ *   • detecção do formato pelo conteúdo;
+ *   • guarda de ZIP (bomba e número de entradas) para os formatos que são ZIP;
+ *   • nome do arquivo sanitizado para exibição.
  *
  * O nome do arquivo enviado NUNCA é usado para montar caminho: o servidor
  * grava com um nome próprio (uuid), o que evita path traversal e colisão.
  */
 import {
-  ALLOWED_IMPORT_EXTENSIONS,
+  IMPORT_FORMAT_EXTENSIONS,
+  IMPORT_SUPPORTED_FORMATS_LABEL,
   MAX_IMPORT_FILE_SIZE_BYTES,
-  REJECTED_IMPORT_EXTENSIONS,
 } from "../dataImport.constants";
 import type { ImportFileFormat } from "../dataImport.types";
 import { AppError } from "@/shared/errors/AppError";
+import { detectImportFormat } from "./formatDetector";
 import { inspectZip, ZipGuardError } from "./zipGuard";
-
-/** Assinatura OLE2 — usada pelo Excel 97-2003 (.xls). */
-const OLE2_SIGNATURE = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
-
-/** Assinatura ZIP (PK). */
-const ZIP_SIGNATURES = [Buffer.from("PK\u0003\u0004", "binary"), Buffer.from("PK\u0005\u0006", "binary"), Buffer.from("PK\u0007\u0008", "binary")];
+import { inspectOle2 } from "./oleGuard";
+import { inspectPdf } from "./pdfGuard";
 
 export interface ValidatedImportFile {
+  /** Formato detectado pelo conteúdo. */
   format: ImportFileFormat;
+  /** Extensão canônica do formato detectado (não a do nome enviado). */
   extension: string;
+  /** Nome para exibição, sem caminho. */
   fileName: string;
   fileSize: number;
-}
-
-/** Extensão em minúsculas, sem caminho. */
-export function extractExtension(fileName: string): string {
-  const base = String(fileName || "").split(/[\\/]/).pop() ?? "";
-  const dot = base.lastIndexOf(".");
-  if (dot <= 0 || dot === base.length - 1) return "";
-  return base.slice(dot).toLowerCase();
 }
 
 /**
@@ -46,25 +42,7 @@ export function extractExtension(fileName: string): string {
  * mensagem adequada para o usuário final.
  */
 export function validateImportFile(fileName: string, buffer: Buffer): ValidatedImportFile {
-  const extension = extractExtension(fileName);
-
-  if (!extension) {
-    throw new AppError("Arquivo sem extensão. Envie um arquivo .xlsx ou .csv.", 400);
-  }
-
-  const rejected = REJECTED_IMPORT_EXTENSIONS[extension];
-  if (rejected) {
-    throw new AppError(rejected, 400);
-  }
-
-  if (!(ALLOWED_IMPORT_EXTENSIONS as readonly string[]).includes(extension)) {
-    throw new AppError(
-      "Formato não suportado. Envie um arquivo .xlsx ou .csv.",
-      400,
-    );
-  }
-
-  if (buffer.length === 0) {
+  if (!buffer || buffer.length === 0) {
     throw new AppError("O arquivo enviado está vazio.", 400);
   }
 
@@ -75,22 +53,11 @@ export function validateImportFile(fileName: string, buffer: Buffer): ValidatedI
     );
   }
 
-  if (buffer.subarray(0, 8).equals(OLE2_SIGNATURE)) {
-    throw new AppError(
-      "Este arquivo está no formato .xls (Excel 97-2003). Salve como .xlsx ou .csv e tente de novo.",
-      400,
-    );
-  }
+  // O formato vem da assinatura do conteúdo — a extensão do nome é ignorada.
+  const format = detectImportFormat(buffer);
 
-  const isZip = ZIP_SIGNATURES.some((signature) => buffer.subarray(0, 4).equals(signature));
-
-  if (extension === ".xlsx") {
-    if (!isZip) {
-      throw new AppError(
-        "O conteúdo do arquivo não é uma planilha .xlsx válida.",
-        400,
-      );
-    }
+  // Os formatos que são ZIP passam pela guarda antes de qualquer descompactação.
+  if (format === "XLSX" || format === "XLSM" || format === "ODS") {
     try {
       inspectZip(buffer);
     } catch (err) {
@@ -99,34 +66,24 @@ export function validateImportFile(fileName: string, buffer: Buffer): ValidatedI
       }
       throw new AppError("Não foi possível ler a planilha enviada.", 400);
     }
-    return {
-      format: "XLSX",
-      extension,
-      fileName: sanitizeFileName(fileName),
-      fileSize: buffer.length,
-    };
   }
 
-  // .csv — recusa binário disfarçado (planilha em formato antigo renomeada).
-  if (isZip || looksBinary(buffer)) {
-    throw new AppError(
-      "O conteúdo do arquivo não é um CSV de texto. Se for uma planilha, salve como .xlsx.",
-      400,
-    );
+  // O `.xls` declara o tamanho dos streams no cabeçalho OLE2 e o PDF declara
+  // o tamanho dos objetos: os dois podem mentir. A guarda roda **aqui**,
+  // no upload, para o arquivo traiçoeiro nunca nem chegar a ser gravado.
+  if (format === "XLS") {
+    inspectOle2(buffer);
+  }
+  if (format === "PDF") {
+    inspectPdf(buffer);
   }
 
   return {
-    format: "CSV",
-    extension,
+    format,
+    extension: IMPORT_FORMAT_EXTENSIONS[format],
     fileName: sanitizeFileName(fileName),
     fileSize: buffer.length,
   };
-}
-
-/** Heurística simples: NUL no começo indica conteúdo binário. */
-function looksBinary(buffer: Buffer): boolean {
-  const sample = buffer.subarray(0, Math.min(buffer.length, 8192));
-  return sample.includes(0);
 }
 
 /**
@@ -141,3 +98,6 @@ export function sanitizeFileName(fileName: string): string {
     .trim();
   return (cleaned || "planilha").slice(0, 255);
 }
+
+/** Texto de ajuda para o dono (usado nas mensagens do sistema). */
+export const IMPORT_FORMATS_HELP = IMPORT_SUPPORTED_FORMATS_LABEL;

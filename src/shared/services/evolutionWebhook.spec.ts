@@ -18,6 +18,7 @@ describe("parseEvolutionWebhook (compartilhado)", () => {
       phone: "551199999999",
       text: "oi",
       instanceName: "agendai-ia",
+      remoteJid: "551199999999@s.whatsapp.net",
     });
   });
 

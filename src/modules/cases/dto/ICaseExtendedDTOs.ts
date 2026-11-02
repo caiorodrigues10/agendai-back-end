@@ -114,6 +114,17 @@ export interface ICaseSuccessFeeDTO {
   updatedAt: Date;
 }
 
+export interface ICaseFeesReportRow extends ICaseSuccessFeeDTO {
+  caseNumber?: string | null;
+  clientName?: string | null;
+}
+
+export interface ICaseFeesReport {
+  summary: import("../utils/successFeeReport").SuccessFeeReportSummary;
+  rows: ICaseFeesReportRow[];
+  generatedAt: Date;
+}
+
 export interface ICourtIntimationDTO {
   id: string;
   barbershopId: string;

@@ -245,6 +245,7 @@ function buildService(options: {
     actions: options.actions,
     hasAccess: async () => options.hasAccess ?? true,
     now: () => new Date("2026-10-27T12:00:00Z"),
+    isPaused: async () => false,
   });
   return { service, sent, store };
 }

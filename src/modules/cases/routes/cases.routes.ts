@@ -33,6 +33,11 @@ export async function casesRoutes(app: FastifyInstance) {
     { preHandler: staffGuard },
     controller.practiceAreaReport.bind(controller)
   );
+  app.get(
+    "/cases/reports/fees",
+    { preHandler: staffGuard },
+    controller.successFeesReport.bind(controller)
+  );
   app.get("/cases/:caseId", { preHandler: staffGuard }, controller.getCase.bind(controller));
   app.get(
     "/cases/:caseId/overview",

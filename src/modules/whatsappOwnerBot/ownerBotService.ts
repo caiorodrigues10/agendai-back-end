@@ -1,8 +1,13 @@
 import type { BusinessSegment } from "@prisma/client";
-import { normalizeWhatsAppPhone } from "@/shared/services/evolutionApiService";
+import { normalizeWhatsAppPhone, downloadEvolutionMedia } from "@/shared/services/evolutionApiService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { AppError } from "@/shared/errors/AppError";
+import { getPlatformWhatsAppSettings } from "@/shared/services/platformWhatsAppSettings";
+import { availableImportTargets } from "@/modules/dataImport/dataImport.constants";
+import { DataImportUseCases } from "@/modules/dataImport/dataImportUseCases";
+import { validateImportFile } from "@/modules/dataImport/utils/fileValidation";
 import { hashOwnerBotLinkCode, verifyOwnerBotLinkCode } from "./linkCode";
+import { isPlatformInstance } from "./ownerBotWebhook";
 import {
   formatDateLabel,
   formatRelativeDateLabel,
@@ -97,6 +102,15 @@ export type OwnerBotServiceDeps = {
   actions?: OwnerBotActions;
   hasAccess?: (barbershopId: string) => Promise<boolean>;
   now?: () => Date;
+  /**
+   * Pausa global de envios (kill switch do plataforma).
+   *
+   * Quando true, o assistente fica em SILÊNCIO TOTAL: nenhuma resposta sai,
+   * nem recusa, nem confirmação. Sem isso, a pausa valeria só para as ações
+   * que passam pelo ponto de envio — e uma recusa de importação (que acontece
+   * antes dele) ainda chegaria ao dono.
+   */
+  isPaused?: () => Promise<boolean>;
 };
 
 type ActiveLink = Awaited<ReturnType<OwnerBotRepository["findActiveLinksByPhone"]>>[number];
@@ -110,6 +124,7 @@ export class OwnerBotService {
   private actions: OwnerBotActions;
   private hasAccess: (barbershopId: string) => Promise<boolean>;
   private now: () => Date;
+  private isPaused: () => Promise<boolean>;
 
   constructor(deps: OwnerBotServiceDeps = {}) {
     this.repo = deps.repo ?? new OwnerBotRepository();
@@ -118,6 +133,12 @@ export class OwnerBotService {
     this.actions = deps.actions ?? createOwnerBotActions();
     this.hasAccess = deps.hasAccess ?? hasOwnerBotAccess;
     this.now = deps.now ?? (() => new Date());
+    this.isPaused =
+      deps.isPaused ??
+      (async () => {
+        const settings = await getPlatformWhatsAppSettings();
+        return !settings.ownerBotGloballyEnabled || settings.outboundPaused;
+      });
   }
 
   // ─── Entrada ───────────────────────────────────────────────────────────────
@@ -125,13 +146,21 @@ export class OwnerBotService {
   async handleIncoming(message: OwnerBotIncomingMessage): Promise<void> {
     const phone = normalizeWhatsAppPhone(message.phone ?? "");
     const text = (message.text ?? "").trim();
-    if (!phone || !text) return;
+    const media = message.media;
+    if (!phone) return;
+    if (!text && !media) return;
 
     // Idempotência: a Evolution reenvia a mesma mensagem (key.id) em retries.
     if (await this.store.markMessageSeen(message.messageId)) return;
 
-    const intent = parseOwnerBotIntent(text);
     const links = await this.repo.findActiveLinksByPhone(phone);
+
+    if (media) {
+      await this.handleIncomingMedia(phone, message, links);
+      return;
+    }
+
+    const intent = parseOwnerBotIntent(text);
 
     if (intent.type === "LINK_CODE") {
       await this.handleLinkCode(phone, intent.code, links);
@@ -147,6 +176,48 @@ export class OwnerBotService {
     }
 
     const state = (await this.store.getState(phone)) ?? { updatedAt: this.now().getTime() };
+
+    // Escolha de unidade para importação de mídia pendente.
+    // Qualquer resposta vale como tentativa de escolha — resposta que não é
+    // número válido é inválida: a lista repete uma vez e, na segunda, cancela.
+    const pendingMedia = state.pendingMediaImport;
+    if (pendingMedia && state.lastList?.kind === "SHOPS") {
+      const expired = Date.now() - pendingMedia.createdAt > 10 * 60 * 1000;
+      if (expired) {
+        state.pendingMediaImport = undefined;
+        state.lastList = undefined;
+        await this.saveState(phone, state);
+        await this.reply(phone, "A importação expirou. Reenvie o arquivo para tentar de novo.");
+        return;
+      }
+      const digits = text.match(/^(\d{1,2})$/);
+      const index = digits ? Number(digits[1]) : 0;
+      const item = index > 0 ? state.lastList.items[index - 1] : undefined;
+      if (!item) {
+        pendingMedia.retryCount += 1;
+        if (pendingMedia.retryCount >= 2) {
+          state.pendingMediaImport = undefined;
+          state.lastList = undefined;
+          await this.saveState(phone, state);
+          await this.reply(phone, "Importação cancelada. Reenvie o arquivo se quiser tentar de novo.");
+        } else {
+          await this.saveState(phone, state);
+          await this.reply(phone, this.shopChoiceMessage(state.lastList.items));
+        }
+        return;
+      }
+      state.pendingMediaImport = undefined;
+      state.lastList = undefined;
+      await this.saveState(phone, state);
+      const chosenLink = links.find((l) => l.barbershopId === item.id);
+      if (!chosenLink) {
+        await this.reply(phone, "Unidade não encontrada. Reenvie o arquivo.");
+        return;
+      }
+      await this.processMediaForLink(phone, chosenLink, pendingMedia.media, pendingMedia.messageId, message.instanceName, message.remoteJid);
+      return;
+    }
+
     const context = await this.resolveContext(phone, links, state);
     if (!context) return;
 
@@ -192,6 +263,286 @@ export class OwnerBotService {
   }
 
   // ─── Vínculo ───────────────────────────────────────────────────────────────
+
+  /** Mensagem com a lista numerada das unidades vinculadas. */
+  private shopChoiceMessage(items: Array<{ id: string; label: string }>): string {
+    return `Você tem ${items.length} unidades vinculadas. Para qual delas importar este arquivo?\n${items
+      .map((item, index) => `${index + 1}. ${item.label}`)
+      .join("\n")}`;
+  }
+
+  private async handleIncomingMedia(
+    phone: string,
+    message: OwnerBotIncomingMessage,
+    links: Awaited<ReturnType<OwnerBotRepository["findActiveLinksByPhone"]>>,
+  ): Promise<void> {
+    const media = message.media!;
+
+    // 1. Número não vinculado.
+    //    Sem vínculo não há salão para atribuir o log — e `barbershopId` é
+    //    obrigatório e tem foreign key. Não se inventa id: não há log.
+    if (!links.length) {
+      if (await this.store.allowUnlinkedReply(phone)) {
+        await this.reply(phone, OWNER_BOT_MESSAGES.notLinked());
+      }
+      return;
+    }
+
+    // 2+ vínculos: pedir escolha de salão, sem baixar/processar.
+    if (links.length > 1) {
+      const state = (await this.store.getState(phone)) ?? { updatedAt: this.now().getTime() };
+      const pending = state.pendingMediaImport;
+      const expired = pending && Date.now() - pending.createdAt > 10 * 60 * 1000;
+      if (pending && !expired && pending.messageId === message.messageId) {
+        // já perguntado; aguarda resposta numérica
+        return;
+      }
+      state.pendingMediaImport = {
+        messageId: message.messageId,
+        media,
+        retryCount: 0,
+        createdAt: Date.now(),
+      };
+      state.lastList = {
+        kind: "SHOPS",
+        items: links.map((link) => ({ id: link.barbershopId, label: link.barbershop.name })),
+      };
+      await this.store.setState(phone, state);
+      await this.reply(phone, this.shopChoiceMessage(state.lastList.items));
+      return;
+    }
+
+    const link = links[0];
+    await this.processMediaForLink(phone, link, media, message.messageId, message.instanceName, message.remoteJid);
+    return;
+  }
+
+  private async processMediaForLink(
+    phone: string,
+    link: Awaited<ReturnType<OwnerBotRepository["findActiveLinksByPhone"]>>[number],
+    media: NonNullable<OwnerBotIncomingMessage["media"]>,
+    messageId: string,
+    instanceName?: string,
+    remoteJid?: string,
+  ): Promise<void> {
+    // A ordem das checagens abaixo é fixa: nada é baixado antes de saber que
+    // a importação vai acontecer. Download só vem depois de todas recusarem
+    // ou passarem.
+
+    // 0. A mídia chegou para este salão — fica registrada.
+    await this.repo.logAction({
+      barbershopId: link.barbershopId,
+      userId: link.userId,
+      action: "IMPORT_MEDIA_RECEIVED",
+      status: "SUCCESS",
+      request: { messageId: messageId, mediaType: media.type },
+    }).catch(() => undefined);
+
+    // 1. Vínculo ativo.
+    if (link.barbershop.active === false) {
+      await this.reply(phone, "Este estabelecimento está inativo. Fale com o suporte para reativar.");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: "estabelecimento inativo",
+      }).catch(() => undefined);
+      return;
+    }
+
+    // 2. Papel OWNER.
+    if (link.user?.role !== "OWNER" || link.user?.active === false) {
+      await this.reply(phone, "Apenas o dono do estabelecimento pode importar dados.");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: "usuário não é OWNER ativo",
+      }).catch(() => undefined);
+      return;
+    }
+
+    // 3. Assinatura/trial ativo.
+    if (!(await this.hasAccess(link.barbershopId))) {
+      await this.reply(phone, OWNER_BOT_MESSAGES.subscriptionBlocked());
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: "assinatura/trial inativo",
+      }).catch(() => undefined);
+      return;
+    }
+
+    // 4. Segmento permite importação.
+    const segment = link.barbershop.businessSegment as Parameters<typeof availableImportTargets>[0];
+    const targets = availableImportTargets(segment);
+    if (!targets.length) {
+      await this.reply(phone, "A importação de dados não está disponível para o segmento deste estabelecimento.");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: "segmento sem alvos de importação",
+      }).catch(() => undefined);
+      return;
+    }
+
+    // 5. Cota de importações (5 por hora, 1 ativa).
+    const useCases = new DataImportUseCases();
+    try {
+      await useCases.checkImportQuota(link.barbershopId);
+    } catch (err) {
+      const motivo = err instanceof AppError ? err.message : "limite de importações atingido";
+      await this.reply(phone, motivo);
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: motivo,
+      }).catch(() => undefined);
+      return;
+    }
+
+    // 6. Kill switch / modo seguro / outboundPaused.
+    //    Envio pausado = silêncio: não responde e não importa.
+    let platformSettings;
+    try {
+      platformSettings = await getPlatformWhatsAppSettings();
+    } catch {
+      platformSettings = null;
+    }
+    if (!platformSettings || !platformSettings.ownerBotGloballyEnabled || platformSettings.outboundPaused) {
+      return;
+    }
+
+    // 7. Instância da plataforma.
+    if (!isPlatformInstance(instanceName)) {
+      logger.warn({ instanceName }, "Mídia recebida em outra instância — ignorada");
+      return;
+    }
+
+    // 8. Tipo de mídia suportado.
+    if (media.type === "image") {
+      await this.reply(phone, "Recebi a imagem. Importação automática de imagem ainda não está disponível — envie a planilha (.xlsx, .xls, .ods, .xlsm, PDF com texto ou .csv) para importar clientes, serviços, agenda e outros dados.");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: "imagem não suportada (sem OCR)",
+      }).catch(() => undefined);
+      return;
+    }
+    if (media.type !== "document") {
+      await this.reply(phone, "Só consigo importar planilhas por aqui. Envie um arquivo .xlsx, .xls, .ods, .xlsm, PDF com texto ou .csv.");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: "tipo de mídia não suportado",
+      }).catch(() => undefined);
+      return;
+    }
+
+    // 9. Tamanho do arquivo (metadados da Evolution).
+    const fileLength = (media as { fileLength?: number }).fileLength;
+    if (typeof fileLength === "number" && fileLength > 10 * 1024 * 1024) {
+      await this.reply(phone, "O arquivo passa de 10 MB. Envie um arquivo menor.");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_REJECTED",
+        status: "BLOCKED",
+        request: { messageId: messageId, mediaType: media.type, fileLength },
+        errorMessage: "arquivo maior que 10 MB",
+      }).catch(() => undefined);
+      return;
+    }
+
+    // 10. Download + validação do arquivo.
+    const downloaded = await downloadEvolutionMedia(
+      instanceName,
+      messageId,
+      remoteJid ?? `${phone}@s.whatsapp.net`,
+    );
+    if (!downloaded) {
+      await this.reply(phone, "Não consegui baixar o arquivo enviado. Tente novamente ou envie pelo painel (Configurações > Importar dados).");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_RECEIVED",
+        status: "ERROR",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: "falha no download",
+      }).catch(() => undefined);
+      return;
+    }
+
+    let fileNameToUpload: string;
+    try {
+      const validated = validateImportFile(downloaded.fileName ?? media.fileName ?? "arquivo", downloaded.buffer);
+      fileNameToUpload = validated.fileName;
+    } catch (err) {
+      await this.reply(phone, err instanceof AppError ? err.message : "Arquivo inválido para importação.");
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_RECEIVED",
+        status: "ERROR",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: err instanceof AppError ? err.message : "arquivo inválido",
+      }).catch(() => undefined);
+      return;
+    }
+
+    try {
+      const result = await useCases.upload({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        fileName: fileNameToUpload,
+        buffer: downloaded.buffer,
+        source: "WHATSAPP_OWNER_BOT",
+        ipAddress: null,
+      });
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_CREATED",
+        status: "SUCCESS",
+        request: { messageId: messageId, mediaType: media.type },
+        result: { batchId: result.id },
+        affectedIds: [result.id],
+      }).catch(() => undefined);
+      await this.reply(
+        phone,
+        `Arquivo recebido (${fileNameToUpload}). Abra o AgendAI → Configurações → Importar dados para revisar, mapear e confirmar (lote ${result.id}).`,
+      );
+    } catch (err) {
+      await this.repo.logAction({
+        barbershopId: link.barbershopId,
+        userId: link.userId,
+        action: "IMPORT_MEDIA_RECEIVED",
+        status: "ERROR",
+        request: { messageId: messageId, mediaType: media.type },
+        errorMessage: err instanceof AppError ? err.message : "falha ao registrar importação",
+      }).catch(() => undefined);
+      await this.reply(phone, err instanceof AppError ? err.message : "Não foi possível registrar a importação. Tente pelo painel.");
+    }
+  }
 
   private async handleLinkCode(
     phone: string,
@@ -1606,6 +1957,9 @@ export class OwnerBotService {
   // ─── Utilidades ────────────────────────────────────────────────────────────
 
   private async reply(phone: string, text: string): Promise<void> {
+    // Pausado = silêncio total. Vale para toda resposta, inclusive as recusas
+    // que acontecem antes do ponto de envio.
+    if (await this.isPaused()) return;
     const parts = splitMessage(text);
     for (const part of parts) {
       try {

@@ -327,6 +327,7 @@ async function undoClient(
           fiados: true,
           financialEvents: true,
           reviews: true,
+          cases: true,
         },
       },
     },
@@ -337,7 +338,8 @@ async function undoClient(
       client._count.packages +
       client._count.fiados +
       client._count.financialEvents +
-      client._count.reviews >
+      client._count.reviews +
+      (client._count.cases ?? 0) >
     0
   ) {
     return { action: "kept", reason: "O cliente ganhou movimentações depois da importação." };

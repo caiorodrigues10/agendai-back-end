@@ -16,6 +16,8 @@ export interface OwnerBotJobData {
   text: string;
   instanceName?: string;
   correlationId?: string;
+  media?: { type: "image" | "document" | "audio" | "video"; mimetype?: string; fileName?: string; fileLength?: number };
+  remoteJid?: string;
 }
 
 const QUEUE_NAME = "owner-bot";

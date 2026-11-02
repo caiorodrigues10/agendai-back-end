@@ -22,6 +22,7 @@ describe("parseEvolutionWebhook", () => {
       phone: "551199999999",
       text: "olá",
       instanceName: "agendai-plataforma",
+      remoteJid: "551199999999@s.whatsapp.net",
     });
   });
 

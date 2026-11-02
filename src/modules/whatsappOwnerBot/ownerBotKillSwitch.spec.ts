@@ -95,6 +95,7 @@ describe("kill switch owner bot", () => {
       phone: "551199999999",
       text: "oi",
       instanceName: "agendai-plataforma",
+      remoteJid: "551199999999@s.whatsapp.net",
     });
     expect(sent[0].data).toEqual({ queued: true });
   });

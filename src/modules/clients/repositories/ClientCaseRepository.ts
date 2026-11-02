@@ -9,6 +9,10 @@ export interface IClientCaseRepository {
   create(data: ICreateClientCaseDTO): Promise<IClientCaseResponseDTO>;
   findById(id: string, barbershopId: string): Promise<IClientCaseResponseDTO | null>;
   listByClient(barbershopId: string, clientId: string): Promise<IClientCaseResponseDTO[]>;
+  findByCaseNumber(
+    barbershopId: string,
+    caseNumber: string
+  ): Promise<Array<{ id: string; nickname: string }>>;
   update(
     id: string,
     barbershopId: string,
@@ -46,6 +50,16 @@ export class ClientCaseRepository implements IClientCaseRepository {
       },
     });
     return { ...created, claimedAmount: toAmount(created.claimedAmount), awardedAmount: toAmount(created.awardedAmount) };
+  }
+
+  async findByCaseNumber(
+    barbershopId: string,
+    caseNumber: string
+  ): Promise<Array<{ id: string; nickname: string }>> {
+    return prisma.clientCase.findMany({
+      where: { barbershopId, caseNumber },
+      select: { id: true, nickname: true },
+    });
   }
 
   async findById(id: string, barbershopId: string): Promise<IClientCaseResponseDTO | null> {

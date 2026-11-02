@@ -5514,6 +5514,10 @@ enum OwnerBotActionStatus {
 /// Formatos de arquivo aceitos pela importação.
 enum ImportFileFormat {
   XLSX
+  XLSM
+  XLS
+  ODS
+  PDF
   CSV
 }
 
@@ -5539,6 +5543,8 @@ enum ImportTargetType {
   CLIENT_PACKAGES
   /// Dívidas (fiado) de clientes.
   FIADOS
+  /// Processos e casos do escritório.
+  CASES
   /// Lote com abas de tipos diferentes. O detalhe de cada aba vive no plano
   /// (JSON do mapeamento).
   MIXED
@@ -5640,6 +5646,8 @@ model ImportBatch {
   crmCountersAppliedAt DateTime?
   /// Fim da janela de desfazer (30 dias a partir da criação).
   expiresAt            DateTime
+  /// Origem do lote: WEB (upload no painel) ou WHATSAPP_OWNER_BOT (arquivo enviado pelo dono no WhatsApp).
+  source               String            @default("WEB") @db.VarChar(20)
 
   barbershop Barbershop            @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   createdBy  User?                 @relation("ImportBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -5648,6 +5656,7 @@ model ImportBatch {
 
   @@index([barbershopId, createdAt])
   @@index([barbershopId, status])
+  @@index([barbershopId, source], map: "import_batches_barbershopId_source_idx")
   @@map("import_batches")
 }
 

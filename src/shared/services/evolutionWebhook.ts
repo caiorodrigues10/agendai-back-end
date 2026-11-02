@@ -10,6 +10,14 @@ import { normalizeWhatsAppPhone } from "@/shared/services/evolutionApiService";
  * nome da instância.
  */
 
+export type EvolutionMediaInfo = {
+  type: "image" | "document" | "audio" | "video";
+  mimetype?: string;
+  fileName?: string;
+  caption?: string;
+  fileLength?: number;
+};
+
 export type EvolutionWebhookEvent =
   | {
       type: "INBOUND_MESSAGE";
@@ -17,6 +25,8 @@ export type EvolutionWebhookEvent =
       phone: string;
       text: string;
       instanceName?: string;
+      remoteJid?: string;
+      media?: EvolutionMediaInfo;
     }
   | { type: "IGNORED"; reason: string };
 
@@ -61,6 +71,28 @@ function extractMessageText(message: Json | null): string | undefined {
 }
 
 /** Interpreta o corpo do webhook. Retorna IGNORED quando não é uma mensagem de texto. */
+function detectMedia(message: Record<string, unknown> | null): EvolutionMediaInfo | undefined {
+  if (!message) return undefined;
+  const mediaKeys: Array<{ key: string; type: EvolutionMediaInfo["type"] }> = [
+    { key: "imageMessage", type: "image" },
+    { key: "documentMessage", type: "document" },
+    { key: "audioMessage", type: "audio" },
+    { key: "videoMessage", type: "video" },
+  ];
+  for (const { key, type } of mediaKeys) {
+    const media = asRecord(message[key]);
+    if (!media) continue;
+    return {
+      type,
+      mimetype: (typeof media.mimetype === "string" && media.mimetype) || undefined,
+      fileName: (typeof media.fileName === "string" && media.fileName) || (typeof media.filename === "string" && media.filename) || undefined,
+      caption: (typeof media.caption === "string" && media.caption) || undefined,
+      fileLength: (typeof media.fileLength === "number" && media.fileLength) || (typeof media.filelength === "number" && media.filelength) || undefined,
+    };
+  }
+  return undefined;
+}
+
 export function parseEvolutionWebhook(payload: unknown): EvolutionWebhookEvent {
   const root = asRecord(payload);
   if (!root) return { type: "IGNORED", reason: "payload inválido" };
@@ -90,10 +122,22 @@ export function parseEvolutionWebhook(payload: unknown): EvolutionWebhookEvent {
   const messageId = readString(key.id) ?? readString(data.messageId);
   if (!messageId) return { type: "IGNORED", reason: "sem id da mensagem" };
 
-  const text = extractMessageText(asRecord(data.message));
-  if (!text) return { type: "IGNORED", reason: "mensagem sem texto" };
+  const messageRecord = asRecord(data.message);
+  const text = extractMessageText(messageRecord);
+  const media = detectMedia(messageRecord);
 
-  return { type: "INBOUND_MESSAGE", messageId, phone, text, instanceName };
+  if (!text && !media) return { type: "IGNORED", reason: "mensagem sem texto" };
+
+  const base: EvolutionWebhookEvent = {
+    type: "INBOUND_MESSAGE",
+    messageId,
+    phone,
+    text: text ?? "",
+    instanceName,
+    remoteJid,
+  };
+  if (media) (base as { media?: EvolutionMediaInfo }).media = media;
+  return base;
 }
 
 /** Comparação em tempo constante do segredo do webhook. */

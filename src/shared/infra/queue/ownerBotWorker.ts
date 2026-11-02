@@ -40,6 +40,8 @@ function createWorker(): Worker<OwnerBotJobData> {
             phone: job.data.phone,
             text: job.data.text,
             instanceName: job.data.instanceName,
+            ...(job.data.remoteJid ? { remoteJid: job.data.remoteJid } : {}),
+            ...(job.data.media ? { media: job.data.media } : {}),
           });
           resetIdleTimer();
           return { handled: true };

@@ -28,6 +28,13 @@ import {
 import { resolveTimeOffStatus } from "../processors/timeOffImporter";
 import { resolveUnit, resolveProductType } from "../processors/productImporter";
 import { resolvePackagePaymentMethod } from "../processors/packageImporter";
+import {
+  caseNumberWarning,
+  findExistingCase,
+  parseCasePriority,
+  parseCaseStatus,
+  resolveCaseStaff,
+} from "../processors/caseImporter";
 import { lookupStaff, lookupService, lookupServicePackage } from "../processors/lookups";
 import { normalizeHeaderText } from "./columnMapping";
 
@@ -60,6 +67,9 @@ export async function validateRow(
   }
   if (targetType === "FIADOS") {
     return validateFiadoRow(db, barbershopId, row, context, rowNumber);
+  }
+  if (targetType === "CASES") {
+    return validateCaseRow(db, barbershopId, row, context, rowNumber);
   }
   return validateAppointmentRow(db, barbershopId, row, context, rowNumber);
 }
@@ -818,6 +828,125 @@ async function validateFiadoRow(
     );
   }
   warnings.push("A dívida importada não entra no primeiro ciclo de cobrança.");
+
+  return { rowNumber, status: "VALID", warnings };
+}
+
+/** Processos (`CASES`). */
+async function validateCaseRow(
+  db: AppTx,
+  barbershopId: string,
+  row: Record<string, string>,
+  context: ImportRowContext,
+  rowNumber: number,
+): Promise<RowValidationResult> {
+  const clientName = salonClientDisplayName(cellValue(row, context, "clientName"));
+  if (!clientName) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "clientName",
+      message: "Nome do cliente ausente ou muito curto.",
+    };
+  }
+
+  const rawPhone = cellValue(row, context, "clientWhatsapp");
+  const phone = normalizePhone(rawPhone);
+  if (!phone) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "clientWhatsapp",
+      message: rawPhone
+        ? "Telefone do cliente inválido. Use DDD + número (10 ou 11 dígitos)."
+        : "Telefone do cliente ausente.",
+    };
+  }
+
+  const nickname = cellValue(row, context, "caseName").slice(0, 120);
+  if (nickname.length < 2) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "caseName",
+      message: "Apelido do caso ausente ou muito curto.",
+    };
+  }
+
+  const caseNumber = cellValue(row, context, "caseNumber").slice(0, 30);
+
+  const rawOpenedAt = cellValue(row, context, "openedAt");
+  if (rawOpenedAt && !normalizeDate(rawOpenedAt)) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "openedAt",
+      message: "Data de abertura inválida. Use dd/mm/aaaa.",
+    };
+  }
+
+  const rawClaimed = cellValue(row, context, "claimedAmount");
+  if (rawClaimed && normalizeMoney(rawClaimed) === null) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "claimedAmount",
+      message: "Valor da causa inválido. Use número, ex.: 10000 ou 10000,00.",
+    };
+  }
+
+  const rawAwarded = cellValue(row, context, "awardedAmount");
+  if (rawAwarded && normalizeMoney(rawAwarded) === null) {
+    return {
+      rowNumber,
+      status: "FAILED",
+      field: "awardedAmount",
+      message: "Valor obtido inválido. Use número, ex.: 10000 ou 10000,00.",
+    };
+  }
+
+  const warnings: string[] = [];
+  const cnjWarning = caseNumberWarning(caseNumber);
+  if (cnjWarning) warnings.push(cnjWarning);
+
+  const status = parseCaseStatus(cellValue(row, context, "caseStatus"));
+  if (status.warning) warnings.push(status.warning);
+  const priority = parseCasePriority(cellValue(row, context, "casePriority"));
+  if (priority.warning) warnings.push(priority.warning);
+
+  const staffWarning = (
+    await resolveCaseStaff(db, barbershopId, cellValue(row, context, "staffName"))
+  ).warning;
+  if (staffWarning) warnings.push(staffWarning);
+
+  const client = await db.salonClient.findFirst({
+    where: { barbershopId, normalizedWhatsapp: phone },
+    select: { id: true },
+  });
+  if (!client) {
+    warnings.push("O cliente ainda não existe: ele será criado junto com o processo.");
+  }
+
+  const duplicate = await findExistingCase(db, barbershopId, {
+    caseNumber,
+    clientId: client?.id ?? null,
+    nickname,
+  });
+  if (duplicate) {
+    return {
+      rowNumber,
+      status: "SKIPPED",
+      field: caseNumber ? "caseNumber" : "caseName",
+      message: caseNumber
+        ? "Processo com este número já existe."
+        : "Processo com este apelido já existe para o cliente.",
+      warnings,
+    };
+  }
+
+  warnings.push(
+    "O processo importado não lança caixa, receita, honorário nem comissão, e não é compartilhado com o cliente.",
+  );
 
   return { rowNumber, status: "VALID", warnings };
 }

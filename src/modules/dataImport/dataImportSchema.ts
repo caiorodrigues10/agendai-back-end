@@ -38,6 +38,16 @@ const importFieldKeySchema = z.enum([
   "modality",
   "caseName",
   "practiceArea",
+  // processos
+  "caseNumber",
+  "caseStatus",
+  "casePriority",
+  "caseTitle",
+  "courtName",
+  "opponent",
+  "claimedAmount",
+  "awardedAmount",
+  "openedAt",
   // horários (profissional e estabelecimento)
   "dayOfWeek",
   "startTime",
@@ -95,6 +105,7 @@ export const importTargetSchema = z.enum([
   "SERVICE_PACKAGES",
   "CLIENT_PACKAGES",
   "FIADOS",
+  "CASES",
 ]);
 
 export const importBatchParamsSchema = z.object({

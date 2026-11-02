@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { UpdateClientCaseUseCase } from "./caseUseCases";
+import { CreateClientCaseUseCase, UpdateClientCaseUseCase } from "./caseUseCases";
 import type { IClientCaseRepository } from "../../repositories/ClientCaseRepository";
 import type { CaseBacklogRepository } from "@/modules/cases/repositories/CaseBacklogRepository";
 
@@ -88,5 +88,115 @@ describe("UpdateClientCaseUseCase", () => {
     await expect(
       useCase.execute(CASE_ID, SHOP, { awardedAmount: 100 }, outsider)
     ).rejects.toThrow(/Acesso negado/);
+  });
+});
+
+describe("CreateClientCaseUseCase", () => {
+  const createdCase = {
+    id: CASE_ID,
+    barbershopId: SHOP,
+    clientId: "client-1",
+    nickname: "Ação de cobrança",
+    caseNumber: "0000001-78.2020.8.26.0100",
+    active: true,
+    status: "LEAD" as const,
+    priority: "NORMAL" as const,
+    shareWithClient: false,
+    openedAt: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  function makeCreateRepo(overrides: Record<string, unknown> = {}) {
+    return {
+      create: vi.fn(async (data: Record<string, unknown>) => ({ ...createdCase, ...data })),
+      findByCaseNumber: vi.fn(async () => []),
+      ...overrides,
+    };
+  }
+
+  it("avisa quando já existe processo com o mesmo número no escritório", async () => {
+    const repo = makeCreateRepo({
+      findByCaseNumber: vi.fn(async () => [
+        { id: "case-existing", nickname: "Outro processo" },
+      ]),
+    });
+    const useCase = new CreateClientCaseUseCase(repo as unknown as IClientCaseRepository);
+
+    const result = await useCase.execute(
+      {
+        barbershopId: SHOP,
+        clientId: "client-1",
+        nickname: "Ação de cobrança",
+        caseNumber: createdCase.caseNumber,
+      },
+      owner
+    );
+
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "DUPLICATE_CASE_NUMBER" }),
+      ])
+    );
+  });
+
+  it("cria o caso mesmo quando a checagem de duplicata falha", async () => {
+    const repo = makeCreateRepo({
+      findByCaseNumber: vi.fn(async () => {
+        throw new Error("banco indisponível");
+      }),
+    });
+    const useCase = new CreateClientCaseUseCase(repo as unknown as IClientCaseRepository);
+
+    const result = await useCase.execute(
+      {
+        barbershopId: SHOP,
+        clientId: "client-1",
+        nickname: "Ação de cobrança",
+        caseNumber: createdCase.caseNumber,
+      },
+      owner
+    );
+
+    expect(result.id).toBe(CASE_ID);
+    expect(result.warnings ?? []).toEqual([]);
+  });
+
+  it("avisa quando o dígito verificador do CNJ está errado, sem bloquear", async () => {
+    const repo = makeCreateRepo();
+    const useCase = new CreateClientCaseUseCase(repo as unknown as IClientCaseRepository);
+
+    const result = await useCase.execute(
+      {
+        barbershopId: SHOP,
+        clientId: "client-1",
+        nickname: "Ação de cobrança",
+        caseNumber: "0000001-02.2020.8.26.0100",
+      },
+      owner
+    );
+
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "CNJ_CHECK_DIGIT" }),
+      ])
+    );
+  });
+
+  it("não avisa quando o número é único e o dígito confere", async () => {
+    const repo = makeCreateRepo();
+    const useCase = new CreateClientCaseUseCase(repo as unknown as IClientCaseRepository);
+
+    const result = await useCase.execute(
+      {
+        barbershopId: SHOP,
+        clientId: "client-1",
+        nickname: "Ação de cobrança",
+        caseNumber: createdCase.caseNumber,
+      },
+      owner
+    );
+
+    expect(result.warnings ?? []).toEqual([]);
   });
 });

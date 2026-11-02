@@ -11,9 +11,12 @@
  */
 
 import { AppError } from "@/shared/errors/AppError";
+import { getModuleLogger } from "@/shared/utils/logger";
 import { evolutionNotConfiguredError } from "@/modules/barbershops/utils/shopEvolutionInstance";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { getPlatformWhatsAppSettings } from "@/shared/services/platformWhatsAppSettings";
+
+const logger = getModuleLogger("evolution");
 
 export function normalizeWhatsAppPhone(phone: string): string {
   const clean = phone.replace(/\D/g, "");
@@ -494,4 +497,199 @@ export async function deleteEvolutionInstance(instanceName: string): Promise<voi
   await evolutionRequest(`/instance/delete/${encodeURIComponent(instanceName)}`, {
     method: "DELETE",
   });
+}
+
+
+/** Resultado do download de mídia inbound da Evolution. */
+export interface EvolutionMediaDownload {
+  buffer: Buffer;
+  mimetype: string;
+  fileName?: string;
+}
+
+const EVOLUTION_MEDIA_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Mimetypes aceitos na mídia recebida pelo WhatsApp.
+ *
+ * Isto é **filtro de entrada**, não decisão de formato: o formato real do
+ * arquivo é decidido depois pelo **conteúdo** (magic bytes, em
+ * `detectImportFormat`). O mimetype só evita baixar o que o assistente não
+ * sabe ler de cara (áudio, vídeo, executável).
+ *
+ * Precisa cobrir todos os formatos que a importação aceita: `.xlsx`, `.xlsm`,
+ * `.xls`, `.ods`, PDF e texto delimitado.
+ */
+const EVOLUTION_MEDIA_ALLOWED_MIMES = new Set([
+  // .xlsx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  // .xlsm (macro habilitada) — a macro nunca é executada pelo importador.
+  "application/vnd.ms-excel.sheet.macroEnabled.12",
+  // .xls (Excel 97-2003)
+  "application/vnd.ms-excel",
+  "application/excel",
+  "application/x-msexcel",
+  // .ods (OpenDocument Spreadsheet)
+  "application/vnd.oasis.opendocument.spreadsheet",
+  // texto delimitado
+  "text/csv",
+  "application/csv",
+  "text/plain",
+  "text/tab-separated-values",
+  // imagens
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  // PDF
+  "application/pdf",
+]);
+
+/**
+ * Baixa uma mídia recebida no webhook (imagem/documento) da Evolution.
+ * Best-effort: retorna null em qualquer falha ou tipo não permitido.
+ */
+
+/** Endereços de metadados da nuvem — nunca podem ser alvo de download. */
+const METADATA_HOSTS = new Set(["169.254.169.254", "metadata.google.internal", "metadata"]);
+
+function isAllowedMediaUrl(raw: string): { ok: boolean; reason?: string } {
+  let base: URL;
+  let target: URL;
+  try {
+    const b = process.env.EVOLUTION_API_URL?.trim()?.replace(/\/+$/, "") || "";
+    base = new URL(b);
+    target = new URL(raw);
+  } catch {
+    return { ok: false, reason: "url-invalida" };
+  }
+  if (target.protocol !== base.protocol && target.protocol !== "https:") {
+    return { ok: false, reason: "esquema-nao-permitido" };
+  }
+  if (METADATA_HOSTS.has(target.hostname.toLowerCase())) {
+    return { ok: false, reason: "ip-de-metadados" };
+  }
+  // Só volta para o mesmo host (e porta) da Evolution API — assim uma URL
+  // Fornecida pela Evolution não vira um proxy para a rede interna.
+  if (target.hostname !== base.hostname || target.port !== base.port) {
+    return { ok: false, reason: "host-ou-porta-diferente" };
+  }
+  return { ok: true };
+}
+
+export async function downloadEvolutionMedia(
+  instanceName: string | null | undefined,
+  messageId: string,
+  remoteJid?: string,
+): Promise<EvolutionMediaDownload | null> {
+  const baseUrl = evolutionBaseUrl();
+  const apiKey = evolutionApiKey();
+  const instance = instanceName?.trim();
+  if (!baseUrl || !apiKey || !instance || !messageId) return null;
+
+  const key: Record<string, unknown> = { id: messageId };
+  if (remoteJid) key.remoteJid = remoteJid;
+
+  const candidates = [
+    `${baseUrl}/chat/getBase64FromMediaMessage/${encodeURIComponent(instance)}`,
+  ];
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: apiKey },
+        body: JSON.stringify({ message: { key } }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) continue;
+      const json = (await res.json()) as Record<string, unknown>;
+      const base64 =
+        (typeof json.base64 === "string" && json.base64) ||
+        (typeof json.media === "string" && json.media) ||
+        (typeof (json.data as Record<string, unknown> | undefined)?.base64 === "string"
+          ? (json.data as Record<string, unknown>).base64
+          : undefined);
+      const mimetype =
+        (typeof json.mimetype === "string" && json.mimetype) ||
+        (typeof json.mimeType === "string" && json.mimeType) ||
+        (typeof (json.data as Record<string, unknown> | undefined)?.mimetype === "string"
+          ? (json.data as Record<string, unknown>).mimetype
+          : undefined) ||
+        "application/octet-stream";
+      const fileName =
+        (typeof json.fileName === "string" && json.fileName) ||
+        (typeof json.filename === "string" && json.filename) ||
+        undefined;
+
+      if (typeof base64 === "string" && base64.trim()) {
+        const clean = base64.replace(/^data:[^;]+;base64,/, "");
+        if (clean.length > Math.ceil((EVOLUTION_MEDIA_MAX_BYTES * 4) / 3) + 100) continue;
+        const buffer = Buffer.from(clean, "base64");
+        if (buffer.length === 0 || buffer.length > EVOLUTION_MEDIA_MAX_BYTES) continue;
+        if (!EVOLUTION_MEDIA_ALLOWED_MIMES.has(mimetype as string)) continue;
+        return { buffer, mimetype: mimetype as string, fileName };
+      }
+
+      const mediaUrl =
+        (typeof json.mediaUrl === "string" && json.mediaUrl) ||
+        (typeof json.url === "string" && json.url) ||
+        (typeof (json.data as Record<string, unknown> | undefined)?.url === "string"
+          ? (json.data as Record<string, unknown>).url
+          : undefined);
+      if (typeof mediaUrl === "string" && mediaUrl.trim()) {
+        const check = isAllowedMediaUrl(mediaUrl);
+        if (!check.ok) {
+          logger.warn({ reason: check.reason }, "downloadEvolutionMedia: URL bloqueada");
+          continue;
+        }
+        const r = await fetch(mediaUrl, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+        if (r.status >= 300 && r.status < 400) {
+          logger.warn({ status: r.status }, "downloadEvolutionMedia: redirect bloqueado");
+          continue;
+        }
+        if (!r.ok) continue;
+
+        // Content-Length: recusa antes de ler o corpo quando já dá para saber
+        // que o arquivo passa do limite.
+        const declaredLength = Number(r.headers.get("content-length") ?? "");
+        if (Number.isFinite(declaredLength) && declaredLength > EVOLUTION_MEDIA_MAX_BYTES) {
+          logger.warn({ declaredLength }, "downloadEvolutionMedia: arquivo grande demais (content-length)");
+          await r.body?.cancel().catch(() => undefined);
+          continue;
+        }
+
+        const reader = r.body?.getReader();
+        if (!reader) continue;
+        const chunks: Uint8Array[] = [];
+        let total = 0;
+        let tooBig = false;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            total += value.byteLength;
+            if (total > EVOLUTION_MEDIA_MAX_BYTES) {
+              tooBig = true;
+              // Cancela o reader: a conexão não fica aberta consumindo banda.
+              await reader.cancel().catch(() => undefined);
+              break;
+            }
+            chunks.push(value);
+          }
+        }
+        if (tooBig) {
+          logger.warn({ total }, "downloadEvolutionMedia: corpo maior que o limite");
+          continue;
+        }
+        const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+        if (buf.length === 0 || buf.length > EVOLUTION_MEDIA_MAX_BYTES) continue;
+        const mt = r.headers.get("content-type")?.split(";")[0]?.trim() || (mimetype as string);
+        if (!EVOLUTION_MEDIA_ALLOWED_MIMES.has(mt)) continue;
+        return { buffer: buf, mimetype: mt, fileName };
+      }
+    } catch {
+      // tenta próximo candidato
+    }
+  }
+  return null;
 }

@@ -10,9 +10,15 @@ import {
   RespondCaseTransferUseCase,
   TriageIntimationUseCase,
   IssueFeeInvoiceUseCase,
+  UpdateSuccessFeeUseCase,
 } from "./caseBacklogUseCases";
 import { ListClientPortalCasesUseCase } from "./deadlineAlertUseCases";
+import { createAuditLog } from "@/shared/services/auditLogService";
 import type { CaseBacklogRepository } from "../repositories/CaseBacklogRepository";
+
+vi.mock("@/shared/services/auditLogService", () => ({
+  createAuditLog: vi.fn().mockResolvedValue(undefined),
+}));
 
 const SHOP = "shop-1";
 const OTHER_SHOP = "shop-2";
@@ -162,6 +168,7 @@ describe("gestão de processos — backlog", () => {
   let repo: CaseBacklogRepository;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     repo = makeRepo();
   });
 
@@ -354,6 +361,121 @@ describe("gestão de processos — backlog", () => {
   // ─── Honorários de êxito ──────────────────────────────────────────────────
 
   describe("honorários de êxito", () => {
+    const successFee = (status: "PENDING" | "INVOICED" | "PAID" | "CANCELED") => ({
+      id: "fee-1",
+      barbershopId: SHOP,
+      caseId: CASE_ID,
+      caseName: "Ação de cobrança",
+      percent: 20,
+      baseAmount: 50000,
+      amount: 10000,
+      installments: 1,
+      status,
+      dueDate: null,
+      paidAt: null,
+      notes: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    it("permite PENDING → PAID e registra auditoria sem dados do processo", async () => {
+      const feeRepo = makeRepo({
+        findSuccessFee: vi.fn(async () => successFee("PENDING")),
+        updateSuccessFee: vi.fn(async (_shop, _id, data) => ({
+          ...successFee("PENDING"),
+          ...data,
+        })),
+      });
+
+      const useCase = new UpdateSuccessFeeUseCase(feeRepo);
+      const paidAt = new Date("2026-11-02T12:00:00Z");
+      const updated = await useCase.execute(
+        SHOP,
+        "fee-1",
+        { status: "PAID", paidAt },
+        owner
+      );
+
+      expect(updated.status).toBe("PAID");
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "user-1",
+          barbershopId: SHOP,
+          action: "CASE_SUCCESS_FEE_UPDATE",
+          resource: "CaseSuccessFee",
+          resourceId: "fee-1",
+        })
+      );
+
+      const audit = vi.mocked(createAuditLog).mock.calls[0][0];
+      const details = JSON.parse(audit.details ?? "{}");
+      expect(details).toEqual(
+        expect.objectContaining({ fromStatus: "PENDING", toStatus: "PAID" })
+      );
+      expect(audit.details).not.toContain("Ação de cobrança");
+      expect(audit.details).not.toContain(String(CASE_ID));
+    });
+
+    it("recusa mudança de status quando o usuário não tem id", async () => {
+      const feeRepo = makeRepo({
+        findSuccessFee: vi.fn(async () => successFee("PENDING")),
+      });
+
+      const useCase = new UpdateSuccessFeeUseCase(feeRepo);
+      await expect(
+        useCase.execute(SHOP, "fee-1", { status: "PAID" }, { role: "OWNER", barbershopId: SHOP })
+      ).rejects.toThrow(/usuário identificado/);
+
+      expect(feeRepo.updateSuccessFee).not.toHaveBeenCalled();
+      expect(createAuditLog).not.toHaveBeenCalled();
+    });
+
+    it("recusa PAID → PENDING sem atualizar nem auditar", async () => {
+      const feeRepo = makeRepo({
+        findSuccessFee: vi.fn(async () => successFee("PAID")),
+      });
+
+      const useCase = new UpdateSuccessFeeUseCase(feeRepo);
+      await expect(
+        useCase.execute(SHOP, "fee-1", { status: "PENDING" }, owner)
+      ).rejects.toThrow(/Transição de status inválida: PAID → PENDING/);
+
+      expect(feeRepo.updateSuccessFee).not.toHaveBeenCalled();
+      expect(createAuditLog).not.toHaveBeenCalled();
+    });
+
+    it("permite PAID → CANCELED para estorno", async () => {
+      const feeRepo = makeRepo({
+        findSuccessFee: vi.fn(async () => successFee("PAID")),
+        updateSuccessFee: vi.fn(async (_shop, _id, data) => ({
+          ...successFee("PAID"),
+          ...data,
+        })),
+      });
+
+      const useCase = new UpdateSuccessFeeUseCase(feeRepo);
+      const updated = await useCase.execute(
+        SHOP,
+        "fee-1",
+        { status: "CANCELED" },
+        owner
+      );
+
+      expect(updated.status).toBe("CANCELED");
+      expect(createAuditLog).toHaveBeenCalled();
+    });
+
+    it("recusa CANCELED → PAID", async () => {
+      const feeRepo = makeRepo({
+        findSuccessFee: vi.fn(async () => successFee("CANCELED")),
+      });
+
+      const useCase = new UpdateSuccessFeeUseCase(feeRepo);
+      await expect(
+        useCase.execute(SHOP, "fee-1", { status: "PAID" }, owner)
+      ).rejects.toThrow(/Transição de status inválida: CANCELED → PAID/);
+    });
+
     it("recalcula o honorário a partir do valor obtido no caso", async () => {
       const feeRepo = makeRepo({
         recalculateSuccessFee: vi.fn(async () => ({
@@ -385,6 +507,14 @@ describe("gestão de processos — backlog", () => {
       expect(feeRepo.recalculateSuccessFee).toHaveBeenCalledWith(SHOP, "fee-1");
       expect(fee.amount).toBe(10000);
       expect(fee.installments).toBe(2);
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "CASE_SUCCESS_FEE_CREATE",
+          resource: "CaseSuccessFee",
+          resourceId: "fee-1",
+          barbershopId: SHOP,
+        })
+      );
     });
   });
 

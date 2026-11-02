@@ -154,6 +154,11 @@ export class WhatsAppAiController {
       reply.send({ success: true, data: { ignored: event.reason } });
       return;
     }
+    // Mídia sem texto: atendente de IA não processa (sem custo de IA).
+    if (!event.text || !event.text.trim()) {
+      reply.send({ success: true, data: { ignored: "mensagem sem texto" } });
+      return;
+    }
 
     try {
       await enqueueWhatsAppAiMessage({

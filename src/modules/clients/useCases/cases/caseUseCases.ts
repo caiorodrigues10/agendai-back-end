@@ -8,6 +8,7 @@ import {
   IClientCaseResponseDTO,
 } from "../../dto/IClientCaseDTO";
 import { CaseBacklogRepository } from "@/modules/cases/repositories/CaseBacklogRepository";
+import { checkCnjCheckDigit } from "@/shared/utils/cnj";
 
 type RequestingUser = { role: string; barbershopId?: string };
 
@@ -38,7 +39,45 @@ export class CreateClientCaseUseCase {
   ): Promise<IClientCaseResponseDTO> {
     assertShopAccess(requestingUser, data.barbershopId);
     assertStaffRole(requestingUser);
-    return this.repo.create(data);
+
+    const created = await this.repo.create(data);
+    const caseNumber = created.caseNumber?.trim();
+    if (!caseNumber) return created;
+
+    const warnings: NonNullable<typeof created.warnings> = [];
+    const logger = getModuleLogger("client-cases");
+
+    try {
+      if (checkCnjCheckDigit(caseNumber) === "invalid") {
+        warnings.push({
+          code: "CNJ_CHECK_DIGIT",
+          message:
+            "O número do processo tem dígito verificador inválido. Confira o número antes de usar.",
+        });
+      }
+    } catch (error) {
+      logger.warn(
+        { err: error, barbershopId: data.barbershopId, caseId: created.id },
+        "Falha ao checar dígito do CNJ; caso criado sem esse aviso"
+      );
+    }
+
+    try {
+      const duplicates = await this.repo.findByCaseNumber(data.barbershopId, caseNumber);
+      if (duplicates.some((item) => item.id !== created.id)) {
+        warnings.push({
+          code: "DUPLICATE_CASE_NUMBER",
+          message: "Já existe outro processo com este número neste escritório.",
+        });
+      }
+    } catch (error) {
+      logger.warn(
+        { err: error, barbershopId: data.barbershopId, caseId: created.id },
+        "Falha ao checar duplicata; caso criado sem esse aviso"
+      );
+    }
+
+    return warnings.length > 0 ? { ...created, warnings } : created;
   }
 }
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { summarizeSuccessFees } from "../utils/successFeeReport";
 import { prisma } from "@/libs/prismaClient";
 import type {
   CaseEventType,
@@ -17,6 +18,7 @@ import type {
 } from "@prisma/client";
 import type {
   ICaseContractDTO,
+  ICaseFeesReport,
   ICaseFeeInvoiceDTO,
   ICaseSuccessFeeDTO,
   ICaseTimeEntryDTO,
@@ -568,6 +570,35 @@ export class CaseBacklogRepository {
       take: filters.limit ?? 100,
     })) as unknown as SuccessFeeWithContext[];
     return rows.map((r) => this.mapSuccessFee(r));
+  }
+
+  async successFeesReport(barbershopId: string): Promise<ICaseFeesReport> {
+    const rows = await prisma.caseSuccessFee.findMany({
+      where: { barbershopId },
+      include: {
+        case: {
+          select: {
+            id: true,
+            nickname: true,
+            caseNumber: true,
+            client: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
+    });
+
+    const mapped = rows.map((row) => ({
+      ...this.mapSuccessFee(row as unknown as SuccessFeeWithContext),
+      caseNumber: row.case?.caseNumber ?? null,
+      clientName: row.case?.client?.name ?? null,
+    }));
+
+    return {
+      summary: summarizeSuccessFees(mapped),
+      rows: mapped,
+      generatedAt: new Date(),
+    };
   }
 
   async findSuccessFee(

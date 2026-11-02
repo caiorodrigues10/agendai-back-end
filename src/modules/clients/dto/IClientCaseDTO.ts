@@ -49,6 +49,11 @@ export interface IUpdateClientCaseDTO {
   shareWithClient?: boolean;
 }
 
+export interface ICaseCreationWarningDTO {
+  code: "DUPLICATE_CASE_NUMBER" | "CNJ_CHECK_DIGIT";
+  message: string;
+}
+
 export interface IClientCaseResponseDTO {
   id: string;
   barbershopId: string;
@@ -72,4 +77,5 @@ export interface IClientCaseResponseDTO {
   closedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  warnings?: ICaseCreationWarningDTO[];
 }

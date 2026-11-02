@@ -180,6 +180,25 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Um segundo backfill do mesmo salão enquanto o anterior está `RUNNING` responde **409** ("Já existe um reprocessamento em andamento para este salão"); o lote global também recusa quando já há run `GLOBAL` em andamento.
 - Histórico do master: `GET /admin/crm/backfill/runs` (`DASHBOARD_READ`) pagina (`page`/`limit`, máx. 50) com filtros `status`/`scope`/`barbershopId`, devolve o nome do salão, `triggeredBy { id, name, email }` e `meta.running`/`meta.runningGlobal`. `runningGlobal` conta runs `GLOBAL` em `RUNNING` **independente dos filtros** — é a trava usada pelo front para bloquear um novo disparo global mesmo com a página/filtro atual sem esse registro.
 
+## Importação de planilhas via WhatsApp (bot do dono)
+
+- O assistente baixa a mídia via Evolution, valida tipo/tamanho pelo conteúdo (`validateImportFile`) e cria o lote com `source=WHATSAPP_OWNER_BOT`; revisão/mapeamento/confirmação/desfazer continuam no painel (deep link).
+- Mídia sem texto no atendente de IA é ignorada (sem custo de IA nem resposta).
+- Bot do dono: áudio/vídeo/tipos não suportados respondem "Só consigo importar planilhas por aqui. Envie um arquivo .xlsx, .xls, .ods, .xlsm, PDF com texto ou .csv/.tsv/.txt." (sem mencionar foto) sem tentar baixar; imagem sem OCR disponível recebe orientação para enviar planilha.
+- Vínculo com mais de um salão: não baixa nem processa; guarda mídia pendente em Redis (TTL 10 min) e pergunta a unidade; **qualquer resposta que não seja número válido** conta como inválida — a lista repete uma vez e a segunda cancela; expirado avisa para reenviar. Um único vínculo mantém o fluxo atual.
+- **Pausado = silêncio total**: `outboundPaused`/kill switch cortam QUALQUER resposta do assistente (inclusive recusas de importação, que acontecem antes do ponto de envio). A checagem mora no `reply` do serviço, não só no transporte.
+- Garantias antes de baixar, nesta ordem fixa: vínculo ativo → OWNER → assinatura/trial → segmento com alvos de importação → cota de upload (`checkImportQuota`) → kill switch/`outboundPaused` (pausado = **silêncio**: não responde e não importa) → instância da plataforma → tipo de mídia → tamanho do arquivo. Nenhuma recusa chega no download. Idempotência por `messageId` (chave Redis com TTL 24 h); arquivo temporário removido em erro.
+- O `remoteJid` do webhook atravessa a fila até o download (`downloadEvolutionMedia`) — não é derivado do telefone.
+- SSRF: `downloadEvolutionMedia` aceita apenas host/porta/esquema de `EVOLUTION_API_URL`, bloqueia endereços de metadados (`169.254.169.254`, `metadata.google.internal`) mesmo em host permitido, não segue redirect, timeout de 30 s, `Content-Length` conferido antes de ler o corpo e reader **cancelado** ao estourar o limite de bytes; base64 checado antes de decodificar.
+- Auditoria: `DATA_IMPORT_UPLOAD` (use case, única vez, com `source` nos detalhes), `DATA_IMPORT_CONFIRM/CANCEL/UNDO` (controller); log de ações do bot (`owner-bot/action-logs`) registra **recebida** (`IMPORT_MEDIA_RECEIVED`/SUCCESS), **recusada** (`IMPORT_MEDIA_REJECTED`/BLOCKED, com motivo) e **criada** (`IMPORT_MEDIA_CREATED`/SUCCESS). Número não vinculado **não** grava log — `barbershopId` é obrigatório com foreign key e não se inventa id.
+- Rastreio de registros criados via `ImportCreatedEntity` (join table), não coluna nas tabelas de negócio.
+
+## Importação de planilhas — origem e auditoria
+
+- Cada `ImportBatch` tem `source` (`WEB` por padrão, `WHATSAPP_OWNER_BOT` quando o dono envia o arquivo pelo assistente no WhatsApp). O assistente baixa a mídia via Evolution, valida tipo/tamanho pelo conteúdo (`validateImportFile`) e cria o lote; a revisão/mapeamento/confirmação/desfazer continuam no painel.
+- Ações auditadas: `DATA_IMPORT_UPLOAD`, `DATA_IMPORT_CONFIRM`, `DATA_IMPORT_CANCEL`, `DATA_IMPORT_UNDO` (AuditLog, com `barbershopId`).
+- Imagens ainda não são convertidas em planilha automaticamente (sem OCR) — o assistente orienta o envio da planilha.
+
 ## Importação de planilhas (assistente do dono)
 
 - Só o **dono** importa (`authorize(["MASTER_ADMIN","OWNER"])` + `setRlsContext`): importar dado é decisão do responsável pelo salão.
@@ -192,6 +211,12 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Cliente importado nasce com `marketingOptIn: false` — histórico importado nunca vira campanha.
 - **Desfazer** (30 dias) remove só o que o lote criou **e** o que ninguém tocou depois, cobrindo os 12 tipos de entidade: o que o lote criou é removido; o que ele **substituiu** é **restaurado** do snapshot `{before, applied}`; o que foi editado depois (detectado pelo `applied` ou pelo status, já que horário/folga não têm `updatedAt`) é preservado, com o motivo no relatório (`removed`/`kept`/`restored`).
 - Limites: 10 MB por arquivo, 20.000 linhas, 10 abas, 1 importação ativa por salão, 5 importações por hora (`IMPORT_MAX_BATCHES_PER_HOUR`), arquivo temporário guardado por 7 dias e apagado no fim do processamento.
+- **Fase 1 — o formato vem do CONTEÚDO (magic bytes), nunca da extensão nem do mimetype**: `detectImportFormat` decide pelo arquivo, e `validateImportFile` só usa o nome enviado para exibição. São lidos `.xlsx`, `.xlsm` (macro nunca é executada), `.xls` (OLE2), `.ods` (OpenDocument), PDF com texto e texto delimitado (`.csv`/`.tsv`/`.txt`, separador detectado pelo conteúdo). Um `.csv` que é XLSX é lido como XLSX; um `.xlsx` que é CSV é lido como CSV. Formato não suportado, ZIP que não é planilha, PDF sem texto, binário disfarçado de texto e ZIP bomb são recusados com mensagem clara. Cada formato novo tem arquivo de exemplo **e** caso hostil em `src/modules/dataImport/utils/fixtures/` (gerados por `scripts/generate-import-fixtures.mjs`).
+- **Mimetype da mídia do WhatsApp é só filtro de entrada**: `downloadEvolutionMedia` aceita os mimetypes de `.xlsx`, `.xlsm`, `.xls`, `.ods`, PDF, texto delimitado e imagem (áudio/vídeo/executável são recusados antes do download) — mas o formato do lote é decidido depois pelo **conteúdo** (`detectImportFormat`). Um `.xls` que chega com nome `.ods` continua sendo lido como `.xls`.
+- **Tamanho declarado nunca é acreditado**: `.xls` (container OLE2) e PDF (objetos com `/Length`) **declaram** o tamanho do conteúdo. `inspectOle2` e `inspectPdf` comparam a declaração com o arquivo real e recusam o que mente — antes de qualquer leitura e antes de gravar em disco. PDF com mais de 10 páginas (`MAX_IMPORT_PDF_PAGES`) é recusado antes da extração do texto.
+- **A planilha é dado, nunca programa**: fórmula não é avaliada (entra só o valor literal guardado) e link externo não é resolvido (nenhuma requisição de rede; entra o rótulo do link, nunca o endereço).
+- **Planilha do mundo real**: multi-aba (cada aba com seu cabeçalho), células mescladas (o valor não duplica a linha), cabeçalho fora da 1ª linha (capa vira aviso), linha de total e rodapé descartados (contados no aviso) e data em serial do Excel convertida na normalização.
+- **Número da planilha vira texto sem perder dígito**: telefone sem zero à esquerda (11 dígitos) é preservado; zero à esquerda (prefixo de operadora/antigo DDD) é removido; DDI 55 é removido; **notação científica é rejeitada** (`1,23456789E+10` tem 11 dígitos e pareceria um telefone válido, mas os dígitos são outros) — nunca vira identidade de cliente. CPF/documento deve estar como **texto** na planilha.
 - Detalhes completos em `docs/IMPORTACAO_PLANILHAS.md`.
 
 ## Notificações

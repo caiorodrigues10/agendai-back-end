@@ -58,6 +58,7 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
   let otherHeaders: Record<string, string>;
   let serviceId: string;
   let staffId: string;
+  let lawFirmShopId: string | undefined;
   let generatedFiles: string[] = [];
 
   function tokenFor(user: { id: string; role: string }, tenant: string): string {
@@ -68,8 +69,8 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     );
   }
 
-  function inTenant<T>(fn: () => Promise<T>): Promise<T> {
-    return requestContext.run({ barbershopId: shopId }, fn);
+  function inTenant<T>(fn: () => Promise<T>, tenant = shopId): Promise<T> {
+    return requestContext.run({ barbershopId: tenant }, fn);
   }
 
   /** Gera o arquivo direto (mesmo caminho do worker, sem a fila). */
@@ -95,16 +96,19 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
       >;
       format?: "XLSX" | "CSV_ZIP";
       anonymize?: boolean;
+      includeCase?: boolean;
+      barbershopId?: string;
       from?: Date | null;
       to?: Date | null;
     } = {},
   ): Promise<{ filePath: string; fileName: string; warnings: string[] }> {
     const from = options.from ?? new Date("2026-01-01T00:00:00Z");
     const to = options.to ?? new Date("2026-12-31T23:59:59Z");
+    const tenant = options.barbershopId ?? shopId;
     const result = await inTenant(() =>
       buildExportFile({
         exportId: randomUUID(),
-        barbershopId: shopId,
+        barbershopId: tenant,
         modules: options.modules ?? ["appointments", "clients", "services", "team", "financial"],
         format: options.format ?? "XLSX",
         period: {
@@ -115,10 +119,14 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
           timezone: "America/Sao_Paulo",
         },
         previousPeriod: null,
-        options: { anonymize: options.anonymize ?? false, includeCase: false },
+        options: {
+          anonymize: options.anonymize ?? false,
+          includeCase: options.includeCase ?? false,
+        },
         generatedAt: new Date("2026-10-30T12:00:00Z"),
         onProgress: async () => undefined,
       }),
+      tenant,
     );
     generatedFiles.push(result.filePath);
     return result;
@@ -249,7 +257,9 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     for (const file of generatedFiles) {
       await deleteExportFile(file);
     }
-    await prisma.barbershop.deleteMany({ where: { id: { in: [shopId, otherShopId] } } });
+    await prisma.barbershop.deleteMany({
+      where: { id: { in: [shopId, otherShopId, ...(lawFirmShopId ? [lawFirmShopId] : [])] } },
+    });
     if (app) await closeTestApp(app);
     if (harness) await harness.stop();
   });
@@ -339,6 +349,101 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     expect(summary.revenue).toBe(200);
     expect(summary.commissions).toBe(40);
     expect(summary.netProfit).toBe(-140);
+  });
+
+  it("LAW_FIRM inclui coluna de caso e aviso de sigilo só com includeCase=true", async () => {
+    const lawFirm = await prisma.barbershop.create({
+      data: {
+        name: "QA Escritório Exportação",
+        whatsapp: "11900000013",
+        businessSegment: "LAW_FIRM",
+      },
+      select: { id: true },
+    });
+    lawFirmShopId = lawFirm.id;
+
+    const lawClient = await prisma.salonClient.create({
+      data: {
+        barbershopId: lawFirm.id,
+        name: "Cliente Sigiloso",
+        whatsapp: "11988880013",
+      },
+      select: { id: true },
+    });
+    const lawStaff = await prisma.user.create({
+      data: {
+        name: "Advogado Exportação",
+        email: `lawyer-export-${randomUUID()}@qa.local`,
+        password: "x",
+        role: "EMPLOYEE",
+        barbershopId: lawFirm.id,
+      },
+      select: { id: true },
+    });
+    const lawService = await prisma.service.create({
+      data: {
+        barbershopId: lawFirm.id,
+        name: "Audiência",
+        price: 100,
+        avgTimeMinutes: 60,
+        icon: "scale",
+      },
+      select: { id: true },
+    });
+    const lawsuit = await prisma.clientCase.create({
+      data: {
+        barbershopId: lawFirm.id,
+        clientId: lawClient.id,
+        nickname: "Ação sigilosa",
+        caseNumber: "1024127-78.2020.8.26.0100",
+      },
+      select: { id: true },
+    });
+    await prisma.appointment.create({
+      data: {
+        barbershopId: lawFirm.id,
+        serviceId: lawService.id,
+        staffId: lawStaff.id,
+        clientId: lawClient.id,
+        customerName: "Cliente Sigiloso",
+        whatsapp: "11988880013",
+        date: new Date("2027-02-10T12:00:00Z"),
+        time: "10:00",
+        status: "COMPLETED",
+        finalPrice: 100,
+        completedAt: new Date("2027-02-10T12:00:00Z"),
+        caseId: lawsuit.id,
+        caseName: "Ação sigilosa",
+      },
+    });
+
+    const period = {
+      from: new Date("2027-01-01T00:00:00Z"),
+      to: new Date("2027-12-31T23:59:59Z"),
+      barbershopId: lawFirm.id,
+      modules: ["appointments"] as const,
+    };
+
+    const withCase = await generate({ ...period, modules: ["appointments"], includeCase: true });
+    const headersWithCase = await readHeaders(withCase.filePath, "Agendamentos");
+    expect(headersWithCase).toContain("Caso/processo");
+    const rowsWithCase = await readSheet(withCase.filePath, "Agendamentos");
+    expect(rowsWithCase[1]?.join(" ")).toContain("Ação sigilosa");
+    const readmeWithCase = (await readSheet(withCase.filePath, "Leia-me"))
+      .map((row) => row.join(" "))
+      .join("\n");
+    expect(readmeWithCase).toContain("Sigilo profissional");
+    expect(readmeWithCase).toContain("sigilo profissional");
+
+    const withoutCase = await generate({ ...period, modules: ["appointments"], includeCase: false });
+    const headersWithoutCase = await readHeaders(withoutCase.filePath, "Agendamentos");
+    expect(headersWithoutCase).not.toContain("Caso/processo");
+    const rowsWithoutCase = await readSheet(withoutCase.filePath, "Agendamentos");
+    expect(rowsWithoutCase[1]?.join(" ")).not.toContain("Ação sigilosa");
+    const readmeWithoutCase = (await readSheet(withoutCase.filePath, "Leia-me"))
+      .map((row) => row.join(" "))
+      .join("\n");
+    expect(readmeWithoutCase).not.toContain("Sigilo profissional");
   });
 
   it("anonimiza dados pessoais quando pedido", async () => {

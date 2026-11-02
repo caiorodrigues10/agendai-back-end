@@ -37,6 +37,7 @@ import {
   updateDeadlineSchema,
 } from "../schemas/caseManagementSchemas";
 import { CaseManagementRepository } from "../repositories/CaseManagementRepository";
+import { CaseBacklogRepository } from "../repositories/CaseBacklogRepository";
 
 /**
  * Controller da gestão de processos.
@@ -97,6 +98,17 @@ export class CaseManagementController {
       this.user(req)
     );
     return reply.send({ success: true, data });
+  }
+
+  async successFeesReport(req: FastifyRequest, reply: FastifyReply) {
+    const repo = container.resolve(CaseBacklogRepository);
+    const barbershopId = this.barbershopId(req);
+    const user = this.user(req);
+    if (user.role !== "MASTER_ADMIN" && user.barbershopId !== barbershopId) {
+      throw new AppError("Acesso negado", 403);
+    }
+    const report = await repo.successFeesReport(barbershopId);
+    return reply.send({ success: true, data: report });
   }
 
   async practiceAreaReport(req: FastifyRequest, reply: FastifyReply) {

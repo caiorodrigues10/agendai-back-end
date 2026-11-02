@@ -26,8 +26,28 @@ import type {
   UpdateTimeEntryInput,
 } from "../schemas/caseBacklogSchemas";
 import type { RequestingUser } from "./caseManagementUseCases";
+import type { SuccessFeeStatus } from "@prisma/client";
+import { createAuditLog } from "@/shared/services/auditLogService";
 
 const STAFF_ROLES = ["MASTER_ADMIN", "OWNER", "EMPLOYEE"];
+
+/** Transições aceitas para honorário de êxito. CANCELED é terminal. */
+const SUCCESS_FEE_TRANSITIONS: Record<SuccessFeeStatus, SuccessFeeStatus[]> = {
+  PENDING: ["PENDING", "INVOICED", "PAID", "CANCELED"],
+  INVOICED: ["INVOICED", "PAID", "CANCELED"],
+  PAID: ["PAID", "CANCELED"],
+  CANCELED: ["CANCELED"],
+};
+
+function assertSuccessFeeTransition(
+  from: SuccessFeeStatus,
+  to: SuccessFeeStatus | undefined
+): void {
+  if (!to || to === from) return;
+  if (!SUCCESS_FEE_TRANSITIONS[from].includes(to)) {
+    throw new AppError(`Transição de status inválida: ${from} → ${to}`, 409);
+  }
+}
 
 function assertShopAccess(user: RequestingUser, barbershopId: string): void {
   if (user.role === "MASTER_ADMIN") return;
@@ -207,7 +227,25 @@ export class CreateSuccessFeeUseCase {
       notes: input.notes ?? null,
     });
 
-    return (await this.repository.recalculateSuccessFee(barbershopId, created.id)) ?? created;
+    const fee =
+      (await this.repository.recalculateSuccessFee(barbershopId, created.id)) ?? created;
+
+    if (user.id) {
+      await createAuditLog({
+        userId: user.id,
+        action: "CASE_SUCCESS_FEE_CREATE",
+        resource: "CaseSuccessFee",
+        resourceId: fee.id,
+        barbershopId,
+        details: JSON.stringify({
+          caseId,
+          status: fee.status,
+          installments: fee.installments,
+        }),
+      });
+    }
+
+    return fee;
   }
 }
 
@@ -250,18 +288,45 @@ export class UpdateSuccessFeeUseCase {
       throw new AppError("Honorário não encontrado", 404);
     }
 
-    const updated = await this.repository.updateSuccessFee(barbershopId, feeId, {
+    const changesStatus = input.status !== undefined && input.status !== existing.status;
+    if (changesStatus && !user.id) {
+      throw new AppError(
+        "É necessário um usuário identificado para alterar o status do honorário",
+        403
+      );
+    }
+
+    assertSuccessFeeTransition(existing.status, input.status);
+
+    const data = {
       ...(input.percent !== undefined ? { percent: input.percent } : {}),
       ...(input.installments !== undefined ? { installments: input.installments } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
       ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
       ...(input.paidAt !== undefined ? { paidAt: input.paidAt } : {}),
       ...(input.notes !== undefined ? { notes: input.notes } : {}),
-    });
+    };
 
+    let updated = await this.repository.updateSuccessFee(barbershopId, feeId, data);
     if (input.percent !== undefined) {
-      return (await this.repository.recalculateSuccessFee(barbershopId, feeId)) ?? updated;
+      updated = (await this.repository.recalculateSuccessFee(barbershopId, feeId)) ?? updated;
     }
+
+    if (user.id) {
+      await createAuditLog({
+        userId: user.id,
+        action: "CASE_SUCCESS_FEE_UPDATE",
+        resource: "CaseSuccessFee",
+        resourceId: feeId,
+        barbershopId,
+        details: JSON.stringify({
+          changes: Object.keys(data),
+          fromStatus: existing.status,
+          toStatus: updated.status,
+        }),
+      });
+    }
+
     return updated;
   }
 }

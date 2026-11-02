@@ -1,5 +1,5 @@
 /**
- * Guarda do container ZIP usada pelos arquivos .xlsx.
+ * Guarda do container ZIP usada pelos arquivos .xlsx, .xlsm e .ods.
  *
  * O .xlsx é um ZIP. Um ZIP pode descompactar 10 MB em gigabytes (ZIP bomb) e
  * estourar a memória do processo. Este módulo lê o diretório central do ZIP
@@ -21,8 +21,8 @@ const ZIP64_MARKER = 0xffffffff;
 /** Tamanho fixo do registro EOCD (sem o comentário). */
 const EOCD_MIN_SIZE = 22;
 
-/** Entradas que indicam macro (Excel com código) — nunca são aceitas. */
-const MACRO_ENTRY_MARKERS = ["vbaproject.bin", "vbaProject.bin"];
+/** Entradas que indicam macro (Excel com código) — comparadas em minúsculas. */
+const MACRO_ENTRY_MARKERS = ["vbaproject.bin"];
 
 export class ZipGuardError extends Error {
   constructor(message: string) {
@@ -35,6 +35,13 @@ export interface ZipGuardResult {
   entryCount: number;
   uncompressedBytes: number;
   entryNames: string[];
+  /**
+   * O arquivo tem macro (`.xlsm`).
+   *
+   * A macro **nunca é executada**: a importação só lê os valores das células.
+   * O dado é repassado para a auditoria e para o dono, que pode ser avisado.
+   */
+  hasMacro: boolean;
 }
 
 /**
@@ -111,17 +118,16 @@ export function inspectZip(buffer: Buffer): ZipGuardResult {
 
   // A entrada da macro vem com caminho (`xl/vbaProject.bin`): compara pelo
   // nome do arquivo, não pelo caminho completo.
+  //
+  // Fase 1: o `.xlsm` passa a ser aceito. A macro **não é executada** — a
+  // importação só lê valores de células — mas o fato é devolvido para quem
+  // decide o que fazer com o lote.
   const hasMacro = entryNames.some((name) => {
     const base = name.split("/").pop()?.toLowerCase() ?? "";
     return MACRO_ENTRY_MARKERS.includes(base);
   });
-  if (hasMacro) {
-    throw new ZipGuardError(
-      "O arquivo contém macros. Salve a planilha como .xlsx sem macros e tente de novo.",
-    );
-  }
 
-  return { entryCount: totalEntries, uncompressedBytes, entryNames };
+  return { entryCount: totalEntries, uncompressedBytes, entryNames, hasMacro };
 }
 
 /**

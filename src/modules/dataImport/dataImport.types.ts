@@ -17,10 +17,24 @@ export type ImportTargetType =
   | "PRODUCTS"
   | "SERVICE_PACKAGES"
   | "CLIENT_PACKAGES"
-  | "FIADOS";
+  | "FIADOS"
+  | "CASES";
 
-/** Formato aceito no upload. */
-export type ImportFileFormat = "XLSX" | "CSV";
+/**
+ * Formato aceito no upload — **detectado pelo conteúdo** (magic bytes).
+ *
+ * `CSV` cobre os arquivos de texto delimitado (`.csv`, `.tsv`, `.txt`): o
+ * separador é identificado pelo conteúdo, não pelo nome.
+ *
+ * Espelha o enum `ImportFileFormat` do Prisma.
+ */
+export type ImportFileFormat =
+  | "XLSX"
+  | "XLSM"
+  | "XLS"
+  | "ODS"
+  | "PDF"
+  | "CSV";
 
 /**
  * Alvo gravado no lote.
@@ -92,6 +106,16 @@ export type ImportFieldKey =
   | "modality"
   | "caseName"
   | "practiceArea"
+  // processos
+  | "caseNumber"
+  | "caseStatus"
+  | "casePriority"
+  | "caseTitle"
+  | "courtName"
+  | "opponent"
+  | "claimedAmount"
+  | "awardedAmount"
+  | "openedAt"
   // horários (profissional e estabelecimento)
   | "dayOfWeek"
   | "startTime"

@@ -129,15 +129,12 @@ export class DataExportUseCases {
       throw new AppError("Escolha pelo menos um módulo para exportar.", 400);
     }
 
+    // Sigilo: caso/processo só sai com pedido explícito do dono. A opção
+    // desligada (padrão) mantém a coluna fora da planilha.
     const options: ExportOptions = {
       anonymize: input.options?.anonymize === true,
       includeCase: input.options?.includeCase === true,
     };
-    // Sigilo: caso/processo só sai com pedido explícito — e nunca em
-    // segmento com publicidade restrita.
-    if (!options.includeCase || isAdvertisingRestricted(shop.businessSegment)) {
-      options.includeCase = false;
-    }
 
     const format = input.format ?? "XLSX";
 

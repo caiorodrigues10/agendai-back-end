@@ -3,7 +3,7 @@
  *
  * O lote é processado aba por aba, na **ordem de dependência** (serviços →
  * clientes → produtos → pacotes → horários → folgas → pacotes dos clientes →
- * fiado → agenda). Cada aba é processada em pedaços de 200 linhas: cada
+ * fiado → processos → agenda). Cada aba é processada em pedaços de 200 linhas: cada
  * pedaço roda numa transação — as entidades criadas e o resultado das linhas
  * entram juntos. Se a transação falhar, nada daquele pedaço fica no banco e
  * a fila reprocessa.
@@ -32,6 +32,7 @@ import { importTimeOffRow } from "./processors/timeOffImporter";
 import { importProductRow } from "./processors/productImporter";
 import { importServicePackageRow, importClientPackageRow } from "./processors/packageImporter";
 import { importFiadoRow } from "./processors/fiadoImporter";
+import { importCaseRow } from "./processors/caseImporter";
 import { applyCrmCountersForBatch } from "./crmCounters";
 import type { ImportRowContext, ProcessedRow } from "./processors/importRowContext";
 import { CSV_SHEET_NAME, orderPlanSheets, readPlan, sheetKey } from "./importPlan";
@@ -323,6 +324,9 @@ async function processRow(
   }
   if (targetType === "FIADOS") {
     return importFiadoRow(tx, barbershopId, row, context);
+  }
+  if (targetType === "CASES") {
+    return importCaseRow(tx, barbershopId, row, context);
   }
   return importAppointmentRow(tx, barbershopId, row, context);
 }

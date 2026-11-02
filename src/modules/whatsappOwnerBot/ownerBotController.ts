@@ -228,12 +228,15 @@ export class OwnerBotController {
     }
 
     try {
-      await enqueueOwnerBotMessage({
+      const jobData: Parameters<typeof enqueueOwnerBotMessage>[0] = {
         messageId: event.messageId,
         phone: event.phone,
         text: event.text,
         instanceName: event.instanceName,
-      });
+      };
+      if (event.media) jobData.media = event.media;
+      if (event.remoteJid) jobData.remoteJid = event.remoteJid;
+      await enqueueOwnerBotMessage(jobData);
       reply.send({ success: true, data: { queued: true } });
     } catch (err) {
       // Redis/fila fora: processa na hora para não perder a mensagem.
@@ -243,6 +246,8 @@ export class OwnerBotController {
         phone: event.phone,
         text: event.text,
         instanceName: event.instanceName,
+        ...(event.remoteJid ? { remoteJid: event.remoteJid } : {}),
+        ...(event.media ? { media: event.media } : {}),
       });
       reply.send({ success: true, data: { queued: false } });
     }

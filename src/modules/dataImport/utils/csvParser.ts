@@ -10,6 +10,7 @@
  */
 import { MAX_IMPORT_CELL_LENGTH, MAX_IMPORT_COLUMNS } from "../dataImport.constants";
 import { AppError } from "@/shared/errors/AppError";
+import { buildSheetMatrix } from "./sheetMatrix";
 
 export interface CsvParseResult {
   headers: string[];
@@ -171,12 +172,10 @@ export function parseCsv(buffer: Buffer): CsvParseResult {
     throw new AppError("Não foi possível ler o conteúdo do CSV.", 400);
   }
 
-  const headers = normalizeHeaders(rawRows[0]);
-  const rows = rawRows.slice(1).map((cells) => {
-    const limited = cells.slice(0, MAX_IMPORT_COLUMNS);
-    while (limited.length < headers.length) limited.push("");
-    return limited.slice(0, headers.length);
-  });
+  // Mesmo passo dos outros formatos: cabeçalho = primeira linha mais larga,
+  // linhas de capa antes são ignoradas e linhas de total saem do resultado.
+  const matrix = rawRows.map((cells) => cells.slice(0, MAX_IMPORT_COLUMNS));
+  const { headers, rows } = buildSheetMatrix(matrix);
 
   return { headers, rows, separator };
 }

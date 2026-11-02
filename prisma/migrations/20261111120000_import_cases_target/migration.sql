@@ -1,0 +1,1 @@
+ALTER TYPE "ImportTargetType" ADD VALUE IF NOT EXISTS 'CASES';

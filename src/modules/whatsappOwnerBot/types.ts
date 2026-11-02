@@ -146,7 +146,16 @@ export type OwnerBotListItem = {
   label: string;
 };
 
+export type OwnerBotPendingMediaImport = {
+  messageId: string;
+  media: { type: "image" | "document" | "audio" | "video"; mimetype?: string; fileName?: string; fileLength?: number };
+  retryCount: number;
+  createdAt: number;
+};
+
 export type OwnerBotConversationState = {
+  /** Importação de mídia pendente de escolha de salão. */
+  pendingMediaImport?: OwnerBotPendingMediaImport;
   /** Unidade ativa no contexto (multi-unidade). */
   activeShopId?: string;
   /** Fluxo em andamento (multi-step). */
@@ -167,6 +176,14 @@ export type OwnerBotIncomingMessage = {
   text: string;
   /** Instância que recebeu a mensagem (instância da plataforma). */
   instanceName?: string;
+  /** Mídia recebida (imagem/documento) — importação via WhatsApp. */
+  media?: {
+    type: "image" | "document" | "audio" | "video";
+    mimetype?: string;
+    fileName?: string;
+  };
+  /** remoteJid original (para download de mídia). */
+  remoteJid?: string;
 };
 
 export type OwnerBotLinkContext = {

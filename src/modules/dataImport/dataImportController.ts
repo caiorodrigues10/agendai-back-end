@@ -10,6 +10,7 @@ import { buildImportTemplate } from "./importTemplate";
 import { undoImportBatch } from "./importUndo";
 import { enqueueDataImportBatch } from "@/shared/infra/queue/dataImportQueue";
 import { prisma } from "@/libs/prismaClient";
+import { createAuditLog } from "@/shared/services/auditLogService";
 import {
   configureTargetSchema,
   confirmImportSchema,
@@ -50,6 +51,7 @@ export class DataImportController {
       userId: user.id,
       fileName: data.filename,
       buffer,
+      ipAddress: request.ip,
     });
 
     reply.status(201).send({ success: true, data: result });
@@ -162,6 +164,16 @@ export class DataImportController {
       throw err;
     }
 
+    await createAuditLog({
+      userId: request.user!.id,
+      action: "DATA_IMPORT_CONFIRM",
+      resource: "ImportBatch",
+      resourceId: batchId,
+      barbershopId,
+      ipAddress: request.ip,
+      details: JSON.stringify({ totalRows: result.totalRows }),
+    });
+
     reply.send({ success: true, data: result });
   }
 
@@ -194,6 +206,14 @@ export class DataImportController {
   async cancel(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
     const result = await this.useCases.cancel({ barbershopId, batchId });
+    await createAuditLog({
+      userId: request.user!.id,
+      action: "DATA_IMPORT_CANCEL",
+      resource: "ImportBatch",
+      resourceId: batchId,
+      barbershopId,
+      ipAddress: request.ip,
+    });
     reply.send({ success: true, data: result });
   }
 
@@ -201,6 +221,15 @@ export class DataImportController {
   async undo(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
     const result = await undoImportBatch(barbershopId, batchId);
+    await createAuditLog({
+      userId: request.user!.id,
+      action: "DATA_IMPORT_UNDO",
+      resource: "ImportBatch",
+      resourceId: batchId,
+      barbershopId,
+      ipAddress: request.ip,
+      details: JSON.stringify(result),
+    });
     reply.send({ success: true, data: result });
   }
 }

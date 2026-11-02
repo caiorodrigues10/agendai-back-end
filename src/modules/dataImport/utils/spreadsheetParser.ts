@@ -1,8 +1,11 @@
 /**
- * Leitura unificada da planilha enviada (CSV ou XLSX).
+ * Leitura unificada da planilha enviada (CSV/TSV/TXT, XLSX, XLSM, XLS, ODS, PDF).
  *
  * O arquivo fica em disco temporário entre as etapas do assistente — é o que
  * permite ao dono sair da tela e voltar depois sem reenviar o arquivo.
+ *
+ * O formato NÃO vem do nome do arquivo: vem do conteúdo (magic bytes). O
+ * lote guarda o formato detectado e usa o mesmo leitor nas etapas seguintes.
  */
 import { readFile } from "node:fs/promises";
 import type {
@@ -13,11 +16,14 @@ import type {
 import { AppError } from "@/shared/errors/AppError";
 import { parseCsv } from "./csvParser";
 import { parseXlsx, parseXlsxSheets } from "./xlsxParser";
+import { parseXls } from "./xlsParser";
+import { parseOds } from "./odsParser";
+import { parsePdf } from "./pdfParser";
 import { MAX_IMPORT_ROWS } from "../dataImport.constants";
 
 /** Uma aba lida da planilha. */
 export interface ParsedSheet {
-  /** Nome da aba (`null` quando o arquivo é CSV). */
+  /** Nome da aba (`null` quando o arquivo é CSV ou PDF). */
   sheetName: string | null;
   headers: string[];
   rows: ImportRawRow[];
@@ -60,6 +66,33 @@ export async function readSpreadsheetSheets(
     ];
   }
 
+  if (format === "XLS") {
+    const sheets = await parseXls(buffer);
+    return sheets.map((sheet) => ({
+      sheetName: sheet.name,
+      headers: sheet.headers,
+      rows: sheet.rows.map((cells) => rowToRecord(sheet.headers, cells)),
+    }));
+  }
+
+  if (format === "ODS") {
+    const sheets = await parseOds(buffer);
+    return sheets.map((sheet) => ({
+      sheetName: sheet.name,
+      headers: sheet.headers,
+      rows: sheet.rows.map((cells) => rowToRecord(sheet.headers, cells)),
+    }));
+  }
+
+  if (format === "PDF") {
+    const sheets = await parsePdf(buffer);
+    return sheets.map((sheet) => ({
+      sheetName: sheet.name,
+      headers: sheet.headers,
+      rows: sheet.rows.map((cells) => rowToRecord(sheet.headers, cells)),
+    }));
+  }
+
   const sheets = await parseXlsxSheets(buffer);
   return sheets.map((sheet) => ({
     sheetName: sheet.name,
@@ -95,6 +128,45 @@ export async function readSpreadsheet(
     return {
       headers: parsed.headers,
       rows: parsed.rows.map((cells) => rowToRecord(parsed.headers, cells)),
+      sheetNames: [],
+      selectedSheet: null,
+    };
+  }
+
+  if (format === "XLS") {
+    const sheets = await parseXls(buffer);
+    const sheet = sheetName ? sheets.find((item) => item.name === sheetName) : sheets[0];
+    if (!sheet) {
+      throw new AppError("A aba escolhida não existe mais na planilha.", 400);
+    }
+    return {
+      headers: sheet.headers,
+      rows: sheet.rows.map((cells) => rowToRecord(sheet.headers, cells)),
+      sheetNames: sheets.map((item) => item.name),
+      selectedSheet: sheet.name,
+    };
+  }
+
+  if (format === "ODS") {
+    const sheets = await parseOds(buffer);
+    const sheet = sheetName ? sheets.find((item) => item.name === sheetName) : sheets[0];
+    if (!sheet) {
+      throw new AppError("A aba escolhida não existe mais na planilha.", 400);
+    }
+    return {
+      headers: sheet.headers,
+      rows: sheet.rows.map((cells) => rowToRecord(sheet.headers, cells)),
+      sheetNames: sheets.map((item) => item.name),
+      selectedSheet: sheet.name,
+    };
+  }
+
+  if (format === "PDF") {
+    const sheets = await parsePdf(buffer);
+    const sheet = sheets[0];
+    return {
+      headers: sheet.headers,
+      rows: sheet.rows.map((cells) => rowToRecord(sheet.headers, cells)),
       sheetNames: [],
       selectedSheet: null,
     };
