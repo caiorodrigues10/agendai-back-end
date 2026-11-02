@@ -507,15 +507,15 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
         }),
       );
       expect(fees).toHaveLength(2);
-      const percents = fees.map((f) => String(f.percent)).sort();
-      expect(percents).toEqual(["15", "20"]);
       // Todos importados com 1 parcela (regra da importação)
       expect(fees.every((f) => f.installments === 1)).toBe(true);
-      // Os casos referenciados existem
-      expect(fees.map((f) => f.case.caseNumber).sort()).toEqual([
-        "1024127-78.2020.8.26.0100",
-        "1234567-89.2026.8.26.0100",
-      ]);
+      // Status respeitado (sem caixa): pago vira PAID, pendente vira PENDING
+      const paid = fees.find((f) => String(f.percent) === "15");
+      const pending = fees.find((f) => String(f.percent) === "20");
+      expect(paid?.status).toBe("PAID");
+      expect(paid?.case.caseNumber).toBe("1234567-89.2026.8.26.0100");
+      expect(pending?.status).toBe("PENDING");
+      expect(pending?.case.caseNumber).toBe("1024127-78.2020.8.26.0100");
 
       // Sem lançamento financeiro
       const efeitos = await inTenant(async () => ({

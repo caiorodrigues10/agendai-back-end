@@ -202,6 +202,7 @@ export async function importCaseFeeRow(
       installments: installmentsResult?.value ?? 1,
       dueDate,
       notes,
+      status: status.value,
     },
     select: { id: true },
   });
