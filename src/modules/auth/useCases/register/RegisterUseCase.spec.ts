@@ -1,5 +1,14 @@
 /// <reference types="vitest/globals" />
 
+// --- Mock do logger (objeto compartilhado via globalThis para acessar logger.warn nos testes) ---
+vi.mock("@/shared/utils/logger", () => {
+  const g = globalThis as any;
+  if (!g.__testLogger) {
+    g.__testLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+  }
+  return { getModuleLogger: () => g.__testLogger };
+});
+
 // --- Mock prisma ---
 const mockCreate = vi.fn();
 const mockFindUnique = vi.fn();
@@ -58,17 +67,17 @@ vi.mock("@/shared/utils/cpfUtils", () => ({
   normalizeCnpj: (v: string) => v.replace(/\D/g, ""),
 }));
 
-vi.mock("@/shared/utils/logger", () => ({
-  getModuleLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
+vi.mock("@/shared/services/cpfNameVerification/cpfNameVerification", () => ({
+  cpfNameVerificationMode: vi.fn(() => "off"),
 }));
 
 import { RegisterUseCase, IRegisterDTO } from "./RegisterUseCase";
 import { ensureReferralCode } from "@/modules/referrals/services/referralService";
+import { cpfNameVerificationMode } from "@/shared/services/cpfNameVerification/cpfNameVerification";
+import { maskCpfForLogs, maskNameForLogs } from "@/shared/utils/logPrivacy";
+import { getModuleLogger } from "@/shared/utils/logger";
+
+const logger = getModuleLogger("register");
 
 const BASE_INPUT: IRegisterDTO = {
   ownerName: "João Silva",
@@ -296,5 +305,74 @@ describe("RegisterUseCase — unicidade de CPF", () => {
 
     expect(err.message).toBe("CPF já cadastrado");
     expect(err.statusCode).toBe(409);
+  });
+});
+
+describe("RegisterUseCase — verificação CPF × nome", () => {
+  let useCase: RegisterUseCase;
+  const verifier = { verify: vi.fn() } as any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("off");
+    verifier.verify.mockResolvedValue({ status: "unavailable" });
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      verifier,
+    );
+  });
+
+  it("modo off: verificador não é chamado", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("off");
+    mockTransactionSuccess();
+
+    await useCase.execute(BASE_INPUT);
+
+    expect(verifier.verify).not.toHaveBeenCalled();
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("modo warn + mismatch: cadastra, logger.warn recebe apenas CPF/nome mascarados", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("warn");
+    verifier.verify.mockResolvedValue({ status: "mismatch" });
+    mockTransactionSuccess();
+
+    const result = await useCase.execute({ ...BASE_INPUT });
+
+    expect(result).toBeDefined(); // cadastra (fail-open em warn)
+    expect(verifier.verify).toHaveBeenCalledTimes(1);
+    expect(logger.warn as any).toHaveBeenCalledTimes(1);
+
+    const warnArg = (logger.warn as any).mock.calls[0][0];
+    // O objeto logado NÃO contém CPF nem nome completos.
+    expect(warnArg.cpf).not.toBe("45317829709");
+    expect(warnArg.name).not.toBe("João Silva");
+    // E contém as máscaras corretas.
+    expect(warnArg.cpf).toBe(maskCpfForLogs("45317829709"));
+    expect(warnArg.name).toBe(maskNameForLogs("João Silva"));
+  });
+
+  it("modo enforce + mismatch: rejeita com 400, mensagem sem CPF nem nome", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("enforce");
+    verifier.verify.mockResolvedValue({ status: "mismatch" });
+    mockTransactionSuccess();
+
+    const err: any = await useCase.execute({ ...BASE_INPUT }).catch((e) => e);
+
+    expect(err.statusCode).toBe(400);
+    expect(err.message).not.toContain("45317829709");
+    expect(err.message).not.toContain("João Silva");
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("modo enforce + unavailable: cadastra (fail-open, decisão de produto)", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("enforce");
+    verifier.verify.mockResolvedValue({ status: "unavailable" });
+    mockTransactionSuccess();
+
+    const result = await useCase.execute(BASE_INPUT);
+
+    expect(result).toBeDefined();
+    expect(verifier.verify).toHaveBeenCalledTimes(1);
   });
 });
