@@ -25,6 +25,7 @@ import {
 import { prisma } from "@/libs/prismaClient";
 import { requestContext } from "@/shared/infra/http/requestContext";
 import { processImportBatch } from "@/modules/dataImport/importProcessor";
+import { checkCnjCheckDigit } from "@/shared/utils/cnj";
 
 const CSV_CLIENTES = [
   "Nome;WhatsApp;Observações",
@@ -43,14 +44,28 @@ const CSV_CLIENTES_DESFAZER = [
 const CSV_PROCESSOS = [
   "Cliente;WhatsApp;Caso;Processo;Área;Situação;Prioridade;Data de abertura;Valor da causa",
   "Cliente Processo;11987670001;Ação de cobrança;1024127-78.2020.8.26.0100;Cível;Em andamento;Alta;01/10/2026;15000,00",
-  "Cliente Processo Dois;11987670002;Reclamação trabalhista;1234567-89.2026.8.26.0100;Trabalhista;Em juízo;Normal;;8000,00",
+  "Cliente Processo Dois;11987670002;Reclamação trabalhista;1000001-51.2026.8.26.0100;Trabalhista;Em juízo;Normal;;8000,00",
 ].join("\n");
 
 const CSV_HONORARIOS = [
   "Processo;Percentual;Situação;Vencimento;Parcelas;Observações",
   "1024127-78.2020.8.26.0100;20;Pendente;15/11/2026;1;Honorário de êxito",
-  "1234567-89.2026.8.26.0100;15;Pago;;1;Honorário pago",
+  "1000001-51.2026.8.26.0100;15;Pago;;1;Honorário pago",
 ].join("\n");
+
+// NOTE: Os CNJs usados nas fixtures têm dígito verificador válido (algoritmo
+// CNJ, módulo 97), mas NÃO foram consultados contra um processo real no
+// tribunal de origem (TJSP). São usados apenas como fixtures de teste.
+describe("fixtures CNJ válidos", () => {
+  it("os CNJs usados nas fixtures passam na validação do dígito verificador", () => {
+    expect(checkCnjCheckDigit("1024127-78.2020.8.26.0100")).toBe("valid");
+    expect(checkCnjCheckDigit("1000001-51.2026.8.26.0100")).toBe("valid");
+  });
+});
+
+// NOTE: Os números CNJ acima têm dígito verificador válido, mas NÃO foram
+// validados contra um processo real no tribunal de origem (TJSP). São usados
+// apenas como fixtures de teste.
 
 const CSV_AGENDAMENTOS = [
   "Data;Hora;Cliente;WhatsApp;Serviço;Profissional;Situação",
@@ -513,7 +528,7 @@ describe("importação de planilhas — fluxo completo no banco real", () => {
       const paid = fees.find((f) => String(f.percent) === "15");
       const pending = fees.find((f) => String(f.percent) === "20");
       expect(paid?.status).toBe("PAID");
-      expect(paid?.case.caseNumber).toBe("1234567-89.2026.8.26.0100");
+      expect(paid?.case.caseNumber).toBe("1000001-51.2026.8.26.0100");
       expect(pending?.status).toBe("PENDING");
       expect(pending?.case.caseNumber).toBe("1024127-78.2020.8.26.0100");
 

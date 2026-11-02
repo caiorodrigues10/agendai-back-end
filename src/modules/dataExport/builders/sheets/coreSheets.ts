@@ -5,6 +5,7 @@
  * mesmo motor de lucro (ver `summaryData.ts`).
  */
 import { prisma } from "@/libs/prismaClient";
+import { hasSegmentFeature } from "@/shared/segments";
 import {
   addBlankRow,
   addReportRow,
@@ -20,6 +21,7 @@ import {
 } from "../sheetHelpers";
 import { computePeriodSummary } from "../summaryData";
 import { safeText } from "../../utils/cellSafety";
+import type { BusinessSegment } from "@prisma/client";
 
 const REPORT_COLUMNS: ColumnSpec[] = [
   { header: "Indicador", type: "text", width: 52 },
@@ -67,6 +69,28 @@ export const leiaMeSheet: SheetBuilder = {
     addReportRow(sheet, "Últimos 3/6/12 meses", "Janela móvel terminando hoje, começando no mesmo dia do mês anterior.");
     addReportRow(sheet, "Personalizado", "Datas de calendário no fuso do estabelecimento (máximo de 24 meses por emissão).");
     addReportRow(sheet, "Tudo", "Sem filtro de data (backup completo).");
+
+    addBlankRow(sheet);
+    if (hasSegmentFeature(ctx.segment as BusinessSegment | null, "caseManagement")) {
+      addSectionRow(sheet, "Regras de período por aba");
+      addReportRow(
+        sheet,
+        "Outras abas",
+        "Filtram por data de criação/ocorrência dentro do período escolhido (ou 'Tudo' sem filtro).",
+      );
+      if (ctx.options.includeCase) {
+        addReportRow(
+          sheet,
+          "Processos",
+          "Não filtra por período: exporta todos os processos do escritório (backup completo), independentemente da data de abertura.",
+        );
+        addReportRow(
+          sheet,
+          "Honorários de êxito",
+          "Filtra por vencimento (dueDate) dentro do período escolhido. Quando o período é 'Tudo', exporta todos os honorários.",
+        );
+      }
+    }
 
     addBlankRow(sheet);
     addSectionRow(sheet, "Limitações");

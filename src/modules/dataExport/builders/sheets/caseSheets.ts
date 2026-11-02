@@ -80,12 +80,7 @@ export const casesSheet: SheetBuilder = {
     setupSheet(sheet, CASES_COLUMNS);
 
     const cases = await prisma.clientCase.findMany({
-      where: {
-        barbershopId: ctx.shop.id,
-        ...(ctx.period.from && ctx.period.to
-          ? { openedAt: { gte: ctx.period.from, lte: ctx.period.to } }
-          : {}),
-      },
+      where: { barbershopId: ctx.shop.id },
       orderBy: { openedAt: "desc" },
       select: {
         id: true,
@@ -174,10 +169,15 @@ export const caseFeesSheet: SheetBuilder = {
       where: {
         barbershopId: ctx.shop.id,
         ...(ctx.period.from && ctx.period.to
-          ? { createdAt: { gte: ctx.period.from, lte: ctx.period.to } }
+          ? {
+              OR: [
+                { dueDate: { gte: ctx.period.from, lte: ctx.period.to } },
+                { dueDate: null, createdAt: { gte: ctx.period.from, lte: ctx.period.to } },
+              ],
+            }
           : {}),
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }],
       select: {
         id: true,
         percent: true,

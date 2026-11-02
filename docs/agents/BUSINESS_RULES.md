@@ -230,6 +230,17 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - **Número da planilha vira texto sem perder dígito**: telefone sem zero à esquerda (11 dígitos) é preservado; zero à esquerda (prefixo de operadora/antigo DDD) é removido; DDI 55 é removido; **notação científica é rejeitada** (`1,23456789E+10` tem 11 dígitos e pareceria um telefone válido, mas os dígitos são outros) — nunca vira identidade de cliente. CPF/documento deve estar como **texto** na planilha.
 - Detalhes completos em `docs/IMPORTACAO_PLANILHAS.md`.
 
+## Exportação de processos e honorários (F4)
+
+- **Segmento**: as abas `Processos` e `Honorários de êxito` só aparecem na exportação para segmento `LAW_FIRM` (feature `caseManagement`), via `hasSegmentFeature`.
+- **Sigilo (`cases`)**: a aba `Processos` só entra na planilha quando o segmento é `LAW_FIRM` **e** a opção `includeCase` está ligada. Sem `includeCase`, nenhum dado de caso/processo sai da exportação (mesma regra do relatório de honorários).
+- **Sigilo (`caseFees`)**: a aba `Honorários de êxito` entra para escritórios jurídicos mesmo sem `includeCase`, mas as colunas que identificam o processo (número e apelido) saem vazias quando `includeCase` está desligado. As observações internas do honorário também saem vazias sem `includeCase`.
+- **Período**:
+  - **Processos**: não filtra por período. Exporta todos os processos do escritório (backup completo), independentemente da data de abertura.
+  - **Honorários de êxito**: filtra por vencimento (`dueDate`) dentro do período escolhido. Quando o período é "Tudo", exporta todos os honorários.
+  - Honorários nunca entram no caixa nem no financeiro: não há coluna de pagamento, lançamento ou recebimento.
+- **Campos de valor** (`claimedAmount`, `awardedAmount`, `percent`, `baseAmount`, `amount`) são dados do processo, não do faturamento.
+
 ## Notificações
 
 - Evolution WhatsApp: opcional; sem credenciais = no-op / falha isolada.
