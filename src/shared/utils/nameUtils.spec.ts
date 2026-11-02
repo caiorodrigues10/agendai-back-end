@@ -60,6 +60,15 @@ describe("namesMatch", () => {
     expect(namesMatch("João Carlos Silva", "João Pedro Silva")).toBe(false);
   });
 
+  it("subsequência: nomes do meio do lado curto casam em ordem com algum do lado longo", () => {
+    expect(namesMatch("Maria Silva Santos", "Maria Aparecida Silva Santos")).toBe(true);
+    expect(namesMatch("João Pedro Carlos Silva", "João P. Silva")).toBe(true);
+  });
+
+  it("ordem dos nomes do meio importa (subsequência, não conjunto)", () => {
+    expect(namesMatch("João Carlos Pedro Silva", "João Pedro Carlos Silva")).toBe(false);
+  });
+
   it("sem nome do meio de um lado é tolerado", () => {
     expect(namesMatch("João Silva", "João A. Silva")).toBe(true);
     expect(namesMatch("João A. Silva", "João Silva")).toBe(true);

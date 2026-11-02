@@ -10,7 +10,9 @@
  *    única palavra nunca batem contra nomes compostos).
  *  - Primeiro nome e último sobrenome devem coincidir (ordem preservada).
  *  - Ignora preposições (de, da, do, dos, das, e), acento, caixa e pontuação.
- *  - Iniciais do nome do meio são toleradas (não são comparadas).
+ *  - Nomes do meio: cada palavra do lado mais curto deve casar (igual ou
+ *    inicial compatível), em ordem, com alguma palavra do lado mais longo
+ *    (subsequência). Se apenas um lado tem nomes do meio, não compara.
  */
 
 /** Preposições/artigos que são ignoradas na comparação de nomes. */
@@ -48,8 +50,9 @@ function wordCompatible(a: string, b: string): boolean {
  * - exige >= 2 palavras significativas em cada lado
  * - primeiro nome e último sobrenome iguais (ordem preservada)
  * - ignora preposições, acento, caixa e pontuação
- * - iniciais do nome do meio são toleradas: quando ambos têm nomes do meio,
- *   cada par posição-a-posição deve ser igual ou inicial compatível
+ * - nomes do meio: cada palavra do lado mais curto casa (igual ou inicial
+ *   compatível), em ordem, com alguma palavra do lado mais longo
+ *   (subsequência). Se apenas um lado tem nomes do meio, não compara.
  *
  * Retorna true quando os nomes se referem provavelmente à mesma pessoa.
  */
@@ -64,14 +67,19 @@ export function namesMatch(nameA: string | null | undefined, nameB: string | nul
   if (wordsA[0] !== wordsB[0]) return false;
   if (wordsA[wordsA.length - 1] !== wordsB[wordsB.length - 1]) return false;
 
-  // Nomes do meio: quando ambos têm, cada par posição-a-posição deve ser
-  // igual ou inicial compatível. Se apenas um tem, é tolerado (não comparado).
+  // Nomes do meio: cada palavra do lado mais curto deve casar (igual ou
+  // inicial compatível), em ordem, com alguma palavra do lado mais longo
+  // (subsequência). Se apenas um lado tem nomes do meio, não compara.
   const middleA = wordsA.slice(1, -1);
   const middleB = wordsB.slice(1, -1);
   if (middleA.length > 0 && middleB.length > 0) {
-    const maxLen = Math.max(middleA.length, middleB.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (!wordCompatible(middleA[i] ?? "", middleB[i] ?? "")) return false;
+    const shorter = middleA.length <= middleB.length ? middleA : middleB;
+    const longer = middleA.length <= middleB.length ? middleB : middleA;
+    let j = 0;
+    for (const word of shorter) {
+      while (j < longer.length && !wordCompatible(word, longer[j])) j++;
+      if (j === longer.length) return false;
+      j++;
     }
   }
 
