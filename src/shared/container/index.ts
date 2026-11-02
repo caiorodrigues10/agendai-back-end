@@ -8,6 +8,9 @@ import { UserRepository } from '@/modules/users/infra/repositories/UserRepositor
 import { IServiceRepository } from '@/modules/services/repositories/IServiceRepository'
 import { ServiceRepository } from '@/modules/services/infra/repositories/ServiceRepository'
 
+import { ICpfNameVerifier } from '@/shared/services/cpfNameVerification/ICpfNameVerifier'
+import { NoopCpfNameVerifier } from '@/shared/services/cpfNameVerification/NoopCpfNameVerifier'
+
 import { IBarbershopRepository } from '@/modules/barbershops/repositories/IBarbershopRepository'
 import { BarbershopRepository } from '@/modules/barbershops/infra/repositories/BarbershopRepository'
 
@@ -161,3 +164,5 @@ container.registerSingleton(ProductReservationUseCases)
 container.registerSingleton('GetWeatherInsightsUseCase', GetWeatherInsightsUseCase)
 container.registerSingleton<WhatsAppAiRepository>('WhatsAppAiRepository', WhatsAppAiRepository)
 container.registerSingleton<WhatsAppAiService>('WhatsAppAiService', WhatsAppAiService)
+
+container.registerSingleton<ICpfNameVerifier>('CpfNameVerifier', NoopCpfNameVerifier)
