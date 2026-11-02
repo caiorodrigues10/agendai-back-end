@@ -10,6 +10,9 @@
  *     quando a opção está desligada.
  *   • Honorários nunca entram no caixa nem no financeiro: não há coluna de
  *     pagamento, lançamento ou recebimento.
+ *   • Período: ambas as abas respeitam o intervalo `from`/`to` informado pelo
+ *     dono — casos filtram por `openedAt`, honorários por `createdAt`. Quando o
+ *     período é "Tudo" (sem from/to), não há filtro de data.
  */
 import { prisma } from "@/libs/prismaClient";
 import {
@@ -22,7 +25,7 @@ import {
   type SheetTarget,
   type SheetContext,
 } from "../sheetHelpers";
-import { safeText } from "../../utils/cellSafety";
+import { anonymizeName, anonymizePhone, safeText } from "../../utils/cellSafety";
 
 const CASE_STATUS_LABELS: Record<string, string> = {
   LEAD: "Prospecção",
@@ -77,7 +80,12 @@ export const casesSheet: SheetBuilder = {
     setupSheet(sheet, CASES_COLUMNS);
 
     const cases = await prisma.clientCase.findMany({
-      where: { barbershopId: ctx.shop.id },
+      where: {
+        barbershopId: ctx.shop.id,
+        ...(ctx.period.from && ctx.period.to
+          ? { openedAt: { gte: ctx.period.from, lte: ctx.period.to } }
+          : {}),
+      },
       orderBy: { openedAt: "desc" },
       select: {
         id: true,
@@ -108,11 +116,18 @@ export const casesSheet: SheetBuilder = {
     });
 
     for (const item of cases) {
+      const clientName = ctx.options.anonymize
+        ? anonymizeName(item.client?.name ?? null)
+        : safeText(item.client?.name ?? null);
+      const clientWhatsapp = ctx.options.anonymize
+        ? anonymizePhone(item.client?.whatsapp ?? null)
+        : safeText(item.client?.whatsapp ?? null);
+
       addRow(sheet, CASES_COLUMNS, [
         item.nickname,
         item.caseNumber ?? "",
-        item.client?.name ?? "",
-        item.client?.whatsapp ?? "",
+        clientName ?? "",
+        clientWhatsapp ?? "",
         item.practiceArea ?? "",
         CASE_STATUS_LABELS[item.status] ?? item.status,
         CASE_PRIORITY_LABELS[item.priority] ?? item.priority,
@@ -156,7 +171,12 @@ export const caseFeesSheet: SheetBuilder = {
     const showCaseData = ctx.options.includeCase === true;
 
     const fees = await prisma.caseSuccessFee.findMany({
-      where: { barbershopId: ctx.shop.id },
+      where: {
+        barbershopId: ctx.shop.id,
+        ...(ctx.period.from && ctx.period.to
+          ? { createdAt: { gte: ctx.period.from, lte: ctx.period.to } }
+          : {}),
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -181,6 +201,9 @@ export const caseFeesSheet: SheetBuilder = {
     for (const item of fees) {
       const caseNumber = showCaseData ? (item.case?.caseNumber ?? "") : "";
       const caseName = showCaseData ? (item.case?.nickname ?? "") : "";
+      // Sem includeCase,Observações não sai (sigilo: não expõe nota interna
+      // do honorário sem o contexto do processo).
+      const notes = showCaseData ? (item.notes ?? "") : "";
 
       addRow(sheet, CASE_FEES_COLUMNS, [
         caseNumber,
@@ -191,7 +214,7 @@ export const caseFeesSheet: SheetBuilder = {
         FEE_STATUS_LABELS[item.status] ?? item.status,
         item.dueDate,
         item.installments,
-        item.notes ?? "",
+        notes,
         item.createdAt,
         item.id,
       ]);

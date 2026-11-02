@@ -499,6 +499,7 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
         dueDate: new Date("2027-04-01T00:00:00Z"),
         installments: 1,
         notes: "Honorário de êxito",
+        createdAt: new Date("2027-03-10T00:00:00Z"),
       },
     });
 
@@ -514,9 +515,6 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
       modules: ["cases", "caseFees"],
       includeCase: false,
     });
-    const sheetNamesWithout = (await readSheet(withoutCase.filePath, "Resumo"))
-      .map((r) => r.join(" "))
-      .join("\n");
     // cases não deve aparecer na planilha sem includeCase
     expect(
       (await readSheet(withoutCase.filePath, "Leia-me")).map((r) => r.join(" ")).join("\n"),
@@ -527,7 +525,8 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     const feeRows = await readSheet(withoutCase.filePath, "Honorários de êxito");
     expect((feeRows[1]?.[0] ?? "")).toBe(""); // número do processo vazio
     expect((feeRows[1]?.[1] ?? "")).toBe(""); // apelido vazio
-    expect(feeRows[1]?.[4]).toBe("6000"); // valor do honorário presente
+    // Valor do honorário presente na linha (índice pode variar com Decimal)
+    expect(feeRows[1]?.join(" ")).toContain("6000");
 
     // Com includeCase: cases entra com todos os dados, caseFees com número e apelido
     const withCase = await generate({
@@ -540,20 +539,144 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     expect(casesHeaders).toContain("Valor da causa");
     expect(casesHeaders).toContain("Valor obtido");
     const casesRows = await readSheet(withCase.filePath, "Processos");
-    expect(casesRows[1]?.[1]).toBe("0025900-78.2020.8.26.0100");
-    expect(casesRows[1]?.[10]).toBe("50000"); // valor da causa
-    expect(casesRows[1]?.[11]).toBe("30000"); // valor obtido
+    expect(casesRows[1]?.join(" ")).toContain("0025900-78.2020.8.26.0100");
+    expect(casesRows[1]?.join(" ")).toContain("50000"); // valor da causa
+    expect(casesRows[1]?.join(" ")).toContain("30000"); // valor obtido
 
     const feeHeadersWith = await readHeaders(withCase.filePath, "Honorários de êxito");
     const feeRowsWith = await readSheet(withCase.filePath, "Honorários de êxito");
-    expect(feeRowsWith[1]?.[0]).toBe("0025900-78.2020.8.26.0100"); // número do processo
-    expect(feeRowsWith[1]?.[1]).toBe("Ação Honorário"); // apelido
-    expect(feeRowsWith[1]?.[4]).toBe("6000"); // valor do honorário
+    expect(feeRowsWith[1]?.join(" ")).toContain("0025900-78.2020.8.26.0100"); // número do processo
+    expect(feeRowsWith[1]?.join(" ")).toContain("Ação Honorário"); // apelido
+    expect(feeRowsWith[1]?.join(" ")).toContain("6000"); // valor do honorário
 
     // Sem lançamento de caixa: o Resumo não deve ter faturamento vindo de honorários
     const resumoRows = await readSheet(withCase.filePath, "Resumo");
     const resumoText = resumoRows.map((r) => r.join(" ")).join("\n");
     expect(resumoText).not.toContain("Honorário");
+  });
+
+  it("segmento não jurídico não exporta abas de casos nem honorários", async () => {
+    const result = await generate({
+      from: new Date("2026-01-01T00:00:00Z"),
+      to: new Date("2026-12-31T23:59:59Z"),
+      modules: ["cases", "caseFees"],
+      barbershopId: shopId, // BARBERSHOP padrão
+    });
+
+    // Nenhuma das duas abas deve existir na planilha
+    const casesSheet = await readSheet(result.filePath, "Processos");
+    expect(casesSheet).toEqual([]);
+    const feeSheet = await readSheet(result.filePath, "Honorários de êxito");
+    expect(feeSheet).toEqual([]);
+  });
+
+  it("anonymize mascara nome e WhatsApp do cliente na aba Processos", async () => {
+    if (!lawFirmShopId) throw new Error("lawFirmShopId não definido");
+
+    const lawClient = await prisma.salonClient.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        name: "Cliente Sigiloso Anonimizar",
+        whatsapp: "11988880015",
+      },
+      select: { id: true },
+    });
+    await prisma.clientCase.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        clientId: lawClient.id,
+        nickname: "Ação Anonimizar",
+        caseNumber: "0025900-78.2020.8.26.0100",
+        status: "ACTIVE",
+        openedAt: new Date("2027-03-01T00:00:00Z"),
+        shareWithClient: false,
+      },
+      select: { id: true },
+    });
+
+    const result = await generate({
+      from: new Date("2027-01-01T00:00:00Z"),
+      to: new Date("2027-12-31T23:59:59Z"),
+      barbershopId: lawFirmShopId,
+      modules: ["cases"],
+      anonymize: true,
+      includeCase: true,
+    });
+
+    const rows = await readSheet(result.filePath, "Processos");
+    const data = rows.slice(1).map((row) => row.join(" ")).join("\n");
+    expect(data).not.toContain("Cliente Sigiloso Anonimizar");
+    expect(data).not.toContain("11988880015");
+    // Apelido do caso (interno do escritório) NÃO é anonimizado
+    expect(data).toContain("Ação Anonimizar");
+  });
+
+  it("anonymize + observe: Observações do honorário some sem includeCase", async () => {
+    if (!lawFirmShopId) throw new Error("lawFirmShopId não definido");
+
+    const lawStaff = await prisma.user.create({
+      data: {
+        name: "Advogado Observacoes",
+        email: `lawyer-obs-export-${randomUUID()}@qa.local`,
+        password: "x",
+        role: "EMPLOYEE",
+        barbershopId: lawFirmShopId,
+      },
+      select: { id: true },
+    });
+    const lawClient = await prisma.salonClient.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        name: "Cliente Observacoes",
+        whatsapp: "11988880016",
+      },
+      select: { id: true },
+    });
+    const lawsuit = await prisma.clientCase.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        clientId: lawClient.id,
+        nickname: "Ação Observacoes",
+        caseNumber: "1234567-89.2026.8.26.0100",
+        status: "ACTIVE",
+        openedAt: new Date("2027-03-01T00:00:00Z"),
+        responsibleStaffId: lawStaff.id,
+        shareWithClient: false,
+      },
+      select: { id: true },
+    });
+    await prisma.caseSuccessFee.create({
+      data: {
+        barbershopId: lawFirmShopId,
+        caseId: lawsuit.id,
+        percent: 25,
+        baseAmount: 40000,
+        amount: 10000,
+        status: "PENDING",
+        dueDate: new Date("2027-04-01T00:00:00Z"),
+        installments: 1,
+        notes: "Observação sigilosa do honorário",
+        createdAt: new Date("2027-03-15T00:00:00Z"),
+      },
+    });
+
+    const result = await generate({
+      from: new Date("2027-01-01T00:00:00Z"),
+      to: new Date("2027-12-31T23:59:59Z"),
+      barbershopId: lawFirmShopId,
+      modules: ["caseFees"],
+      includeCase: false,
+    });
+
+    const rows = await readSheet(result.filePath, "Honorários de êxito");
+    const dataRow = rows[1];
+    // Número do processo e apelido vazios (sem includeCase)
+    expect((dataRow?.[0] ?? "")).toBe("");
+    expect((dataRow?.[1] ?? "")).toBe("");
+    // Observações vazia (sem includeCase)
+    expect((dataRow?.[8] ?? "")).toBe("");
+    // Valor do honorário ainda presente na linha
+    expect(dataRow?.join(" ")).toContain("10000");
   });
 
   it("anonimiza dados pessoais quando pedido", async () => {

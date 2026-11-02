@@ -84,6 +84,7 @@ describe("importCaseFeeRow", () => {
           caseId: "case-1",
           percent: 20,
           installments: 1,
+          status: "PENDING",
         }),
       }),
     );
@@ -102,6 +103,28 @@ describe("importCaseFeeRow", () => {
     expect(caseSuccessFeeCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ installments: 1 }),
+      }),
+    );
+  });
+
+  it("status 'Pago' é gravado como PAID", async () => {
+    const result = await importCaseFeeRow(
+      tx,
+      SHOP,
+      { ...LINHA, Situação: "Pago" },
+      contexto(),
+    );
+
+    expect(result.status).toBe("IMPORTED");
+    expect(caseSuccessFeeCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          barbershopId: SHOP,
+          caseId: "case-1",
+          percent: 20,
+          installments: 1,
+          status: "PAID",
+        }),
       }),
     );
   });
