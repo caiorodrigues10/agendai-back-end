@@ -1,0 +1,4 @@
+arquivo,linha,status,campo,mensagem,avisos,parcelas_efetivas,verificacao_banco
+export-01,1,VALID,,,"Parcelas ""2"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+export-01,2,VALID,,,,1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+export-01,3,VALID,,,,1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline

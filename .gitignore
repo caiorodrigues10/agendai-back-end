@@ -25,3 +25,16 @@ scripts/diag*.ts
 
 # Referências visuais de design (inspiração) — nunca versionar
 docs/post-references/
+
+# Privacidade: imagens/reais e ground truths nunca versionar
+testimage/
+spikes/ocr-benchmark/dataset-real/real/
+spikes/ocr-benchmark/dataset-real/ground-truth-real/
+spikes/ocr-benchmark/dataset-real/manifest-real.csv
+spikes/ocr-benchmark/dataset-real/ocr-output-real/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

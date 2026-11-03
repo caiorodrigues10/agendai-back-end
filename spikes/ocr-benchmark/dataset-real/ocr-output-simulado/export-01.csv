@@ -1,0 +1,4 @@
+numero_processo,apelido_caso,percentual_exito,valor_base,valor_honorario,situacao,vencimento,parcela,observacoes,data_criacao,id
+1500553-90.2025.8.26.0100,Ação Ana Oliveira,"15,0","R$ 13.737,62","R$ 2.060,64",Faturado,02/03/2026,2,Honorário de êxito sobre valor obtido.,24/09/2026 18:44,d424e6b1-9eb9-5008-b62b-82bcff66080a
+8528175-25.2025.8.26.0100,Ação João Oliveira,"24,00","R$ 39.215,35","R$ 9.411,68",Pago,17/11/2026,1,Honorário de êxito sobre valor obtido.,11/06/2026 15:47,b3c60256-ba96-5d77-913e-cc785b3a1b5c
+5701535-52.2025.8.26.0100,Ação Lucas Souza,"17,00","R$ 28.774,88","R$ 4.891,73",Pendente,10/02/2026,1,Honorário de êxito sobre valor obtido.,16/09/2026 11:07,40680998-1d9e-58b9-88d2-4df407299cdb
