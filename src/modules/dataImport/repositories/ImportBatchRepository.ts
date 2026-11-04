@@ -10,6 +10,7 @@ import type {
   ImportFileFormat,
   ImportTargetType,
 } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 export interface CreateImportBatchData {
   barbershopId: string;
@@ -76,7 +77,24 @@ export class ImportBatchRepository {
   ) {
     return prisma.importBatch.updateMany({
       where: { id, barbershopId },
-      data: data as never,
+      data: {
+        ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(data.targetType !== undefined ? { targetType: data.targetType } : {}),
+        ...(data.sheetName !== undefined ? { sheetName: data.sheetName } : {}),
+        ...(data.headers !== undefined ? { headers: data.headers } : {}),
+        ...(data.mapping !== undefined
+          ? { mapping: data.mapping as Prisma.InputJsonValue }
+          : {}),
+        ...(data.totalRows !== undefined ? { totalRows: data.totalRows } : {}),
+        ...(data.processedRows !== undefined ? { processedRows: data.processedRows } : {}),
+        ...(data.importedRows !== undefined ? { importedRows: data.importedRows } : {}),
+        ...(data.failedRows !== undefined ? { failedRows: data.failedRows } : {}),
+        ...(data.skippedRows !== undefined ? { skippedRows: data.skippedRows } : {}),
+        ...(data.errorMessage !== undefined ? { errorMessage: data.errorMessage } : {}),
+        ...(data.startedAt !== undefined ? { startedAt: data.startedAt } : {}),
+        ...(data.finishedAt !== undefined ? { finishedAt: data.finishedAt } : {}),
+        ...(data.undoneAt !== undefined ? { undoneAt: data.undoneAt } : {}),
+      },
     });
   }
 

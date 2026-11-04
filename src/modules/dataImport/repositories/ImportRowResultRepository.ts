@@ -52,7 +52,12 @@ export class ImportRowResultRepository {
   ) {
     return prisma.importRowResult.updateMany({
       where: { batchId, sheetName, rowNumber },
-      data: data as never,
+      data: {
+        status: data.status,
+        ...(data.entityType !== undefined ? { entityType: data.entityType } : {}),
+        ...(data.entityId !== undefined ? { entityId: data.entityId } : {}),
+        ...(data.errorMessage !== undefined ? { errorMessage: data.errorMessage } : {}),
+      },
     });
   }
 

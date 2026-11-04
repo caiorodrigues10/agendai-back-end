@@ -4,8 +4,10 @@
  * Só valida a entrada (Zod) e resolve o salão — a regra mora nos use cases.
  */
 import { FastifyRequest, FastifyReply } from "fastify";
+import type { MultipartFile } from "@fastify/multipart";
 import { AppError } from "@/shared/errors/AppError";
 import { DataImportUseCases } from "./dataImportUseCases";
+import { MAX_IMPORT_FILE_SIZE_BYTES } from "./dataImport.constants";
 import { buildImportTemplate } from "./importTemplate";
 import { undoImportBatch } from "./importUndo";
 import { enqueueDataImportBatch } from "@/shared/infra/queue/dataImportQueue";
@@ -27,8 +29,8 @@ export class DataImportController {
     const { barbershopId } = request.params as { barbershopId: string };
     const user = request.user!;
 
-    const data = await (request as any).file({
-      limits: { files: 1, fields: 5, fileSize: 10 * 1024 * 1024 },
+    const data: MultipartFile | undefined = await request.file({
+      limits: { files: 1, fields: 5, fileSize: MAX_IMPORT_FILE_SIZE_BYTES },
     });
 
     if (!data) {
@@ -38,10 +40,13 @@ export class DataImportController {
     let buffer: Buffer;
     try {
       buffer = await data.toBuffer();
-    } catch (err: any) {
-      const message = String(err?.message ?? "");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       if (message.includes("FST_REQ_FILE_TOO_LARGE") || message.includes("limit")) {
-        throw new AppError("O arquivo passa de 10 MB. Envie um arquivo menor.", 413);
+        throw new AppError(
+          `O arquivo passa de ${Math.round(MAX_IMPORT_FILE_SIZE_BYTES / (1024 * 1024))} MB. Envie um arquivo menor.`,
+          413,
+        );
       }
       throw new AppError("Não foi possível ler o arquivo enviado.", 400);
     }

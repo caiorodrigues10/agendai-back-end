@@ -10,7 +10,7 @@
  *     o horário do dia, o preço do produto): o desfazer restaura o valor.
  */
 import { prisma } from "@/libs/prismaClient";
-import type { ImportEntityType } from "@prisma/client";
+import type { ImportEntityType, Prisma } from "@prisma/client";
 
 export interface ImportCreatedEntityData {
   entityType: ImportEntityType;
@@ -32,7 +32,7 @@ export class ImportCreatedEntityRepository {
         barbershopId,
         entityType: entity.entityType,
         entityId: entity.entityId,
-        previousState: (entity.previousState ?? null) as never,
+        previousState: (entity.previousState ?? null) as Prisma.InputJsonValue,
       })),
       skipDuplicates: true,
     });

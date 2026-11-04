@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppTx } from "@/libs/prismaClient";
 import { importServiceRow } from "./serviceImporter";
 import type { ImportRowContext } from "./importRowContext";
+import { txDeTeste } from "./testUtils";
 
 const { serviceFindFirst, serviceCreate, categoryFindFirst, categoryCreate } = vi.hoisted(() => ({
   serviceFindFirst: vi.fn(),
@@ -12,10 +13,11 @@ const { serviceFindFirst, serviceCreate, categoryFindFirst, categoryCreate } = v
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: {} }));
 
-const tx = {
+const txMock = {
   service: { findFirst: serviceFindFirst, create: serviceCreate },
   serviceCategory: { findFirst: categoryFindFirst, create: categoryCreate },
-} as unknown as AppTx;
+};
+const tx = txDeTeste(txMock);
 
 const SHOP = "shop-1";
 
