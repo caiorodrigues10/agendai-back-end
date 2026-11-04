@@ -144,7 +144,10 @@ export async function ocrImage(imageBuffer: Buffer): Promise<Awaited<ReturnType<
     // e o caller trata o erro de demora. O worker é reutilizado.
   }, OCR_TIMEOUT_MS);
   try {
-    const result = await worker.recognize(imageBuffer, {});
+    // `blocks: true` é obrigatório no tesseract.js v7: sem ele `data.blocks`
+    // vem nulo e o extrator não recebe nenhuma palavra (nem bbox, nem
+    // confiança) — a imagem "lê" vazia.
+    const result = await worker.recognize(imageBuffer, {}, { blocks: true, text: true });
     return result;
   } finally {
     clearTimeout(timeout);
