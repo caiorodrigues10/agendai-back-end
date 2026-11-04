@@ -46,20 +46,18 @@ export type ImportFileFormat =
  */
 export type ImportBatchTargetType = ImportTargetType | "MIXED";
 
-/** Situação do lote. Espelha o enum `ImportBatchStatus` do Prisma. */
-export type ImportBatchStatus =
-  | "UPLOADED"
-  | "MAPPING"
-  | "VALIDATING"
-  | "AWAITING_CONFIRMATION"
-  | "AWAITING_REVIEW"
-  | "PROCESSING"
-  | "COMPLETED"
-  | "COMPLETED_WITH_ERRORS"
-  | "FAILED"
-  | "CANCELLED"
-  | "UNDONE"
-  | "EXPIRED";
+/**
+ * Situação do lote.
+ *
+ * Reexporta o enum `ImportBatchStatus` do Prisma (`prisma/schema.prisma`) —
+ * a lista de valores é a do banco, sem cópia local: um status que exista só
+ * em TypeScript chegaria ao Postgres e derrubaria a gravação do lote.
+ *
+ * A revisão das células lidas por OCR **não** é um status do lote: ela vive
+ * por célula (ver `ocr/ocrReview.ts`) e o lote percorre os mesmos status de
+ * uma planilha (UPLOADED → MAPPING → VALIDATING → AWAITING_CONFIRMATION).
+ */
+export type { ImportBatchStatus } from "@prisma/client";
 
 /** Tipo de entidade criada pelo lote. Espelha o enum `ImportEntityType`. */
 export type ImportEntityType =

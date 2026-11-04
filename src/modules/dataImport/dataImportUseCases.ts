@@ -33,7 +33,6 @@ import {
   availableImportTargets,
 } from "./dataImport.constants";
 import type {
-  ImportBatchStatus,
   ImportFieldKey,
   ImportFieldView,
   ImportOptions,
@@ -180,12 +179,6 @@ export class DataImportUseCases {
       source: source ?? "WEB",
     });
 
-    if (imagemMime) {
-      await this.batches.update(batch.id, barbershopId, {
-        status: ("AWAITING_REVIEW" as any),
-      });
-    }
-
     if (userId) {
       const detalhes = imagemMime
         ? { fileName: sanitizeFileName(fileName), fileSize: buffer.length, format: imagemMime, source: source ?? "WEB", origem: "ocr" }
@@ -206,7 +199,7 @@ export class DataImportUseCases {
       fileName: batch.fileName,
       fileFormat: batch.fileFormat,
       targetType: batch.targetType,
-      status: imagemMime ? ("AWAITING_REVIEW" as ImportBatchStatus) : batch.status,
+      status: batch.status,
       sheetNames: sheets.map((sheet) => sheet.selectedSheet).filter((name): name is string => !!name),
       selectedSheet: first.selectedSheet,
       headers: first.headers,
