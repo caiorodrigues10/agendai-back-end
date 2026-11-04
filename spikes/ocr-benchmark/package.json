@@ -13,7 +13,9 @@
     "report": "tsx src/build-report.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "calibration": "tsx src/calibrate.ts",
-    "resolution": "tsx src/sweep-resolution.ts"
+    "resolution": "tsx src/sweep-resolution.ts",
+    "bench:paddle": "tsx src/run.ts paddle",
+    "test": "tsx src/candidates/colunas.test.ts && tsx src/candidates/g-paddleocr.test.ts"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
