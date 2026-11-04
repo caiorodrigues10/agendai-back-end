@@ -47,6 +47,7 @@ API REST para gestão de salões/barbearias: fila digital, agendamentos, CRM, pa
 - [Sistema de Assinaturas](#sistema-de-assinaturas)
 - [Sistema de Bloqueio de CPF](#sistema-de-bloqueio-de-cpf)
 - [Upload de Logo](#upload-de-logo)
+- [Importação por imagem (OCR)](#importação-por-imagem-ocr)
 - [Testes](#testes)
 - [Documentação Swagger](#documentação-swagger)
 
@@ -2066,6 +2067,65 @@ Dois fluxos disponíveis:
 - Formatos aceitos: JPEG, PNG, WebP
 - Sem limite de peso no app (o Cloudinary aplica o limite do plano da conta)
 - A logo antiga é deletada automaticamente do GCS ao enviar uma nova
+
+---
+
+## Importação por imagem (OCR)
+
+O assistente de importação aceita **uma foto de planilha** (PNG/JPG/WEBP): o
+texto é lido localmente pelo Tesseract.js e vira a tabela do lote. A imagem
+**não é enviada para fora** e nada é gravado antes da confirmação do dono.
+
+### O traineddata: onde ele vem (e por que não está no repositório)
+
+O Tesseract precisa do dicionário de cada idioma (`eng.traineddata`,
+`por.traineddata` — dezenas de MB). Esses binários:
+
+- **não são versionados** no repositório (estão no `.gitignore`, junto com o
+  cache `.tesseract-cache/`);
+- são obtidos **na preparação/build**, com rede — `npm run ocr:tessdata`
+  (`scripts/fetch-ocr-tessdata.mjs`), que baixa de
+  `https://cdn.jsdelivr.net/npm/@tesseract.js-data/<lang>/4.0.0_best_int`
+  (a mesma fonte que o tesseract.js v7 usa por padrão);
+- no Docker, o passo `RUN npm run ocr:tessdata` roda **no stage de build** e
+  o `Dockerfile` copia `/app/.tesseract-cache` para a imagem final
+  (`ENV OCR_TESSDATA_PATH=/app/.tesseract-cache`).
+
+**Em runtime o servidor nunca usa a rede.** O tesseract.js procura primeiro
+`${OCR_TESSDATA_PATH}/<lang>.traineddata` no disco
+(`node_modules/tesseract.js/src/worker-script/index.js:109-114`) e só tentaria
+baixar da rede se o arquivo não existisse — e, nesse caso, a importação por
+imagem é **recusada antes de gravar qualquer coisa**, com erro explícito
+`503 OCR_TRAINEDDATA_MISSING` (`src/modules/dataImport/ocr/ocrWorker.ts:45-73`).
+
+Como verificar:
+
+```bash
+# 1. preparar (uma vez; precisa de rede)
+npm run ocr:tessdata
+
+# 2. conferir os arquivos no cache
+ls -la .tesseract-cache/            # eng.traineddata, por.traineddata
+
+# 3. o upload de imagem responde 503 OCR_TRAINEDDATA_MISSING se faltar
+```
+
+Em ambiente **sem rede** (build offline), aponte o script para uma pasta
+local com os arquivos `.gz`: `npm run ocr:tessdata -- --base-url=file:///caminho`.
+
+### Variáveis de ambiente
+
+| Variável | Padrão | Para quê |
+|---|---|---|
+| `OCR_IMPORT_ENABLED` | `off` | Liga a importação por imagem |
+| `OCR_TESSDATA_PATH` | `.tesseract-cache` | Onde estão os traineddata |
+| `OCR_MAX_FILE_SIZE_BYTES` | `10485760` | Tamanho máximo da foto |
+| `OCR_MAX_IMAGE_PIXELS` | `2000` | Redimensionamento antes do OCR |
+| `OCR_TIMEOUT_MS` | `30000` | Tempo máximo por imagem |
+| `OCR_WORKER_IDLE_MS` | `60000` | Inatividade até devolver a RAM |
+| `OCR_QUEUE_MAX_WAITING` | `4` | Jobs esperando na fila |
+| `OCR_MIN_TABLE_WIDTH_PX_TELEFONE` | `693` | Piso de leitura (telefone) |
+| `OCR_MIN_TABLE_WIDTH_PX_VALOR` | `924` | Piso de leitura (valor) |
 
 ---
 

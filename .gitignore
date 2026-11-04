@@ -42,3 +42,9 @@ __pycache__/
 .venv/
 .venv-paddle/
 venv/
+
+# OCR: traineddata do Tesseract — binário obtido no build (npm run ocr:tessdata),
+# nunca versionado nem baixado em runtime.
+.tesseract-cache/
+*.traineddata
+*.traineddata.gz
