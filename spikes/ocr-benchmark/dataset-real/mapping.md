@@ -580,6 +580,15 @@ reais é ruim e o placar mede isso, não a qualidade do parser. O arquivo sem
 extração **conta no geral** (182 células com valor, todas ausentes = 0%) e
 aparece na seção "SEM EXTRAÇÃO" do relatório.
 
+**Sessão 8 — o critério do falso confiante mudou, a qualidade não.** `status`
+volta a contar como campo **com normalizador** (§2.7: `FEE_STATUS_MAP`), então
+os 19 erros de `status` do GT real foram reavaliados. A contagem **continua
+54**: o texto lido pelo OCR nesses erros também está **fora** do
+`FEE_STATUS_MAP` (caixa alta), então a produção não o aceita em silêncio —
+vira PENDING **com aviso** (§2.7). Ou seja: mesmos erros, mesmo placar
+(462 células, 146 acertos, taxa 0,8933); o que mudou foi o **critério** do
+falso confiante, não a qualidade do OCR nem a do ground truth.
+
 ---
 
 ## 6. Como o `eval.py` pontua
@@ -604,12 +613,15 @@ aparece na seção "SEM EXTRAÇÃO" do relatório.
   e erro monetário ×`PESO_ERRO_MONETARIO` (5). Taxa de erro ponderada =
   `sum(peso*erro)/sum(peso)`.
 - **Falso confiante**: célula errada de campo **com normalizador** cujo valor
-  **passa** no normalizador de produção (`telefone`, moeda, percentual e DV de
-  CNJ) — o erro entraria no sistema sem ser barrado. **Campo de texto não
-  conta** (`cliente`, `servico`, `categoria`, `status`, `detalhe`...): sem
-  normalizador não há filtro que o erro pudesse atravessar. O relatório traz a
-  tabela `FALSO CONFIANTE POR CAMPO` (campo, erros, falsos confiantes) e a
-  lista dos campos sem normalizador.
+  **passa** no normalizador de produção (`telefone`, moeda, percentual, DV de
+  CNJ e o `status` do `FEE_STATUS_MAP` — §2.7) — o erro entraria no sistema
+  sem ser barrado. **Campo de texto não conta** (`cliente`, `servico`,
+  `categoria`, `detalhe`...): sem normalizador não há filtro que o erro
+  pudesse atravessar. No `status`, "passa" quer dizer **reconhecido pelo
+  mapa**: texto desconhecido vira PENDING **com aviso**, ou seja, a produção
+  barra o erro em vez de aceitá-lo em silêncio. O relatório traz a tabela
+  `FALSO CONFIANTE POR CAMPO` (campo, erros, falsos confiantes) e a lista dos
+  campos sem normalizador.
 - **`incerto`**: célula marcada no GT **sai do placar geral** (não conta como
   acerto nem como erro). O relatório mostra **só as contagens**:
   "preenchida pelo OCR" x "vazia no OCR".
@@ -630,9 +642,9 @@ aparece na seção "SEM EXTRAÇÃO" do relatório.
 - Modo `--real` só usa linhas com `revisado=sim` e **não imprime valores**. Sem
   nenhuma linha revisada, ele avisa e sai com código 0 (sem pontuar).
 
-Testes: `dataset-real/test_eval.py` (48 casos), `dataset-real/test_dataset_core.py`
+Testes: `dataset-real/test_eval.py` (51 casos), `dataset-real/test_dataset_core.py`
 (11 casos) e `dataset-real/test_ocr_para_csv.py` (3 casos: parser, grep do GT
-e o SKIP quando falta `ground-truth-real/`) — **62 no total**, rodados com
+e o SKIP quando falta `ground-truth-real/`) — **65 no total**, rodados com
 `dataset-real/.venv/bin/python -m pytest`.
 
 ---
@@ -1086,8 +1098,17 @@ imagem + comparação com o ground truth:
 |---|---|---|---|
 | `imagens/caderno-01.png` | Caderno de honorários manuscrito ("Caderno de Honorários") com 2 registros (Lucas Rodrigues e Gustavo Lima), cada um com processo, telefone, tipo sucumbência, parcela, situação, valor em R$, %, vencimento e data de pagamento. | **Sim** — as 2 linhas do `ground-truth/caderno-01.csv` batem com o que está escrito (inclusive o telefone mascarado por pontuação: `(51) 92674-4145` → `51926744145`). | Nenhum (`caderno-01.csv`: 20/20 células, 100%). |
 | `imagens/cadastro-01.png` | Tela escura de terminal ("Honorários de êxito [ SISTEMA ANTIGO v2.3 ]") com cabeçalho Cliente/Telefone/Processo/Tipo/Valor (R$)/%/Parcela/Vencimento/Pagamento/Status e 1 linha (Juliana Oliveira). | **Sim** — a linha do `ground-truth/cadastro-01.csv` bate; o telefone da imagem é `(85) 2632-8043` → `8526328043` (10 dígitos). | O OCR **simulado** leu `852632804` (perdeu o último dígito): 1 erro de campo `telefone`, que **não** passa em `normalizePhone` (9 dígitos é rejeitado) — por isso não entra como "falso confiante". |
-| `imagens/cadastro-07.png` | Tabela clara "Honorários de êxito" com 3 linhas (nomes sintéticos), mesmos 10 campos, todas com o processo `0046868-56.2025.8.26.0100`. | **Sim** — as 3 linhas do `ground-truth/cadastro-07.csv` batem; em especial o status da 2ª linha é **"pendente"**. | O OCR **simulado** escreveu `pago` no status da 2ª linha: erro de campo `status` que **passa** pelo `FEE_STATUS_MAP`, mas como `status` é campo de texto **sem normalizador**, **não** conta como falso confiante (§6). |
+| `imagens/cadastro-07.png` | Tabela clara "Honorários de êxito" com 3 linhas (nomes sintéticos), mesmos 10 campos, todas com o processo `0046868-56.2025.8.26.0100`. | **Sim** — as 3 linhas do `ground-truth/cadastro-07.csv` batem; em especial o status da 2ª linha é **"pendente"**. | O OCR **simulado** escreveu `pago` no status da 2ª linha: erro de campo `status` que **passa** pelo `FEE_STATUS_MAP` (§2.7) — `status` **tem** normalizador, então **conta** como falso confiante (§6). |
 
 Conclusão: os erros apontados pelo `eval --sintetico` nestas 3 imagens são
 **erros do OCR simulado**, não do ground truth — o GT bate com o que está
 desenhado na imagem.
+
+**Números do sintético (Sessão 8).** `eval.py --sintetico`: **156 células,
+153 corretas (98,1%)**, taxa de erro ponderada **0,0138** e **2 falsos
+confiantes** (`percentual_exito` e `status`). Antes (Sessão 7) eram 156/153
+(98,1%), 0,0138 e **1** falso confiante. A diferença é de **critério**, não
+de qualidade: o erro de `status` do `cadastro-07` é o mesmo de sempre — ele
+saiu da conta só porque a Sessão 7 tratou `status` como campo de texto sem
+normalizador. Com `status` de volta no `FEE_STATUS_MAP` (§2.7), ele volta a
+contar: 2 = os mesmos 2 erros de antes da Sessão 7.

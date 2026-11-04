@@ -27,7 +27,7 @@ roda **dentro dele**:
 
 ```
 cd backend/spikes/ocr-benchmark/dataset-real
-./.venv/bin/python -m pytest -q                                  # testes (62)
+./.venv/bin/python -m pytest -q                                  # testes (65)
 ./.venv/bin/python eval.py --sintetico                           # eval default
 ./.venv/bin/python eval.py --real                                # eval real (somente revisado=sim)
 ./.venv/bin/python gerar-artefatos-reais.py                      # regera manifest-real.csv + _transcricao.json
@@ -60,10 +60,11 @@ e falha se algo aparecer. O mesmo teste roda dentro do pytest
 SKIP** quando `ground-truth-real/` não existe (em vez de passar em silêncio).
 
 `paridade-normalizadores.json` é o **fixture de paridade** Python x
-TypeScript: `gerar-paridade.ts` roda `normalizeMoney`, `normalizePhone` e
-`checkCnjCheckDigit` (funções reais do backend) sobre uma lista fixa de
-casos, e `test_eval.py` compara cada saída com a porta Python — divergência
-faz o teste falhar. Regerar o fixture depois de mexer nos normalizadores.
+TypeScript: `gerar-paridade.ts` roda `normalizeMoney`, `normalizePhone`,
+`checkCnjCheckDigit` e `parseFeeStatus` (funções reais do backend) sobre uma
+lista fixa de casos, e `test_eval.py` compara cada saída com a porta Python —
+divergência faz o teste falhar. Regerar o fixture depois de mexer nos
+normalizadores.
 
 ## Regras da série
 
