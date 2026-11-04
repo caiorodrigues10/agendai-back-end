@@ -302,8 +302,11 @@ function main(): void {
 
   add(
     "- **Deployável / custo (G):** PaddleOCR é Apache-2.0 e roda local, mas precisa de runtime Python no container. " +
-      "Medido: venv ~981 MB (paddlepaddle + paddleocr + deps) e modelos ~133 MB (PP-OCRv6 médio det+rec, português/latino). " +
-      "Não é isento de custo: o modelo é carregado por processo Python, o que leva G a ~7,9 s/imagem contra ~0,35 s do B."
+      "Medido com `/usr/bin/time -l` no lote de 66 imagens (1 execução): venv ~981 MB (paddlepaddle + paddleocr + deps) " +
+      "e modelos ~133 MB (PP-OCRv6 médio det+rec, português/latino); pico de RAM ~1.2 GB. Custo de tempo: " +
+      "carga do modelo ~2,1 s (uma vez por processo Python) + inferência em lote ~5,0 s/imagem; como o runner " +
+      "reabre um processo Python por imagem, o `tempoMedioMs` medido em `run.ts` fica em ~7,9 s/imagem " +
+      "(contra ~0,35 s do B, que carrega o worker do Tesseract ~0,5 s e infere ~0,34 s/imagem com ~204 MiB de RAM)."
   );
   add("");
   add(
@@ -550,18 +553,25 @@ function main(): void {
   const g = porId(candidatos, "G-");
   const bb = porId(candidatos, "B-");
   if (g && bb) {
-    const bg = bench("G-");
-    const bbb = bench("B-");
+    const bgPiso = agrega(g, dentroDoPiso);
+    const bbPiso = agrega(bb, dentroDoPiso);
     add(
-      `- **PaddleOCR (G) supera B em acerto bruto, mas perde no critério central (falso confiante) e no tempo.** ` +
-        `No dataset bruto: telefone ${exatos(bg.colunas.telefone)} (B: ${exatos(bbb.colunas.telefone)}), ` +
-        `valor ${exatos(bg.colunas.valor)} (B: ${exatos(bbb.colunas.valor)}), ` +
-        `mas falso confiante de ${bg.colunas.telefone.falsoConfiante + bg.colunas.valor.falsoConfiante} ` +
-        `(tel+valor) contra ${bbb.colunas.telefone.falsoConfiante + bbb.colunas.valor.falsoConfiante} do B — ` +
-        `o G produz mais telefone/valor plausível e errado que passa pela validacao. ` +
-        `Custo: ${(g.tempoMedioMs / 1000).toFixed(1)} s/imagem contra ${(bb.tempoMedioMs / 1000).toFixed(1)} s do B, ` +
-        `porque cada imagem dispara um processo Python que carrega o modelo. Nao e melhor que o B; ` +
-        `e mais lento e mais falso-confiante.`
+      `- **PaddleOCR (G) vs B — critério central é falso confiante, não acerto médio.** Dataset bruto (1 execução, ` +
+        `858 células de telefone+valor): G ${exatos(g.totais.telefone)} de telefone (FC ${g.totais.telefone.falsoConfiante}) ` +
+        `e ${exatos(g.totais.valor)} de valor (FC ${g.totais.valor.falsoConfiante}), ` +
+        `${g.totais.telefone.falsoConfiante + g.totais.valor.falsoConfiante} falso(s) confiante(s) de 858; ` +
+        `B ${exatos(bb.totais.telefone)} de telefone (FC ${bb.totais.telefone.falsoConfiante}) e ${exatos(bb.totais.valor)} de ` +
+        `valor (FC ${bb.totais.valor.falsoConfiante}), ${bb.totais.telefone.falsoConfiante + bb.totais.valor.falsoConfiante} ` +
+        `falso(s) confiante(s) de 858. Acima do piso: G ${exatos(bgPiso.colunas.telefone)} tel / ${exatos(bgPiso.colunas.valor)} val ` +
+        `(FC ${bgPiso.colunas.telefone.falsoConfiante + bgPiso.colunas.valor.falsoConfiante}) contra B ` +
+        `${exatos(bbPiso.colunas.telefone)} tel / ${exatos(bbPiso.colunas.valor)} val ` +
+        `(FC ${bbPiso.colunas.telefone.falsoConfiante + bbPiso.colunas.valor.falsoConfiante}). ` +
+        `O G lê melhor o **nome** (${exatos(g.totais.nome)} vs ${exatos(bb.totais.nome)} bruto), mas o B lê melhor ` +
+        `telefone/valor acima do piso (B: 0 FC de tel+valor; G: ${bgPiso.colunas.telefone.falsoConfiante + bgPiso.colunas.valor.falsoConfiante} FC). ` +
+        `Tempo (medido em lote, 66 imagens): G carrega o modelo ~2,1 s + infere ~5,0 s/imagem; B carrega o worker ~0,5 s + ` +
+        `infere ~0,34 s/imagem. No run.ts cada imagem reabre um processo Python, daí G ~7,9 s/imagem vs B ~0,35 s/imagem. ` +
+        `Não se declara que o G "é melhor": supera B em nome e acerto bruto de telefone/valor, mas perde no falso confiante ` +
+        `e no tempo.`
     );
   }
   add(
