@@ -33,6 +33,9 @@ spikes/ocr-benchmark/dataset-real/ground-truth-real/
 spikes/ocr-benchmark/dataset-real/manifest-real.csv
 spikes/ocr-benchmark/dataset-real/ocr-output-real/
 
+# Diário local do spike OCR (nunca versionar)
+spikes/ocr-benchmark/dataset-real/PROGRESSO.md
+
 # Python
 __pycache__/
 *.pyc
