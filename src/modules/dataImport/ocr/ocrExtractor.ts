@@ -5,36 +5,22 @@
  * que `readSpreadsheetSheets` devolve para planilhas — para reaproveitar
  * mapeamento, validação, preview e commit do pipeline existente.
  *
- * Cada linha vira um registro com headers genéricos ("Coluna 1", "Coluna 2"…)
- * ou semânticos ("Nome", "Telefone", "Valor") quando o padrão de tabela for
- * reconhecido. As confianças por célula são mantidas em paralelo para o gate
- * de falso confiante.
+ * A imagem vira uma tabela com cabeçalhos **genéricos** ("Coluna 1",
+ * "Coluna 2"…): quem decide o que cada coluna significa é o dono, na etapa de
+ * mapeamento, exatamente como na importação de planilha. O OCR não adivinha o
+ * destino nem o campo de cada coluna.
+ *
+ * Cada coluna da tabela guarda a confiança da leitura (a menor entre as
+ * palavras lidas naquela célula): é ela que o gate de falso confiante usa
+ * para decidir o que o dono precisa revisar.
  */
 import type { ParsedSpreadsheet, ImportRawRow } from "../dataImport.types";
-import { distribuirColunas, type CelulaOcr, clusterColumnsX } from "./colunas";
+import { clusterColumnsX, type CelulaOcr } from "./colunas";
 import { ocrImage } from "./ocrWorker";
 import { AppError } from "@/shared/errors/AppError";
+import type { OcrCellResult, OcrSheetResult } from "./ocr.types";
 
-export interface OcrCellResult {
-  /** Texto extraído da célula. */
-  valor: string;
-  /** Confiança do OCR (0-100), quando disponível. */
-  confianca: number | null;
-  /** Sempre "ocr" — usado pelo gate de falso confiante. */
-  origem: "ocr";
-  /** Número da linha (1-based) na planilha extraída. */
-  linha: number;
-  /** Índice da coluna detectada. */
-  coluna: number;
-}
-
-export interface OcrSheetResult {
-  sheet: ParsedSpreadsheet;
-  /** Células com confiança, indexadas por [linha][coluna]. */
-  celulas: OcrCellResult[][];
-  /** Largura da imagem detectada (para verificação de piso). */
-  larguraPx: number;
-}
+export type { OcrCellResult, OcrSheetResult } from "./ocr.types";
 
 /** Agrupa palavras em linhas por sobreposição vertical (mesma regra do spike). */
 function agruparLinhas(
@@ -70,34 +56,40 @@ function agruparLinhas(
   );
 }
 
-/** Extrai células com confiança do resultado do Tesseract. */
-function extrairCelulas(
+/**
+ * Extrai as palavras (com caixa e confiança) do resultado do Tesseract.
+ *
+ * O tesseract.js v7 devolve a hierarquia bloco → parágrafo → linha → palavra;
+ * cada palavra traz `bbox` (x0/y0/x1/y1 em pixels) e `confidence` (0-100).
+ */
+function extrairPalavras(
   result: Awaited<ReturnType<typeof ocrImage>>,
 ): CelulaOcr[] {
-  const data = (result.data ?? {}) as Record<string, any>;
-  const textos: string[] = data.text ?? [];
-  const confs: number[] = data.confidence ?? [];
-  const lefts: number[] = data.left ?? [];
-  const tops: number[] = data.top ?? [];
-  const widths: number[] = data.width ?? [];
-  const heights: number[] = data.height ?? [];
-
+  const blocos = result.data.blocks ?? [];
   const palavras: CelulaOcr[] = [];
-  for (let i = 0; i < textos.length; i += 1) {
-    const texto = String(textos[i] ?? "").trim();
-    if (!texto) continue;
-    const conf = Number(confs[i] ?? -1);
-    palavras.push({
-      text: texto,
-      confidence: conf >= 0 ? conf : 0,
-      bbox: {
-        x0: Number(lefts[i] ?? 0),
-        y0: Number(tops[i] ?? 0),
-        x1: Number((lefts[i] ?? 0) + (widths[i] ?? 0)),
-        y1: Number((tops[i] ?? 0) + (heights[i] ?? 0)),
-      },
-    });
+
+  for (const bloco of blocos) {
+    for (const paragrafo of bloco.paragraphs) {
+      for (const linha of paragrafo.lines) {
+        for (const palavra of linha.words) {
+          const texto = String(palavra.text ?? "").trim();
+          if (!texto) continue;
+          const confianca = Number(palavra.confidence ?? 0);
+          palavras.push({
+            text: texto,
+            confidence: Number.isFinite(confianca) ? confianca : 0,
+            bbox: {
+              x0: palavra.bbox.x0,
+              y0: palavra.bbox.y0,
+              x1: palavra.bbox.x1,
+              y1: palavra.bbox.y1,
+            },
+          });
+        }
+      }
+    }
   }
+
   return palavras;
 }
 
@@ -112,51 +104,60 @@ function detectarColunasX(linhas: CelulaOcr[][]): number[] {
   return clusterColumnsX(centros, 6);
 }
 
-/** Converte um resultado de OCR em ParsedSheet + confianças por célula. */
+/** Largura da região da tabela (extensão horizontal das palavras lidas). */
+function larguraDaTabela(palavras: CelulaOcr[]): number {
+  if (!palavras.length) return 0;
+  const x0 = Math.min(...palavras.map((p) => p.bbox.x0));
+  const x1 = Math.max(...palavras.map((p) => p.bbox.x1));
+  return Math.max(0, Math.round(x1 - x0));
+}
+
+/**
+ * Converte um resultado de OCR em ParsedSheet + células com confiança.
+ *
+ * `larguraImagemPx` vem do `sharp` (o Tesseract não devolve as dimensões da
+ * imagem) e é usada só para diagnóstico.
+ */
 export async function extrairImagem(
   imageBuffer: Buffer,
   fileName: string,
+  larguraImagemPx = 0,
 ): Promise<OcrSheetResult> {
   let result;
   try {
     result = await ocrImage(imageBuffer);
   } catch (err) {
+    if (err instanceof AppError) throw err;
     throw new AppError(
       "Não foi possível ler a imagem. Tente outra foto com melhor iluminação.",
       400,
+      undefined,
+      "OCR_READ_FAILED",
     );
   }
 
-  const palavras = extrairCelulas(result);
-  const larguraPx = Math.max(
-    ...palavras.map((p) => p.bbox.x1),
-    Number((result.data as { width?: number } | undefined)?.width ?? 0),
-  );
+  const palavras = extrairPalavras(result);
   const linhas = agruparLinhas(palavras);
   const colunasX = detectarColunasX(linhas);
   const nColunas = Math.max(colunasX.length, 1);
+  const larguraTabelaPx = larguraDaTabela(palavras);
 
-  // Headers genéricos; podem ser sobrescritos por semânticos abaixo.
+  // Cabeçalhos genéricos: o destino e o mapeamento são escolhidos pelo dono.
   const headers: string[] = [];
   for (let i = 0; i < nColunas; i += 1) {
     headers.push(`Coluna ${i + 1}`);
   }
 
-  const larguraRef = larguraPx || 1000;
   const rows: ImportRawRow[] = [];
   const celulas: OcrCellResult[][] = [];
 
   for (let linhaIdx = 0; linhaIdx < linhas.length; linhaIdx += 1) {
     const linha = linhas[linhaIdx];
-    const row: ImportRawRow = Object.create(null);
+    const row: ImportRawRow = {};
     const linhaCelulas: OcrCellResult[] = [];
 
-    // Distribuição semântica (nome/telefone/valor) quando houver padrão de tabela.
-    const distribuicao = distribuirColunas(
-      linha.map((c) => ({ text: c.text, bbox: c.bbox })),
-      larguraRef,
-    );
-
+    // Agrupa as palavras da linha por coluna.
+    const porColuna = new Map<number, CelulaOcr[]>();
     for (const celula of linha) {
       const x = (celula.bbox.x0 + celula.bbox.x1) / 2;
       let colunaIdx = 0;
@@ -168,24 +169,32 @@ export async function extrairImagem(
           colunaIdx = i;
         }
       }
+      const lista = porColuna.get(colunaIdx);
+      if (lista) lista.push(celula);
+      else porColuna.set(colunaIdx, [celula]);
+    }
 
+    for (const [colunaIdx, lista] of [...porColuna.entries()].sort(
+      (a, b) => a[0] - b[0],
+    )) {
       const header = headers[colunaIdx] ?? `Coluna ${colunaIdx + 1}`;
-      const atual = row[header] ?? "";
-      row[header] = atual ? `${atual} ${celula.text}` : celula.text;
+      const valor = lista
+        .map((c) => c.text)
+        .join(" ")
+        .trim();
+      // A confiança da célula é a menor entre as palavras: é a parte que o
+      // dono precisa conferir.
+      const confianca = Math.min(...lista.map((c) => c.confidence ?? 0));
 
+      row[header] = valor;
       linhaCelulas.push({
-        valor: celula.text,
-        confianca: celula.confidence ?? null,
+        valor,
+        confianca: Number.isFinite(confianca) ? confianca : null,
         origem: "ocr",
         linha: linhaIdx + 1,
         coluna: colunaIdx,
       });
     }
-
-    // Sobrescreve com headers semânticos quando a distribuição encontrou padrão.
-    if (distribuicao.nome.length) row["Nome"] = distribuicao.nome.join(" ");
-    if (distribuicao.telefone) row["Telefone"] = distribuicao.telefone;
-    if (distribuicao.valor) row["Valor"] = distribuicao.valor;
 
     rows.push(row);
     celulas.push(linhaCelulas);
@@ -198,5 +207,5 @@ export async function extrairImagem(
     selectedSheet: fileName,
   };
 
-  return { sheet, celulas, larguraPx };
+  return { sheet, celulas, headers, larguraTabelaPx, larguraImagemPx };
 }

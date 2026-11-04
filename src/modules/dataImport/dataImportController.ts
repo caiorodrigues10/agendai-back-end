@@ -18,6 +18,7 @@ import {
   confirmImportSchema,
   importBatchParamsSchema,
   mappingSchema,
+  ocrReviewSchema,
   targetQuerySchema,
 } from "./dataImportSchema";
 
@@ -149,6 +150,28 @@ export class DataImportController {
     const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
 
     const result = await this.useCases.validate({ barbershopId, batchId });
+
+    reply.send({ success: true, data: result });
+  }
+
+  /**
+   * Etapa 4bis — revisão de uma célula lida por imagem.
+   *
+   * O dono corrige o valor (ou aceita o que foi lido) e a validação roda de
+   * novo: a resposta é a prévia já atualizada.
+   */
+  async review(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
+    const body = ocrReviewSchema.parse(request.body);
+
+    const result = await this.useCases.applyOcrReview({
+      barbershopId,
+      batchId,
+      linha: body.linha,
+      coluna: body.coluna,
+      ...(body.valor !== undefined ? { valor: body.valor } : {}),
+      ...(body.aceitar !== undefined ? { aceitar: body.aceitar } : {}),
+    });
 
     reply.send({ success: true, data: result });
   }

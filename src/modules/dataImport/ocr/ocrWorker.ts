@@ -5,12 +5,16 @@
  * inatividade (OCR_WORKER_IDLE_MS) para devolver RAM ao SO — crítico em
  * VM de 1 GB (PaddleOCR foi descartado justamente por isso).
  *
- * Sem download em runtime: o traineddata já deve estar em cachePath/local
- * (empacotado no build). Falha com erro explícito se faltar o arquivo.
+ * Sem download em runtime: o traineddata tem de estar no cachePath local
+ * (empacotado no build). Se faltar, o erro é **explícito** — nunca uma
+ * tentativa de rede e nunca "erro interno".
  */
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { createWorker, type Worker } from "tesseract.js";
 import { getModuleLogger } from "@/shared/utils/logger";
-import { OCR_LANG, OCR_TIMEOUT_MS, OCR_WORKER_IDLE_MS } from "./ocr.constants";
+import { AppError } from "@/shared/errors/AppError";
+import { OCR_ERROR_CODES, OCR_LANG, OCR_TIMEOUT_MS, OCR_WORKER_IDLE_MS } from "./ocr.constants";
 
 const logger = getModuleLogger("data-import:ocr-worker");
 
@@ -19,7 +23,54 @@ let _workerPromise: Promise<Worker> | null = null;
 let _idleTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastUse = 0;
 
-const CACHE_PATH = process.env.OCR_TESSDATA_PATH ?? ".tesseract-cache";
+/** Caminho do cache do traineddata (relativo é resolvido a partir do cwd). */
+export const OCR_TESSDATA_PATH = process.env.OCR_TESSDATA_PATH ?? ".tesseract-cache";
+
+/** Caminho absoluto do cache do traineddata. */
+export function caminhoTessdata(): string {
+  return resolve(process.cwd(), OCR_TESSDATA_PATH);
+}
+
+/** Idiomas que o Tesseract precisa carregar. */
+export function linguasTessdata(): string[] {
+  return OCR_LANG.split("+").map((lang) => lang.trim()).filter(Boolean);
+}
+
+/**
+ * Verifica se o traineddata de cada idioma está no cache local.
+ *
+ * O tesseract.js procura `${cachePath}/${lang}.traineddata`; sem o arquivo ele
+ * tenta baixar da rede — que não pode acontecer no servidor.
+ */
+export function verificarTessdata(): {
+  ok: boolean;
+  caminho: string;
+  faltantes: string[];
+} {
+  const caminho = caminhoTessdata();
+  const faltantes = linguasTessdata().filter(
+    (lang) => !existsSync(resolve(caminho, `${lang}.traineddata`)),
+  );
+  return { ok: faltantes.length === 0, caminho, faltantes };
+}
+
+/**
+ * Erro explícito de traineddata ausente.
+ *
+ * O mesmo erro é usado no upload (antes de gravar o lote) e na criação do
+ * worker: o dono vê a mesma mensagem nos dois pontos.
+ */
+export function erroTessdataAusente(tessdata: {
+  caminho: string;
+  faltantes: string[];
+}): AppError {
+  return new AppError(
+    `O reconhecedor de texto não está instalado no servidor (faltou o traineddata de: ${tessdata.faltantes.join(", ")} em ${tessdata.caminho}). A importação por imagem fica indisponível até o arquivo ser instalado.`,
+    503,
+    undefined,
+    OCR_ERROR_CODES.traineddataAusente,
+  );
+}
 
 /** Reinicia o temporizador de inatividade. */
 function scheduleIdleShutdown(): void {
@@ -66,18 +117,17 @@ export async function getOcrWorker(): Promise<Worker> {
     return _workerPromise;
   }
 
+  const tessdata = verificarTessdata();
+  if (!tessdata.ok) {
+    throw erroTessdataAusente(tessdata);
+  }
+
   _lastUse = Date.now();
   _workerPromise = (async (): Promise<Worker> => {
     const worker = await createWorker(OCR_LANG, 1, {
-      cachePath: CACHE_PATH,
+      cachePath: OCR_TESSDATA_PATH,
       logger: () => undefined,
     });
-    // Carrega o modelo explicitamente para falhar rápido se faltar o traineddata.
-    try {
-      await worker.recognize(Buffer.from([0x89, 0x50, 0x4e, 0x47]), {});
-    } catch (err) {
-      // Pode falhar com buffer inválido, mas o modelo deve estar carregado.
-    }
     _worker = worker;
     _workerPromise = null;
     scheduleIdleShutdown();

@@ -100,6 +100,12 @@ export function gateOcrLinha(
       motivo = `Campo crítico "${campo}" vazio na imagem.`;
     }
 
+    // Número de processo com formato de CNJ impossível: mesmo com confiança
+    // alta, o número lido não é um CNJ — o dono precisa conferir.
+    if (!motivo && campo === "caseNumber" && texto && casoNumeroSuspeito(texto)) {
+      motivo = `Número de processo "${texto}" não parece um CNJ válido: confira na imagem.`;
+    }
+
     resultados.push({
       coluna: c.coluna,
       campo,

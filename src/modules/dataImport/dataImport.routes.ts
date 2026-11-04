@@ -76,6 +76,11 @@ export async function dataImportRoutes(app: FastifyInstance) {
     { preHandler: ownerGuard },
     dataImportController.validate.bind(dataImportController),
   );
+  app.patch(
+    "/barbershops/:barbershopId/imports/:batchId/review",
+    { preHandler: ownerGuard },
+    dataImportController.review.bind(dataImportController),
+  );
   app.post(
     "/barbershops/:barbershopId/imports/:batchId/confirm",
     { preHandler: ownerGuard },

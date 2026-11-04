@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { OCR_ACCEPTED_EXT, OCR_ACCEPTED_MIME, OCR_MAX_FILE_SIZE_BYTES, OCR_MAX_IMAGE_PIXELS } from "./ocr.constants";
+import { OCR_ACCEPTED_MIME, OCR_MAX_FILE_SIZE_BYTES, OCR_MAX_IMAGE_PIXELS, OCR_ERROR_CODES } from "./ocr.constants";
 import { AppError } from "@/shared/errors/AppError";
 import { deleteTempFile, saveTempFile, importTempDirectory } from "../utils/tempFiles";
 
@@ -21,8 +21,14 @@ export interface ValidatedImage {
   filePath: string;
   fileName: string;
   mime: string;
+  /** Largura da imagem depois do redimensionamento (a que o OCR lê). */
   width: number;
+  /** Altura da imagem depois do redimensionamento. */
   height: number;
+  /** Largura da imagem **original**, como o dono enviou. */
+  larguraOriginalPx: number;
+  /** Altura da imagem **original**. */
+  alturaOriginalPx: number;
   sizeBytes: number;
   /** Caminho da imagem (possivelmente redimensionada) pronta para OCR. */
   ocrPath: string;
@@ -70,6 +76,8 @@ export async function validateAndPrepareImage(
     throw new AppError(
       `A imagem passa de ${Math.round(OCR_MAX_FILE_SIZE_BYTES / (1024 * 1024))} MB. Envie uma imagem menor.`,
       413,
+      undefined,
+      OCR_ERROR_CODES.imagemGrande,
     );
   }
 
@@ -78,6 +86,8 @@ export async function validateAndPrepareImage(
     throw new AppError(
       "Formato de imagem não aceito. Envie PNG, JPG ou WEBP.",
       400,
+      undefined,
+      OCR_ERROR_CODES.formatoInvalido,
     );
   }
 
@@ -87,12 +97,16 @@ export async function validateAndPrepareImage(
   let ocrPath = filePath;
   let width = 0;
   let height = 0;
+  let larguraOriginalPx = 0;
+  let alturaOriginalPx = 0;
 
   try {
     const sharp = (await import("sharp")).default;
     const metadata = await sharp(filePath).metadata();
     width = metadata.width ?? 0;
     height = metadata.height ?? 0;
+    larguraOriginalPx = width;
+    alturaOriginalPx = height;
 
     const maxSide = Math.max(width, height);
     if (maxSide > OCR_MAX_IMAGE_PIXELS) {
@@ -122,6 +136,8 @@ export async function validateAndPrepareImage(
     mime,
     width,
     height,
+    larguraOriginalPx,
+    alturaOriginalPx,
     sizeBytes: buffer.length,
     ocrPath,
   };

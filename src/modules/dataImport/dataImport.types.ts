@@ -5,6 +5,9 @@
  * prévia → confirmação → conclusão). Este arquivo guarda apenas os contratos
  * compartilhados entre rotas, use cases, parsers e worker.
  */
+import type { OcrCelulaRevisar } from "./ocr/ocrReview";
+
+export type { OcrCelulaRevisar };
 
 /** O que o lote cria. */
 export type ImportTargetType =
@@ -340,6 +343,16 @@ export interface RowValidationResult {
   detected?: Partial<Record<ImportFieldKey, number>>;
   /** Avisos que não impedem a importação (ex.: pausa de almoço não suportada). */
   warnings?: string[];
+  /**
+   * A linha tem célula lida por imagem que o dono precisa conferir.
+   *
+   * Vem do gate `gateOcrLinha` (ver `ocr/ocrReview.ts`): campo crítico com
+   * confiança baixa, valor que passa no normalizador mas pode ser falso
+   * confiante, ou número de processo com formato de CNJ impossível.
+   */
+  revisar?: boolean;
+  /** Células marcadas da linha, com o valor, a confiança e o motivo. */
+  celulasRevisar?: OcrCelulaRevisar[];
 }
 
 /** Resumo do dry-run exibido na etapa de prévia. */

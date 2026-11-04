@@ -197,7 +197,18 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 
 - Cada `ImportBatch` tem `source` (`WEB` por padrão, `WHATSAPP_OWNER_BOT` quando o dono envia o arquivo pelo assistente no WhatsApp). O assistente baixa a mídia via Evolution, valida tipo/tamanho pelo conteúdo (`validateImportFile`) e cria o lote; a revisão/mapeamento/confirmação/desfazer continuam no painel.
 - Ações auditadas: `DATA_IMPORT_UPLOAD`, `DATA_IMPORT_CONFIRM`, `DATA_IMPORT_CANCEL`, `DATA_IMPORT_UNDO` (AuditLog, com `barbershopId`).
-- Imagens ainda não são convertidas em planilha automaticamente (sem OCR) — o assistente orienta o envio da planilha.
+- A importação por imagem (OCR) existe **no painel** (wizard de importação), com feature flag `OCR_IMPORT_ENABLED`; o bot do dono no WhatsApp **não** aceita imagem — ele orienta o envio da planilha.
+
+## Importação por imagem (OCR)
+
+- Feature flag `OCR_IMPORT_ENABLED` (padrão **off**). Com a flag off, o upload de imagem é recusado **antes de qualquer acesso ao banco**, com o código `OCR_DISABLED` e a mensagem "A importação por imagem está desativada…".
+- O OCR é **local** (Tesseract.js) e sem rede: o `traineddata` tem de estar em `OCR_TESSDATA_PATH` (`<caminho>/por.traineddata` e `<caminho>/eng.traineddata`). Sem os arquivos, o upload é recusado com `OCR_TRAINEDDATA_MISSING` (503) — nunca há tentativa de download.
+- A imagem vira uma tabela com cabeçalhos **genéricos** ("Coluna 1", "Coluna 2"…): o **destino** (clientes, serviços, agenda…) e o **mapeamento** coluna → campo são escolhidos pelo dono, no mesmo fluxo da planilha. O destino gravado no lote antes da escolha é só o valor inicial (`CLIENTS`), igual ao das planilhas.
+- Piso de resolução: a régua é a largura da **região da tabela** (`REPORT.md` linha 80: 693 px para telefone, 924 px para valor), medida na escala da imagem **original** (o redimensionamento para OCR não pode baixar a régua). Abaixo de 693 px a imagem é recusada (`OCR_IMAGE_LOW_RESOLUTION`); entre 693 e 924 px a validação avisa que os valores podem estar errados.
+- Confiança por célula: guardada num arquivo lateral ao lado do CSV do lote (sem coluna nova no banco, sem migration). O gate `gateOcrLinha` vira `revisar` da linha no dry-run, usando o mapeamento escolhido pelo dono.
+- O botão confirmar fica travado enquanto houver célula pendente: o dono **corrige** o valor ou **aceita** explicitamente cada célula (`PATCH /imports/:batchId/review`), e a validação roda de novo. O backend recusa a confirmação com `OCR_REVIEW_PENDING` (409) se sobrar pendência.
+- Erros com código próprio (nunca "erro interno"): `OCR_DISABLED`, `OCR_QUEUE_FULL` (429), `OCR_IMAGE_TOO_LARGE` (413), `OCR_IMAGE_FORMAT_INVALID` (400), `OCR_IMAGE_LOW_RESOLUTION` (400), `OCR_TRAINEDDATA_MISSING` (503), `OCR_NO_TABLE` (400), `OCR_REVIEW_PENDING` (409).
+- `CASE_FEES` por imagem: `caseNumber` (CNJ) e `percent` são obrigatórios — sem as duas colunas na foto o mapa é recusado. O CNJ lido de foto é frágil: a célula vai para revisão quando a confiança é baixa e quando o número não parece CNJ.
 
 ## Importação de processos (`CASES`)
 

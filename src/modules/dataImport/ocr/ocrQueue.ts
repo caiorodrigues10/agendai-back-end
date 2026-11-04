@@ -2,30 +2,30 @@
  * Fila de OCR em memória (concorrência 1).
  *
  * Sem Redis em runtime de importação de imagem: a fila é simples e local ao
- * processo. Jobs excedendo o limite de espera recebem 429/503 com mensagem
+ * processo. Jobs excedendo o limite de espera recebem 429 com mensagem
  * clara, nunca "Erro interno".
+ *
+ * A fila executa a **tarefa** enfileirada (a extração inteira): assim a
+ * imagem é reconhecida uma única vez — enfileirar e depois extrair fora da
+ * fila faria o OCR rodar duas vezes.
  */
-import { OCR_QUEUE_LIMIT, OCR_QUEUE_MAX_WAITING } from "./ocr.constants";
+import { OCR_QUEUE_LIMIT, OCR_QUEUE_MAX_WAITING, OCR_ERROR_CODES } from "./ocr.constants";
+import { AppError } from "@/shared/errors/AppError";
 
-type OcrJob = {
-  resolve: (value: unknown) => void;
+/** Tarefa de OCR enfileirada. */
+export type OcrJobTask<T> = () => Promise<T>;
+
+type OcrJob<T> = {
+  resolve: (value: T) => void;
   reject: (err: Error) => void;
-  buffer: Buffer;
-  fileName: string;
+  task: OcrJobTask<T>;
 };
 
 let running = false;
-const waiting: OcrJob[] = [];
+const waiting: OcrJob<unknown>[] = [];
 let enqueued = 0;
 let completed = 0;
 let failed = 0;
-
-class OcrQueueError extends Error {
-  constructor(public statusCode: number, message: string) {
-    super(message);
-    this.name = "OcrQueueError";
-  }
-}
 
 /** Verifica se há vaga na fila sem enfileirar. */
 export function ocrQueueCanEnqueue(): boolean {
@@ -45,22 +45,28 @@ export function ocrQueueStats() {
   };
 }
 
-/** Enfileira um job de OCR. Resolve com o resultado ou rejeita com erro. */
-export function enqueueOcrJob(buffer: Buffer, fileName: string): Promise<unknown> {
+/**
+ * Enfileira um job de OCR. Resolve com o resultado ou rejeita com erro.
+ *
+ * Fila cheia → 429 (`OCR_QUEUE_FULL`).
+ */
+export function enqueueOcrJob<T>(task: OcrJobTask<T>): Promise<T> {
   if (running && waiting.length >= OCR_QUEUE_MAX_WAITING) {
     failed += 1;
     return Promise.reject(
-      new OcrQueueError(
+      new AppError(
+        "A fila de leitura de imagens está cheia. Tente enviar a imagem de novo em alguns instantes.",
         429,
-        "Fila de OCR cheia. Tente importar a imagem em alguns instantes.",
+        undefined,
+        OCR_ERROR_CODES.filaCheia,
       ),
     );
   }
 
   enqueued += 1;
-  return new Promise((resolve, reject) => {
-    const job: OcrJob = { resolve, reject, buffer, fileName };
-    waiting.push(job);
+  return new Promise<T>((resolve, reject) => {
+    const job: OcrJob<T> = { resolve, reject, task };
+    waiting.push(job as OcrJob<unknown>);
     processQueue();
   });
 }
@@ -72,8 +78,7 @@ async function processQueue(): Promise<void> {
   running = true;
 
   try {
-    const { ocrImage } = await import("./ocrWorker");
-    const result = await ocrImage(job.buffer);
+    const result = await job.task();
     completed += 1;
     job.resolve(result);
   } catch (err) {

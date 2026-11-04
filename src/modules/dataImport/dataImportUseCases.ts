@@ -75,9 +75,23 @@ import {
   serializePlan,
   sheetKey,
 } from "./importPlan";
-import { OCR_IMPORT_ENABLED, OCR_MAX_FILE_SIZE_BYTES } from "./ocr/ocr.constants";
+import {
+  OCR_ERROR_CODES,
+  OCR_IMPORT_ENABLED,
+  OCR_MAX_FILE_SIZE_BYTES,
+  OCR_MIN_TABLE_WIDTH_PX_VALOR,
+} from "./ocr/ocr.constants";
 import { detectImageMime } from "./ocr/ocrSecurity";
 import { importarImagemOcr } from "./ocr/ocrImportService";
+import {
+  alinharLinhasOcr,
+  aplicarEdicaoOcr,
+  celulasPorLinha,
+  lerSidecarOcr,
+} from "./ocr/ocrBatchFile";
+import { avaliarLinhaOcr, indexarEstados } from "./ocr/ocrReview";
+import { erroTessdataAusente, verificarTessdata } from "./ocr/ocrWorker";
+import { destinosOcr } from "./ocr/ocrDestinos";
 
 const logger = getModuleLogger("data-import");
 
@@ -105,9 +119,37 @@ export class DataImportUseCases {
   }) {
     const { barbershopId, userId, fileName, buffer, source, ipAddress } = params;
 
+    const imagemMime = detectImageMime(buffer);
+
+    // Imagem: as checagens de feature flag e de tamanho vêm ANTES de qualquer
+    // acesso ao banco — flag desligada não custa consulta nenhuma.
+    if (imagemMime) {
+      if (!OCR_IMPORT_ENABLED) {
+        throw new AppError(
+          "A importação por imagem está desativada. Ative OCR_IMPORT_ENABLED=on para enviar fotos.",
+          400,
+          undefined,
+          OCR_ERROR_CODES.desativado,
+        );
+      }
+      if (buffer.length > OCR_MAX_FILE_SIZE_BYTES) {
+        throw new AppError(
+          `A imagem passa de ${Math.round(OCR_MAX_FILE_SIZE_BYTES / (1024 * 1024))} MB. Envie uma imagem menor.`,
+          413,
+          undefined,
+          OCR_ERROR_CODES.imagemGrande,
+        );
+      }
+      // O motor de leitura precisa estar instalado: sem traineddata local o
+      // upload é recusado antes de gravar qualquer coisa.
+      const tessdata = verificarTessdata();
+      if (!tessdata.ok) {
+        throw erroTessdataAusente(tessdata);
+      }
+    }
+
     await this.assertQuota(barbershopId);
 
-    const imagemMime = detectImageMime(buffer);
     let sheets: import("./dataImport.types").ParsedSpreadsheet[];
     let validatedFile: ValidatedImportFile | null = null;
     let filePath: string | undefined;
@@ -115,21 +157,17 @@ export class DataImportUseCases {
     let avisoQualidade: string | undefined;
 
     if (imagemMime) {
-      // Importação por imagem: só com feature flag ligada.
-      if (!OCR_IMPORT_ENABLED) {
-        throw new AppError(
-          "Importação de imagem está desativada. Ative OCR_IMPORT_ENABLED=on para enviar fotos.",
-          400,
-        );
-      }
-      if (buffer.length > OCR_MAX_FILE_SIZE_BYTES) {
-        throw new AppError(
-          `A imagem passa de ${Math.round(OCR_MAX_FILE_SIZE_BYTES / (1024 * 1024))} MB. Envie uma imagem menor.`,
-          413,
-        );
-      }
+      // O OCR lê a imagem UMA vez, grava a tabela como CSV do lote e devolve as
+      // células com a confiança de cada uma.
       const resultado = await importarImagemOcr(fileName, buffer);
-      sheets = resultado.sheets.map((s) => s.sheet);
+      filePath = resultado.filePath;
+      const parsed = await readSpreadsheetSheets(filePath, "CSV");
+      sheets = parsed.map((p) => ({
+        sheetNames: p.sheetName ? [p.sheetName] : [],
+        selectedSheet: p.sheetName ?? null,
+        headers: p.headers,
+        rows: p.rows,
+      }));
       abaixoDoPiso = resultado.operacao.abaixoDoPiso;
       avisoQualidade = resultado.avisoQualidade;
       // Log sem valores de célula: só contagens, tempo e resolução.
@@ -137,7 +175,7 @@ export class DataImportUseCases {
         {
           imagens: 1,
           tempoOcrMs: resultado.operacao.tempoOcrMs,
-          larguraPx: resultado.operacao.larguraPx,
+          larguraTabelaPx: resultado.operacao.larguraTabelaPx,
           abaixoDoPiso,
         },
         "OCR de imagem concluído",
@@ -168,11 +206,14 @@ export class DataImportUseCases {
     const batch = await this.batches.create({
       barbershopId,
       fileName: sanitizeFileName(fileName),
-      filePath: imagemMime ? "" : (filePath ?? ""),
+      filePath: filePath ?? "",
       fileSize: buffer.length,
       fileFormat: imagemMime ? "CSV" : (validatedFile?.format ?? "CSV"),
       sheetName: first.selectedSheet,
-      targetType: imagemMime ? "CLIENTS" : "CLIENTS",
+      // O destino é escolhido pelo dono na etapa seguinte (`configureTarget`).
+      // O valor gravado aqui é só o valor inicial do lote — o mesmo das
+      // planilhas — e é substituído assim que o dono escolher.
+      targetType: "CLIENTS",
       headers: first.headers,
       createdById: userId ?? null,
       expiresAt,
@@ -211,6 +252,14 @@ export class DataImportUseCases {
       createdAt: batch.createdAt,
       expiresAt: batch.expiresAt,
       ...(avisoQualidade ? { avisoQualidade } : {}),
+      ...(imagemMime
+        ? {
+            origem: "IMAGEM" as const,
+            // O destino e o mapeamento são escolhidos pelo dono: a imagem
+            // entrega cabeçalhos genéricos ("Coluna 1"…).
+            destinos: destinosOcr(await this.resolveSegment(barbershopId)),
+          }
+        : {}),
     };
   }
 
@@ -416,6 +465,9 @@ export class DataImportUseCases {
       parsedSheets.map((sheet) => [sheetKey(sheet.sheetName), sheet] as const),
     );
 
+    // Lote de imagem: a confiança por célula e o que o dono já revisou.
+    const sidecar = await lerSidecarOcr(batch.filePath);
+
     const ordered = orderPlanSheets(plan);
     const totalRows = ordered.reduce((sum, sheet) => {
       return sum + (byName.get(sheetKey(sheet.sheetName))?.rows.length ?? 0);
@@ -443,6 +495,17 @@ export class DataImportUseCases {
           const context = this.buildContext(parsed.headers, sheet, segment, batch);
           const sheetLabel = sheet.sheetName ?? CSV_SHEET_NAME;
 
+          // Mapeamento coluna → campo escolhido pelo dono: é ele que diz ao
+          // gate qual coluna é o telefone, qual é o valor, qual é o processo.
+          const colunaParaCampo = this.colunaParaCampo(sheet);
+
+          // Alinhamento entre as linhas do CSV e as linhas lidas pelo OCR.
+          const alinhamento = sidecar
+            ? alinharLinhasOcr(sidecar, parsed.rows)
+            : [];
+          const celulasDaLinha = sidecar ? celulasPorLinha(sidecar) : new Map();
+          const estados = sidecar ? indexarEstados(sidecar.celulas) : new Map();
+
           for (let index = 0; index < parsed.rows.length; index += 1) {
             const rowNumber = index + 1;
             const result = await validateRow(
@@ -453,6 +516,18 @@ export class DataImportUseCases {
               sheet.targetType,
               rowNumber,
             );
+
+            // Gate do OCR: o veredito do `gateOcrLinha` vira `revisar` da linha.
+            const linhaOcr = sidecar ? alinhamento[index] : -1;
+            if (sidecar && linhaOcr > 0) {
+              const celulas = celulasDaLinha.get(linhaOcr) ?? [];
+              const veredito = avaliarLinhaOcr(celulas, colunaParaCampo, estados);
+              if (veredito.revisar) {
+                result.revisar = true;
+                result.celulasRevisar = veredito.celulas;
+              }
+            }
+
             const withSheet = { ...result, sheetName: sheet.sheetName };
             if (result.status === "VALID") validRows += 1;
             else if (result.status === "SKIPPED") skippedRows += 1;
@@ -464,6 +539,14 @@ export class DataImportUseCases {
           }
         }
       });
+
+      // Aviso honesto do piso de resolução: valor lido de foto estreita pode
+      // vir errado (REPORT.md linha 265: 924 px para valor, 693 px para telefone).
+      if (sidecar && sidecar.larguraTabelaPx < OCR_MIN_TABLE_WIDTH_PX_VALOR) {
+        warnings.push(
+          `A tabela da foto tem ${sidecar.larguraTabelaPx} px de largura (mínimo para ler valor: ${OCR_MIN_TABLE_WIDTH_PX_VALOR} px). Confira os valores antes de confirmar.`,
+        );
+      }
 
       await this.batches.update(batch.id, params.barbershopId, {
         status: "AWAITING_CONFIRMATION",
@@ -545,6 +628,18 @@ export class DataImportUseCases {
       this.buildContext(parsed.headers, sheet, segment, batch);
     }
 
+    // Imagem: nenhuma célula pode ficar esperando o dono. O gate é o mesmo do
+    // dry-run — o que vale para a tela vale para o botão confirmar.
+    const pendentes = await this.contarRevisoesPendentes(batch, plan, byName);
+    if (pendentes > 0) {
+      throw new AppError(
+        `Ainda há ${pendentes} célula(s) lidas da imagem esperando sua conferência. Corrija ou aceite cada uma antes de confirmar.`,
+        409,
+        undefined,
+        OCR_ERROR_CODES.revisaoPendente,
+      );
+    }
+
     const totalRows = plan.sheets.reduce((sum, sheet) => {
       return sum + (byName.get(sheetKey(sheet.sheetName))?.rows.length ?? 0);
     }, 0);
@@ -557,6 +652,45 @@ export class DataImportUseCases {
     });
 
     return { id: batch.id, status: "PROCESSING" as const, totalRows };
+  }
+
+  /**
+   * Etapa 4bis — o dono corrige (ou aceita) uma célula lida da imagem.
+   *
+   * A edição vai para o arquivo do lote e a validação roda de novo: o que o
+   * dono escreveu é o que entra.
+   */
+  async applyOcrReview(params: {
+    barbershopId: string;
+    batchId: string;
+    linha: number;
+    coluna: number;
+    valor?: string;
+    aceitar?: boolean;
+  }): Promise<ValidationSummary> {
+    const batch = await this.requireBatch(params.barbershopId, params.batchId);
+    if (batch.status === "PROCESSING") {
+      throw new AppError("Este lote já está em processamento.", 409);
+    }
+    const sidecar = await lerSidecarOcr(batch.filePath);
+    if (!sidecar) {
+      throw new AppError(
+        "Este lote não veio de uma imagem: não há células para revisar.",
+        400,
+      );
+    }
+
+    await aplicarEdicaoOcr({
+      filePath: batch.filePath,
+      sidecar,
+      linha: params.linha,
+      coluna: params.coluna,
+      ...(typeof params.valor === "string" ? { valor: params.valor } : {}),
+      ...(params.aceitar === true ? { aceitar: true } : {}),
+    });
+
+    // Revalida com o valor novo: a linha volta a ser conferida.
+    return this.validate({ barbershopId: params.barbershopId, batchId: params.batchId });
   }
 
   /** Histórico de importações do salão. */
@@ -719,6 +853,60 @@ export class DataImportUseCases {
       actingUserId: batch?.createdById ?? "",
       batchId: batch?.id ?? "",
     };
+  }
+
+  /**
+   * Mapeamento coluna → campo escolhido pelo dono (o inverso do
+   * `columnMap` do contexto, que é campo → coluna).
+   *
+   * É o mapa que o gate do OCR recebe: sem ele o gate não sabe qual coluna é
+   * o telefone, o valor ou o número do processo.
+   */
+  private colunaParaCampo(sheet: ImportSheetPlan): Map<number, string> {
+    const mapa = new Map<number, string>();
+    for (const [column, field] of Object.entries(sheet.columns)) {
+      const index = Number(column);
+      if (Number.isInteger(index) && index >= 0) {
+        mapa.set(index, field);
+      }
+    }
+    return mapa;
+  }
+
+  /**
+   * Quantas células lidas da imagem ainda esperam o dono (lote de OCR).
+   *
+   * Zero para lote de planilha.
+   */
+  private async contarRevisoesPendentes(
+    batch: { filePath: string },
+    plan: ImportPlan,
+    byName: Map<string, { rows: Array<Record<string, string>> }>,
+  ): Promise<number> {
+    const sidecar = await lerSidecarOcr(batch.filePath);
+    if (!sidecar) return 0;
+
+    const estados = indexarEstados(sidecar.celulas);
+    const celulas = celulasPorLinha(sidecar);
+    let pendentes = 0;
+
+    for (const sheet of plan.sheets) {
+      const parsed = byName.get(sheetKey(sheet.sheetName));
+      if (!parsed) continue;
+      const colunaParaCampo = this.colunaParaCampo(sheet);
+      const alinhamento = alinharLinhasOcr(sidecar, parsed.rows);
+      for (const linhaOcr of alinhamento) {
+        if (linhaOcr <= 0) continue;
+        const veredito = avaliarLinhaOcr(
+          celulas.get(linhaOcr) ?? [],
+          colunaParaCampo,
+          estados,
+        );
+        pendentes += veredito.pendentes;
+      }
+    }
+
+    return pendentes;
   }
 
   private async resolveSegment(barbershopId: string): Promise<BusinessSegment | null> {
