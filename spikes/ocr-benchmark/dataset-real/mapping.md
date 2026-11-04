@@ -473,8 +473,8 @@ OCR em planilha de verdade — não para simular importação de honorário.
 
 | Arquivo em `testimage/` | Colunas transcritas (ground truth) | Coluna CASE_FEES equivalente | O que aconteceria se fosse importada em CASE_FEES |
 |---|---|---|---|
-| `planilha-para-advogado.jpg.webp` (convertida para `.png` em `dataset-real/real/`) | `numero_processo, status, grupo_acao, tipo_honorario, cliente, data_criacao, valor_total` | `numero_processo` ← "N° Processo" (formato `N.NN.NNNN.NNNNN-D`; **não** é CNJ — tem 15 ou 16 dígitos, nunca 20, então `checkCnjCheckDigit` devolve `unknown`) | Falha em `percent` (não há coluna de percentual). `status` (valores em caixa alta, fora do `FEE_STATUS_MAP`) não tem equivalência → cairia em PENDING com aviso. "Valor da Ação" não é coluna: o valor do honorário é derivado. |
-| `planilha-controle-barbearia-1.jpg` | `data, horario, cliente, funcionario, servico, valor, material_usado, qtd_material, status, percentual_comissao, valor_comissao, observacoes` | Nenhuma (`caseNumber` e `percent` não existem) | Falha em `percent`. "os status em caixa alta do controle" e "% comissão do funcionário" não têm equivalência em `feeStatus`/`percent`. |
+| `planilha-para-advogado.jpg.webp` (convertida para `.png` em `dataset-real/real/`) | `numero_processo, status, grupo_acao, tipo_honorario, cliente, data_criacao, valor_total` | `numero_processo` ← "N° Processo" (formato `N.NN.NNNN.NNNNN-D`; **não** é CNJ — tem 15 ou 16 dígitos, nunca 20, então `checkCnjCheckDigit` devolve `unknown`) | Falha em `percent` (não há coluna de percentual). `status` (palavras fora do `FEE_STATUS_MAP` — o `normalizeHeaderText` ignora caixa e acento, então o que impede é o **vocabulário**) não tem equivalência → cairia em PENDING com aviso. "Valor da Ação" não é coluna: o valor do honorário é derivado. |
+| `planilha-controle-barbearia-1.jpg` | `data, horario, cliente, funcionario, servico, valor, material_usado, qtd_material, status, percentual_comissao, valor_comissao, observacoes` | Nenhuma (`caseNumber` e `percent` não existem) | Falha em `percent`. "os status do controle" (palavras fora do `FEE_STATUS_MAP`, não por causa da caixa) e "% comissão do funcionário" não têm equivalência em `feeStatus`/`percent`. |
 | `O-Que-Voce-Encontra-na-Planilha-de-Gestao-de-Petshop.png` | `id, servico, porte, duracao_min, preco_venda, custo_produto, custo_mao_de_obra, custo_total` | Nenhuma comprovada — é tabela de serviços (preço/custo), não de honorários | Não é importável em CASE_FEES. |
 | `Planilha-para-Barbearia.png` | `secao, categoria, detalhe, valor` | Nenhuma — não é tabela de importação | Não é importável. Serve para medir leitura de números e rótulos de gráfico. |
 
@@ -583,11 +583,47 @@ aparece na seção "SEM EXTRAÇÃO" do relatório.
 **Sessão 8 — o critério do falso confiante mudou, a qualidade não.** `status`
 volta a contar como campo **com normalizador** (§2.7: `FEE_STATUS_MAP`), então
 os 19 erros de `status` do GT real foram reavaliados. A contagem **continua
-54**: o texto lido pelo OCR nesses erros também está **fora** do
-`FEE_STATUS_MAP` (caixa alta), então a produção não o aceita em silêncio —
-vira PENDING **com aviso** (§2.7). Ou seja: mesmos erros, mesmo placar
-(462 células, 146 acertos, taxa 0,8933); o que mudou foi o **critério** do
-falso confiante, não a qualidade do OCR nem a do ground truth.
+54**: o texto lido pelo OCR nesses erros é uma **palavra que não existe no
+`FEE_STATUS_MAP`** — o mapa só reconhece `pendente`/`pending`,
+`faturado`/`invoiced`, `pago`/`paid`, `cancelado`/`canceled`, e o
+`normalizeHeaderText` **ignora caixa e acento** (§2.7), então "caixa alta"
+não tem nada a ver: é o **vocabulário** que está fora do mapa. Com texto fora
+do mapa a produção não aceita o erro em silêncio — vira PENDING **com aviso**
+(§2.7). Ou seja: mesmos erros, mesmo placar (462 células, 146 acertos, taxa
+0,8933); o que mudou foi o **critério** do falso confiante, não a qualidade
+do OCR nem a do ground truth.
+
+Tabela do `--real` em tmpdir (cópia do GT com `revisado=sim`), por campo —
+erros x falsos confiantes (`status` incluso):
+
+| Campo | Erros | Falsos confiantes |
+|---|---|---|
+| preco_venda | 14 | 14 |
+| custo_mao_de_obra | 11 | 11 |
+| custo_total | 11 | 11 |
+| custo_produto | 10 | 10 |
+| valor_total | 6 | 6 |
+| valor | 33 | 2 |
+| **status** | **19** | **0** |
+| servico | 21 | 0 |
+| cliente | 18 | 0 |
+| funcionario | 18 | 0 |
+| horario | 18 | 0 |
+| material_usado | 18 | 0 |
+| data | 17 | 0 |
+| detalhe | 16 | 0 |
+| percentual_comissao | 16 | 0 |
+| porte | 16 | 0 |
+| valor_comissao | 15 | 0 |
+| categoria | 14 | 0 |
+| qtd_material | 12 | 0 |
+| grupo_acao | 4 | 0 |
+| tipo_honorario | 4 | 0 |
+| id | 3 | 0 |
+| duracao_min | 2 | 0 |
+
+Os 19 erros de `status` são erros de verdade (o GT e o OCR discordam) que
+**não** viram falso confiante: o valor lido é barrado pela produção.
 
 ---
 
