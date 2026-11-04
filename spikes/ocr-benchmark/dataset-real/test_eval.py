@@ -325,13 +325,13 @@ class TestFalsoConfiante(BaseEval):
         """Valor fora do FEE_STATUS_MAP vira PENDING com aviso: o filtro da
         produção barrou o texto, então não é falso confiante."""
         gt = [linha(status="pendente")]
-        ocr = [linha(status="em aberto")]
+        ocr = [linha(status="atrasado")]
         resultados = self.avaliar(gt, ocr)
         status = self.por_campo(resultados, "status")[0]
         self.assertFalse(status["exato"])
         self.assertFalse(status["falso_confiante"])
         # O valor do OCR não é reconhecido pelo mapa.
-        self.assertIn("warning", eval_mod.parse_fee_status("em aberto"))
+        self.assertIn("warning", eval_mod.parse_fee_status("atrasado"))
         self.assertNotIn("warning", eval_mod.parse_fee_status("pago"))
 
     def test_somente_campos_com_normalizador_contam(self):

@@ -89,9 +89,9 @@ const CASOS_STATUS = [
   " Pago ",
   "faturado",
   "canceled",
-  "em aberto",   // desconhecido -> PENDING + aviso
-  "ABERTO",      // desconhecido (caixa alta so nao basta)
-  "1",           // desconhecido
+  "atrasado",     // desconhecido -> PENDING + aviso
+  "sem_previsao", // desconhecido
+  "1",            // desconhecido
   "",            // vazio -> PENDING sem aviso
 ];
 

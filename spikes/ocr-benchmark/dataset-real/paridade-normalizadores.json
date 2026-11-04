@@ -184,17 +184,17 @@
         }
       },
       {
-        "entrada": "em aberto",
+        "entrada": "atrasado",
         "saida": {
           "value": "PENDING",
-          "warning": "Situação \"em aberto\" não reconhecida; usando \"Pendente\"."
+          "warning": "Situação \"atrasado\" não reconhecida; usando \"Pendente\"."
         }
       },
       {
-        "entrada": "ABERTO",
+        "entrada": "sem_previsao",
         "saida": {
           "value": "PENDING",
-          "warning": "Situação \"ABERTO\" não reconhecida; usando \"Pendente\"."
+          "warning": "Situação \"sem_previsao\" não reconhecida; usando \"Pendente\"."
         }
       },
       {
