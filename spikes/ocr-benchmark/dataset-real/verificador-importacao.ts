@@ -103,6 +103,7 @@ type Resultado = {
   avisos: string;
   parcelas_efetivas: number;
   verificacao_banco: string;
+  percent_bruto: string;
   percent_efetivo: string;
 };
 
@@ -112,6 +113,7 @@ function validarLinha(arquivo: string, numeroLinha: number, row: LinhaCsv): Resu
   let campo = "";
   let mensagem = "";
   let parcelasEfetivas = 1;
+  let percentBruto = "";
   let percentEfetivo = "";
 
   // rowValidator.ts:968-979 — número do processo (ou apelido) é obrigatório.
@@ -126,6 +128,7 @@ function validarLinha(arquivo: string, numeroLinha: number, row: LinhaCsv): Resu
   // rowValidator.ts:1039-1047 — percentual obrigatório, entre 0 e 100.
   if (status === "VALID") {
     const rawPercent = (row.percent ?? "").trim();
+    percentBruto = rawPercent;
     const percent = rawPercent ? normalizeMoney(rawPercent) : null;
     if (percent === null || percent < 0 || percent > 100) {
       status = "FAILED";
@@ -171,6 +174,7 @@ function validarLinha(arquivo: string, numeroLinha: number, row: LinhaCsv): Resu
     avisos: avisos.join(" | "),
     parcelas_efetivas: parcelasEfetivas,
     verificacao_banco: VERIFICACAO_BANCO,
+    percent_bruto: percentBruto,
     percent_efetivo: percentEfetivo,
   };
 }
@@ -280,6 +284,26 @@ function main(): void {
   if (comDecimal.length > 0) {
     problemas.push(`percentual com decimal no resultado: ${comDecimal.map((r) => r.percent_efetivo).join(", ")}`);
   }
+
+  // "11.0" e "11" sao o mesmo percentual (11), nao 11,0 nem 110.
+  const onzeComDecimal = normalizeMoney("11.0");
+  const onzeInteiro = normalizeMoney("11");
+  if (onzeComDecimal !== 11 || onzeInteiro !== 11 || onzeComDecimal !== onzeInteiro) {
+    problemas.push(
+      `percentual "11.0" -> ${onzeComDecimal} x "11" -> ${onzeInteiro} (tem que dar 11 nos dois)`,
+    );
+  }
+  for (const r of todos) {
+    if (r.percent_bruto === "11.0" && r.percent_efetivo !== "11") {
+      problemas.push(
+        `${r.arquivo} linha ${r.linha}: percent bruto "11.0" virou "${r.percent_efetivo}" (tem que ser "11")`,
+      );
+    }
+  }
+  console.log(
+    `  comparacao "11.0" x "11": ${onzeComDecimal} x ${onzeInteiro} -> ` +
+      (onzeComDecimal === onzeInteiro && onzeComDecimal === 11 ? "OK" : "DIVERGENCIA"),
+  );
 
   console.log("\n=== FIM ===");
   if (problemas.length > 0) {
