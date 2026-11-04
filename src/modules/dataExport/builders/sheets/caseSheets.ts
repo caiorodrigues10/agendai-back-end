@@ -63,7 +63,7 @@ const FEE_STATUS_LABELS: Record<string, string> = {
 
 /** ── Processos (cases) ──────────────────────────────────────────────────── */
 
-const CASES_COLUMNS: ColumnSpec[] = [
+export const CASES_COLUMNS: ColumnSpec[] = [
   { header: "Apelido do caso", type: "text", width: 26 },
   { header: "Número do processo", type: "text", width: 22 },
   { header: "Cliente", type: "text", width: 24 },
@@ -161,7 +161,7 @@ export const casesSheet: SheetBuilder = {
 
 /** ── Honorários de êxito (caseFees) ─────────────────────────────────────── */
 
-const CASE_FEES_COLUMNS: ColumnSpec[] = [
+export const CASE_FEES_COLUMNS: ColumnSpec[] = [
   { header: "Número do processo", type: "text", width: 22 },
   { header: "Apelido do caso", type: "text", width: 26 },
   { header: "Percentual (%)", type: "decimal", width: 14 },
