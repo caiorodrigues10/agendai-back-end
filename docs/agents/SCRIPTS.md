@@ -46,6 +46,7 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `db:push` | `prisma db push` | **altera banco** | Postgres | Push sem migration (dev) |
 | `db:push:prod` | `node -e "… process.exit(1)"` | bloqueio | — | **Bloqueado** de propósito |
 | `docs:check` | `node scripts/check-docs.mjs` | leitura | Node | Valida inventários documentais + lista de módulos vs disco |
+| `ocr:tessdata` | `node scripts/fetch-ocr-tessdata.mjs` | escrita (arquivo local) + **rede** | rede (build/preparação) | Baixa o traineddata do Tesseract (`eng`, `por`) para `OCR_TESSDATA_PATH` (padrão `.tesseract-cache`). **Roda no build, nunca em runtime.** `--lang=eng`, `--cache-dir=…`, `--base-url=file://…` (origem local para build offline) |
 | `verify:delivery` | `node scripts/verify-delivery.mjs` | leitura | `npm install` | Encadeia docs, typecheck, unit e security (sem produção) |
 | `whatsappai:check` | `node scripts/check-whatsapp-ai-config.mjs` | leitura | env (`.env`) | Confere env do atendente de IA no WhatsApp (instância própria, segredo do webhook, Redis/DB) e imprime a URL de webhook a configurar na Evolution. Aceita `--env=<arquivo>` |
 
