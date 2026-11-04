@@ -37,7 +37,7 @@ import { importCaseFeeRow } from "./processors/caseFeeImporter";
 import { applyCrmCountersForBatch } from "./crmCounters";
 import type { ImportRowContext, ProcessedRow } from "./processors/importRowContext";
 import { CSV_SHEET_NAME, orderPlanSheets, readPlan, sheetKey } from "./importPlan";
-import { deleteTempFile } from "./utils/tempFiles";
+import { apagarArquivosLote } from "./ocr/ocrBatchFile";
 
 const logger = getModuleLogger("data-import:worker");
 
@@ -239,8 +239,8 @@ export async function processImportBatch(batchId: string): Promise<ProcessBatchR
     finishedAt: new Date(),
   });
 
-  // O arquivo já cumpriu seu papel: some do disco.
-  await deleteTempFile(batch.filePath);
+  // Os arquivos já cumpriram seu papel: somem do disco (CSV e .ocr.json).
+  await apagarArquivosLote(batch.filePath);
 
   logger.info(
     { batchId, importedRows, skippedRows, failedRows },

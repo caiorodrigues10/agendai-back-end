@@ -9,9 +9,10 @@
  * guarda `filePath`/`mapping` e o esquema do Prisma não precisa mudar
  * (sem migration, sem decisão do dono sobre enum novo).
  */
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { AppError } from "@/shared/errors/AppError";
-import { saveTempFile } from "../utils/tempFiles";
+import { deleteTempFile, saveTempFile } from "../utils/tempFiles";
 import type { OcrCellResult, OcrCellState, OcrSidecar } from "./ocr.types";
 
 /** Sufixo do arquivo lateral do lote de OCR. */
@@ -20,6 +21,62 @@ export const OCR_SIDECAR_SUFFIX = ".ocr.json";
 /** Caminho do arquivo lateral de um CSV de lote. */
 export function caminhoSidecarOcr(filePath: string): string {
   return `${filePath}${OCR_SIDECAR_SUFFIX}`;
+}
+
+/**
+ * Apaga os arquivos do lote: o CSV **e** o arquivo lateral.
+ *
+ * O `.ocr.json` guarda o valor lido em cada célula (nome, telefone, valor) —
+ * é dado do cliente. Ele precisa sumir junto com o CSV, senão fica no disco
+ * depois de o lote ser cancelado, concluído ou expirado.
+ */
+export async function apagarArquivosLote(filePath: string | null | undefined): Promise<void> {
+  if (!filePath) return;
+  await deleteTempFile(filePath);
+  await deleteTempFile(caminhoSidecarOcr(filePath));
+}
+
+/**
+ * Escrita atômica: grava num arquivo temporário e renomeia.
+ *
+ * Sem isso, uma leitura concorrente durante a escrita veria um JSON
+ * pela metade — e `lerSidecarOcr` devolveria `null`, o que faria o lote
+ * perder a revisão por completo.
+ */
+async function escreverAtomicamente(caminho: string, conteudo: string): Promise<void> {
+  const temporario = `${caminho}.${randomUUID()}.tmp`;
+  await writeFile(temporario, conteudo, { encoding: "utf8", mode: 0o600 });
+  await rename(temporario, caminho);
+}
+
+/**
+ * Fila por arquivo: as escritas de um mesmo lote acontecem uma de cada vez.
+ *
+ * Duas correções simultâneas na mesma célula não podem se sobrescrever: a
+ * segunda relê o arquivo já com a primeira aplicada.
+ *
+ * Limite conhecido: o trava é **dentro do processo**. Se a API rodar em
+ * mais de uma instância, as duas podem escrever o mesmo lote ao mesmo
+ * tempo (a escrita é atômica, então o arquivo não fica corrompido, mas uma
+ * correção pode perder a outra).
+ */
+const filasPorArquivo = new Map<string, Promise<unknown>>();
+
+async function emSequencia<T>(chave: string, tarefa: () => Promise<T>): Promise<T> {
+  const anterior = filasPorArquivo.get(chave) ?? Promise.resolve();
+  let liberar: () => void = () => undefined;
+  const atual = new Promise<void>((resolve) => {
+    liberar = resolve;
+  });
+  const proxima = anterior.then(() => atual, () => atual);
+  filasPorArquivo.set(chave, proxima);
+  await anterior.catch(() => undefined);
+  try {
+    return await tarefa();
+  } finally {
+    liberar();
+    if (filasPorArquivo.get(chave) === proxima) filasPorArquivo.delete(chave);
+  }
 }
 
 /** Escapa um valor para CSV (separador `;`, como o Excel em pt-BR). */
@@ -122,47 +179,55 @@ export async function lerSidecarOcr(filePath: string): Promise<OcrSidecar | null
  *
  * O CSV é reescrito a partir do arquivo lateral: é ele que guarda o valor
  * corrigido, a confiança original e o estado da revisão.
+ *
+ * O arquivo é relido **dentro da fila** do arquivo: assim duas correções
+ * simultâneas não se perdem, e a escrita é atômica (nenhum leitor vê um
+ * arquivo pela metade).
  */
 export async function aplicarEdicaoOcr(params: {
   filePath: string;
-  sidecar: OcrSidecar;
   linha: number;
   coluna: number;
   valor?: string;
   aceitar?: boolean;
 }): Promise<OcrSidecar> {
-  const { filePath, sidecar, linha, coluna } = params;
-  const headers = sidecar.headers;
-  const celula = sidecar.celulas.find(
-    (c) => c.linha === linha && c.coluna === coluna,
-  );
-  if (!celula) {
-    throw new AppError(
-      `A célula linha ${linha}, coluna ${coluna + 1} não existe nesta imagem.`,
-      400,
+  const { filePath, linha, coluna } = params;
+  return emSequencia(filePath, async () => {
+    const sidecar = await lerSidecarOcr(filePath);
+    if (!sidecar) {
+      throw new AppError(
+        "Este lote não veio de uma imagem: não há células para revisar.",
+        400,
+      );
+    }
+    const headers = sidecar.headers;
+    const celula = sidecar.celulas.find(
+      (c) => c.linha === linha && c.coluna === coluna,
     );
-  }
+    if (!celula) {
+      throw new AppError(
+        `A célula linha ${linha}, coluna ${coluna + 1} não existe nesta imagem.`,
+        400,
+      );
+    }
 
-  if (typeof params.valor === "string" && params.valor.trim() !== celula.valor) {
-    celula.valor = params.valor.trim();
-    celula.editado = true;
-    celula.aceito = false;
-  }
-  if (params.aceitar === true) {
-    celula.aceito = true;
-  }
+    if (typeof params.valor === "string" && params.valor.trim() !== celula.valor) {
+      celula.valor = params.valor.trim();
+      celula.editado = true;
+      celula.aceito = false;
+    }
+    if (params.aceitar === true) {
+      celula.aceito = true;
+    }
 
-  await writeFile(
-    caminhoSidecarOcr(filePath),
-    JSON.stringify(sidecar),
-    { encoding: "utf8", mode: 0o600 },
-  );
-  await writeFile(filePath, montarCsvOcr(headers, sidecar.celulas), {
-    encoding: "utf8",
-    mode: 0o600,
+    await escreverAtomicamente(
+      caminhoSidecarOcr(filePath),
+      JSON.stringify(sidecar),
+    );
+    await escreverAtomicamente(filePath, montarCsvOcr(headers, sidecar.celulas));
+
+    return sidecar;
   });
-
-  return sidecar;
 }
 
 /**

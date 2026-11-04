@@ -85,6 +85,7 @@ import { detectImageMime } from "./ocr/ocrSecurity";
 import { importarImagemOcr } from "./ocr/ocrImportService";
 import {
   alinharLinhasOcr,
+  apagarArquivosLote,
   aplicarEdicaoOcr,
   celulasPorLinha,
   lerSidecarOcr,
@@ -202,23 +203,31 @@ export class DataImportUseCases {
       throw new AppError("O arquivo não tem conteúdo legível.", 400);
     }
 
-    const expiresAt = new Date(Date.now() + IMPORT_UNDO_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-    const batch = await this.batches.create({
-      barbershopId,
-      fileName: sanitizeFileName(fileName),
-      filePath: filePath ?? "",
-      fileSize: buffer.length,
-      fileFormat: imagemMime ? "CSV" : (validatedFile?.format ?? "CSV"),
-      sheetName: first.selectedSheet,
-      // O destino é escolhido pelo dono na etapa seguinte (`configureTarget`).
-      // O valor gravado aqui é só o valor inicial do lote — o mesmo das
-      // planilhas — e é substituído assim que o dono escolher.
-      targetType: "CLIENTS",
-      headers: first.headers,
-      createdById: userId ?? null,
-      expiresAt,
-      source: source ?? "WEB",
-    });
+    const expiresAt = new Date(Date.now() + IMPORT_UNDO_WINDOW_DAYS * 24 * 60 * 60 * 60 * 1000);
+    let batch;
+    try {
+      batch = await this.batches.create({
+        barbershopId,
+        fileName: sanitizeFileName(fileName),
+        filePath: filePath ?? "",
+        fileSize: buffer.length,
+        fileFormat: imagemMime ? "CSV" : (validatedFile?.format ?? "CSV"),
+        sheetName: first.selectedSheet,
+        // O destino é escolhido pelo dono na etapa seguinte (`configureTarget`).
+        // O valor gravado aqui é só o valor inicial do lote — o mesmo das
+        // planilhas — e é substituído assim que o dono escolher.
+        targetType: "CLIENTS",
+        headers: first.headers,
+        createdById: userId ?? null,
+        expiresAt,
+        source: source ?? "WEB",
+      });
+    } catch (err) {
+      // O lote não nasceu: os arquivos do OCR (CSV + .ocr.json, que guardam o
+      // valor lido em cada célula) não podem ficar órfãos no disco.
+      await apagarArquivosLote(filePath);
+      throw err;
+    }
 
     if (userId) {
       const detalhes = imagemMime
@@ -594,7 +603,8 @@ export class DataImportUseCases {
       status: "CANCELLED",
       finishedAt: new Date(),
     });
-    await deleteTempFile(batch.filePath);
+    // CSV e arquivo lateral (.ocr.json): os dois guardam dado do lote.
+    await apagarArquivosLote(batch.filePath);
 
     return { id: batch.id, status: "CANCELLED" as const };
   }
@@ -682,7 +692,6 @@ export class DataImportUseCases {
 
     await aplicarEdicaoOcr({
       filePath: batch.filePath,
-      sidecar,
       linha: params.linha,
       coluna: params.coluna,
       ...(typeof params.valor === "string" ? { valor: params.valor } : {}),
@@ -1031,10 +1040,10 @@ export class DataImportUseCases {
     return batch.expiresAt.getTime() > Date.now();
   }
 
-  /** Apaga o arquivo temporário do lote (chamado depois do processamento). */
+  /** Apaga os arquivos temporários do lote (chamado depois do processamento). */
   async purgeFile(batchId: string, barbershopId: string): Promise<void> {
     const batch = await this.requireBatch(barbershopId, batchId);
-    await deleteTempFile(batch.filePath);
+    await apagarArquivosLote(batch.filePath);
     logger.debug({ batchId }, "Arquivo temporário da importação removido");
   }
 }

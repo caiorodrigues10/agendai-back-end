@@ -14,7 +14,8 @@ import { spDateKey, withCronLock } from "@/shared/infra/redis/cronLock";
 import { withCronCorrelation } from "@/shared/utils/correlationContext";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { ImportBatchRepository } from "@/modules/dataImport/repositories/ImportBatchRepository";
-import { cleanupOldTempFiles, deleteTempFile } from "@/modules/dataImport/utils/tempFiles";
+import { cleanupOldTempFiles } from "@/modules/dataImport/utils/tempFiles";
+import { apagarArquivosLote } from "@/modules/dataImport/ocr/ocrBatchFile";
 
 const logger = getModuleLogger("cron:data-import-cleanup");
 
@@ -25,12 +26,12 @@ export async function cleanupDataImports(): Promise<{ expired: number; filesRemo
   const expired = await batches.findPastUndoWindow(100);
   for (const batch of expired) {
     await batches.update(batch.id, batch.barbershopId, { status: "EXPIRED" });
-    await deleteTempFile(batch.filePath);
+    await apagarArquivosLote(batch.filePath);
   }
 
   const completed = await batches.findCompletedForFileCleanup(100);
   for (const batch of completed) {
-    await deleteTempFile(batch.filePath);
+    await apagarArquivosLote(batch.filePath);
   }
 
   const filesRemoved = await cleanupOldTempFiles(7);
