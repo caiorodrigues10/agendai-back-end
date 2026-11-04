@@ -111,7 +111,10 @@ function carregarCandidatos(): { arquivos: Arquivo[]; candidatos: CandidateRepor
     }
   }
 
-  const ordem = (id: string) => "ABCDEF".indexOf(id[0]);
+  const ordem = (id: string) => {
+    const i = "ABCDEFGH".indexOf(id[0]);
+    return i === -1 ? 99 : i;
+  };
   const candidatos = [...porId.values()].sort((a, b) => ordem(a.id) - ordem(b.id));
   const imagens = Math.max(...arquivos.map((a) => a.imagens));
   return { arquivos, candidatos, imagens };
@@ -171,6 +174,7 @@ const SIMPLICIDADE: Record<string, { nota: number; motivo: string }> = {
   "D-": { nota: 5, motivo: "API + prompt + parse + retry." },
   "E-": { nota: 4, motivo: "OCR local + API + parse + retry (duas etapas)." },
   "F*": { nota: 4, motivo: "D + gate (mais código, mesmo runtime de rede)." },
+  "G-": { nota: 5, motivo: "PaddleOCR local em CPU + ponte Python; modelo carregado uma vez por processo, sem custo por imagem, mas runtime Python no container." },
 };
 
 const LICENCA: Record<string, { nota: number; motivo: string }> = {
@@ -180,6 +184,7 @@ const LICENCA: Record<string, { nota: number; motivo: string }> = {
   "D-": { nota: 4, motivo: "API de modelo; licença do provedor não auditada." },
   "E-": { nota: 4, motivo: "API de modelo; licença do provedor não auditada." },
   "F*": { nota: 4, motivo: "API de modelo; licença do provedor não auditada." },
+  "G-": { nota: 10, motivo: "PaddleOCR e PaddlePaddle: Apache-2.0, processamento local, sem envio de imagem a terceiros." },
 };
 
 const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v));
@@ -280,7 +285,12 @@ function main(): void {
   add("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
 
   for (const c of candidatos) {
-    const deployavel = c.id.startsWith("C-") ? "**não** (macOS)" : "sim";
+    const deployavel =
+      c.id.startsWith("C-")
+        ? "**não** (macOS — Vision/pyobjc)"
+        : c.id.startsWith("G-")
+          ? "sim (Python no container: venv ~981 MB + modelos ~133 MB)"
+          : "sim";
     add(
       `| ${c.id} | ${exatos(c.totais.telefone)} | ${falso(c.totais.telefone)} | ${exatos(c.totais.valor)} | ` +
         `${falso(c.totais.valor)} | ${exatos(c.totais.nome)} | ` +
@@ -290,6 +300,11 @@ function main(): void {
     );
   }
 
+  add(
+    "- **Deployável / custo (G):** PaddleOCR é Apache-2.0 e roda local, mas precisa de runtime Python no container. " +
+      "Medido: venv ~981 MB (paddlepaddle + paddleocr + deps) e modelos ~133 MB (PP-OCRv6 médio det+rec, português/latino). " +
+      "Não é isento de custo: o modelo é carregado por processo Python, o que leva G a ~7,9 s/imagem contra ~0,35 s do B."
+  );
   add("");
   add(
     "> `F*` é uma **ablação**: pega as mesmas extrações do D e aplica o gate de produção, sem chamar o " +
@@ -530,6 +545,23 @@ function main(): void {
       `- **O gate não captura erro plausível — medido, não suposto.** Aplicado às mesmas extrações do D, o gate ` +
         `descartou **${bf.linhas.revisao - bench("D-").linhas.revisao}** linha(s) e manteve os ` +
         `**${bf.linhas.falsoConfiante}** falsos confiáveis: eles normalizam e passariam pela validação.`
+    );
+  }
+  const g = porId(candidatos, "G-");
+  const bb = porId(candidatos, "B-");
+  if (g && bb) {
+    const bg = bench("G-");
+    const bbb = bench("B-");
+    add(
+      `- **PaddleOCR (G) supera B em acerto bruto, mas perde no critério central (falso confiante) e no tempo.** ` +
+        `No dataset bruto: telefone ${exatos(bg.colunas.telefone)} (B: ${exatos(bbb.colunas.telefone)}), ` +
+        `valor ${exatos(bg.colunas.valor)} (B: ${exatos(bbb.colunas.valor)}), ` +
+        `mas falso confiante de ${bg.colunas.telefone.falsoConfiante + bg.colunas.valor.falsoConfiante} ` +
+        `(tel+valor) contra ${bbb.colunas.telefone.falsoConfiante + bbb.colunas.valor.falsoConfiante} do B — ` +
+        `o G produz mais telefone/valor plausível e errado que passa pela validacao. ` +
+        `Custo: ${(g.tempoMedioMs / 1000).toFixed(1)} s/imagem contra ${(bb.tempoMedioMs / 1000).toFixed(1)} s do B, ` +
+        `porque cada imagem dispara um processo Python que carrega o modelo. Nao e melhor que o B; ` +
+        `e mais lento e mais falso-confiante.`
     );
   }
   add(
@@ -797,7 +829,17 @@ function main(): void {
   );
   add(
     "- O dataset é sintético: layout, fonte e cores fixos. Números absolutos não transferem para fotos reais; " +
-      "a comparação relativa e o conceito de falso confiante transferem."
+      "a comparação relativa e o conceito de falso confiante transferem. **Validado só em prints sintéticos " +
+      "(não cobre manuscrito, foto de celular nem PDF escaneado).**"
+  );
+  add(
+    "- `H` (PP-Structure / TableRecognition do PaddleOCR) **não foi implementado**: é um pipeline separado e " +
+      "pesado de leitura estrutural de tabela (não apenas OCR de células), exigiria download de modelo dedicado " +
+      "e, em CPU, facilmente excederia o orçamento de ~15 s/imagem. Fica para avaliação posterior apenas se " +
+      "justificado por imagem real."
+  );
+  add(
+    "- A confiança do PaddleOCR (G) não foi calibrada; não há limiar de revisão definido para ela."
   );
   add("- O crédito do NVIDIA NIM usado no teste não foi tarifado: **o custo por imagem não foi medido**.");
   add(
