@@ -60,6 +60,7 @@
 | `resend` | `^6.18.1` | E-mail | Envio transacional | ResendEmailProvider |
 | `satori` | `0.63.2` | Mídia | Layout → SVG (glifos em path) do motor de camadas | posts/templates/_engine/render.ts |
 | `sharp` | `^0.35.5` | Mídia | Decodificação/validação de imagens (dimensões, EXIF) | shared/utils/imageValidation.ts |
+| `tesseract.js` | `^7.0.0` | OCR | Leitura de texto em imagem (roda local, sem rede) | modules/dataImport/ocr (extrator e worker) |
 | `tsconfig-paths` | `^4.2.0` | Build | Aliases runtime | tsx/dev |
 | `unpdf` | `^2.1.0` | PDF | Extração de texto posicionado de PDF | modules/dataImport/utils/pdfParser.ts |
 | `tsyringe` | `^4.8.0` | DI | Injeção de dependências | shared/container |
