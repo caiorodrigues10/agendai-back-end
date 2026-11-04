@@ -151,6 +151,65 @@
         "entrada": "",
         "saida": "unknown"
       }
+    ],
+    "parseFeeStatus": [
+      {
+        "entrada": "pendente",
+        "saida": {
+          "value": "PENDING"
+        }
+      },
+      {
+        "entrada": "PENDENTE",
+        "saida": {
+          "value": "PENDING"
+        }
+      },
+      {
+        "entrada": " Pago ",
+        "saida": {
+          "value": "PAID"
+        }
+      },
+      {
+        "entrada": "faturado",
+        "saida": {
+          "value": "INVOICED"
+        }
+      },
+      {
+        "entrada": "canceled",
+        "saida": {
+          "value": "CANCELED"
+        }
+      },
+      {
+        "entrada": "em aberto",
+        "saida": {
+          "value": "PENDING",
+          "warning": "Situação \"em aberto\" não reconhecida; usando \"Pendente\"."
+        }
+      },
+      {
+        "entrada": "ABERTO",
+        "saida": {
+          "value": "PENDING",
+          "warning": "Situação \"ABERTO\" não reconhecida; usando \"Pendente\"."
+        }
+      },
+      {
+        "entrada": "1",
+        "saida": {
+          "value": "PENDING",
+          "warning": "Situação \"1\" não reconhecida; usando \"Pendente\"."
+        }
+      },
+      {
+        "entrada": "",
+        "saida": {
+          "value": "PENDING"
+        }
+      }
     ]
   }
 }

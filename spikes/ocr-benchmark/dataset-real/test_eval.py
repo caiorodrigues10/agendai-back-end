@@ -304,20 +304,42 @@ class TestFalsoConfiante(BaseEval):
     def test_campo_de_texto_nao_conta_como_falso_confiante(self):
         """Sessão 7: texto errado não é falso confiante (não há normalizador
         que o erro pudesse atravessar)."""
-        gt = [linha(cliente="Ana", status="pendente")]
-        ocr = [linha(cliente="Bruno", status="cancelado")]
+        gt = [linha(cliente="Ana")]
+        ocr = [linha(cliente="Bruno")]
         resultados = self.avaliar(gt, ocr)
-        for campo in ("cliente", "status"):
-            celula = self.por_campo(resultados, campo)[0]
-            self.assertFalse(celula["exato"], campo)
-            self.assertFalse(celula["falso_confiante"], campo)
+        celula = self.por_campo(resultados, "cliente")[0]
+        self.assertFalse(celula["exato"])
+        self.assertFalse(celula["falso_confiante"])
+
+    def test_status_pendente_lido_como_pago_e_falso_confiante(self):
+        """`status` tem normalizador (FEE_STATUS_MAP): `pago` é aceito, então
+        ler `pendente` como `pago` entra no sistema sem nenhum aviso."""
+        gt = [linha(status="pendente")]
+        ocr = [linha(status="pago")]
+        resultados = self.avaliar(gt, ocr)
+        status = self.por_campo(resultados, "status")[0]
+        self.assertFalse(status["exato"])
+        self.assertTrue(status["falso_confiante"])
+
+    def test_status_desconhecido_nao_e_falso_confiante(self):
+        """Valor fora do FEE_STATUS_MAP vira PENDING com aviso: o filtro da
+        produção barrou o texto, então não é falso confiante."""
+        gt = [linha(status="pendente")]
+        ocr = [linha(status="em aberto")]
+        resultados = self.avaliar(gt, ocr)
+        status = self.por_campo(resultados, "status")[0]
+        self.assertFalse(status["exato"])
+        self.assertFalse(status["falso_confiante"])
+        # O valor do OCR não é reconhecido pelo mapa.
+        self.assertIn("warning", eval_mod.parse_fee_status("em aberto"))
+        self.assertNotIn("warning", eval_mod.parse_fee_status("pago"))
 
     def test_somente_campos_com_normalizador_contam(self):
-        for campo in ("telefone", "numero_processo", "valor", "valor_total",
-                      "percentual_exito", "percentual_comissao"):
+        for campo in ("telefone", "numero_processo", "status", "valor",
+                      "valor_total", "percentual_exito", "percentual_comissao"):
             self.assertTrue(eval_mod._tem_normalizador(campo), campo)
         for campo in ("cliente", "servico", "categoria", "detalhe", "secao",
-                      "status", "parcela", "data_criacao"):
+                      "parcela", "data_criacao"):
             self.assertFalse(eval_mod._tem_normalizador(campo), campo)
 
     def test_relatorio_mostra_tabela_de_falso_confiante_por_campo(self):
@@ -765,9 +787,10 @@ class TestParidadeTypeScript(unittest.TestCase):
         with open(FIXTURE_PARIDADE, encoding="utf-8") as f:
             cls.fixture = json.load(f)
 
-    def test_fixture_tem_os_tres_normalizadores(self):
+    def test_fixture_tem_os_quatro_normalizadores(self):
         casos = self.fixture["casos"]
-        for nome in ["normalizeMoney", "normalizePhone", "checkCnjCheckDigit"]:
+        for nome in ["normalizeMoney", "normalizePhone", "checkCnjCheckDigit",
+                     "parseFeeStatus"]:
             self.assertIn(nome, casos)
             self.assertTrue(casos[nome], f"sem casos em {nome}")
 
@@ -806,6 +829,17 @@ class TestParidadeTypeScript(unittest.TestCase):
                 )
         self.assertEqual(divergencias, [], "; ".join(divergencias))
 
+    def test_paridade_parse_fee_status(self):
+        divergencias = []
+        for caso in self.fixture["casos"]["parseFeeStatus"]:
+            esperado = caso["saida"]
+            obtido = eval_mod.parse_fee_status(caso["entrada"])
+            if obtido != esperado:
+                divergencias.append(
+                    f'parseFeeStatus({caso["entrada"]!r}): TS={esperado!r} x Python={obtido!r}'
+                )
+        self.assertEqual(divergencias, [], "; ".join(divergencias))
+
     def test_fixture_cobre_os_casos_obrigatorios(self):
         casos = self.fixture["casos"]
         money = {c["entrada"] for c in casos["normalizeMoney"]}
@@ -820,6 +854,15 @@ class TestParidadeTypeScript(unittest.TestCase):
         self.assertIn("valid", saidas)
         self.assertIn("invalid", saidas)
         self.assertIn("unknown", saidas)
+        # status: casos CONHECIDOS (sem aviso) e DESCONHECIDOS (com aviso)
+        status = casos["parseFeeStatus"]
+        com_aviso = [c for c in status if "warning" in c["saida"]]
+        sem_aviso = [c for c in status if "warning" not in c["saida"]]
+        self.assertTrue(com_aviso, "sem caso de status desconhecido")
+        self.assertTrue(sem_aviso, "sem caso de status conhecido")
+        valores = {c["saida"]["value"] for c in sem_aviso}
+        self.assertIn("PENDING", valores)
+        self.assertIn("PAID", valores)
 
 
 if __name__ == "__main__":

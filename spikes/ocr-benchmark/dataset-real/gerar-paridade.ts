@@ -5,6 +5,7 @@
  *   - normalizeMoney  (rowNormalization.ts:161)
  *   - normalizePhone  (rowNormalization.ts:134)
  *   - checkCnjCheckDigit (shared/utils/cnj.ts:3)
+ *   - parseFeeStatus  (caseFeeImporter.ts:43 — FEE_STATUS_MAP)
  *
  * sobre uma lista FIXA de casos e grava `paridade-normalizadores.json`.
  * O `test_eval.py` lê esse JSON e compara cada saída com a porta Python:
@@ -21,6 +22,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { normalizeMoney, normalizePhone } from "@/modules/dataImport/utils/rowNormalization";
+import { parseFeeStatus } from "@/modules/dataImport/processors/caseFeeImporter";
 import { checkCnjCheckDigit } from "@/shared/utils/cnj";
 
 const BASE = dirname(fileURLToPath(import.meta.url));
@@ -77,6 +79,21 @@ const CASOS_CNJ = [
 ];
 
 type Caso = { entrada: string; saida: string | number | null };
+type CasoStatus = { entrada: string; saida: { value: string; warning?: string } };
+
+// `status` (feeStatus): casos CONHECIDOS pelo FEE_STATUS_MAP (aceitos) e
+// DESCONHECIDOS (viram PENDING com aviso). O eval.py portou parseFeeStatus.
+const CASOS_STATUS = [
+  "pendente",
+  "PENDENTE",
+  " Pago ",
+  "faturado",
+  "canceled",
+  "em aberto",   // desconhecido -> PENDING + aviso
+  "ABERTO",      // desconhecido (caixa alta so nao basta)
+  "1",           // desconhecido
+  "",            // vazio -> PENDING sem aviso
+];
 
 const casosMoney: Caso[] = CASOS_MONEY.map((entrada) => ({
   entrada,
@@ -93,6 +110,11 @@ const casosCnj: Caso[] = CASOS_CNJ.map((entrada) => ({
   saida: checkCnjCheckDigit(entrada),
 }));
 
+const casosStatus: CasoStatus[] = CASOS_STATUS.map((entrada) => ({
+  entrada,
+  saida: parseFeeStatus(entrada),
+}));
+
 const fixture = {
   gerado_por: "dataset-real/gerar-paridade.ts",
   obs: "Fixture de paridade: saidas das funcoes REAIS do backend. O test_eval.py compara com as portas Python.",
@@ -100,6 +122,7 @@ const fixture = {
     normalizeMoney: casosMoney,
     normalizePhone: casosPhone,
     checkCnjCheckDigit: casosCnj,
+    parseFeeStatus: casosStatus,
   },
 };
 
@@ -109,6 +132,7 @@ console.log("=== PARIDADE PYTHON x TS ===");
 console.log(`normalizeMoney: ${casosMoney.length} caso(s)`);
 console.log(`normalizePhone: ${casosPhone.length} caso(s)`);
 console.log(`checkCnjCheckDigit: ${casosCnj.length} caso(s)`);
+console.log(`parseFeeStatus: ${casosStatus.length} caso(s)`);
 console.log(`\nJSON gravado em: ${SAIDA}`);
 for (const caso of casosMoney) {
   console.log(`  normalizeMoney(${JSON.stringify(caso.entrada)}) -> ${caso.saida}`);
@@ -118,5 +142,8 @@ for (const caso of casosPhone) {
 }
 for (const caso of casosCnj) {
   console.log(`  checkCnjCheckDigit(${JSON.stringify(caso.entrada)}) -> ${caso.saida}`);
+}
+for (const caso of casosStatus) {
+  console.log(`  parseFeeStatus(${JSON.stringify(caso.entrada)}) -> ${JSON.stringify(caso.saida)}`);
 }
 console.log("\n=== FIM ===");

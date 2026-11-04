@@ -24,10 +24,11 @@ Como a pontuacao e calculada:
     campo, por arquivo e no geral. Erro monetario pesa PESO_ERRO_MONETARIO
     vezes mais.
   • Falso confiante: celula errada de campo COM normalizador (telefone,
-    moeda, percentual, DV do CNJ) que a normalizacao de producao aceita —
-    ou seja, o erro entraria no sistema sem ser barrado. Campo de texto
-    (cliente, servico, categoria...) nao conta: sem normalizador nao ha
-    filtro que o erro pudesse atravessar.
+    moeda, percentual, DV do CNJ e o status do FEE_STATUS_MAP) que a
+    normalizacao de producao aceita — ou seja, o erro entraria no sistema
+    sem ser barrado. Campo de texto (cliente, servico, categoria...)
+    nao conta: sem normalizador nao ha filtro que o erro pudesse
+    atravessar.
   • Celulas com "incerto" no ground truth saem do placar de acerto/erro e
     contam em duas categorias ("preenchida pelo OCR" x "vazia no OCR") —
     so contagens, sem valor de celula.
@@ -107,8 +108,10 @@ CAMPOS_ROTULO_REAL = {"categoria"}
 
 # Campos que a importacao de producao passa por um normalizador (unicos que
 # podem virar "falso confiante": sem normalizador nao ha filtro que o erro
-# pudesse atravessar). Ver `_tem_normalizador`.
-CAMPOS_COM_NORMALIZADOR = {"telefone", "numero_processo"} | CAMPOS_MONETARIOS | CAMPOS_PERCENTUAL
+# pudesse atravessar). `status` entra pelo FEE_STATUS_MAP (§2.7 do mapping):
+# so o texto reconhecido pelo mapa e aceito; desconhecido vira PENDING com
+# aviso. Ver `_tem_normalizador`.
+CAMPOS_COM_NORMALIZADOR = {"telefone", "numero_processo", "status"} | CAMPOS_MONETARIOS | CAMPOS_PERCENTUAL
 
 # Colunas usadas como chave textual no alinhamento de linhas SEM processo
 # (dashboard e planilha de serviços nao tem numero_processo).
@@ -212,6 +215,44 @@ def check_cnj_check_digit(cnj):
 
 def cnj_valido_prod(cnj):
     return check_cnj_check_digit(cnj) == "valid"
+
+
+FEE_STATUS_MAP = {
+    "pendente": "PENDING",
+    "pending": "PENDING",
+    "faturado": "INVOICED",
+    "invoiced": "INVOICED",
+    "pago": "PAID",
+    "paid": "PAID",
+    "cancelado": "CANCELED",
+    "canceled": "CANCELED",
+}
+
+
+def normalize_header_text(value):
+    """normalizeHeaderText (columnMapping.ts)."""
+    texto = "" if value is None else str(value)
+    decomposto = unicodedata.normalize("NFD", texto)
+    sem_acento = "".join(c for c in decomposto if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]+", " ", sem_acento.lower()).strip()
+
+
+def parse_fee_status(raw):
+    """parseFeeStatus (caseFeeImporter.ts): devolve {value, warning?}.
+
+    Texto conhecido pelo FEE_STATUS_MAP e aceito; desconhecido vira PENDING
+    **com aviso** (o aviso e o que marca "nao reconhecido").
+    """
+    text = ("" if raw is None else str(raw)).strip()
+    if not text:
+        return {"value": "PENDING"}
+    mapped = FEE_STATUS_MAP.get(normalize_header_text(text))
+    if mapped:
+        return {"value": mapped}
+    return {
+        "value": "PENDING",
+        "warning": f'Situação "{text}" não reconhecida; usando "Pendente".',
+    }
 
 
 # ── leitura de CSV ───────────────────────────────────────────────────────────
@@ -421,6 +462,10 @@ def _normalizador_aceita(campo, valor):
         return normalize_money_prod(valor) is not None
     if campo == "numero_processo":
         return check_cnj_check_digit(valor) != "invalid"
+    if campo == "status":
+        # Aceito so quando o FEE_STATUS_MAP reconhece o texto; desconhecido
+        # (ou vazio, ja tratado acima) nao passa do filtro.
+        return "warning" not in parse_fee_status(valor)
     return True
 
 
@@ -625,7 +670,8 @@ def imprimir_relatorio(resultados, real=False, sem_extracao=None, excluidos=None
     print("Alinhamento: chave exata (numero_processo+parcela); linhas sem processo "
           "por chave textual unica; depois posicao; sobras com processo pelo menor CER.")
     print("Falso confiante: celula errada de campo COM normalizador (telefone, moeda, "
-          "percentual, DV do CNJ) que a producao aceita; campo de texto nao conta.")
+          "percentual, DV do CNJ, status do FEE_STATUS_MAP) que a producao aceita; "
+          "campo de texto nao conta.")
     print("Placar principal: so celulas COM VALOR no GT (celula vazia no GT nao conta "
           "como acerto; ver a linha 'vazias no GT' la embaixo).\n")
 
