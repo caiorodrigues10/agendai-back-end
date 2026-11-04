@@ -34,8 +34,12 @@ def ocr_engine():
     if _OCR is None:
         # Desliga pre-processamento de documento (orientacao/desarme) que nao
         # e necessario para tabelas de print e so acrescenta modelos/custo.
+        # Permite sobrescrever det/rec via variavel de ambiente (ex.: variante
+        # mobile/small) sem trocar o idioma.
         _OCR = PaddleOCR(
             lang="pt",
+            text_detection_model_name=os.environ.get("PADDLE_DET_MODEL") or None,
+            text_recognition_model_name=os.environ.get("PADDLE_REC_MODEL") or None,
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
