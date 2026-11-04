@@ -52,6 +52,7 @@ export type ImportBatchStatus =
   | "MAPPING"
   | "VALIDATING"
   | "AWAITING_CONFIRMATION"
+  | "AWAITING_REVIEW"
   | "PROCESSING"
   | "COMPLETED"
   | "COMPLETED_WITH_ERRORS"

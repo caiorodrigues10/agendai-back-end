@@ -33,10 +33,12 @@ import {
   availableImportTargets,
 } from "./dataImport.constants";
 import type {
+  ImportBatchStatus,
   ImportFieldKey,
   ImportFieldView,
   ImportOptions,
   ImportPlan,
+  ImportRawRow,
   ImportSheetInfo,
   ImportSheetPlan,
   ImportSheetPlanView,
@@ -47,7 +49,7 @@ import type {
 import { ImportBatchRepository } from "./repositories/ImportBatchRepository";
 import { ImportRowResultRepository } from "./repositories/ImportRowResultRepository";
 import { ImportCreatedEntityRepository } from "./repositories/ImportCreatedEntityRepository";
-import { validateImportFile } from "./utils/fileValidation";
+import { validateImportFile, sanitizeFileName, type ValidatedImportFile } from "./utils/fileValidation";
 import {
   readSpreadsheet,
   readSpreadsheetPreview,
@@ -74,6 +76,9 @@ import {
   serializePlan,
   sheetKey,
 } from "./importPlan";
+import { OCR_IMPORT_ENABLED, OCR_MAX_FILE_SIZE_BYTES } from "./ocr/ocr.constants";
+import { detectImageMime } from "./ocr/ocrSecurity";
+import { importarImagemOcr } from "./ocr/ocrImportService";
 
 const logger = getModuleLogger("data-import");
 
@@ -103,62 +108,117 @@ export class DataImportUseCases {
 
     await this.assertQuota(barbershopId);
 
-    const validated = validateImportFile(fileName, buffer);
-    const filePath = await saveTempFile(buffer, validated.extension);
+    const imagemMime = detectImageMime(buffer);
+    let sheets: import("./dataImport.types").ParsedSpreadsheet[];
+    let validatedFile: ValidatedImportFile | null = null;
+    let filePath: string | undefined;
+    let abaixoDoPiso = false;
+    let avisoQualidade: string | undefined;
 
-    try {
-      const sheets = await readSpreadsheetSheets(filePath, validated.format);
-      const first = sheets[0];
-      if (!first) {
-        throw new AppError("A planilha enviada não tem abas com conteúdo.", 400);
+    if (imagemMime) {
+      // Importação por imagem: só com feature flag ligada.
+      if (!OCR_IMPORT_ENABLED) {
+        throw new AppError(
+          "Importação de imagem está desativada. Ative OCR_IMPORT_ENABLED=on para enviar fotos.",
+          400,
+        );
       }
-
-      const expiresAt = new Date(Date.now() + IMPORT_UNDO_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-      const batch = await this.batches.create({
-        barbershopId,
-        fileName: validated.fileName,
-        filePath,
-        fileSize: validated.fileSize,
-        fileFormat: validated.format,
-        sheetName: first.sheetName,
-        targetType: "CLIENTS",
-        headers: first.headers,
-        createdById: userId ?? null,
-        expiresAt,
-        source: source ?? "WEB",
-      });
-
-      if (userId) {
-        await createAuditLog({
-          userId,
-          action: "DATA_IMPORT_UPLOAD",
-          resource: "ImportBatch",
-          resourceId: batch.id,
-          barbershopId,
-          ipAddress: ipAddress ?? undefined,
-          details: JSON.stringify({ fileName: validated.fileName, fileSize: validated.fileSize, format: validated.format, source: source ?? "WEB" }),
-        });
+      if (buffer.length > OCR_MAX_FILE_SIZE_BYTES) {
+        throw new AppError(
+          `A imagem passa de ${Math.round(OCR_MAX_FILE_SIZE_BYTES / (1024 * 1024))} MB. Envie uma imagem menor.`,
+          413,
+        );
       }
-
-      return {
-        id: batch.id,
-        fileName: batch.fileName,
-        fileFormat: batch.fileFormat,
-        targetType: batch.targetType,
-        status: batch.status,
-        sheetNames: sheets.map((sheet) => sheet.sheetName).filter((name): name is string => !!name),
-        selectedSheet: first.sheetName,
-        headers: first.headers,
-        preview: first.rows.slice(0, 20),
-        totalRows: first.rows.length,
-        sheets: sheets.map((sheet) => this.toSheetInfo(sheet)),
-        createdAt: batch.createdAt,
-        expiresAt: batch.expiresAt,
-      };
-    } catch (err) {
-      await deleteTempFile(filePath);
-      throw err;
+      const resultado = await importarImagemOcr(fileName, buffer);
+      sheets = resultado.sheets.map((s) => s.sheet);
+      abaixoDoPiso = resultado.operacao.abaixoDoPiso;
+      avisoQualidade = resultado.avisoQualidade;
+      // Log sem valores de célula: só contagens, tempo e resolução.
+      logger.info(
+        {
+          imagens: 1,
+          tempoOcrMs: resultado.operacao.tempoOcrMs,
+          larguraPx: resultado.operacao.larguraPx,
+          abaixoDoPiso,
+        },
+        "OCR de imagem concluído",
+      );
+    } else {
+      validatedFile = validateImportFile(fileName, buffer);
+      filePath = await saveTempFile(buffer, validatedFile.extension);
+      try {
+        const parsed = await readSpreadsheetSheets(filePath, validatedFile.format);
+        sheets = parsed.map((p) => ({
+          sheetNames: p.sheetName ? [p.sheetName] : [],
+          selectedSheet: p.sheetName ?? null,
+          headers: p.headers,
+          rows: p.rows,
+        }));
+      } finally {
+        await deleteTempFile(filePath);
+        filePath = undefined;
+      }
     }
+
+    const first = sheets[0];
+    if (!first) {
+      throw new AppError("O arquivo não tem conteúdo legível.", 400);
+    }
+
+    const expiresAt = new Date(Date.now() + IMPORT_UNDO_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const batch = await this.batches.create({
+      barbershopId,
+      fileName: sanitizeFileName(fileName),
+      filePath: imagemMime ? "" : (filePath ?? ""),
+      fileSize: buffer.length,
+      fileFormat: imagemMime ? "CSV" : (validatedFile?.format ?? "CSV"),
+      sheetName: first.selectedSheet,
+      targetType: imagemMime ? "CLIENTS" : "CLIENTS",
+      headers: first.headers,
+      createdById: userId ?? null,
+      expiresAt,
+      source: source ?? "WEB",
+    });
+
+    if (imagemMime) {
+      await this.batches.update(batch.id, barbershopId, {
+        status: ("AWAITING_REVIEW" as any),
+      });
+    }
+
+    if (userId) {
+      const detalhes = imagemMime
+        ? { fileName: sanitizeFileName(fileName), fileSize: buffer.length, format: imagemMime, source: source ?? "WEB", origem: "ocr" }
+        : { fileName: validatedFile!.fileName, fileSize: validatedFile!.fileSize, format: validatedFile!.format, source: source ?? "WEB" };
+      await createAuditLog({
+        userId,
+        action: "DATA_IMPORT_UPLOAD",
+        resource: "ImportBatch",
+        resourceId: batch.id,
+        barbershopId,
+        ipAddress: ipAddress ?? undefined,
+        details: JSON.stringify(detalhes),
+      });
+    }
+
+    return {
+      id: batch.id,
+      fileName: batch.fileName,
+      fileFormat: batch.fileFormat,
+      targetType: batch.targetType,
+      status: imagemMime ? ("AWAITING_REVIEW" as ImportBatchStatus) : batch.status,
+      sheetNames: sheets.map((sheet) => sheet.selectedSheet).filter((name): name is string => !!name),
+      selectedSheet: first.selectedSheet,
+      headers: first.headers,
+      preview: first.rows.slice(0, 20),
+      totalRows: first.rows.length,
+      sheets: sheets.map((sheet) =>
+        this.toSheetInfo({ sheetName: sheet.selectedSheet, headers: sheet.headers, rows: sheet.rows }),
+      ),
+      createdAt: batch.createdAt,
+      expiresAt: batch.expiresAt,
+      ...(avisoQualidade ? { avisoQualidade } : {}),
+    };
   }
 
   /**
