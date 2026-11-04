@@ -547,28 +547,28 @@ def avaliar_detalhado(gt_dir, ocr_dir, real=False):
             incerto = campos_incerto(g)
             campos = (set(g.keys()) | set(o.keys())) - CAMPOS_IGNORADOS
             for campo in sorted(campos):
-                celula = _comparar(campo, g.get(campo, ""), o.get(campo, ""),
+                resultado = _comparar(campo, g.get(campo, ""), o.get(campo, ""),
                                       campo in incerto, True, True)
-                if celula is not None:
-                    resultados.append(celula)
+                if resultado is not None:
+                    resultados.append(resultado)
 
         for i in gt_sem_par:
             g = gt_linhas[i]
             incerto = campos_incerto(g)
             campos = set(g.keys()) - CAMPOS_IGNORADOS
             for campo in sorted(campos):
-                celula = _comparar(campo, g.get(campo, ""), "",
+                resultado = _comparar(campo, g.get(campo, ""), "",
                                       campo in incerto, True, False)
-                if celula is not None:
-                    resultados.append(celula)
+                if resultado is not None:
+                    resultados.append(resultado)
 
         for j in ocr_sem_par:
             o = ocr_linhas[j]
             campos = set(o.keys()) - CAMPOS_IGNORADOS
             for campo in sorted(campos):
-                celula = _comparar(campo, "", o.get(campo, ""), False, False, True)
-                if celula is not None:
-                    resultados.append(celula)
+                resultado = _comparar(campo, "", o.get(campo, ""), False, False, True)
+                if resultado is not None:
+                    resultados.append(resultado)
 
     return resultados, sem_extracao, excluidos
 

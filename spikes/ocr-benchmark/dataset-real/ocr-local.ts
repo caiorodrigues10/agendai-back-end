@@ -64,15 +64,15 @@ async function main(): Promise<void> {
     console.log(`=== OCR LOCAL: ${basename(imagem)} ===`);
     const saidas: Record<string, unknown>[] = [];
     for (const motor of [tesseractTexto, macosVision]) {
-      const r = await rodar(motor, imagem);
-      saidas.push(r);
+      const resultado = await rodar(motor, imagem);
+      saidas.push(resultado);
       console.log(
-        `${r.motor}: ${r.ok ? "OK" : "FALHOU"} | ${r.elapsed_ms} ms | ${r.linhas} linha(s)` +
-          (r.erro ? ` | erro: ${String(r.erro).slice(0, 160)}` : ""),
+        `${resultado.motor}: ${resultado.ok ? "OK" : "FALHOU"} | ${resultado.elapsed_ms} ms | ${resultado.linhas} linha(s)` +
+          (resultado.erro ? ` | erro: ${String(resultado.erro).slice(0, 160)}` : ""),
       );
       writeFileSync(
-        join(SAIDA, `${nome}.${r.motor.toLowerCase()}.txt`),
-        r.raw_text || `(sem texto)\n`,
+        join(SAIDA, `${nome}.${resultado.motor.toLowerCase()}.txt`),
+        resultado.raw_text || `(sem texto)\n`,
         "utf8",
       );
     }
