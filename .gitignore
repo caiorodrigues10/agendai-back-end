@@ -40,4 +40,5 @@ spikes/ocr-benchmark/dataset-real/PROGRESSO.md
 __pycache__/
 *.pyc
 .venv/
+.venv-paddle/
 venv/
