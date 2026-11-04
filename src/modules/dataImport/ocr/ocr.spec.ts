@@ -277,13 +277,16 @@ describe("gate do OCR vira revisar da linha", () => {
 
   it("telefone válido com confiança baixa: revisar = true", () => {
     const celulas: OcrCellResult[] = [
-      { valor: "11987654321", confianca: 45, origem: "ocr", linha: 1, coluna: 0 },
+      { valor: "11987654321", confianca: 45, origem: "ocr", linha: 7, coluna: 0 },
     ];
     const veredito = avaliarLinhaOcr(celulas, colunaParaCampo);
     expect(veredito.revisar).toBe(true);
     expect(veredito.pendentes).toBe(1);
     expect(veredito.celulas[0].campo).toBe("whatsapp");
     expect(veredito.celulas[0].confianca).toBe(45);
+    // A linha vai para a tela: é ela que o frontend usa para corrigir a
+    // célula certa (PATCH /imports/:batchId/review).
+    expect(veredito.celulas[0].linha).toBe(7);
   });
 
   it("telefone válido com confiança alta: revisar = false", () => {

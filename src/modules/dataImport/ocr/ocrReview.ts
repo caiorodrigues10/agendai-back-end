@@ -16,6 +16,8 @@ import type { OcrCellResult, OcrCellState } from "./ocr.types";
 
 /** Uma célula da linha que o dono precisa conferir. */
 export interface OcrCelulaRevisar {
+  /** Linha da tabela lida (1-based, como no arquivo lateral do lote). */
+  linha: number;
   /** Índice da coluna (0-based). */
   coluna: number;
   /** Campo de destino escolhido pelo dono (ou "Coluna N" se não mapeado). */
@@ -82,6 +84,7 @@ export function avaliarLinhaOcr(
       const aceito = estado?.aceito ?? false;
       const editado = estado?.editado ?? false;
       return {
+        linha,
         coluna: item.coluna,
         campo: item.campo,
         valor: estado?.valor ?? celula?.valor ?? "",
