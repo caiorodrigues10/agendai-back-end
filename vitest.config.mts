@@ -15,7 +15,17 @@ export default defineConfig({
     globals: true,
     environment: "node",
     setupFiles: ["src/tests/setup.ts"],
-    exclude: ["dist/**", "node_modules/**", "**/node_modules/**", ".opencode/**"],
+    exclude: [
+      "dist/**",
+      "node_modules/**",
+      "**/node_modules/**",
+      ".opencode/**",
+      // spikes/ocr-benchmark tem runner próprio (node:test via tsx, script
+      // "test" do package.json do spike). Os arquivos .test.ts de lá são
+      // executados como script — o vitest os importava, rodava as asserções
+      // e falhava com "No test suite found in file".
+      "spikes/**",
+    ],
     pool: "forks",
     poolOptions: { forks: { maxForks: 2, minForks: 1 } },
     fileParallelism: false,
