@@ -2,6 +2,7 @@
  * Gera as fixtures da importação (um exemplo + um caso hostil por formato).
  *
  *   node scripts/generate-import-fixtures.mjs
+ *   node scripts/generate-import-fixtures.mjs --only=hostil-pdf-sem-texto.pdf
  *
  * Os arquivos ficam em `src/modules/dataImport/utils/fixtures/` e são lidos
  * pelos testes. Todos os dados são fictícios.
@@ -327,11 +328,19 @@ async function pdfBuffer({ withText = true } = {}) {
     }
   } else {
     // PDF "escaneado": só imagem, sem texto selecionável.
-    doc.addContent(
+    //
+    // A imagem entra como XObject (doc.image) e NÃO como bytes soltos no
+    // content stream: PNG cru no stream é interpretado pelo pdf.js como
+    // operadores ("PNG", "IHDR", "IEND"...) e ele despeja
+    // "Warning: Unknown command" na saída dos testes.
+    doc.image(
       Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         "base64"
-      )
+      ),
+      40,
+      40,
+      { width: 200, height: 200 }
     );
   }
   doc.end();
@@ -461,7 +470,13 @@ async function main() {
     }),
   };
 
+  // `--only=<nome>` regenera uma fixture só (sem mexer nas outras).
+  const only = process.argv
+    .find((arg) => arg.startsWith("--only="))
+    ?.slice("--only=".length);
+
   for (const [name, buffer] of Object.entries(files)) {
+    if (only && name !== only) continue;
     await writeFile(join(OUT, name), buffer);
     console.log(`${name.padEnd(34)} ${buffer.length} bytes`);
   }
