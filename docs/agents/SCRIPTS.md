@@ -53,6 +53,7 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 ## Observações críticas
 
 - **Não existe script `lint`** neste `package.json`. Não recomendar `npm run lint` no backend.
+- **`spikes/**` está fora do vitest** (`vitest.config.mts` → `exclude`). O spike `spikes/ocr-benchmark` roda com runner próprio (`node:test` via `tsx`, script `test` do `package.json` do spike). Se alguém remover o exclude, a suíte volta a falhar com "No test suite found in file" nos `.test.ts` do spike.
 - Prisma no código: **6.4.0** (`@prisma/client`, `prisma`). Não documentar como 7.x.
 - Produção: preferir `prisma migrate deploy` (`start:prod` / `prisma:migrate:prod`). `db:push` não é caminho de produção.
 - Migrations: ver também `docs/RUNBOOK_MIGRATIONS.md`.
