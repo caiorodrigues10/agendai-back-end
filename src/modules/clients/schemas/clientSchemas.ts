@@ -41,7 +41,8 @@ export const listClientsQuerySchema = basePaginationQuerySchema({
 })
   .extend({
     // max generoso: busca longa não pode derrubar a listagem inteira com 400
-    search: searchTermSchema({ max: 300 }).optional(),
+    // busca vazia (ou só espaços) vira undefined = "sem filtro"
+    search: searchTermSchema({ max: 300 }),
     /** Intervalo civil de criação (YYYY-MM-DD), convertido para limites UTC do dia. */
     createdFrom: dateOnlySchema.optional(),
     createdTo: dateOnlySchema.optional(),

@@ -239,11 +239,33 @@ describe("modules/clients — buildSalonClientOrderBy", () => {
 
   it("usa o campo da whitelist com a direção pedida e mantém o desempate por id", () => {
     expect(buildSalonClientOrderBy({ field: "lastVisitAt", dir: "desc" })).toEqual([
-      { lastVisitAt: "desc" },
+      { lastVisitAt: { sort: "desc", nulls: "last" } },
       { id: "asc" },
     ]);
     expect(buildSalonClientOrderBy({ field: "createdAt", dir: "asc" })).toEqual([
       { createdAt: "asc" },
+      { id: "asc" },
+    ]);
+  });
+
+  it("lastVisitAt põe os nulos por último nas duas direções", () => {
+    expect(buildSalonClientOrderBy({ field: "lastVisitAt", dir: "asc" })).toEqual([
+      { lastVisitAt: { sort: "asc", nulls: "last" } },
+      { id: "asc" },
+    ]);
+    expect(buildSalonClientOrderBy({ field: "lastVisitAt", dir: "desc" })).toEqual([
+      { lastVisitAt: { sort: "desc", nulls: "last" } },
+      { id: "asc" },
+    ]);
+  });
+
+  it("name e createdAt não recebem tratamento de nulos (colunas NOT NULL)", () => {
+    expect(buildSalonClientOrderBy({ field: "name", dir: "desc" })).toEqual([
+      { name: "desc" },
+      { id: "asc" },
+    ]);
+    expect(buildSalonClientOrderBy({ field: "createdAt", dir: "desc" })).toEqual([
+      { createdAt: "desc" },
       { id: "asc" },
     ]);
   });

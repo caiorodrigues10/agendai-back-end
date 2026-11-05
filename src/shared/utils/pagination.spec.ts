@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   buildPaginationMeta,
   booleanQuerySchema,
+  dateOnlySchema,
   dateRangeSchema,
   paginationQuerySchema,
   searchTermSchema,
@@ -78,15 +79,41 @@ describe("searchTermSchema", () => {
     expect(searchTermSchema().parse("  joão  ")).toBe("joão");
   });
 
-  it("rejeita vazio e acima de 100", () => {
-    expect(() => searchTermSchema().parse("")).toThrow();
-    expect(() => searchTermSchema().parse("   ")).toThrow();
+  it("vazio ou só espaços não é erro: vira undefined (sem filtro)", () => {
+    expect(searchTermSchema().parse("")).toBeUndefined();
+    expect(searchTermSchema().parse("   ")).toBeUndefined();
+  });
+
+  it("rejeita acima do máximo default (100)", () => {
     expect(() => searchTermSchema().parse("a".repeat(101))).toThrow();
   });
 
   it("aceita limite máximo configurável por módulo", () => {
     expect(searchTermSchema({ max: 300 }).parse("a".repeat(300))).toHaveLength(300);
     expect(() => searchTermSchema({ max: 300 }).parse("a".repeat(301))).toThrow();
+  });
+
+  it("o máximo configurável não muda o tratamento de vazio", () => {
+    expect(searchTermSchema({ max: 300 }).parse("   ")).toBeUndefined();
+  });
+});
+
+describe("dateOnlySchema", () => {
+  it("aceita data civil existente", () => {
+    expect(dateOnlySchema.parse("2026-01-31")).toBe("2026-01-31");
+    expect(dateOnlySchema.parse("2024-02-29")).toBe("2024-02-29");
+  });
+
+  it("rejeita data que não existe no calendário", () => {
+    expect(() => dateOnlySchema.parse("2026-02-30")).toThrow();
+    expect(() => dateOnlySchema.parse("2025-02-29")).toThrow();
+    expect(() => dateOnlySchema.parse("2026-13-01")).toThrow();
+    expect(() => dateOnlySchema.parse("2026-00-10")).toThrow();
+  });
+
+  it("rejeita formato fora de YYYY-MM-DD", () => {
+    expect(() => dateOnlySchema.parse("31/01/2026")).toThrow();
+    expect(() => dateOnlySchema.parse("2026-1-1")).toThrow();
   });
 });
 

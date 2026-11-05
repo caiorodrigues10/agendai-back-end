@@ -152,8 +152,12 @@ export class MockSalonClientRepository implements ISalonClientRepository {
           return (a.createdAt.getTime() - b.createdAt.getTime()) * dir;
         }
         if (sort.field === "lastVisitAt") {
-          const av = a.lastVisitAt?.getTime() ?? 0;
-          const bv = b.lastVisitAt?.getTime() ?? 0;
+          // nulo sempre por último, nas duas direções (igual ao `nulls: "last"`)
+          const av = a.lastVisitAt?.getTime() ?? null;
+          const bv = b.lastVisitAt?.getTime() ?? null;
+          if (av === null && bv === null) return 0;
+          if (av === null) return 1;
+          if (bv === null) return -1;
           return (av - bv) * dir;
         }
         return a.name.localeCompare(b.name) * dir;

@@ -70,7 +70,11 @@ export function buildPaginationMeta(
 }
 
 /**
- * Schema de termo de busca: trim, mínimo 1 e máximo configurável.
+ * Schema de termo de busca: trim, máximo configurável e vazio → `undefined`.
+ *
+ * Busca vazia (ou só com espaços) **não é erro**: vira `undefined`, ou seja,
+ * "sem filtro". Isso importa porque campos de busca da interface enviam o
+ * texto cru do usuário e um `search="   "` derrubaria a listagem com 400.
  *
  * O máximo default é 100 caracteres; módulos com busca mais generosa
  * passam o limite próprio (ex.: Clientes mantém 300, aprovado na Fase 1 —
@@ -82,8 +86,9 @@ export function searchTermSchema(opts: { max?: number } = {}) {
   return z
     .string()
     .trim()
-    .min(1, "O termo de busca é obrigatório")
-    .max(max, `O termo de busca deve ter no máximo ${max} caracteres`);
+    .max(max, `O termo de busca deve ter no máximo ${max} caracteres`)
+    .transform((v) => (v.length > 0 ? v : undefined))
+    .optional();
 }
 
 /**

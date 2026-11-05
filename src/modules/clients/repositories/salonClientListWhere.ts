@@ -103,12 +103,23 @@ export function buildSalonClientListWhere(
 /**
  * `orderBy` da listagem: campo escolhido (whitelist) + `id` como
  * desempate, para que a paginação continue determinística.
+ *
+ * `lastVisitAt` é o único campo ordenável que aceita nulo. Nulos vão sempre
+ * para o fim, nas duas direções — em ordem decrescente, clientes que nunca
+ * visitaram não devem subir para o topo.
  */
 export function buildSalonClientOrderBy(
   sort: ISalonClientListQuery["sort"],
 ): Prisma.SalonClientOrderByWithRelationInput[] {
   const field = sort?.field ?? "name";
   const dir = sort?.dir ?? "asc";
+
+  if (field === "lastVisitAt") {
+    return [
+      { lastVisitAt: { sort: dir, nulls: "last" } },
+      { id: "asc" },
+    ];
+  }
 
   return [{ [field]: dir } as Prisma.SalonClientOrderByWithRelationInput, { id: "asc" }];
 }

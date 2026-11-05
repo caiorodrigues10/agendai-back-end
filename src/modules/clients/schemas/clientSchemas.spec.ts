@@ -31,13 +31,14 @@ describe("modules/clients — listClientsQuerySchema (paginação + filtros novo
     expect(listClientsQuerySchema.parse({ search: "a".repeat(300) }).search).toHaveLength(300);
   });
 
-  it("busca vazia ou só com espaços → 400", () => {
-    expect(() => listClientsQuerySchema.parse({ search: "" })).toThrow();
-    expect(() => listClientsQuerySchema.parse({ search: "   " })).toThrow();
+  it("busca vazia ou só com espaços não vira 400: vira undefined (sem filtro)", () => {
+    expect(listClientsQuerySchema.parse({ search: "" }).search).toBeUndefined();
+    expect(listClientsQuerySchema.parse({ search: "   " }).search).toBeUndefined();
   });
 
   it("busca é aparada (trim)", () => {
     expect(listClientsQuerySchema.parse({ search: "  joão  " }).search).toBe("joão");
+    expect(listClientsQuerySchema.parse({ search: " ana " }).search).toBe("ana");
   });
 
   // ─── createdFrom / createdTo ───────────────────────────────
