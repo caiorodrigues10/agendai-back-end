@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidDate } from "@/shared/utils/dateUtils";
 
 /**
  * Limite absoluto de página para evitar varreduras ilimitadas no banco.
@@ -69,13 +70,42 @@ export function buildPaginationMeta(
 }
 
 /**
- * Schema de termo de busca: trim, mínimo 1 e máximo 100 caracteres.
+ * Schema de termo de busca: trim, mínimo 1 e máximo configurável.
+ *
+ * O máximo default é 100 caracteres; módulos com busca mais generosa
+ * passam o limite próprio (ex.: Clientes mantém 300, aprovado na Fase 1 —
+ * busca longa não pode derrubar a listagem inteira com 400).
  */
-export const searchTermSchema = z
+export function searchTermSchema(opts: { max?: number } = {}) {
+  const { max = 100 } = opts;
+
+  return z
+    .string()
+    .trim()
+    .min(1, "O termo de busca é obrigatório")
+    .max(max, `O termo de busca deve ter no máximo ${max} caracteres`);
+}
+
+/**
+ * Schema de data civil isolada (YYYY-MM-DD).
+ *
+ * Valida o formato e a existência do dia no calendário (rejeita "2026-13-01"
+ * e "2026-02-30").
+ */
+export const dateOnlySchema = z
   .string()
-  .trim()
-  .min(1, "O termo de busca é obrigatório")
-  .max(100, "O termo de busca deve ter no máximo 100 caracteres");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD")
+  .refine((v) => isValidDate(v), { message: "Data inválida" });
+
+/**
+ * Schema de flag booleana em query string: aceita "true"/"false".
+ *
+ * `z.coerce.boolean()` não serve aqui: `Boolean("false")` é `true`, então
+ * "false" viraria verdadeiro.
+ */
+export const booleanQuerySchema = z
+  .enum(["true", "false"])
+  .transform((v) => v === "true");
 
 /**
  * Schema de intervalo de datas: `from`/`to` no formato YYYY-MM-DD,
@@ -83,8 +113,8 @@ export const searchTermSchema = z
  */
 export const dateRangeSchema = z
   .object({
-    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD"),
-    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD"),
+    from: dateOnlySchema,
+    to: dateOnlySchema,
   })
   .refine((v) => !(v.from > v.to), {
     message: "`from` não pode ser depois de `to`",

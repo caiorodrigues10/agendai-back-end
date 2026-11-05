@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   buildPaginationMeta,
+  booleanQuerySchema,
   dateRangeSchema,
   paginationQuerySchema,
   searchTermSchema,
@@ -74,13 +75,30 @@ describe("toSkipTake", () => {
 
 describe("searchTermSchema", () => {
   it("aceita termo válido após trim", () => {
-    expect(searchTermSchema.parse("  joão  ")).toBe("joão");
+    expect(searchTermSchema().parse("  joão  ")).toBe("joão");
   });
 
   it("rejeita vazio e acima de 100", () => {
-    expect(() => searchTermSchema.parse("")).toThrow();
-    expect(() => searchTermSchema.parse("   ")).toThrow();
-    expect(() => searchTermSchema.parse("a".repeat(101))).toThrow();
+    expect(() => searchTermSchema().parse("")).toThrow();
+    expect(() => searchTermSchema().parse("   ")).toThrow();
+    expect(() => searchTermSchema().parse("a".repeat(101))).toThrow();
+  });
+
+  it("aceita limite máximo configurável por módulo", () => {
+    expect(searchTermSchema({ max: 300 }).parse("a".repeat(300))).toHaveLength(300);
+    expect(() => searchTermSchema({ max: 300 }).parse("a".repeat(301))).toThrow();
+  });
+});
+
+describe("booleanQuerySchema", () => {
+  it('converte "true"/"false" para booleano', () => {
+    expect(booleanQuerySchema.parse("true")).toBe(true);
+    expect(booleanQuerySchema.parse("false")).toBe(false);
+  });
+
+  it("rejeita valores fora de true/false", () => {
+    expect(() => booleanQuerySchema.parse("1")).toThrow();
+    expect(() => booleanQuerySchema.parse("sim")).toThrow();
   });
 });
 

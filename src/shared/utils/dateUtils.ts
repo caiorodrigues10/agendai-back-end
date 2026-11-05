@@ -51,6 +51,21 @@ export function isBusinessHour(timeStr: string): boolean {
   return minutes >= 420 && minutes <= 1320; // 07:00–22:00
 }
 
+/**
+ * Limites UTC do dia civil de uma data YYYY-MM-DD.
+ *
+ * `new Date("YYYY-MM-DD")` é interpretado no fuso local e desloca o
+ * intervalo do dia, sumindo registros na virada. Os limites em UTC mantêm
+ * o dia civil exato (convenção já usada no filtro por data de agendamentos).
+ */
+export function utcDayBounds(isoDate: string): { gte: Date; lt: Date } {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return {
+    gte: new Date(Date.UTC(year, month - 1, day)),
+    lt: new Date(Date.UTC(year, month - 1, day + 1)),
+  };
+}
+
 /** Calcula a soma de tempo (HH:MM + minutos) e retorna HH:MM. */
 export function addMinutes(timeStr: string, minutes: number): string {
   const [h, m] = timeStr.split(':').map(Number);

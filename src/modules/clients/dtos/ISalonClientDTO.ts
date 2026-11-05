@@ -1,3 +1,5 @@
+import type { SortInput } from "@/shared/utils/pagination";
+
 export interface ICreateSalonClientDTO {
   barbershopId: string;
   name: string;
@@ -19,6 +21,17 @@ export interface ISalonClientListQuery {
   page: number;
   limit: number;
   search?: string;
+  /** Intervalo civil de criação (YYYY-MM-DD). */
+  createdFrom?: string;
+  createdTo?: string;
+  /** Sem visita há N dias. */
+  inactiveDays?: number;
+  /** Filtra clientes com (true) ou sem (false) fiado em aberto. */
+  hasOpenFiado?: boolean;
+  /** Filtra clientes com (true) ou sem (false) pacote ativo. */
+  hasActivePackage?: boolean;
+  /** Ordenação por whitelist (name | lastVisitAt | createdAt). */
+  sort?: SortInput;
 }
 
 export interface ISalonClientAppointmentDTO {

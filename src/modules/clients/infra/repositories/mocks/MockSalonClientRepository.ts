@@ -11,9 +11,21 @@ import {
   salonClientDisplayName,
   salonClientPublicWhatsapp,
 } from "@/modules/clients/utils/ensureSalonClient";
+import { utcDayBounds } from "@/shared/utils/dateUtils";
+import { inactiveThreshold } from "@/modules/clients/repositories/salonClientListWhere";
+
+/**
+ * Cliente do mock. Além do DTO público, carrega os dados que os filtros
+ * novos da listagem precisam (`lastVisitAt` e os fiados vinculados) sem
+ * alterar o contrato exposto pela API.
+ */
+export type MockSalonClient = ISalonClientResponseDTO & {
+  lastVisitAt?: Date | null;
+  openFiados?: { status: string; barbershopId: string }[];
+};
 
 export class MockSalonClientRepository implements ISalonClientRepository {
-  public clients: ISalonClientResponseDTO[] = [];
+  public clients: MockSalonClient[] = [];
   private seq = 1;
 
   async create(data: ICreateSalonClientDTO): Promise<ISalonClientResponseDTO> {
@@ -97,6 +109,57 @@ export class MockSalonClientRepository implements ISalonClientRepository {
           (digits && c.whatsapp.includes(digits))
       );
     }
+    if (query.createdFrom) {
+      const from = utcDayBounds(query.createdFrom).gte;
+      results = results.filter((c) => c.createdAt >= from);
+    }
+    if (query.createdTo) {
+      const to = utcDayBounds(query.createdTo).lt;
+      results = results.filter((c) => c.createdAt < to);
+    }
+    if (query.inactiveDays !== undefined) {
+      const threshold = inactiveThreshold(query.inactiveDays);
+      results = results.filter(
+        (c) =>
+          (c.lastVisitAt != null && c.lastVisitAt < threshold) ||
+          (c.lastVisitAt == null && c.createdAt < threshold)
+      );
+    }
+    if (query.hasOpenFiado !== undefined) {
+      const hasOpen = (c: MockSalonClient) =>
+        (c.openFiados ?? []).some(
+          (f) =>
+            f.barbershopId === c.barbershopId &&
+            (f.status === "PENDING" || f.status === "PARTIAL")
+        );
+      results = results.filter((c) =>
+        query.hasOpenFiado ? hasOpen(c) : !hasOpen(c)
+      );
+    }
+    if (query.hasActivePackage !== undefined) {
+      const hasActive = (c: MockSalonClient) =>
+        (c.packages ?? []).some((p) => p.status === "ACTIVE");
+      results = results.filter((c) =>
+        query.hasActivePackage ? hasActive(c) : !hasActive(c)
+      );
+    }
+
+    const sort = query.sort;
+    if (sort) {
+      const dir = sort.dir === "desc" ? -1 : 1;
+      results = [...results].sort((a, b) => {
+        if (sort.field === "createdAt") {
+          return (a.createdAt.getTime() - b.createdAt.getTime()) * dir;
+        }
+        if (sort.field === "lastVisitAt") {
+          const av = a.lastVisitAt?.getTime() ?? 0;
+          const bv = b.lastVisitAt?.getTime() ?? 0;
+          return (av - bv) * dir;
+        }
+        return a.name.localeCompare(b.name) * dir;
+      });
+    }
+
     const total = results.length;
     const start = (query.page - 1) * query.limit;
     return {

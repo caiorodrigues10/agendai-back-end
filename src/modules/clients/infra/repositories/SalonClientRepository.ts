@@ -15,6 +15,10 @@ import {
   salonClientPublicWhatsapp,
   upsertSalonClientRecord,
 } from "../../utils/ensureSalonClient";
+import {
+  buildSalonClientListWhere,
+  buildSalonClientOrderBy,
+} from "../../repositories/salonClientListWhere";
 
 type ClientListRecord = Prisma.SalonClientGetPayload<{
   include: {
@@ -204,23 +208,14 @@ export class SalonClientRepository implements ISalonClientRepository {
     query: ISalonClientListQuery & { barbershopId: string }
   ): Promise<{ data: ISalonClientResponseDTO[]; total: number }> {
     const skip = (query.page - 1) * query.limit;
-    const where: Prisma.SalonClientWhereInput = {
-      barbershopId: query.barbershopId,
-    };
-    if (query.search) {
-      const digits = query.search.replace(/\D/g, "");
-      where.OR = [
-        { name: { contains: query.search, mode: "insensitive" } },
-        ...(digits ? [{ whatsapp: { contains: digits } }] : []),
-      ];
-    }
+    const where = buildSalonClientListWhere(query, query.barbershopId);
 
     const [records, total] = await Promise.all([
       prisma.salonClient.findMany({
         where,
         skip,
         take: query.limit,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
+        orderBy: buildSalonClientOrderBy(query.sort),
         include: listInclude,
       }),
       prisma.salonClient.count({ where }),
