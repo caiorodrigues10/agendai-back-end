@@ -27,6 +27,7 @@ import {
 } from "../utils/productCodeUtils";
 import { summarizeRetailLines } from "../utils/retailSummary";
 import { buildProductAttention } from "../utils/productAttention";
+import { lowStockSql } from "../repositories/lowStockWhere";
 import { resolveUnitFields } from "../utils/productStockUnit";
 import {
   getShopToday,
@@ -191,12 +192,10 @@ export class ProductCatalogUseCase {
 
     if (query.lowStock === "true") {
       const skip = (query.page - 1) * query.limit;
-      const lowStockClauses: Prisma.Sql[] = [
-        Prisma.sql`"barbershopId" = ${barbershopId}::uuid`,
-        Prisma.sql`"trackStock" = true`,
-        Prisma.sql`"minStock" > 0`,
-        Prisma.sql`"stockQty" <= "minStock"`,
-      ];
+      // Definição única de "estoque baixo" (mesma da `lowStockWhere`):
+      // salão + trackStock + minStock > 0 + stockQty <= minStock. Os filtros
+      // da query (active, categoria, tipo, busca) entram depois, como antes.
+      const lowStockClauses: Prisma.Sql[] = [lowStockSql(barbershopId)];
       if (query.active) lowStockClauses.push(Prisma.sql`active = ${query.active === "true"}`);
       if (query.categoryId) lowStockClauses.push(Prisma.sql`"categoryId" = ${query.categoryId}::uuid`);
       const typeFilter = productTypeWhere(query);

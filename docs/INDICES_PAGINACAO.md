@@ -704,27 +704,71 @@ model User {
 }
 ```
 
-### 2.8 Estoque baixo de produtos (`products`) — diagnóstico, sem mudança
+### 2.8 Estoque baixo de produtos (`products`) — definição única (Módulo 9)
 
-O filtro "estoque baixo" é `minStock > 0 AND stockQty <= minStock` — uma
-comparação **coluna × coluna**. Hoje ele aparece em três formatos diferentes
-no código:
+**Definição canônica:** produto **do salão** que **controla estoque**
+(`trackStock = true`), com **mínimo configurado** (`minStock > 0`) e **estoque
+no ou abaixo do mínimo** (`stockQty <= minStock`). `active` **não** faz parte
+da definição — quem decide se produto inativo entra no recorte é o chamador.
 
-| formato | onde | como |
+Implementada em `src/modules/products/repositories/lowStockWhere.ts`:
+
+| helper | tipo | uso |
 |---|---|---|
-| field reference do Prisma | `src/modules/analytics/services/recommendationEngine.ts:198-210` (`stockQty: { lte: prisma.product.fields.minStock }`) | campo × campo no `where` |
-| `$queryRaw` parametrizado | `src/modules/products/useCases/productUseCases.ts:192-224` (listagem de produtos com `lowStock=true`) | `"stockQty" <= "minStock"` no SQL |
-| filtro em memória | `src/modules/products/useCases/productUseCases.ts:693` (dashboard/relatórios), `src/modules/products/utils/productAttention.ts:75` e `114-115`, `src/modules/admin/controllers/AdminProductController.ts:86-88` | `p.minStock > 0 && p.stockQty <= p.minStock` no JS |
+| `lowStockWhere(barbershopId)` | `Prisma.ProductWhereInput` (field reference `prisma.product.fields.minStock`) | consultas Prisma (`findMany`, `count`) |
+| `lowStockSql(barbershopId)` | `Prisma.Sql` | agregações e `$queryRaw` (`COUNT(*) FILTER`, etc.) |
 
-Other caminhos que contam estoque baixo: agregação em SQL puro
-(`src/modules/barbershops/controllers/BarbershopFinancialController.ts:179-180`,
-`COUNT(*) FILTER (WHERE "minStock" > 0 AND "stockQty" <= "minStock")`) e o
-comando "estoque baixo" do bot do dono
-(`src/modules/whatsappOwnerBot/commands/inventoryCommands.ts:74-95`), que na
-verdade usa `stockAlerts` — alertas de **validade**
-(`src/modules/products/useCases/productUseCases.ts:847`), não o mínimo de
-estoque; a comparação por produto no comando "estoque" é feita em memória
-(`inventoryCommands.ts:38-39`).
+Spec `lowStockWhere.spec.ts` (6 testes) trava a regra e garante que as duas
+versões expressam **as mesmas** condições (mesmo par salão / `trackStock` /
+`minStock > 0` / `stockQty <= minStock`).
+
+**Os 7 pontos de "estoque baixo" no código:**
+
+| # | Ponto | Arquivo:linha | Formato | Salão | `trackStock` | `active` | `minStock > 0` | Operador | Regra = definição? |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | Listagem de produtos (`lowStock=true`) | `products/useCases/productUseCases.ts:193-226` | `$queryRaw` | sim | sim | só se pedido | sim | `<=` | **sim** → **aplicado** |
+| 2 | Dashboard/relatórios do produto | `products/useCases/productUseCases.ts:678-692` | memória | sim | sim | **sim** | sim | `<=` | não (diverge em `active`) |
+| 3 | Atenção de produto (faltando/repor) | `products/utils/productAttention.ts:75,111-116` | memória (snapshot) | sim | sim | depende do snapshot | sim | `<=` | não (diverge em `active`) |
+| 4 | Recomendações (repor produto) | `analytics/services/recommendationEngine.ts:198-212` | field reference | sim | sim | **sim** | **não** | `<=` | não (`active` + `minStock > 0`) |
+| 5 | Contador do admin (salões) | `admin/controllers/AdminProductController.ts:69-88` | memória | **não** | sim | **sim** | sim | `<=` **e** `stockQty > 0` | não (salão, `active`, operador) |
+| 6 | Financeiro (`lowStockCount`) | `barbershops/controllers/BarbershopFinancialController.ts:177-185` | SQL puro | sim | sim | **sim** | sim | `<=` | não (diverge em `active`) |
+| 7 | Bot do dono — comando "estoque" | `whatsappOwnerBot/commands/inventoryCommands.ts:38-39` | memória | sim | **não** | **não** | **não** | `<=` | não (`trackStock`, `active`, `minStock > 0`) |
+
+**Aplicado (ponto 1):** a listagem `lowStock=true` passou a montar a cláusula
+com `lowStockSql(barbershopId)` — mesma consulta, mesma regra, sem cópia inline.
+Os filtros da query (`active`, categoria, tipo, busca) continuam **por cima**,
+como antes.
+
+**Medição antes × depois (consulta somente leitura, banco local de DEV
+`agendai`, 2026-11-05).** O banco de dev **não tem produtos** (`count(*) = 0`
+em `products`), então todas as variantes devolvem **0** e a contagem **não
+distingue** as regras:
+
+| salão | total | definição (1) | dashboard/financeiro (2, 6) | recomendações (4) | admin em memória (5) | bot do dono (7) |
+|---|---|---|---|---|---|---|
+| *(sem produtos)* | 0 | 0 | 0 | 0 | 0 | 0 |
+
+> **Ressalva:** a mesma consulta precisa ser rodada em **produção** (que
+> provavelmente tem dados) antes de usar a contagem como critério de decisão.
+> O banco de testes `agendai_db` também está vazio (`0` produtos).
+
+**Decisões pendentes (não implementadas — aguardando decisão):**
+
+- **(a) Pontos 2, 3 e 6 — `active`:** hoje dashboard, alertas de atenção e
+  financeiro **excluem** produto inativo; a definição **inclui**. Alinhar
+  (remover o `active` do ponto) ou mover o `active` para dentro da definição
+  (mudando os 7 pontos de uma vez)? Efeito: contadores/alertas do dono.
+- **(b) Ponto 4 — `minStock > 0`:** hoje a recomendação de reposição entra com
+  `minStock = 0` e `stockQty = 0` (não há "mínimo configurado"); a definição
+  exclui. Incluir `minStock > 0` (alinhando com a definição) ou manter?
+- **(c) Ponto 5 — contador do admin carrega todos os salões:** hoje
+  `AdminProductController.ts:69-88` faz `findMany` **sem `barbershopId`** (ou
+  seja, produtos de **todos** os salões) e filtra em memória. Proposta: contar
+  no banco (`COUNT(*)` com o SQL da definição), opcionalmente agrupado por
+  salão — **não implementado** (mudança de escopo).
+- **(d) Ponto 7 — bot do dono:** compara `stock <= min` **sem** `trackStock` e
+  **sem** `minStock > 0` → marca como "estoque baixo" produto que não controla
+  estoque e qualquer produto zerado com mínimo 0. Alinhar com a definição?
 
 **Colunas** (`prisma/schema.prisma:3091-3130`): `stockQty Float @default(0)
 @db.Real` e `minStock Float @default(0) @db.Real` — as duas **não nulos**
@@ -737,14 +781,14 @@ estoque; a comparação por produto no comando "estoque" é feita em memória
 btree não atende desigualdade entre duas colunas, e um índice de expressão
 (`(stockQty <= minStock)`) não é prático aqui — o filtro já roda sobre o
 conjunto pequeno de produtos do salão, coberto por `(barbershopId, active)`.
-**Nada é proposto nesta seção**; a troca de abordagem é uma decisão em aberto
-(ver o diagnóstico entregue na sessão do Módulo 9).
+**Nada é proposto nesta seção**.
 
 **RLS:** `products` **não tem** RLS (`rowsecurity = false`) — o isolamento do
-estoque baixo vem do `barbershopId` no `where`, não do banco. O teste
+estoque baixo vem do `barbershopId` no filtro, não do banco. O teste
 `src/tests/integration/tenantIsolation.integration.spec.ts` (bloco "estoque
-baixo") prova isso: com o filtro do salão, só volta o produto do contexto; sem
-ele, volta o do outro salão.
+baixo") prova isso usando **a própria definição** (`lowStockWhere` e
+`lowStockSql`, sem cópias inline): com o salão do contexto, só volta o produto
+dele; sem o salão no filtro, volta o do outro salão.
 
 ### Proposta — grupo B: relação (some/none)
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
