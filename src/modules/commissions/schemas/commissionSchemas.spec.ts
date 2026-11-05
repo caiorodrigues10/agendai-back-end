@@ -39,3 +39,83 @@ describe("modules/commissions — listCommissionsQuerySchema (migrado ao helper)
     expect(() => listCommissionsQuerySchema.parse({ origin: "OUTRO" })).toThrow();
   });
 });
+
+describe("modules/commissions — listCommissionsQuerySchema: período", () => {
+  it("aceita from/to em YYYY-MM-DD válido", () => {
+    const parsed = listCommissionsQuerySchema.parse({
+      from: "2026-10-05",
+      to: "2026-10-07",
+    });
+    expect(parsed.from).toBe("2026-10-05");
+    expect(parsed.to).toBe("2026-10-07");
+  });
+
+  it("rejeita data de calendário inexistente (2026-02-30) → 400", () => {
+    expect(() => listCommissionsQuerySchema.parse({ from: "2026-02-30" })).toThrow();
+    expect(() => listCommissionsQuerySchema.parse({ to: "2026-13-01" })).toThrow();
+  });
+
+  it("rejeita formato fora de YYYY-MM-DD → 400", () => {
+    expect(() => listCommissionsQuerySchema.parse({ from: "05/10/2026" })).toThrow();
+  });
+
+  it("rejeita from depois de to → 400", () => {
+    expect(() =>
+      listCommissionsQuerySchema.parse({ from: "2026-10-07", to: "2026-10-05" }),
+    ).toThrow();
+  });
+
+  it("aceita from igual a to (um único dia)", () => {
+    const parsed = listCommissionsQuerySchema.parse({
+      from: "2026-10-05",
+      to: "2026-10-05",
+    });
+    expect(parsed.from).toBe("2026-10-05");
+    expect(parsed.to).toBe("2026-10-05");
+  });
+});
+
+describe("modules/commissions — listCommissionsQuerySchema: serviceId e sort", () => {
+  it("aceita serviceId uuid", () => {
+    const parsed = listCommissionsQuerySchema.parse({
+      serviceId: "33333333-3333-3333-3333-333333333333",
+    });
+    expect(parsed.serviceId).toBe("33333333-3333-3333-3333-333333333333");
+  });
+
+  it("rejeita serviceId não-uuid → 400", () => {
+    expect(() =>
+      listCommissionsQuerySchema.parse({ serviceId: "não-é-uuid" }),
+    ).toThrow();
+  });
+
+  it("sort aceita os campos da whitelist", () => {
+    expect(listCommissionsQuerySchema.parse({ sort: "data:desc" }).sort).toEqual({
+      field: "data",
+      dir: "desc",
+    });
+    expect(listCommissionsQuerySchema.parse({ sort: "valor:asc" }).sort).toEqual({
+      field: "valor",
+      dir: "asc",
+    });
+    expect(listCommissionsQuerySchema.parse({ sort: "data" }).sort).toEqual({
+      field: "data",
+      dir: "asc",
+    });
+  });
+
+  it("sort sem direção explícita usa asc; sem sort fica undefined", () => {
+    expect(listCommissionsQuerySchema.parse({}).sort).toBeUndefined();
+  });
+
+  it("sort fora da whitelist → 400", () => {
+    expect(() => listCommissionsQuerySchema.parse({ sort: "createdAt:asc" })).toThrow();
+    expect(() => listCommissionsQuerySchema.parse({ sort: "amount:desc" })).toThrow();
+    expect(() => listCommissionsQuerySchema.parse({ sort: "professionalName" })).toThrow();
+  });
+
+  it("sort com direção inválida → 400", () => {
+    expect(() => listCommissionsQuerySchema.parse({ sort: "data:up" })).toThrow();
+    expect(() => listCommissionsQuerySchema.parse({ sort: "valor:" })).toThrow();
+  });
+});

@@ -21,6 +21,7 @@ import { requestContext } from "@/shared/infra/http/requestContext";
 import { buildAppointmentListWhere } from "@/modules/appointments/repositories/appointmentListWhere";
 import { buildFiadoListWhere } from "@/modules/fiado/repositories/fiadoListWhere";
 import { buildExpenseListWhere } from "@/modules/expenses/repositories/expenseListWhere";
+import { buildCommissionListWhere } from "@/modules/commissions/repositories/commissionListWhere";
 import { shopToday } from "@/modules/financial/ledger/shopTime";
 
 const DIA = "2026-10-05";
@@ -470,6 +471,162 @@ describe("isolamento por salão — despesas (Postgres real, rollback)", () => {
           buildExpenseListWhere(shopB.id, { page: 1, limit: 50 })
         );
         expect(baseB.map((r) => r.id)).toEqual([despesaB.id]);
+        expect(baseB.every((r) => r.barbershopId === shopB.id)).toBe(true);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
+
+describe("isolamento por salão — comissões (Postgres real, rollback)", () => {
+  it("os filtros só devolvem dados do salão do contexto", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Isolamento A ${randomUUID()}`, whatsapp: "11990000001" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Isolamento B ${randomUUID()}`, whatsapp: "11990000002" },
+      });
+
+      const serviceA = await tx.service.create({
+        data: {
+          barbershopId: shopA.id,
+          name: `Corte QA A ${randomUUID()}`,
+          price: 50,
+          avgTimeMinutes: 30,
+          icon: "scissors",
+        },
+      });
+      const serviceB = await tx.service.create({
+        data: {
+          barbershopId: shopB.id,
+          name: `Barba QA B ${randomUUID()}`,
+          price: 40,
+          avgTimeMinutes: 20,
+          icon: "scissors",
+        },
+      });
+
+      const profissionalA = await tx.user.create({
+        data: {
+          name: "Profissional Isolamento A",
+          email: `pro-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          barbershopId: shopA.id,
+        },
+      });
+      const profissionalB = await tx.user.create({
+        data: {
+          name: "Profissional Isolamento B",
+          email: `pro-b-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          barbershopId: shopB.id,
+        },
+      });
+
+      const comissaoA = await tx.commissionEntry.create({
+        data: {
+          barbershopId: shopA.id,
+          serviceId: serviceA.id,
+          professionalId: profissionalA.id,
+          percentage: 40,
+          amount: 20,
+        },
+      });
+      const comissaoB = await tx.commissionEntry.create({
+        data: {
+          barbershopId: shopB.id,
+          serviceId: serviceB.id,
+          professionalId: profissionalB.id,
+          percentage: 40,
+          amount: 30,
+        },
+      });
+
+      const consulta = (where: unknown) =>
+        tx.commissionEntry.findMany({
+          where: where as never,
+          select: {
+            id: true,
+            barbershopId: true,
+            professionalId: true,
+            serviceId: true,
+            amount: true,
+          },
+        });
+
+      // O dia civil do filtro é o do salão (America/Sao_Paulo).
+      const diaDeHoje = shopToday("America/Sao_Paulo");
+
+      // ── contexto do salão A ────────────────────────────────
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Sem filtro: só as comissões do salão A.
+        const base = await consulta(
+          buildCommissionListWhere(shopA.id, {})
+        );
+        expect(base.map((r) => r.id)).toEqual([comissaoA.id]);
+        expect(base.every((r) => r.barbershopId === shopA.id)).toBe(true);
+
+        // 2. professionalId de OUTRO salão: lista vazia, nunca vaza a do B.
+        const porProfissionalAlheio = await consulta(
+          buildCommissionListWhere(shopA.id, {
+            professionalId: profissionalB.id,
+          })
+        );
+        expect(porProfissionalAlheio).toEqual([]);
+
+        // 3. serviceId de OUTRO salão: lista vazia, nunca vaza a do B.
+        const porServicoAlheio = await consulta(
+          buildCommissionListWhere(shopA.id, {
+            serviceId: serviceB.id,
+          })
+        );
+        expect(porServicoAlheio).toEqual([]);
+
+        // 4. professionalId do salão A: só a comissão A.
+        const porProfissional = await consulta(
+          buildCommissionListWhere(shopA.id, {
+            professionalId: profissionalA.id,
+          })
+        );
+        expect(porProfissional.map((r) => r.id)).toEqual([comissaoA.id]);
+
+        // 5. serviceId do salão A: só a comissão A.
+        const porServico = await consulta(
+          buildCommissionListWhere(shopA.id, {
+            serviceId: serviceA.id,
+          })
+        );
+        expect(porServico.map((r) => r.id)).toEqual([comissaoA.id]);
+
+        // 6. Período em `createdAt` (timestamp): o dia de hoje entra inteiro.
+        const periodo = await consulta(
+          buildCommissionListWhere(shopA.id, {
+            from: diaDeHoje,
+            to: diaDeHoje,
+            timeZone: "America/Sao_Paulo",
+          })
+        );
+        expect(periodo.map((r) => r.id)).toEqual([comissaoA.id]);
+
+        // 7. PROVA de que a RLS não filtra nada neste ambiente: a mesma consulta
+        //    SEM o `barbershopId` no `where` enxerga o salão B.
+        const semBarbershop = await consulta({ professionalId: profissionalB.id });
+        expect(semBarbershop.map((r) => r.id)).toEqual([comissaoB.id]);
+        expect(semBarbershop[0].barbershopId).toBe(shopB.id);
+      });
+
+      // ── contexto do salão B ────────────────────────────────
+      await requestContext.run({ barbershopId: shopB.id } as never, async () => {
+        const baseB = await consulta(
+          buildCommissionListWhere(shopB.id, {})
+        );
+        expect(baseB.map((r) => r.id)).toEqual([comissaoB.id]);
         expect(baseB.every((r) => r.barbershopId === shopB.id)).toBe(true);
       });
 

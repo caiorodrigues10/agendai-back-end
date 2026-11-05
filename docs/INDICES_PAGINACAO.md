@@ -81,6 +81,16 @@ contra `pg_indexes` do banco (2026-11-04):
 | `expenses_type_idx` | `type` |
 | `expenses_inventoryReceiptId_key` | `inventoryReceiptId` (único) |
 
+### `commission_entries`
+
+| Índice | Colunas |
+|---|---|
+| `commission_entries_pkey` | `id` (único) |
+| `commission_entries_barbershopId_createdAt_idx` | `barbershopId, createdAt` |
+| `commission_entries_professionalId_createdAt_idx` | `professionalId, createdAt` |
+| `commission_entries_queueItemId_professionalId_key` | `queueItemId, professionalId` (único) |
+| `commission_entries_appointmentId_professionalId_key` | `appointmentId, professionalId` (único) |
+
 ---
 
 ## 2. Proposta — grupo A: btree para ordenação e faixas de data
@@ -103,6 +113,9 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A9 | `expenses` | `(barbershopId, dueDate)` | filtro `payment=overdue` e `sort=dueDate` |
 | A10 | `expenses` | `(barbershopId, amount)` | `sort=amount` |
 | A11 | `expenses` | `(barbershopId, createdAt)` | `sort=createdAt` |
+| A12 | `commission_entries` | `(barbershopId, professionalId, createdAt)` | listagem de comissões por período + profissional (prioridade) |
+| A13 | `commission_entries` | `(barbershopId, serviceId)` | filtro `serviceId` da listagem de comissões |
+| A14 | `commission_entries` | `(barbershopId, amount)` | `sort=valor` |
 
 **Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
@@ -291,6 +304,73 @@ model Expense {
   @@index([barbershopId, dueDate])
   @@index([barbershopId, amount])
   @@index([barbershopId, createdAt])
+}
+```
+
+### 2.4 Análise dos índices de `CommissionEntry` (listagem da Fase 2)
+
+Modelo: `CommissionEntry` → `@@map("commission_entries")` (`prisma/schema.prisma:1010`).
+`createdAt` é `DateTime @default(now())` (timestamp, **não** `@db.Date`), então o
+filtro `from/to` usa `civilDayBounds` com o fuso do salão (`America/Sao_Paulo`).
+
+```prisma
+model CommissionEntry {
+  barbershopId   String
+  professionalId String
+  serviceId      String?
+  amount         Decimal
+  createdAt      DateTime @default(now())
+  // ...
+  @@index([barbershopId, createdAt])
+  @@index([professionalId, createdAt])
+  @@unique([queueItemId, professionalId])
+  @@unique([appointmentId, professionalId])
+  @@map("commission_entries")
+}
+```
+
+| Consulta da listagem | Índice que a cobre | Situação |
+|---|---|---|
+| `(barbershopId, professionalId, createdAt)` — período + profissional + ordenação padrão | `@@index([barbershopId, createdAt])` (sem o profissional) | **parcial** (A12) |
+| `(barbershopId, serviceId)` — filtro `serviceId` | nenhuma | **falta** (A13) |
+| `(barbershopId, amount)` — `sort=valor` | nenhuma | **falta** (A14) |
+
+Por que A12–A14 faltam:
+
+- `@@index([barbershopId, createdAt])` cobre o período do salão, mas o
+  `professionalId` não entra no índice: o Postgres lê o intervalo de datas e
+  filtra o profissional linha a linha. O índice de 3 colunas
+  `(barbershopId, professionalId, createdAt)` atende as duas igualdades **e** a
+  faixa/ordenação — é a consulta da tela de comissões (profissional + período),
+  por isso é o **prioritário**.
+- `serviceId` **não tem índice nenhum** (nem sozinho nem com o salão). É filtro
+  de igualdade simples, com volume baixo por salão: benefício real, mas menor
+  que A12 — prioridade média.
+- Não há `amount` junto do salão: `sort=valor` ordena o conjunto filtrado em
+  memória. Menos urgente ainda (paginação pequena e ordenação barata).
+- `@@index([professionalId, createdAt])` existe, mas **sem** `barbershopId`,
+  então não serve à listagem multi-tenant (mesma conclusão das tabelas da
+  seção 2.3).
+
+Proposta (somente proposta, nada aplicado — ver seção 4):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "commission_entries_barbershopId_professionalId_createdAt_idx"
+  ON "commission_entries" ("barbershopId", "professionalId", "createdAt");  -- A12
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "commission_entries_barbershopId_serviceId_idx"
+  ON "commission_entries" ("barbershopId", "serviceId");                    -- A13
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "commission_entries_barbershopId_amount_idx"
+  ON "commission_entries" ("barbershopId", "amount");                       -- A14
+```
+
+E, no `schema.prisma`, para não gerar drift (ver o passo 6 da seção 4):
+
+```prisma
+model CommissionEntry {
+  // ...
+  @@index([barbershopId, professionalId, createdAt])
+  @@index([barbershopId, serviceId])
+  @@index([barbershopId, amount])
 }
 ```
 
@@ -586,6 +666,13 @@ WHERE n.nspname = 'public' AND c.relname IN
 
 Políticas ativas nas quatro tabelas: `tenant_isolation` (comando `*`, ou seja,
 vale para `SELECT`, `INSERT`, `UPDATE` e `DELETE`).
+
+**Consulta repetida em 2026-11-05** para as tabelas novas da Fase 2:
+`commission_entries` → `rowsecurity = false`, `forcerowsecurity = false` (sem
+RLS); `expenses` → `true`/`true` (com RLS). Ou seja, em `commission_entries` o
+isolamento entre salões depende **só** do `where` com `barbershopId` construído
+pelo repositório — validado no E2E de dois salões
+(`tenantIsolation.integration.spec.ts`, bloco "comissões").
 
 **Achado relevante:** o papel `agendai` é **superuser com `BYPASSRLS`**
 (`rolsuper = true`, `rolbypassrls = true`). As tabelas têm `tenant_isolation`
