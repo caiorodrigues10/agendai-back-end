@@ -6,11 +6,15 @@ import type { SortInput } from "@/shared/utils/pagination";
  *
  * O `barbershopId` NÃO faz parte dos filtros: ele vem sempre do contexto
  * (sessão do OWNER ou `?barbershopId=` do MASTER_ADMIN) e nunca da query.
+ *
+ * A listagem **oculta o membro removido** (`deletedAt` preenchido, soft-delete):
+ * o corte é definitivo e não depende de filtro. O `active` filtra a situação
+ * entre quem continua na equipe (ativo/inativo).
  */
 export interface IUserListFilters {
   /** Busca livre por nome ou e-mail (sem distinção de maiúsculas). */
   search?: string;
-  /** Papel do membro da equipe. */
+  /** Papel do membro da equipe (`OWNER` ou `EMPLOYEE`). */
   role?: Role;
   /** Situação do membro (ativo/inativo). */
   active?: boolean;

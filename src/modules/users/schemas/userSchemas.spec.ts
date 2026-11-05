@@ -30,12 +30,13 @@ describe("listTeamQuerySchema", () => {
     expect(() => listTeamQuerySchema.parse({ active: "1" })).toThrow();
   });
 
-  it("role: só os papéis de equipe (CUSTOMER é reservado)", () => {
+  it("role: só os papéis que formam a equipe do salão", () => {
     expect(listTeamQuerySchema.parse({ role: "OWNER" }).role).toBe("OWNER");
     expect(listTeamQuerySchema.parse({ role: "EMPLOYEE" }).role).toBe("EMPLOYEE");
-    expect(listTeamQuerySchema.parse({ role: "MASTER_ADMIN" }).role).toBe(
-      "MASTER_ADMIN",
-    );
+  });
+
+  it("role: MASTER_ADMIN e CUSTOMER são recusados (400)", () => {
+    expect(() => listTeamQuerySchema.parse({ role: "MASTER_ADMIN" })).toThrow();
     expect(() => listTeamQuerySchema.parse({ role: "CUSTOMER" })).toThrow();
   });
 

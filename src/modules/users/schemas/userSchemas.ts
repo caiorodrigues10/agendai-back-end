@@ -123,8 +123,15 @@ export const TEAM_SORT_FIELDS = ["nome", "email", "cargo", "criado"] as const;
  *   paginação; quem paginar é que escolhe o `limit`).
  * - `search`: busca por nome ou e-mail; termo vazio vira "sem filtro".
  * - `active`: `true`/`false` — situação do membro.
- * - `role`: papel do membro (`OWNER`, `EMPLOYEE` ou `MASTER_ADMIN`).
+ * - `role`: papel do membro. A whitelist é **apenas `OWNER` e `EMPLOYEE`** —
+ *   são os papéis que formam a equipe do salão. `MASTER_ADMIN` (plataforma, não
+ *   pertence a um salão) e `CUSTOMER` (papel reservado, sem uso hoje) devolvem
+ *   400: filtrar por eles só produziria lista vazia.
  * - `sort`: `<campo>:<asc|desc>`, campo na whitelist acima.
+ *
+ * A listagem **oculta quem foi removido**: a remoção é soft-delete
+ * (`active = false` + `deletedAt`), e o `deletedAt` preenchido tira o membro da
+ * lista — o filtro `active` continua existindo para distinguir ativo de inativo.
  *
  * O `barbershopId` NÃO é campo do schema: ele é resolvido pelo controller a
  * partir do contexto (sessão do OWNER ou `?barbershopId=` do MASTER_ADMIN) e
@@ -136,7 +143,7 @@ export const listTeamQuerySchema = basePaginationQuerySchema({
 }).extend({
   search: searchTermSchema({ max: 100 }),
   active: booleanQuerySchema.optional(),
-  role: z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]).optional(),
+  role: z.enum(["OWNER", "EMPLOYEE"]).optional(),
   sort: sortSchema(TEAM_SORT_FIELDS),
 });
 
