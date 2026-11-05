@@ -18,6 +18,11 @@ const {
   auditLogCreate: vi.fn(),
 }));
 
+const { saveTempFile, deleteTempFile } = vi.hoisted(() => ({
+  saveTempFile: vi.fn(async () => "/tmp/agendai-imports/arquivo.csv"),
+  deleteTempFile: vi.fn(async () => undefined),
+}));
+
 vi.mock("@/libs/prismaClient", () => ({
   prisma: {
     importBatch: {
@@ -61,8 +66,8 @@ vi.mock("./utils/spreadsheetParser", () => ({
 }));
 
 vi.mock("./utils/tempFiles", () => ({
-  saveTempFile: vi.fn(async () => "/tmp/agendai-imports/arquivo.csv"),
-  deleteTempFile: vi.fn(async () => undefined),
+  saveTempFile,
+  deleteTempFile,
   cleanupOldTempFiles: vi.fn(async () => 0),
 }));
 
@@ -214,6 +219,22 @@ describe("DataImportUseCases", () => {
           data: expect.objectContaining({ barbershopId: SHOP, fileFormat: "CSV" }),
         }),
       );
+    });
+
+    it("guarda no lote o caminho do arquivo e NÃO apaga o temporário no upload", async () => {
+      await new DataImportUseCases().upload({
+        barbershopId: SHOP,
+        fileName: "clientes.csv",
+        buffer: Buffer.from("Nome;WhatsApp\nAna;11987654321"),
+      });
+
+      const data = importBatchCreate.mock.calls[0][0].data;
+      // O arquivo precisa sobreviver ao upload: é dele que a etapa seguinte
+      // (`PATCH /imports/:id/target`) lê a planilha. Com `filePath` vazio (ou
+      // com o arquivo já apagado) essa leitura falha e a rota devolve 410
+      // ("O arquivo enviado não está mais disponível").
+      expect(data.filePath).toBe("/tmp/agendai-imports/arquivo.csv");
+      expect(deleteTempFile).not.toHaveBeenCalled();
     });
   });
 

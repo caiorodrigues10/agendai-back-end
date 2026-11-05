@@ -63,7 +63,7 @@ import {
 } from "./utils/columnMapping";
 import { validateRow } from "./utils/rowValidator";
 import type { ImportRowContext } from "./processors/importRowContext";
-import { deleteTempFile, saveTempFile } from "./utils/tempFiles";
+import { saveTempFile } from "./utils/tempFiles";
 import { buildErrorCsv } from "./utils/sanitize";
 import { requestContext } from "@/shared/infra/http/requestContext";
 import { createAuditLog } from "@/shared/services/auditLogService";
@@ -192,14 +192,20 @@ export class DataImportUseCases {
           headers: p.headers,
           rows: p.rows,
         }));
-      } finally {
-        await deleteTempFile(filePath);
+      } catch (err) {
+        // A planilha não pôde ser lida: o lote nem nasce, então o temporário
+        // não pode ficar órfão no disco.
+        await apagarArquivosLote(filePath);
         filePath = undefined;
+        throw err;
       }
     }
 
     const first = sheets[0];
     if (!first) {
+      // O arquivo foi lido, mas não tem conteúdo: o lote não nasce e o
+      // temporário não pode ficar órfão.
+      await apagarArquivosLote(filePath);
       throw new AppError("O arquivo não tem conteúdo legível.", 400);
     }
 
@@ -209,6 +215,10 @@ export class DataImportUseCases {
       batch = await this.batches.create({
         barbershopId,
         fileName: sanitizeFileName(fileName),
+        // O caminho do arquivo é gravado no lote: as próximas etapas
+        // (`/target`, `/mapping`, `/validate`, `/review`) leem a planilha
+        // dele. O arquivo só é apagado quando o lote termina (processamento),
+        // é cancelado ou expira — nunca logo depois do upload.
         filePath: filePath ?? "",
         fileSize: buffer.length,
         fileFormat: imagemMime ? "CSV" : (validatedFile?.format ?? "CSV"),
