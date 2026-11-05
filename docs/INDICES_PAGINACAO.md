@@ -309,9 +309,17 @@ model Expense {
 
 ### 2.4 Análise dos índices de `CommissionEntry` (listagem da Fase 2)
 
-Modelo: `CommissionEntry` → `@@map("commission_entries")` (`prisma/schema.prisma:1010`).
+Modelo: `CommissionEntry` → `@@map("commission_entries")` (`prisma/schema.prisma:989`).
 `createdAt` é `DateTime @default(now())` (timestamp, **não** `@db.Date`), então o
 filtro `from/to` usa `civilDayBounds` com o fuso do salão (`America/Sao_Paulo`).
+O período filtra o **`createdAt` do lançamento** da comissão — não a data do
+serviço nem a do agendamento — e isso está documentado no próprio schema
+(comentário em `CommissionEntry.createdAt`).
+
+O filtro `origin` (`QUEUE`/`APPOINTMENT`) **não é novo**: ele já existia no
+schema de query (`z.enum(["QUEUE", "APPOINTMENT"]).optional()`) desde o commit
+`352b499 feat(commissions): expose origin (queue/appointment) with optional
+filter` — a listagem com filtros e ordenação manteve o contrato.
 
 ```prisma
 model CommissionEntry {
@@ -672,7 +680,8 @@ vale para `SELECT`, `INSERT`, `UPDATE` e `DELETE`).
 RLS); `expenses` → `true`/`true` (com RLS). Ou seja, em `commission_entries` o
 isolamento entre salões depende **só** do `where` com `barbershopId` construído
 pelo repositório — validado no E2E de dois salões
-(`tenantIsolation.integration.spec.ts`, bloco "comissões").
+(`tenantIsolation.integration.spec.ts`, bloco "comissões"). A lista completa das
+tabelas com `barbershopId` e sem RLS e a proposta de policy estão na **seção 8**.
 
 **Achado relevante:** o papel `agendai` é **superuser com `BYPASSRLS`**
 (`rolsuper = true`, `rolbypassrls = true`). As tabelas têm `tenant_isolation`
@@ -794,3 +803,149 @@ o papel da aplicação, a RLS **não protege nada** nesse ambiente — o isolame
 depende só do `where`. Se `superuser = false`, `bypassrls = false` e o papel
 for dono das tabelas (`sou_o_dono = true`) com `force_rls = true`, a policy
 `tenant_isolation` passa a valer de fato.
+
+---
+
+## 8. `commission_entries` sem RLS — achado e proposta
+
+### 8.1 O achado
+
+A tabela da listagem de comissões **não tem RLS**: `rowsecurity = false` e
+`forcerowsecurity = false`. As tabelas da Fase 2 que já têm a policy
+(`appointments`, `expenses`, `salon_clients`, `fiados`, `client_packages`) têm
+`rowsecurity = true` **e** `forcerowsecurity = true`; `users` (a equipe do
+dono) também tem as duas ligadas.
+
+**Consulta somente leitura usada** (executada em 2026-11-05 contra
+`agendai_db` — testes — e `agendai` — dev; os dois bancos devolveram as
+**mesmas 52 tabelas**):
+
+```sql
+-- Somente leitura: lista as tabelas do schema public que têm a coluna
+-- "barbershopId" e NÃO têm RLS habilitada.
+SELECT c.relname::text AS tabela,
+       c.relrowsecurity AS rowsecurity,
+       c.relforcerowsecurity AS forcerowsecurity
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind = 'r'
+  AND EXISTS (
+    SELECT 1 FROM pg_attribute a
+    WHERE a.attrelid = c.oid AND a.attname = 'barbershopId'
+      AND a.attnum > 0 AND NOT a.attisdropped
+  )
+  AND c.relrowsecurity = false
+ORDER BY c.relname;
+```
+
+**Resultado (52 linhas, idêntico em `agendai` e `agendai_db`):**
+
+```text
+              tabela              | rowsecurity | forcerowsecurity
+----------------------------------+-------------+------------------
+ activation_metrics               | f           | f
+ ai_conversations                 | f           | f
+ ai_intent_logs                   | f           | f
+ appointment_policies             | f           | f
+ appointment_product_reservations | f           | f
+ appointment_series               | f           | f
+ audit_logs                       | f           | f
+ barbershop_onboardings           | f           | f
+ barbershop_page_themes           | f           | f
+ care_instruction_templates       | f           | f
+ client_care_instructions         | f           | f
+ client_reviews                   | f           | f
+ client_salon_links               | f           | f
+ commission_entries               | f           | f
+ copilot_suggestions              | f           | f
+ corporate_subscriptions          | f           | f
+ custom_forms                     | f           | f
+ daily_closeouts                  | f           | f
+ daily_weather_logs               | f           | f
+ dismissed_recommendations        | f           | f
+ equipment                        | f           | f
+ equipment_movements              | f           | f
+ equipment_needs                  | f           | f
+ financial_correction_logs        | f           | f
+ fiscal_configs                   | f           | f
+ form_responses                   | f           | f
+ integrations                     | f           | f
+ nfe_records                      | f           | f
+ nps_responses                    | f           | f
+ nps_surveys                      | f           | f
+ owner_invites                    | f           | f
+ post_media                       | f           | f
+ pricing_rules                    | f           | f
+ profit_entries                   | f           | f
+ profit_settings                  | f           | f
+ purchase_orders                  | f           | f
+ quality_audits                   | f           | f
+ quality_protocols                | f           | f
+ review_invitations               | f           | f
+ salon_reputation                 | f           | f
+ service_combos                   | f           | f
+ showcase_entries                 | f           | f
+ showcase_events                  | f           | f
+ staff_schedules                  | f           | f
+ staff_services                   | f           | f
+ staff_time_off                   | f           | f
+ tasks                            | f           | f
+ tickets                          | f           | f
+ user_sessions                    | f           | f
+ visit_tabs                       | f           | f
+ visits                           | f           | f
+ vouchers                         | f           | f
+(52 rows)
+```
+
+### 8.2 Proposta — policy `tenant_isolation` para `commission_entries` (NÃO EXECUTAR)
+
+Proposta, para discussão — **nada foi executado**: esta entrega é
+documental, sem alterar banco nem roles.
+
+```sql
+-- PROPOSTA — não executada. Quando for aplicada, tem de ser uma migration nova
+-- (prefixo > 20261112120000, ver AGENTS.md), nunca um ALTER avulso em produção.
+ALTER TABLE "commission_entries" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "commission_entries" FORCE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'commission_entries' AND policyname = 'tenant_isolation'
+  ) THEN
+    CREATE POLICY "tenant_isolation" ON "commission_entries"
+      USING (
+        COALESCE(current_setting('app.current_barbershop_id', true), '') = ''
+        OR "barbershopId" = NULLIF(current_setting('app.current_barbershop_id', true), '')::uuid
+      );
+  END IF;
+END $$;
+```
+
+A expressão é **a mesma que já roda** em `appointments`, `expenses`,
+`salon_clients`, `fiados` e `client_packages` (confere em `pg_policies.qual`):
+o GUC `app.current_barbershop_id` é definido pelo cliente Prisma via `SET LOCAL`
+(`src/libs/prismaExtensions.ts`); com o GUC vazio (MASTER_ADMIN, crons) a
+policy deixa passar.
+
+### 8.3 Avisos
+
+1. **Nos bancos locais a policy não muda o resultado**: o papel `agendai` é
+   superuser com `BYPASSRLS` (seção 7.1), então a RLS continua não filtrando
+   nada aqui. O ganho imediato é **documental e de preparação**: a tabela passa
+   a ter a mesma política das outras e fica pronta para o papel sem privilégios
+   (seção 7.2).
+2. **A aplicação não pode depender da RLS**: o isolamento efetivo continua
+   sendo o `where` com o `barbershopId` do contexto — é o que o E2E de dois
+   salões (`src/tests/integration/tenantIsolation.integration.spec.ts`, bloco
+   "comissões") valida.
+3. **Nenhum papel é criado ou alterado** por esta proposta: só liga a RLS e
+   cria a policy numa tabela que **já tem** a coluna `barbershopId`.
+4. **As outras 51 tabelas da lista da seção 8.1** seguem com a mesma dívida —
+   estão fora do escopo desta entrega; cada uma precisa do seu próprio
+   `ALTER TABLE ... ENABLE/FORCE` + policy, em migration própria.
+5. Aplicar em produção exige janela: `ALTER TABLE ... ENABLE ROW LEVEL
+   SECURITY` pode falhar com queries em voo se a tabela estiver grande.
