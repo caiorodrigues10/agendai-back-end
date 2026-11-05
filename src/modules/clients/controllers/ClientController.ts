@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 import {
   CreateSalonClientUseCase,
   DeleteSalonClientUseCase,
@@ -59,12 +60,7 @@ export class ClientController {
     reply.send({
       success: true,
       data: result.data,
-      meta: {
-        total: result.total,
-        page: query.page,
-        limit: query.limit,
-        totalPages: Math.ceil(result.total / query.limit) || 1,
-      },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 
