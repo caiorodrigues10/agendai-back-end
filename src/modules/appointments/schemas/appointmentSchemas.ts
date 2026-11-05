@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isValidDate, isNotPast, isWithinHorizon, isBusinessHour } from '@/shared/utils/dateUtils'
+import { paginationQuerySchema as basePaginationQuerySchema } from '@/shared/utils/pagination'
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/
 
@@ -74,22 +75,23 @@ export const slotsQuerySchema = availabilityQuerySchema.extend({
 	serviceId: z.string().uuid('serviceId inválido'),
 })
 
-export const listAppointmentsQuerySchema = z.object({
-	page: z.coerce.number().int().min(1).default(1),
-	limit: z.coerce.number().int().min(1).max(100).default(20),
-	date: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/)
-		.optional(),
-	/** Intervalo civil (YYYY-MM-DD). `date` tem precedência quando presente. */
-	from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-	to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'CHECKED_IN', 'NO_SHOW']).optional(),
-	staffId: z.string().uuid().optional(),
-	search: z.string().max(100).optional(),
+export const listAppointmentsQuerySchema = basePaginationQuerySchema({
+  defaultLimit: 20,
+  maxLimit: 100,
+}).extend({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  /** Intervalo civil (YYYY-MM-DD). `date` tem precedência quando presente. */
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'CHECKED_IN', 'NO_SHOW']).optional(),
+  staffId: z.string().uuid().optional(),
+  search: z.string().max(100).optional(),
 }).refine((v) => !(v.from && v.to && v.from > v.to), {
-	message: '`from` não pode ser depois de `to`',
-	path: ['from'],
+  message: '`from` não pode ser depois de `to`',
+  path: ['from'],
 });
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>

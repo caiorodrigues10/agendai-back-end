@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { ZodError } from "zod";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 import { appErrorFromZod } from "@/shared/utils/zodValidation";
 import {
   createAppointmentSchema,
@@ -65,12 +66,7 @@ export class AppointmentController {
     reply.send({
       success: true,
       data: result.data,
-      meta: {
-        total: result.total,
-        page: query.page,
-        limit: query.limit,
-        totalPages: Math.ceil(result.total / query.limit),
-      },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 
