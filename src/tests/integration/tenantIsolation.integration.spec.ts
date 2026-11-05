@@ -20,6 +20,7 @@ import { prisma } from "@/libs/prismaClient";
 import { requestContext } from "@/shared/infra/http/requestContext";
 import { buildAppointmentListWhere } from "@/modules/appointments/repositories/appointmentListWhere";
 import { buildFiadoListWhere } from "@/modules/fiado/repositories/fiadoListWhere";
+import { buildExpenseListWhere } from "@/modules/expenses/repositories/expenseListWhere";
 
 const DIA = "2026-10-05";
 
@@ -313,6 +314,159 @@ describe("isolamento por salão — fiados (Postgres real, rollback)", () => {
           buildFiadoListWhere(shopB.id, { page: 1, limit: 50 })
         );
         expect(baseB.map((r) => r.id)).toEqual([fiadoB.id]);
+        expect(baseB.every((r) => r.barbershopId === shopB.id)).toBe(true);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
+
+describe("isolamento por salão — despesas (Postgres real, rollback)", () => {
+  it("os filtros só devolvem dados do salão do contexto", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Isolamento A ${randomUUID()}`, whatsapp: "11990000001" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Isolamento B ${randomUUID()}`, whatsapp: "11990000002" },
+      });
+
+      const hoje = new Date();
+      const diaDeHoje = hoje.toISOString().slice(0, 10);
+      const vencido = new Date(hoje.getTime() - 5 * 24 * 60 * 60 * 1000);
+
+      // A: pendente e vencida (entra no filtro `overdue`)
+      const despesaA = await tx.expense.create({
+        data: {
+          barbershopId: shopA.id,
+          title: "Despesa Isolamento A",
+          amount: 120,
+          type: "VARIABLE",
+          referenceDate: new Date(`${diaDeHoje}T12:00:00.000Z`),
+          dueDate: vencido,
+          createdById: randomUUID(),
+        },
+      });
+      // A: paga
+      const despesaAPaga = await tx.expense.create({
+        data: {
+          barbershopId: shopA.id,
+          title: "Despesa Isolamento A paga",
+          amount: 60,
+          type: "FIXED",
+          referenceDate: new Date(`${diaDeHoje}T12:00:00.000Z`),
+          paidAt: new Date(`${diaDeHoje}T13:00:00.000Z`),
+          createdById: randomUUID(),
+        },
+      });
+      // B: pendente e vencida
+      const despesaB = await tx.expense.create({
+        data: {
+          barbershopId: shopB.id,
+          title: "Despesa Isolamento B",
+          amount: 200,
+          type: "INVESTMENT",
+          referenceDate: new Date(`${diaDeHoje}T12:00:00.000Z`),
+          dueDate: vencido,
+          createdById: randomUUID(),
+        },
+      });
+
+      const consulta = (where: unknown) =>
+        tx.expense.findMany({
+          where: where as never,
+          select: {
+            id: true,
+            barbershopId: true,
+            title: true,
+            paidAt: true,
+            dueDate: true,
+            referenceDate: true,
+          },
+        });
+
+      // ── contexto do salão A ────────────────────────────────
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Sem filtro: só as despesas do salão A.
+        const base = await consulta(
+          buildExpenseListWhere(shopA.id, { page: 1, limit: 50 })
+        );
+        expect(base.map((r) => r.id).sort()).toEqual(
+          [despesaA.id, despesaAPaga.id].sort()
+        );
+        expect(base.every((r) => r.barbershopId === shopA.id)).toBe(true);
+
+        // 2. `payment=pending`: só a despesa não paga.
+        const pendentes = await consulta(
+          buildExpenseListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            payment: ["pending"],
+          })
+        );
+        expect(pendentes.map((r) => r.id)).toEqual([despesaA.id]);
+
+        // 3. `payment=paid`: só a despesa paga.
+        const pagas = await consulta(
+          buildExpenseListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            payment: ["paid"],
+          })
+        );
+        expect(pagas.map((r) => r.id)).toEqual([despesaAPaga.id]);
+
+        // 4. `payment=overdue`: não vaza a despesa paga; traz a não paga e vencida.
+        const vencidas = await consulta(
+          buildExpenseListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            payment: ["overdue"],
+          })
+        );
+        expect(vencidas.map((r) => r.id)).toEqual([despesaA.id]);
+
+        // 5. Busca: só as despesas do salão A.
+        const busca = await consulta(
+          buildExpenseListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            search: "Isolamento A",
+          })
+        );
+        expect(busca.map((r) => r.id).sort()).toEqual(
+          [despesaA.id, despesaAPaga.id].sort()
+        );
+
+        // 6. Período por `referenceDate`: o dia de hoje entra inteiro.
+        const periodo = await consulta(
+          buildExpenseListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            from: diaDeHoje,
+            to: diaDeHoje,
+          })
+        );
+        expect(periodo.map((r) => r.id).sort()).toEqual(
+          [despesaA.id, despesaAPaga.id].sort()
+        );
+
+        // 7. PROVA de que a RLS não filtra nada neste ambiente: a mesma consulta
+        //    SEM o `barbershopId` no `where` enxerga o salão B.
+        const semBarbershop = await consulta({ title: { contains: "Isolamento B" } });
+        expect(semBarbershop.map((r) => r.id)).toEqual([despesaB.id]);
+        expect(semBarbershop[0].barbershopId).toBe(shopB.id);
+      });
+
+      // ── contexto do salão B ────────────────────────────────
+      await requestContext.run({ barbershopId: shopB.id } as never, async () => {
+        const baseB = await consulta(
+          buildExpenseListWhere(shopB.id, { page: 1, limit: 50 })
+        );
+        expect(baseB.map((r) => r.id)).toEqual([despesaB.id]);
         expect(baseB.every((r) => r.barbershopId === shopB.id)).toBe(true);
       });
 

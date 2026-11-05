@@ -1,5 +1,8 @@
+import type { SortInput } from "@/shared/utils/pagination";
+
 export type ExpenseType = "FIXED" | "VARIABLE" | "INVESTMENT"; // Tipo: Fixo | Variável | Investimento
 export type ExpenseRecurrence = "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"; // Recorrência: Uma vez | Diária | Semanal | Mensal | Anual
+export type ExpensePayment = "paid" | "pending" | "overdue"; // Situação de pagamento (derivada de paidAt/dueDate)
 
 export interface ICreateExpenseDTO {
   barbershopId: string;        // ID da barbearia dona da despesa
@@ -67,10 +70,13 @@ export interface IExpenseListQuery {
   categoryId?: string;           // Filtrar por categoria
   type?: ExpenseType;            // Filtrar por tipo (FIXED, VARIABLE, INVESTMENT)
   recurrence?: ExpenseRecurrence; // Filtrar por recorrência
-  from?: Date;                   // Data de referência inicial do filtro
-  to?: Date;                     // Data de referência final do filtro
-  paid?: boolean;                // true = só pagas | false = só pendentes | undefined = todas
+  payment?: ExpensePayment[];    // Situação de pagamento (paid | pending | overdue)
+  paymentMethod?: string;        // Filtrar por forma de pagamento (coluna livre, sem enum)
+  from?: string;                 // YYYY-MM-DD — referência inicial (`referenceDate`)
+  to?: string;                   // YYYY-MM-DD — referência final (`referenceDate`)
+  paid?: boolean;                // legado: true = só pagas | false = só pendentes | undefined = todas
   search?: string;               // Busca por texto no título, fornecedor ou observações
+  sort?: SortInput;              // Ordenação por referenceDate | amount | dueDate | createdAt
 }
 
 export interface IExpenseSummary {

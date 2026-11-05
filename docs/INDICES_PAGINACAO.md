@@ -68,6 +68,19 @@ contra `pg_indexes` do banco (2026-11-04):
 | `appointments_visitId_idx` | `visitId` |
 | `appointments_seriesId_occurrenceIndex_idx` | `seriesId, occurrenceIndex` |
 
+### `expenses`
+
+| Índice | Colunas |
+|---|---|
+| `expenses_pkey` | `id` (único) |
+| `expenses_barbershopId_idx` | `barbershopId` |
+| `expenses_barbershopId_referenceDate_idx` | `barbershopId, referenceDate` |
+| `expenses_categoryId_idx` | `categoryId` |
+| `expenses_referenceDate_idx` | `referenceDate` |
+| `expenses_paidAt_idx` | `paidAt` |
+| `expenses_type_idx` | `type` |
+| `expenses_inventoryReceiptId_key` | `inventoryReceiptId` (único) |
+
 ---
 
 ## 2. Proposta — grupo A: btree para ordenação e faixas de data
@@ -86,6 +99,10 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A5 | `fiados` | `(barbershopId, dueDate)` | ordenação por vencimento e filtro de atraso (`dueDate < hoje`) |
 | A6 | `appointments` | `(barbershopId, date, time)` | listagem por data sem filtro de profissional (o índice atual só cobre `(barbershopId, staffId, date, status)`) |
 | A7 | `fiados` | `(barbershopId, createdAt)` | ordenação padrão da listagem de fiados (`createdAt desc`) e faixa `from/to` (em `createdAt`) |
+| A8 | `expenses` | `(barbershopId, paidAt)` | filtro `payment=paid/pending` (derivado de `paidAt`) |
+| A9 | `expenses` | `(barbershopId, dueDate)` | filtro `payment=overdue` e `sort=dueDate` |
+| A10 | `expenses` | `(barbershopId, amount)` | `sort=amount` |
+| A11 | `expenses` | `(barbershopId, createdAt)` | `sort=createdAt` |
 
 **Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
@@ -214,6 +231,69 @@ model Fiado {
 }
 ```
 
+### 2.3 Análise dos índices de `Expense` (listagem da Fase 2)
+
+`@@index` declarados no modelo `Expense` (`prisma/schema.prisma`, linhas
+2228-2233):
+
+```prisma
+@@index([barbershopId])
+@@index([categoryId])
+@@index([referenceDate])
+@@index([paidAt])
+@@index([type])
+@@index([barbershopId, referenceDate])
+```
+
+| Consulta da listagem | Índice que a cobre | Situação |
+|---|---|---|
+| `(barbershopId, referenceDate)` — período e ordenação padrão | `@@index([barbershopId, referenceDate])` | **coberta** |
+| `(barbershopId, paidAt)` — filtro `payment=paid/pending` | nenhuma | **falta** (A8) |
+| `(barbershopId, dueDate)` — filtro `payment=overdue` e `sort=dueDate` | nenhuma | **falta** (A9) |
+| `(barbershopId, amount)` — `sort=amount` | nenhuma | **falta** (A10) |
+| `(barbershopId, createdAt)` — `sort=createdAt` | nenhuma | **falta** (A11) |
+| `categoryId` — filtro por categoria | `@@index([categoryId])` (sem o salão) | **parcial** |
+| `type` — filtro por tipo | `@@index([type])` (sem o salão) | **parcial** |
+
+Por que A8–A11 faltam:
+
+- `@@index([paidAt])` e `@@index([referenceDate])` não contêm `barbershopId`, e a
+  listagem é sempre por salão — eles não servem como prefixo. O filtro
+  `payment` (`paidAt IS NOT NULL` / `IS NULL`) e o `overdue`
+  (`dueDate < agora`) perdem o apoio do índice.
+- `dueDate` **não tem índice nenhum** na tabela: nem sozinho nem composto.
+- Não há índice com `amount` nem com `createdAt` junto do salão, então
+  `sort=amount` e `sort=createdAt` ordenam o conjunto filtrado em memória.
+- `categoryId` e `type` existem como índice de coluna única: servem à
+  igualdade, mas o Postgres ainda filtra o salão depois (leitura extra). Como
+  são filtros de igualdade (não de faixa nem de ordenação), o benefício do
+  composto é menor — fica registrado, não é prioridade.
+
+Proposta (somente proposta, nada aplicado — ver seção 4):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_paidAt_idx"
+  ON "expenses" ("barbershopId", "paidAt");       -- A8
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_dueDate_idx"
+  ON "expenses" ("barbershopId", "dueDate");      -- A9
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_amount_idx"
+  ON "expenses" ("barbershopId", "amount");       -- A10
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_createdAt_idx"
+  ON "expenses" ("barbershopId", "createdAt");    -- A11
+```
+
+E, no `schema.prisma`, para não gerar drift (ver o passo 6 da seção 4):
+
+```prisma
+model Expense {
+  // ...
+  @@index([barbershopId, paidAt])
+  @@index([barbershopId, dueDate])
+  @@index([barbershopId, amount])
+  @@index([barbershopId, createdAt])
+}
+```
+
 ### Proposta — grupo B: relação (some/none)
 
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
@@ -315,6 +395,10 @@ Procedimento, na ordem:
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_date_time_idx" ON "appointments" ("barbershopId", "date", "time");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_status_date_idx" ON "appointments" ("barbershopId", "status", "date");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_serviceId_date_idx" ON "appointments" ("barbershopId", "serviceId", "date");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_paidAt_idx" ON "expenses" ("barbershopId", "paidAt");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_dueDate_idx" ON "expenses" ("barbershopId", "dueDate");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_amount_idx" ON "expenses" ("barbershopId", "amount");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_createdAt_idx" ON "expenses" ("barbershopId", "createdAt");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_clientId_status_idx" ON "fiados" ("clientId", "status");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "client_packages_clientId_status_idx" ON "client_packages" ("clientId", "status");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_name_trgm_idx" ON "salon_clients" USING gin ("name" gin_trgm_ops);'
@@ -382,6 +466,14 @@ Procedimento, na ordem:
      @@index([barbershopId, date, time])        // A6
      @@index([barbershopId, status, date])       // filtro de status
      @@index([barbershopId, serviceId, date])    // filtro por serviço
+   }
+
+   model Expense {
+     // ...
+     @@index([barbershopId, paidAt])      // A8
+     @@index([barbershopId, dueDate])     // A9
+     @@index([barbershopId, amount])      // A10
+     @@index([barbershopId, createdAt])   // A11
    }
    ```
 

@@ -355,7 +355,13 @@ export interface OwnerBotActions {
   closeout(barbershopId: string, date: Date): Promise<Record<string, unknown>>;
   listExpenses(
     barbershopId: string,
-    query: { from?: Date; to?: Date; search?: string; paid?: boolean; limit?: number }
+    query: {
+      from?: string;
+      to?: string;
+      search?: string;
+      paid?: boolean;
+      limit?: number;
+    }
   ): Promise<IExpenseResponseDTO[]>;
   expenseSummary(
     barbershopId: string,

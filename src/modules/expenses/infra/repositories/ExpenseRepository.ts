@@ -1,6 +1,11 @@
 import { prisma, Prisma, type AppTx } from "@/libs/prismaClient";
 import { rlsTransaction } from "@/libs/prismaExtensions";
+import { toSkipTake } from "@/shared/utils/pagination";
 import { IExpenseRepository } from "../../repositories/IExpenseRepository";
+import {
+  buildExpenseListWhere,
+  buildExpenseOrderBy,
+} from "../../repositories/expenseListWhere";
 import {
   ICreateExpenseDTO,
   IUpdateExpenseDTO,
@@ -73,38 +78,17 @@ export class ExpenseRepository implements IExpenseRepository {
   async list(
     query: IExpenseListQuery & { barbershopId: string }
   ): Promise<{ data: IExpenseResponseDTO[]; total: number }> {
-    const skip = (query.page - 1) * query.limit;
+    const { skip, take } = toSkipTake(query.page, query.limit);
 
-    const where: Prisma.ExpenseWhereInput = { barbershopId: query.barbershopId };
-
-    if (query.categoryId) where.categoryId = query.categoryId;
-    if (query.type) where.type = query.type;
-    if (query.recurrence) where.recurrence = query.recurrence;
-
-    if (query.from || query.to) {
-      where.referenceDate = {
-        ...(query.from && { gte: query.from }),
-        ...(query.to && { lte: query.to }),
-      };
-    }
-
-    if (query.paid === true) where.paidAt = { not: null };
-    if (query.paid === false) where.paidAt = null;
-
-    if (query.search) {
-      where.OR = [
-        { title: { contains: query.search, mode: "insensitive" } },
-        { supplierName: { contains: query.search, mode: "insensitive" } },
-        { notes: { contains: query.search, mode: "insensitive" } },
-      ];
-    }
+    const where = buildExpenseListWhere(query.barbershopId, query);
+    const orderBy = buildExpenseOrderBy(query.sort);
 
     const [records, total] = await Promise.all([
       prisma.expense.findMany({
         where,
         skip,
-        take: query.limit,
-        orderBy: [{ referenceDate: "desc" }, { id: "desc" }],
+        take,
+        orderBy,
         include,
       }),
       prisma.expense.count({ where }),
