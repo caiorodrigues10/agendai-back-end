@@ -2118,6 +2118,7 @@ local com os arquivos `.gz`: `npm run ocr:tessdata -- --base-url=file:///caminho
 | Variável | Padrão | Para quê |
 |---|---|---|
 | `OCR_IMPORT_ENABLED` | `off` | Liga a importação por imagem |
+| `OCR_PREPROCESS` | `on` | Pré-processa a foto antes do OCR (`on`/`off`) |
 | `OCR_TESSDATA_PATH` | `.tesseract-cache` | Onde estão os traineddata |
 | `OCR_MAX_FILE_SIZE_BYTES` | `10485760` | Tamanho máximo da foto |
 | `OCR_MAX_IMAGE_PIXELS` | `2000` | Redimensionamento antes do OCR |
@@ -2126,6 +2127,150 @@ local com os arquivos `.gz`: `npm run ocr:tessdata -- --base-url=file:///caminho
 | `OCR_QUEUE_MAX_WAITING` | `4` | Jobs esperando na fila |
 | `OCR_MIN_TABLE_WIDTH_PX_TELEFONE` | `693` | Piso de leitura (telefone) |
 | `OCR_MIN_TABLE_WIDTH_PX_VALOR` | `924` | Piso de leitura (valor) |
+
+### Pré-processamento da foto antes do OCR
+
+A foto chega torta, deitada (EXIF) ou com sombra. Antes de entregar a imagem
+ao Tesseract, `src/modules/dataImport/ocr/ocrPreprocess.ts` aplica etapas —
+**cada uma ligável por constante** em `PREPROCESS_STEPS`:
+
+| etapa | o que faz | entrou? |
+|---|---|---|
+| `exifRotate` | orienta a foto pelo EXIF (celular deitado) | **sim** |
+| `deskew` | corrige a rotação no plano (perfil de projeção, ±5°, passo 0,5°) | **sim** |
+| `grayscale` | converte para cinza | não |
+| `normalise` | estica o contraste (percentis 1%–99%) | não |
+| `clahe` | equalização local (sombra de um lado) | não |
+| `median` | filtro de mediana 3×3 (ruído) | não |
+| `scaleToFloor` | amplia até o piso de 693 px | não |
+
+A flag `OCR_PREPROCESS=on|off` (padrão `on`) liga ou desliga o bloco inteiro.
+O deskew é **implementação própria** (perfil de projeção + Otsu): sem OpenCV e
+sem dependência nova.
+
+#### O que a medição mostrou (dataset sintético degradado)
+
+O dataset sai das imagens sintéticas (`ocrImagensSinteticas`) e é degradado em
+memória — **nenhuma foto real de cliente é lida**: rotação de -4° e +3°, foto de
+celular deitada (EXIF), sombra em gradiente, contraste baixo, desfoque leve,
+ruído, JPEG de qualidade baixa e a tabela no piso (693 px e 924 px). São 3
+imagens × 11 variantes = 33 fotos, 187 células medidas.
+
+Métrica por campo: **acerto exato** (o texto lido é exatamente o da imagem),
+**acerto normalizado** (vira o mesmo valor depois do normalizador de produção) e
+**falso confiante** (valor **errado** que mesmo assim passa nos normalizadores e
+foi lido com confiança ≥ 80 — entraria no CRM como certo).
+
+Linha de base (Tesseract real, **sem** pré-processamento):
+
+| campo | células | acerto exato | acerto normalizado | falso confiante | erro comum | confiança média |
+| --- | --- | --- | --- | --- | --- | --- |
+| nome | 44 | 34 | 34 | 0 | 10 | 73.4 |
+| telefone | 44 | 32 | 32 | 0 | 12 | 68.8 |
+| valor | 33 | 21 | 24 | 3 | 9 | 71.7 |
+| servico | 22 | 17 | 17 | 0 | 5 | 73.9 |
+| preco | 22 | 16 | 16 | 0 | 6 | 69.6 |
+| duracao | 22 | 15 | 15 | 0 | 7 | 68.9 |
+| **total** | 187 | 135 | 138 | 3 | 49 | 71.1 |
+
+Comparação por variante (base → com pré-processamento):
+
+| variante | células | acerto exato | falso confiante | confiança média base | confiança média pré |
+| --- | --- | --- | --- | --- | --- |
+| original | 17 | 17 → 17 | 0 → 0 | 94.8 | 94.8 |
+| exif-girada | 17 | 0 → 17 | 0 → 0 | 0.0 | 94.8 |
+| rotacao-4 | 17 | 2 → 17 | 0 → 0 | 11.1 | 94.6 |
+| rotacao+3 | 17 | 3 → 17 | 0 → 0 | 16.6 | 94.4 |
+| sombra | 17 | 13 → 13 | 2 → 2 | 93.4 | 93.4 |
+| contraste-baixo | 17 | 17 → 17 | 0 → 0 | 94.9 | 94.9 |
+| desfoque-leve | 17 | 15 → 15 | 1 → 1 | 91.8 | 91.8 |
+| ruido | 17 | 17 → 17 | 0 → 0 | 94.9 | 94.8 |
+| jpeg-baixo | 17 | 17 → 17 | 0 → 0 | 94.8 | 94.8 |
+| piso-693 | 17 | 17 → 17 | 0 → 0 | 94.6 | 94.6 |
+| piso-924 | 17 | 17 → 17 | 0 → 0 | 95.0 | 95.0 |
+| **total** | 187 | **135 → 181** | **3 → 3** | 71.1 | 94.4 |
+
+Por campo, com o pré-processamento:
+
+| campo | células | acerto exato | acerto normalizado | falso confiante | erro comum | confiança média |
+| --- | --- | --- | --- | --- | --- | --- |
+| nome | 44 | 44 | 44 | 0 | 0 | 95.1 |
+| telefone | 44 | 43 | 43 | 0 | 1 | 91.6 |
+| valor | 33 | 29 | 32 | 3 | 1 | 94.9 |
+| servico | 22 | 22 | 22 | 0 | 0 | 95.7 |
+| preco | 22 | 22 | 22 | 0 | 0 | 95.8 |
+| duracao | 22 | 21 | 21 | 0 | 1 | 94.7 |
+| **total** | 187 | 181 | 184 | 3 | 3 | 94.4 |
+
+**Regra de adoção:** só entra uma etapa se ela **melhorar o acerto sem aumentar
+o falso confiante**; etapa que piora ou não muda fica de fora. Medindo cada
+etapa sozinha contra a linha de base:
+
+| etapa | acerto base | acerto com a etapa | delta | falso conf. base | falso conf. com a etapa | decisão |
+| --- | --- | --- | --- | --- | --- | --- |
+| exifRotate | 135 | 152 | +17 | 3 | 3 | ADOTAR |
+| grayscale | 135 | 135 | 0 | 3 | 3 | descartar |
+| normalise | 135 | 121 | -14 | 3 | 6 | descartar |
+| clahe | 135 | 108 | -27 | 3 | 6 | descartar |
+| median | 135 | 127 | -8 | 3 | 12 | descartar |
+| scaleToFloor | 135 | 135 | 0 | 3 | 3 | descartar |
+| deskew | 135 | 164 | +29 | 3 | 3 | ADOTAR |
+
+`scaleToFloor` foi descartada mesmo ganhando acerto no alvo de 924 px
+(135 → 142): o falso confiante subia de 3 para 10 — exatamente o que a regra
+proíbe. A configuração final (`exifRotate` + `deskew`) foi validada em **1
+execução** do benchmark.
+
+Para repetir:
+
+```bash
+npm run ocr:tessdata                      # traineddata local (precisa de rede uma vez)
+npm run ocr:bench -- --config=linha-de-base
+npm run ocr:bench -- --config=step:deskew
+npm run ocr:bench -- --config=final
+npm run ocr:bench -- --ablacao
+npm run ocr:bench -- --tabelas --final=final
+```
+
+#### Custo medido (tempo e RAM de pico)
+
+Medido com `/usr/bin/time -l` em macOS (o worker do Tesseract roda em
+**thread do mesmo processo**, então o RSS medido já o inclui), incluindo o
+**idle de 60 s** do worker (`OCR_WORKER_IDLE_MS`):
+
+| cenário | pré-processamento | OCR (Tesseract real) | total por imagem | RAM de pico (`/usr/bin/time -l`) |
+| --- | --- | --- | --- | --- |
+| tabela 1200×218 | — | 174 ms | 187 ms | 431.013.888 B (411,0 MB) |
+| tabela 1200×218 | 3 ms | 174 ms | 188 ms | 416.514.048 B (397,2 MB) |
+| tabela 2000 px | — | 223 ms | 225 ms | 474.562.560 B (452,5 MB) |
+| tabela 2000 px | 4 ms | 226 ms | 233 ms | 475.774.976 B (453,6 MB) |
+| foto 2000×1500 | — | 318 ms | 320 ms | 516.734.976 B (492,8 MB) |
+| foto 2000×1500 | 8 ms | 321 ms | 330 ms | 497.926.144 B (474,9 MB) |
+
+O pré-processamento custa **~8 ms por foto** e **não aumenta o pico de RAM**
+(o pico é do modelo do Tesseract, não da imagem). Para repetir:
+
+```bash
+/usr/bin/time -l npm run ocr:custo -- --modo=sem-preprocess
+/usr/bin/time -l npm run ocr:custo -- --modo=com-preprocess
+/usr/bin/time -l npm run ocr:custo -- --modo=com-preprocess --largura=2000 --altura=1500
+```
+
+#### Limites conhecidos
+
+- **Manuscrito (letra de mão):** o Tesseract lê mal e o resultado **sempre
+  precisa de revisão do dono** — a importação por imagem nunca grava direto.
+  Não há etapa do pré-processamento que conserte isso; o aviso está na tela de
+  upload.
+- **Perspectiva:** **não há correção de perspectiva**. O deskew arruma a
+  *rotação no plano* (a linha da tabela girada, até ±5°), que é outra coisa:
+  foto de papel lido de viés continua com a tabela trapezoidal, as colunas
+  convergindo, e o OCR erra as bordas.
+- **Sombra forte de um lado:** o `clahe` resolveria, mas ele piorou o conjunto
+  todo no benchmark (135 → 108) e ficou desligado. Foto com sombra pesada ainda
+  perde leitura — vale foto sem sombra.
+- **A régua do piso não é derrubada:** ampliar a imagem não cria detalhe que a
+  foto não tinha; o upload abaixo de 693 px (telefone) continua recusado.
 
 ---
 

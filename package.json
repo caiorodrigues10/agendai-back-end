@@ -42,6 +42,8 @@
     "db:studio": "prisma studio",
     "docs:check": "node scripts/check-docs.mjs",
     "ocr:tessdata": "node scripts/fetch-ocr-tessdata.mjs",
+    "ocr:bench": "tsx scripts/ocr-preprocess-bench.ts",
+    "ocr:custo": "tsx scripts/ocr-custo-bench.ts",
     "verify:delivery": "node scripts/verify-delivery.mjs",
     "whatsappai:check": "node scripts/check-whatsapp-ai-config.mjs"
   },
