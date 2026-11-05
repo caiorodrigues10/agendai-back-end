@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { isValidCpf, normalizeCpf } from "@/shared/utils/cpfUtils";
 import { ALL_PERMISSIONS, type EmployeePermission } from "@/modules/users/dtos/IUserResponseDTO";
+import {
+  paginationQuerySchema as basePaginationQuerySchema,
+  booleanQuerySchema,
+  searchTermSchema,
+  sortSchema,
+} from "@/shared/utils/pagination";
 
 const cpfSchema = z
   .string()
@@ -100,3 +106,38 @@ export type CreateUserDTO = z.infer<typeof createUserSchema>;
 export type UpdateUserDTO = z.infer<typeof updateUserSchema>;
 export type LoginDTO = z.infer<typeof loginSchema>;
 export type StaffUpdateUserDTO = z.infer<typeof staffUpdateUserSchema>;
+
+/**
+ * Campos que a listagem da equipe aceita ordenar.
+ *
+ * A whitelist é fechada: qualquer outro campo devolve 400. Os nomes são os
+ * mesmos que aparecem na tela da equipe (`nome`, `email`, `cargo`, `criado`).
+ */
+export const TEAM_SORT_FIELDS = ["nome", "email", "cargo", "criado"] as const;
+
+/**
+ * Query da listagem da equipe do dono (`GET /api/users`).
+ *
+ * - `page`/`limit`: paginação (default e máximo 100 — o chamador que não
+ *   manda `page`/`limit` continua recebendo a equipe inteira, como antes da
+ *   paginação; quem paginar é que escolhe o `limit`).
+ * - `search`: busca por nome ou e-mail; termo vazio vira "sem filtro".
+ * - `active`: `true`/`false` — situação do membro.
+ * - `role`: papel do membro (`OWNER`, `EMPLOYEE` ou `MASTER_ADMIN`).
+ * - `sort`: `<campo>:<asc|desc>`, campo na whitelist acima.
+ *
+ * O `barbershopId` NÃO é campo do schema: ele é resolvido pelo controller a
+ * partir do contexto (sessão do OWNER ou `?barbershopId=` do MASTER_ADMIN) e
+ * nunca vem da query do dono.
+ */
+export const listTeamQuerySchema = basePaginationQuerySchema({
+  defaultLimit: 100,
+  maxLimit: 100,
+}).extend({
+  search: searchTermSchema({ max: 100 }),
+  active: booleanQuerySchema.optional(),
+  role: z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]).optional(),
+  sort: sortSchema(TEAM_SORT_FIELDS),
+});
+
+export type ListTeamQueryDTO = z.infer<typeof listTeamQuerySchema>;

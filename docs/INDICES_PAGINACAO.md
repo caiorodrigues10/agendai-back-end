@@ -91,6 +91,20 @@ contra `pg_indexes` do banco (2026-11-04):
 | `commission_entries_queueItemId_professionalId_key` | `queueItemId, professionalId` (único) |
 | `commission_entries_appointmentId_professionalId_key` | `appointmentId, professionalId` (único) |
 
+### `users`
+
+| Índice | Colunas |
+|---|---|
+| `users_pkey` | `id` (único) |
+| `users_email_key` | `email` (único) |
+| `users_cpf_key` | `cpf` (único) |
+| `users_cpf_idx` | `cpf` |
+| `users_deletedAt_idx` | `deletedAt` |
+| `users_googleSub_key` | `googleSub` (único) |
+
+Não existe **nenhum** índice com `barbershopId` — a listagem da equipe do dono
+(`GET /api/users`) filtra sempre por salão (ver seção 2.5).
+
 ---
 
 ## 2. Proposta — grupo A: btree para ordenação e faixas de data
@@ -116,6 +130,8 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A12 | `commission_entries` | `(barbershopId, professionalId, createdAt)` | listagem de comissões por período + profissional (prioridade) |
 | A13 | `commission_entries` | `(barbershopId, serviceId)` | filtro `serviceId` da listagem de comissões |
 | A14 | `commission_entries` | `(barbershopId, amount)` | `sort=valor` |
+| A15 | `users` | `(barbershopId, name)` | listagem da equipe do dono: filtro por salão + `sort=nome` |
+| A16 | `users` | `(barbershopId, createdAt)` | listagem da equipe do dono: ordenação padrão (`createdAt asc`) |
 
 **Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
@@ -382,6 +398,57 @@ model CommissionEntry {
 }
 ```
 
+### 2.5 Análise dos índices de `users` (listagem da equipe do dono)
+
+Modelo: `User` → `@@map("users")` (`prisma/schema.prisma:12`). A listagem da
+equipe (`GET /api/users`) é **sempre** por salão: `barbershopId` vem do contexto
+(sessão do OWNER ou `?barbershopId=` do MASTER_ADMIN) e nunca da query.
+
+Filtros da listagem: `search` (nome **ou** e-mail, `ILIKE`), `role` (papel),
+`active` (situação) e `sort` (`nome`, `email`, `cargo`, `criado`). Membro
+removido (`deletedAt` preenchido) **nunca** aparece.
+
+| Consulta da listagem | Índice que a cobre | Situação |
+|---|---|---|
+| `(barbershopId, name)` — filtro por salão + `sort=nome` | nenhuma | **falta** (A15) |
+| `(barbershopId, createdAt)` — ordenação padrão (`createdAt asc`) | nenhuma | **falta** (A16) |
+| `(barbershopId, role)` — filtro por papel | nenhuma | **falta** (baixa prioridade: igualdade simples, volume baixo por salão) |
+| `(barbershopId, active)` — filtro de situação | nenhuma | **falta** (baixa prioridade) |
+| `name`/`email` — busca textual (`ILIKE '%termo%'`) | nenhum (GIN de `pg_trgm`) | **falta** (C3/C4) |
+
+Por que A15–A16 faltam:
+
+- A tabela **não tem nenhum índice com `barbershopId`**: os índices que existem
+  são de `email`, `cpf`, `deletedAt` e `googleSub` — nenhum deles serve como
+  prefixo para a listagem, que é multi-tenant. O Postgres filtra a tabela
+  inteira a cada consulta da equipe.
+- `@@index([deletedAt])` existe, mas sem o salão: ele não serve à listagem
+  (mesma conclusão das tabelas das seções 2.2–2.4).
+- A busca por nome/e-mail com `ILIKE '%termo%'` não usa btree (o `%` à frente
+  impede o uso do índice) — precisa do GIN de `pg_trgm` (seção 3.3).
+
+RLS: `users` **tem** RLS (`rowsecurity = true`, `forcerowsecurity = true`) e a
+policy `tenant_isolation` — ao contrário de `commission_entries` (seção 8).
+
+Proposta (somente proposta, nada aplicado — ver seção 4):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_barbershopId_name_idx"
+  ON "users" ("barbershopId", "name");        -- A15
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_barbershopId_createdAt_idx"
+  ON "users" ("barbershopId", "createdAt");   -- A16
+```
+
+E, no `schema.prisma`, para não gerar drift (ver o passo 6 da seção 4):
+
+```prisma
+model User {
+  // ...
+  @@index([barbershopId, name])
+  @@index([barbershopId, createdAt])
+}
+```
+
 ### Proposta — grupo B: relação (some/none)
 
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
@@ -429,16 +496,22 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 |---|---|---|---|
 | C1 | `salon_clients` | GIN (`name gin_trgm_ops`) | busca por nome do cliente (`ILIKE '%termo%'`) |
 | C2 | `salon_clients` | GIN (`whatsapp gin_trgm_ops`) | busca por dígitos do WhatsApp (`LIKE '%dígitos%'`) |
+| C3 | `users` | GIN (`name gin_trgm_ops`) | busca por nome do membro da equipe (`ILIKE '%termo%'`) |
+| C4 | `users` | GIN (`email gin_trgm_ops`) | busca por e-mail do membro da equipe (`ILIKE '%termo%'`) |
 
 `whatsapp` é `VarChar(20)` e `normalizedWhatsapp` é `VarChar(11)`. O índice C2
 cobre a coluna `whatsapp` usada pela listagem de clientes. Para a coluna
-`normalizedWhatsapp`, considerar C3 se a busca passar a usar essa coluna:
+`normalizedWhatsapp`, considerar C5 se a busca passar a usar essa coluna:
 
 ```sql
--- C3 (opcional): GIN em normalized_whatsapp
+-- C5 (opcional): GIN em normalized_whatsapp
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_normalizedWhatsapp_trgm_idx"
   ON "salon_clients" USING gin ("normalizedWhatsapp" gin_trgm_ops);
 ```
+
+Os índices C3/C4 cobrem a busca da listagem da equipe (`GET /api/users`), que
+procura por nome **ou** e-mail com `ILIKE '%termo%'` — btree não ajuda nesse
+caso (o `%` à esquerda impede o uso do índice).
 
 ### 3.4 Observação sobre `mode: "insensitive"`
 
@@ -489,8 +562,15 @@ Procedimento, na ordem:
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses_barbershopId_createdAt_idx" ON "expenses" ("barbershopId", "createdAt");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_clientId_status_idx" ON "fiados" ("clientId", "status");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "client_packages_clientId_status_idx" ON "client_packages" ("clientId", "status");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "commission_entries_barbershopId_professionalId_createdAt_idx" ON "commission_entries" ("barbershopId", "professionalId", "createdAt");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "commission_entries_barbershopId_serviceId_idx" ON "commission_entries" ("barbershopId", "serviceId");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "commission_entries_barbershopId_amount_idx" ON "commission_entries" ("barbershopId", "amount");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_barbershopId_name_idx" ON "users" ("barbershopId", "name");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_barbershopId_createdAt_idx" ON "users" ("barbershopId", "createdAt");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_name_trgm_idx" ON "salon_clients" USING gin ("name" gin_trgm_ops);'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_whatsapp_trgm_idx" ON "salon_clients" USING gin ("whatsapp" gin_trgm_ops);'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_name_trgm_idx" ON "users" USING gin ("name" gin_trgm_ops);'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_email_trgm_idx" ON "users" USING gin ("email" gin_trgm_ops);'
    ```
    Índice inválido deixado por um `CREATE INDEX CONCURRENTLY` interrompido
    precisa ser removido antes de recriar:
@@ -563,6 +643,19 @@ Procedimento, na ordem:
      @@index([barbershopId, amount])      // A10
      @@index([barbershopId, createdAt])   // A11
    }
+
+   model CommissionEntry {
+     // ...
+     @@index([barbershopId, professionalId, createdAt])  // A12
+     @@index([barbershopId, serviceId])                  // A13
+     @@index([barbershopId, amount])                     // A14
+   }
+
+   model User {
+     // ...
+     @@index([barbershopId, name])        // A15
+     @@index([barbershopId, createdAt])   // A16
+   }
    ```
 
    O nome do índice que o Prisma gera precisa bater com o do passo 4
@@ -604,6 +697,12 @@ Procedimento, na ordem:
         // ...
         @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)       // C1
         @@index([whatsapp(ops: raw("gin_trgm_ops"))], type: Gin)    // C2
+      }
+
+      model User {
+        // ...
+        @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)        // C3
+        @@index([email(ops: raw("gin_trgm_ops"))], type: Gin)       // C4
       }
       ```
 

@@ -22,6 +22,7 @@ import { buildAppointmentListWhere } from "@/modules/appointments/repositories/a
 import { buildFiadoListWhere } from "@/modules/fiado/repositories/fiadoListWhere";
 import { buildExpenseListWhere } from "@/modules/expenses/repositories/expenseListWhere";
 import { buildCommissionListWhere } from "@/modules/commissions/repositories/commissionListWhere";
+import { buildUserListWhere } from "@/modules/users/repositories/userListWhere";
 import { shopToday } from "@/modules/financial/ledger/shopTime";
 
 const DIA = "2026-10-05";
@@ -628,6 +629,137 @@ describe("isolamento por salão — comissões (Postgres real, rollback)", () =>
         );
         expect(baseB.map((r) => r.id)).toEqual([comissaoB.id]);
         expect(baseB.every((r) => r.barbershopId === shopB.id)).toBe(true);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
+
+describe("isolamento por salão — equipe do dono (Postgres real, rollback)", () => {
+  it("os filtros só devolvem dados do salão do contexto", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Equipe A ${randomUUID()}`, whatsapp: "11991110001" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Equipe B ${randomUUID()}`, whatsapp: "11991110002" },
+      });
+
+      const donoA = await tx.user.create({
+        data: {
+          name: "Dona Isolamento A",
+          email: `dona-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "OWNER",
+          barbershopId: shopA.id,
+        },
+      });
+      const funcionarioA = await tx.user.create({
+        data: {
+          name: "Funcionario Isolamento A",
+          email: `func-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          barbershopId: shopA.id,
+        },
+      });
+      const inativoA = await tx.user.create({
+        data: {
+          name: "Inativo Isolamento A",
+          email: `inativo-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          active: false,
+          barbershopId: shopA.id,
+        },
+      });
+      // Membro removido (soft-delete): nunca aparece na listagem da equipe.
+      const removidoA = await tx.user.create({
+        data: {
+          name: "Removido Isolamento A",
+          email: `removido-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          active: false,
+          deletedAt: new Date(),
+          barbershopId: shopA.id,
+        },
+      });
+      const funcionarioB = await tx.user.create({
+        data: {
+          name: "Funcionario Isolamento B",
+          email: `func-b-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          barbershopId: shopB.id,
+        },
+      });
+
+      const consulta = (where: unknown) =>
+        tx.user.findMany({
+          where: where as never,
+          orderBy: { createdAt: "asc" },
+          select: { id: true, name: true, barbershopId: true, active: true },
+        });
+
+      // ── contexto do salão A ────────────────────────────────
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Sem filtro: só a equipe do salão A, sem o membro removido.
+        const base = await consulta(buildUserListWhere(shopA.id, {}));
+        expect(base.map((u) => u.id)).toEqual([
+          donoA.id,
+          funcionarioA.id,
+          inativoA.id,
+        ]);
+        expect(base.every((u) => u.barbershopId === shopA.id)).toBe(true);
+        expect(base.map((u) => u.id)).not.toContain(removidoA.id);
+
+        // 2. Filtro por papel: só os funcionários.
+        const porPapel = await consulta(
+          buildUserListWhere(shopA.id, { role: "EMPLOYEE" }),
+        );
+        expect(porPapel.map((u) => u.id)).toEqual([
+          funcionarioA.id,
+          inativoA.id,
+        ]);
+
+        // 3. Filtro de situação: ativos e inativos.
+        const ativos = await consulta(
+          buildUserListWhere(shopA.id, { active: true }),
+        );
+        const inativos = await consulta(
+          buildUserListWhere(shopA.id, { active: false }),
+        );
+        expect(ativos.map((u) => u.id)).toEqual([donoA.id, funcionarioA.id]);
+        expect(inativos.map((u) => u.id)).toEqual([inativoA.id]);
+
+        // 4. Busca por nome de OUTRO salão: lista vazia, nunca vaza a do B.
+        const buscaAlheia = await consulta(
+          buildUserListWhere(shopA.id, { search: "Funcionario Isolamento B" }),
+        );
+        expect(buscaAlheia).toEqual([]);
+
+        // 5. Busca por nome do próprio salão: acha o membro.
+        const buscaPropria = await consulta(
+          buildUserListWhere(shopA.id, { search: "Dona Isolamento A" }),
+        );
+        expect(buscaPropria.map((u) => u.id)).toEqual([donoA.id]);
+
+        // 6. PROVA de que a RLS não filtra nada neste ambiente: a mesma consulta
+        //    SEM o `barbershopId` no `where` enxerga o salão B.
+        const semBarbershop = await consulta({ id: funcionarioB.id });
+        expect(semBarbershop.map((u) => u.id)).toEqual([funcionarioB.id]);
+        expect(semBarbershop[0].barbershopId).toBe(shopB.id);
+      });
+
+      // ── contexto do salão B ────────────────────────────────
+      await requestContext.run({ barbershopId: shopB.id } as never, async () => {
+        const baseB = await consulta(buildUserListWhere(shopB.id, {}));
+        expect(baseB.map((u) => u.id)).toEqual([funcionarioB.id]);
+        expect(baseB.every((u) => u.barbershopId === shopB.id)).toBe(true);
       });
 
       throw new Error("ROLLBACK_ISOLATION");
