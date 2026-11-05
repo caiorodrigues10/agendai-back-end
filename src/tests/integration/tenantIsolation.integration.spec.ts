@@ -825,7 +825,8 @@ describe("isolamento por salão — serviços (Postgres real, rollback)", () => 
           publicBookable: false,
         },
       });
-      // Serviço desativado: continua aparecendo (comportamento atual).
+      // Serviço desativado: não aparece na visão pública; a staff continua
+      // listando (é lá que o dono acompanha o catálogo).
       const inativoA = await tx.service.create({
         data: {
           barbershopId: shopA.id,
@@ -863,29 +864,33 @@ describe("isolamento por salão — serviços (Postgres real, rollback)", () => 
 
       // ── contexto do salão A ────────────────────────────────
       await requestContext.run({ barbershopId: shopA.id } as never, async () => {
-        // 1. Visão pública: só o que o cliente pode agendar, do salão A.
+        // 1. Visão pública: só o que o cliente pode agendar — ativo e
+        //    agendável, do salão A. O serviço desativado fica de fora.
         const publico = await consulta(buildServiceListWhere(shopA.id, {}));
-        expect(publico.map((s) => s.id)).toEqual([corteA.id, barbaA.id, inativoA.id]);
+        expect(publico.map((s) => s.id)).toEqual([corteA.id, barbaA.id]);
         expect(publico.every((s) => s.barbershopId === shopA.id)).toBe(true);
         expect(publico.map((s) => s.id)).not.toContain(audienciaA.id);
+        expect(publico.map((s) => s.id)).not.toContain(inativoA.id);
         expect(publico.map((s) => s.id)).not.toContain(corteB.id);
 
-        // 2. Visão staff: inclui o serviço interno do próprio salão.
+        // 2. Visão staff: inclui o serviço interno **e** o desativado do
+        //    próprio salão — a visão staff continua listando inativos.
         const staff = await consulta(
           buildServiceListWhere(shopA.id, {}, { includeInternal: true }),
         );
-        expect(staff.map((s) => s.id)).toContain(audienciaA.id);
+        expect(staff.map((s) => s.id)).toEqual([
+          corteA.id,
+          barbaA.id,
+          audienciaA.id,
+          inativoA.id,
+        ]);
         expect(staff.map((s) => s.id)).not.toContain(corteB.id);
 
-        // 3. Filtro por categoria.
+        // 3. Filtro por categoria (visão pública).
         const porCategoria = await consulta(
           buildServiceListWhere(shopA.id, { categoryId: categoriaA.id }),
         );
-        expect(porCategoria.map((s) => s.id)).toEqual([
-          corteA.id,
-          barbaA.id,
-          inativoA.id,
-        ]);
+        expect(porCategoria.map((s) => s.id)).toEqual([corteA.id, barbaA.id]);
 
         // 4. Busca por nome de OUTRO salão: lista vazia, nunca vaza a do B.
         const buscaAlheia = await consulta(
@@ -899,26 +904,30 @@ describe("isolamento por salão — serviços (Postgres real, rollback)", () => 
         );
         expect(buscaPropria.map((s) => s.id)).toEqual([barbaA.id]);
 
-        // 6. Situação: `active` filtra; sem o filtro, o inativo continua
-        //    aparecendo (comportamento atual da listagem).
+        // 6. Situação (visão staff, onde o inativo aparece): `active` filtra.
         const ativos = await consulta(
-          buildServiceListWhere(shopA.id, { active: true }),
+          buildServiceListWhere(shopA.id, { active: true }, { includeInternal: true }),
         );
         const inativos = await consulta(
-          buildServiceListWhere(shopA.id, { active: false }),
+          buildServiceListWhere(shopA.id, { active: false }, { includeInternal: true }),
         );
-        expect(ativos.map((s) => s.id)).toEqual([corteA.id, barbaA.id]);
+        expect(ativos.map((s) => s.id)).toEqual([
+          corteA.id,
+          barbaA.id,
+          audienciaA.id,
+        ]);
         expect(inativos.map((s) => s.id)).toEqual([inativoA.id]);
 
-        // 7. Ordenação: a whitelist produz a coluna pedida.
+        // 7. Ordenação: a whitelist produz a coluna pedida (visão staff).
         const porPreco = await consulta(
-          buildServiceListWhere(shopA.id, {}),
+          buildServiceListWhere(shopA.id, {}, { includeInternal: true }),
           buildServiceListOrderBy({ field: "preco", dir: "asc" }),
         );
         expect(porPreco.map((s) => s.name)).toEqual([
           "Barba Isolamento A",
           "Inativo Isolamento A",
           "Corte Isolamento A",
+          "Audiencia Isolamento A",
         ]);
 
         // 8. PROVA de que a RLS não filtra nada neste ambiente: a mesma consulta

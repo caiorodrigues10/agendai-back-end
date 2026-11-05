@@ -13,9 +13,11 @@ import type { IServiceListFilters } from "../dtos/IServiceListDTO";
  * - `publicBookable` só é exigido na visão **pública**: a visão staff (token do
  *   próprio estabelecimento) também vê os serviços internos (audiência,
  *   diligência, despacho).
- * - `active` é **opcional**: sem ele, serviço inativo continua aparecendo
- *   (comportamento atual — desativar é a forma de "remover" um serviço, e a
- *   listagem nunca escondeu serviço desativado).
+ * - Na visão **pública** só entram serviços **ativos**: desativar é a forma de
+ *   "remover" um serviço da agenda do cliente. A visão **staff** continua
+ *   listando os inativos — é lá que o dono acompanha o histórico do catálogo.
+ * - `active` explícito na query continua valendo nos dois escopos (filtro
+ *   pedido pelo chamador).
  */
 export function buildServiceListWhere(
   barbershopId: string,
@@ -26,6 +28,7 @@ export function buildServiceListWhere(
 
   if (!options?.includeInternal) {
     and.push({ publicBookable: true });
+    and.push({ active: true });
   }
 
   if (query.search) {

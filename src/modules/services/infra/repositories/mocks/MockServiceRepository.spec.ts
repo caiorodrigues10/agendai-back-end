@@ -56,17 +56,19 @@ describe("MockServiceRepository.listPaginated", () => {
     expect(result.data).toHaveLength(2);
   });
 
-  it("visão pública devolve só o que é agendável pelo cliente", async () => {
+  it("visão pública devolve só o que é agendável pelo cliente E está ativo", async () => {
     const repo = await seed();
+    await repo.deactivate("service-1");
 
     const result = await repo.listPaginated(SHOP, { page: 1, limit: 20 });
 
-    expect(result.total).toBe(2);
-    expect(result.data.map((s) => s.name)).not.toContain("Audiência");
+    expect(result.total).toBe(1);
+    expect(result.data.map((s) => s.name)).toEqual(["Barba"]);
   });
 
-  it("visão staff (includeInternal) devolve os serviços internos também", async () => {
+  it("visão staff (includeInternal) devolve os serviços internos e os inativos", async () => {
     const repo = await seed();
+    await repo.deactivate("service-1");
 
     const result = await repo.listPaginated(
       SHOP,
@@ -76,6 +78,7 @@ describe("MockServiceRepository.listPaginated", () => {
 
     expect(result.total).toBe(3);
     expect(result.data.map((s) => s.name)).toContain("Audiência");
+    expect(result.data.map((s) => s.name)).toContain("Corte Masculino");
   });
 
   it("nunca devolve serviço de outro salão", async () => {

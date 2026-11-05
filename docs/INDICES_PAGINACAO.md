@@ -563,11 +563,14 @@ Por que A17–A22 faltam:
 - A busca por nome com `ILIKE '%termo%'` não usa btree (o `%` à frente impede o
   uso do índice) — precisa do GIN de `pg_trgm` (seção 3.3).
 
-**Comportamento preservado:** serviço **inativo** continua aparecendo na
-listagem quando o filtro `active` não é informado — desativar é a forma de
-"remover" um serviço, e a listagem nunca escondeu serviço desativado. Com o
-filtro `active=true`/`active=false`, a listagem passa a separar os dois
-grupos.
+**Comportamento da situação (`active`):** a visão **staff** (token do dono)
+continua listando serviço **inativo** — desativar é a forma de "remover" um
+serviço do catálogo, e a listagem do dono nunca escondeu serviço desativado
+(só o filtro `active=true`/`active=false` separa os dois grupos). A visão
+**pública** (página de agendamento) passou a listar **só serviços ativos**:
+empilhar `{ active: true }` junto de `{ publicBookable: true }` no
+`buildServiceListWhere` (`src/modules/services/repositories/serviceListWhere.ts`),
+para o cliente não ver e não poder escolher serviço desativado.
 
 Isso **não** abre brecha de reserva: criar agendamento (público **ou** staff)
 rejeita serviço desativado — `assertAppointmentBookable` procura o serviço com
@@ -592,17 +595,19 @@ leitura):
 | visão pública (where) | `backend/src/modules/services/repositories/serviceListWhere.ts:20-29` |
 
 O wrapper chama `GET /api/services?barbershopId=<id>` **sem token** (visitante
-anônimo) e **sem `active`**: nem o backend filtra `active` na visão pública
-(where = `{ barbershopId, AND: [{ publicBookable: true }] }`), nem o front
-filtra (`PublicHome.tsx:59-64` calcula um `publicServices` por
-`publicBookable`, mas **não o aplica** ao agendador — `PublicHome.tsx:228-230`
-passa `services`). Resultado: serviço inativo pode aparecer e ser selecionável
-na agenda pública, e só falha na hora de buscar o horário/confirmar.
+anônimo) e **sem `active`**: a visão pública do backend filtra por
+`publicBookable` **e** por `active` (where = `{ barbershopId, AND: [
+{ publicBookable: true }, { active: true }] }`), e o front **não** filtra
+(`PublicHome.tsx:59-64` calcula um `publicServices` por `publicBookable`, mas
+**não o aplica** ao agendador — `PublicHome.tsx:228-230` passa `services`).
+Resultado: o cliente não vê serviço desativado nem serviço interno; e, mesmo
+que um serviço desativado chegar ao seletor, a reserva é recusada
+(`assertAppointmentBookable`).
 
-**Proposta (não implementada):** na visão pública do `buildServiceListWhere`,
+**Proposta (implementada):** na visão pública do `buildServiceListWhere`,
 empilhar `{ active: true }` junto de `{ publicBookable: true }` — assim a agenda
 pública só lista serviços ativos, sem mexer na visão staff (que continua
-listando inativos para o dono, como hoje).
+listando inativos para o dono, como antes).
 
 RLS: `services` **não tem** RLS (`rowsecurity = false`) — mesma situação de
 `commission_entries` (seção 8): o isolamento hoje vem do `where` construído pela

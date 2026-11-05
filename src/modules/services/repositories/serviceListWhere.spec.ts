@@ -12,14 +12,14 @@ const SHOP = "barbershop-1";
 const base: IListServicesQuery = { page: 1, limit: 20 };
 
 describe("buildServiceListWhere", () => {
-  it("sem filtros: visão pública exige publicBookable e o salão é o do contexto", () => {
+  it("sem filtros: visão pública exige publicBookable + active e o salão é o do contexto", () => {
     expect(buildServiceListWhere(SHOP, base)).toEqual({
       barbershopId: SHOP,
-      AND: [{ publicBookable: true }],
+      AND: [{ publicBookable: true }, { active: true }],
     });
   });
 
-  it("visão staff (includeInternal) não exige publicBookable", () => {
+  it("visão staff (includeInternal) não exige publicBookable nem active", () => {
     expect(buildServiceListWhere(SHOP, base, { includeInternal: true })).toEqual({
       barbershopId: SHOP,
     });
@@ -81,10 +81,20 @@ describe("buildServiceListWhere", () => {
     expect(and[1]).toEqual({ categoryId: "category-1" });
     expect(and[2]).toEqual({ active: true });  });
 
-  it("visão pública: publicBookable entra como uma cláusula do AND", () => {
+  it("visão pública: publicBookable e active entram como cláusulas do AND", () => {
     const where = buildServiceListWhere(SHOP, { ...base, active: true });
 
-    expect(where.AND).toEqual([{ publicBookable: true }, { active: true }]);
+    expect(where.AND).toEqual([
+      { publicBookable: true },
+      { active: true },
+      { active: true },
+    ]);
+  });
+
+  it("visão staff: serviço inativo continua na listagem", () => {
+    const where = buildServiceListWhere(SHOP, base, { includeInternal: true });
+
+    expect(where.AND).toBeUndefined();
   });
 });
 

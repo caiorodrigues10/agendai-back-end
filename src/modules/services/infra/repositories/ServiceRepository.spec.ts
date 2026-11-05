@@ -69,12 +69,15 @@ describe("ServiceRepository.listPaginated", () => {
     expect(args.orderBy).toEqual([{ price: "desc" }, { id: "desc" }]);
   });
 
-  it("visão pública exige publicBookable; visão staff não", async () => {
+  it("visão pública exige publicBookable e active; visão staff não", async () => {
     await repo.listPaginated(SHOP, { page: 1, limit: 20 });
     const publicArgs = findMany.mock.calls[0][0] as {
       where: { AND: unknown[] };
     };
-    expect(publicArgs.where.AND).toEqual([{ publicBookable: true }]);
+    expect(publicArgs.where.AND).toEqual([
+      { publicBookable: true },
+      { active: true },
+    ]);
 
     await repo.listPaginated(
       SHOP,

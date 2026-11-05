@@ -49,8 +49,8 @@ export class MockServiceRepository implements IServiceRepository {
    * Listagem paginada em memória.
    *
    * Espelha o `where` do repositório real (`serviceListWhere.ts`): salão do
-   * contexto, `publicBookable` só na visão pública, uma cláusula por filtro
-   * (categoria, situação, busca por nome) e ordenação por
+   * contexto, `publicBookable` + `active` na visão pública, uma cláusula por
+   * filtro (categoria, situação, busca por nome) e ordenação por
    * `nome`/`preco`/`duracao`/`criado` com `id` de desempate.
    */
   async listPaginated(
@@ -61,7 +61,7 @@ export class MockServiceRepository implements IServiceRepository {
     let results = this.data.filter((s) => s.barbershopId === barbershopId);
 
     if (!options?.includeInternal) {
-      results = results.filter((s) => s.publicBookable);
+      results = results.filter((s) => s.publicBookable && s.active);
     }
 
     if (query.categoryId) {
