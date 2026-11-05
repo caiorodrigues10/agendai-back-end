@@ -2,7 +2,8 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { ZodError } from "zod";
 import { AppError } from "@/shared/errors/AppError";
-import { buildPaginationMeta, resolveBarbershopId } from "@/shared/utils/pagination";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
 import { appErrorFromZod } from "@/shared/utils/zodValidation";
 import {
   createAppointmentSchema,

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { AppError } from "@/shared/errors/AppError";
 
 /**
  * Limite absoluto de página para evitar varreduras ilimitadas no banco.
@@ -128,30 +127,3 @@ export function sortSchema(allowedFields: readonly string[]) {
 }
 
 export type SortInput = { field: string; dir: "asc" | "desc" } | undefined;
-
-/**
- * Resolve o barbershopId usado em listagens, respeitando o isolamento por salão.
- *
- * Regras de segurança:
- * - MASTER_ADMIN: aceita `barbershopId` da query (acesso cross-salão) ou cai para
- *   o barbershopId da sessão quando a query não informar.
- * - Qualquer outro papel (OWNER, EMPLOYEE, CUSTOMER): NUNCA usa o barbershopId da
- *   query; retorna sempre o barbershopId da sessão. Um barbershopId de outro
- *   salão na query é ignorado.
- *
- * Lança AppError(400) quando não há barbershopId resolvido.
- */
-export function resolveBarbershopId(
-  user: { role: string; barbershopId?: string | null },
-  queryBarbershopId?: string | null,
-): string {
-  const resolved =
-    user.role === "MASTER_ADMIN"
-      ? queryBarbershopId ?? user.barbershopId ?? null
-      : user.barbershopId ?? null;
-
-  if (!resolved) {
-    throw new AppError("barbershopId é obrigatório", 400);
-  }
-  return resolved;
-}

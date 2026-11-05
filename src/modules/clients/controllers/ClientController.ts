@@ -1,7 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
-import { buildPaginationMeta, resolveBarbershopId } from "@/shared/utils/pagination";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
 import {
   CreateSalonClientUseCase,
   DeleteSalonClientUseCase,

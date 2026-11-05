@@ -1,7 +1,8 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
-import { buildPaginationMeta, resolveBarbershopId } from "@/shared/utils/pagination";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
 import { ICommissionRepository } from "../repositories/ICommissionRepository";
 import { listCommissionsQuerySchema } from "../schemas/commissionSchemas";
 
