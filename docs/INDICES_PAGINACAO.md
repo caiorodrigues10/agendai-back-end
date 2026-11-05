@@ -105,6 +105,15 @@ contra `pg_indexes` do banco (2026-11-04):
 Não existe **nenhum** índice com `barbershopId` — a listagem da equipe do dono
 (`GET /api/users`) filtra sempre por salão (ver seção 2.5).
 
+### `services`
+
+| Índice | Colunas |
+|---|---|
+| `services_pkey` | `id` (único) |
+
+Não existe **nenhum** índice com `barbershopId` — a listagem de serviços
+(`GET /api/services`) filtra sempre por salão (ver seção 2.6).
+
 ---
 
 ## 2. Proposta — grupo A: btree para ordenação e faixas de data
@@ -132,6 +141,12 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A14 | `commission_entries` | `(barbershopId, amount)` | `sort=valor` |
 | A15 | `users` | `(barbershopId, name)` | listagem da equipe do dono: filtro por salão + `sort=nome` |
 | A16 | `users` | `(barbershopId, createdAt)` | listagem da equipe do dono: ordenação padrão (`createdAt asc`) |
+| A17 | `services` | `(barbershopId, name)` | listagem de serviços: filtro por salão + ordenação padrão (`name asc`) |
+| A18 | `services` | `(barbershopId, publicBookable, name)` | catálogo público: filtro `publicBookable` + ordenação por nome |
+| A19 | `services` | `(barbershopId, categoryId)` | filtro `categoryId` da listagem de serviços |
+| A20 | `services` | `(barbershopId, price)` | `sort=preco` |
+| A21 | `services` | `(barbershopId, avgTimeMinutes)` | `sort=duracao` |
+| A22 | `services` | `(barbershopId, createdAt)` | `sort=criado` |
 
 **Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
@@ -449,6 +464,84 @@ model User {
 }
 ```
 
+### 2.6 Análise dos índices de `services` (listagem de serviços)
+
+Modelo: `Service` → `@@map("services")` (`prisma/schema.prisma:897`). A listagem
+(`GET /api/services`) é **sempre** por salão: `barbershopId` vem do contexto
+(resolvido no controller a partir da sessão ou do `?barbershopId=` da rota
+pública) e nunca é um filtro da query.
+
+Filtros da listagem: `search` (nome do serviço, `ILIKE`), `categoryId`,
+`active` (situação) e `sort` (`nome`, `preco`, `duracao`, `criado`). A visão
+**pública** (página de agendamento, sem token) filtra também
+`publicBookable = true`; a visão **staff** (token do próprio salão) vê o
+catálogo completo, incluindo serviços internos (audiência, diligência,
+despacho).
+
+| Consulta da listagem | Índice que a cobre | Situação |
+|---|---|---|
+| `(barbershopId, name)` — filtro por salão + ordenação padrão (`name asc`) | nenhuma | **falta** (A17) |
+| `(barbershopId, publicBookable, name)` — catálogo público | nenhuma | **falta** (A18) |
+| `(barbershopId, categoryId)` — filtro por categoria | nenhuma | **falta** (A19) |
+| `(barbershopId, price)` — `sort=preco` | nenhuma | **falta** (A20, baixa prioridade) |
+| `(barbershopId, avgTimeMinutes)` — `sort=duracao` | nenhuma | **falta** (A21, baixa prioridade) |
+| `(barbershopId, createdAt)` — `sort=criado` | nenhuma | **falta** (A22, baixa prioridade) |
+| `(barbershopId, active)` — filtro de situação | nenhuma | **falta** (baixa prioridade: igualdade simples, volume baixo por salão) |
+| `name` — busca textual (`ILIKE '%termo%'`) | nenhum (GIN de `pg_trgm`) | **falta** (C6) |
+
+Por que A17–A22 faltam:
+
+- A tabela tem **um único índice** (`services_pkey`, em `id`): nenhum índice
+  ajuda o filtro por salão, que é obrigatório em toda consulta da listagem.
+  O Postgres faz varredura sequencial da tabela inteira a cada chamada.
+- O volume por salão é baixo (catálogo de serviços), então A17 e A18 — os dois
+  índices que atendem o caminho quente (listagem staff e catálogo público) —
+  bastam para o dia a dia; A19–A22 cobrem filtros e ordenações menos
+  frequentes.
+- A busca por nome com `ILIKE '%termo%'` não usa btree (o `%` à frente impede o
+  uso do índice) — precisa do GIN de `pg_trgm` (seção 3.3).
+
+**Comportamento preservado:** serviço **inativo** continua aparecendo na
+listagem quando o filtro `active` não é informado — desativar é a forma de
+"remover" um serviço, e a listagem nunca escondeu serviço desativado. Com o
+filtro `active=true`/`active=false`, a listagem passa a separar os dois
+grupos.
+
+RLS: `services` **não tem** RLS (`rowsecurity = false`) — mesma situação de
+`commission_entries` (seção 8): o isolamento hoje vem do `where` construído pela
+aplicação (`buildServiceListWhere`), não do banco.
+
+Proposta (somente proposta, nada aplicado — ver seção 4):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "services_barbershopId_name_idx"
+  ON "services" ("barbershopId", "name");                      -- A17
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "services_barbershopId_publicBookable_name_idx"
+  ON "services" ("barbershopId", "publicBookable", "name");    -- A18
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "services_barbershopId_categoryId_idx"
+  ON "services" ("barbershopId", "categoryId");                -- A19
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "services_barbershopId_price_idx"
+  ON "services" ("barbershopId", "price");                     -- A20
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "services_barbershopId_avgTimeMinutes_idx"
+  ON "services" ("barbershopId", "avgTimeMinutes");            -- A21
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "services_barbershopId_createdAt_idx"
+  ON "services" ("barbershopId", "createdAt");                 -- A22
+```
+
+E, no `schema.prisma`, para não gerar drift (ver o passo 6 da seção 4):
+
+```prisma
+model Service {
+  // ...
+  @@index([barbershopId, name])
+  @@index([barbershopId, publicBookable, name])
+  @@index([barbershopId, categoryId])
+  @@index([barbershopId, price])
+  @@index([barbershopId, avgTimeMinutes])
+  @@index([barbershopId, createdAt])
+}
+```
+
 ### Proposta — grupo B: relação (some/none)
 
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
@@ -498,6 +591,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 | C2 | `salon_clients` | GIN (`whatsapp gin_trgm_ops`) | busca por dígitos do WhatsApp (`LIKE '%dígitos%'`) |
 | C3 | `users` | GIN (`name gin_trgm_ops`) | busca por nome do membro da equipe (`ILIKE '%termo%'`) |
 | C4 | `users` | GIN (`email gin_trgm_ops`) | busca por e-mail do membro da equipe (`ILIKE '%termo%'`) |
+| C6 | `services` | GIN (`name gin_trgm_ops`) | busca por nome do serviço (`ILIKE '%termo%'`) |
 
 `whatsapp` é `VarChar(20)` e `normalizedWhatsapp` é `VarChar(11)`. O índice C2
 cobre a coluna `whatsapp` usada pela listagem de clientes. Para a coluna
@@ -512,6 +606,14 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_normalizedWhatsapp_trgm_i
 Os índices C3/C4 cobrem a busca da listagem da equipe (`GET /api/users`), que
 procura por nome **ou** e-mail com `ILIKE '%termo%'` — btree não ajuda nesse
 caso (o `%` à esquerda impede o uso do índice).
+
+O índice C6 cobre a busca por nome da listagem de serviços
+(`GET /api/services?search=`), que também usa `ILIKE '%termo%'`:
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "services_name_trgm_idx"
+  ON "services" USING gin ("name" gin_trgm_ops);
+```
 
 ### 3.4 Observação sobre `mode: "insensitive"`
 
@@ -651,12 +753,22 @@ Procedimento, na ordem:
      @@index([barbershopId, amount])                     // A14
    }
 
-   model User {
-     // ...
-     @@index([barbershopId, name])        // A15
-     @@index([barbershopId, createdAt])   // A16
-   }
-   ```
+    model User {
+      // ...
+      @@index([barbershopId, name])        // A15
+      @@index([barbershopId, createdAt])   // A16
+    }
+
+    model Service {
+      // ...
+      @@index([barbershopId, name])                      // A17
+      @@index([barbershopId, publicBookable, name])      // A18
+      @@index([barbershopId, categoryId])                // A19
+      @@index([barbershopId, price])                     // A20
+      @@index([barbershopId, avgTimeMinutes])            // A21
+      @@index([barbershopId, createdAt])                 // A22
+    }
+    ```
 
    O nome do índice que o Prisma gera precisa bater com o do passo 4
    (`<tabela>_<colunas>_idx`), para que o `migrate diff` não acuse diferença
@@ -703,6 +815,11 @@ Procedimento, na ordem:
         // ...
         @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)        // C3
         @@index([email(ops: raw("gin_trgm_ops"))], type: Gin)       // C4
+      }
+
+      model Service {
+        // ...
+        @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)        // C6
       }
       ```
 

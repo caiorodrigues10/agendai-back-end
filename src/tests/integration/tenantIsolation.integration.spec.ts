@@ -23,6 +23,10 @@ import { buildFiadoListWhere } from "@/modules/fiado/repositories/fiadoListWhere
 import { buildExpenseListWhere } from "@/modules/expenses/repositories/expenseListWhere";
 import { buildCommissionListWhere } from "@/modules/commissions/repositories/commissionListWhere";
 import { buildUserListWhere } from "@/modules/users/repositories/userListWhere";
+import {
+  buildServiceListOrderBy,
+  buildServiceListWhere,
+} from "@/modules/services/repositories/serviceListWhere";
 import { shopToday } from "@/modules/financial/ledger/shopTime";
 
 const DIA = "2026-10-05";
@@ -760,6 +764,171 @@ describe("isolamento por salão — equipe do dono (Postgres real, rollback)", (
         const baseB = await consulta(buildUserListWhere(shopB.id, {}));
         expect(baseB.map((u) => u.id)).toEqual([funcionarioB.id]);
         expect(baseB.every((u) => u.barbershopId === shopB.id)).toBe(true);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
+
+describe("isolamento por salão — serviços (Postgres real, rollback)", () => {
+  it("os filtros só devolvem dados do salão do contexto", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Serviços A ${randomUUID()}`, whatsapp: "11991110003" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Serviços B ${randomUUID()}`, whatsapp: "11991110004" },
+      });
+
+      const categoriaA = await tx.serviceCategory.create({
+        data: { barbershopId: shopA.id, name: "Cortes" },
+      });
+      const categoriaB = await tx.serviceCategory.create({
+        data: { barbershopId: shopB.id, name: "Cortes" },
+      });
+
+      const corteA = await tx.service.create({
+        data: {
+          barbershopId: shopA.id,
+          categoryId: categoriaA.id,
+          name: "Corte Isolamento A",
+          price: 40,
+          avgTimeMinutes: 30,
+          icon: "scissors",
+        },
+      });
+      const barbaA = await tx.service.create({
+        data: {
+          barbershopId: shopA.id,
+          categoryId: categoriaA.id,
+          name: "Barba Isolamento A",
+          price: 25,
+          avgTimeMinutes: 20,
+          icon: "razor",
+        },
+      });
+      // Serviço interno: só a visão staff do próprio salão enxerga.
+      const audienciaA = await tx.service.create({
+        data: {
+          barbershopId: shopA.id,
+          name: "Audiencia Isolamento A",
+          price: 60,
+          avgTimeMinutes: 45,
+          icon: "gavel",
+          publicBookable: false,
+        },
+      });
+      // Serviço desativado: continua aparecendo (comportamento atual).
+      const inativoA = await tx.service.create({
+        data: {
+          barbershopId: shopA.id,
+          categoryId: categoriaA.id,
+          name: "Inativo Isolamento A",
+          price: 35,
+          avgTimeMinutes: 25,
+          icon: "scissors",
+          active: false,
+        },
+      });
+      const corteB = await tx.service.create({
+        data: {
+          barbershopId: shopB.id,
+          categoryId: categoriaB.id,
+          name: "Corte Isolamento B",
+          price: 70,
+          avgTimeMinutes: 50,
+          icon: "scissors",
+        },
+      });
+
+      const consulta = (where: unknown, orderBy?: unknown) =>
+        tx.service.findMany({
+          where: where as never,
+          orderBy: (orderBy ?? { createdAt: "asc" }) as never,
+          select: {
+            id: true,
+            name: true,
+            barbershopId: true,
+            active: true,
+            publicBookable: true,
+          },
+        });
+
+      // ── contexto do salão A ────────────────────────────────
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Visão pública: só o que o cliente pode agendar, do salão A.
+        const publico = await consulta(buildServiceListWhere(shopA.id, {}));
+        expect(publico.map((s) => s.id)).toEqual([corteA.id, barbaA.id, inativoA.id]);
+        expect(publico.every((s) => s.barbershopId === shopA.id)).toBe(true);
+        expect(publico.map((s) => s.id)).not.toContain(audienciaA.id);
+        expect(publico.map((s) => s.id)).not.toContain(corteB.id);
+
+        // 2. Visão staff: inclui o serviço interno do próprio salão.
+        const staff = await consulta(
+          buildServiceListWhere(shopA.id, {}, { includeInternal: true }),
+        );
+        expect(staff.map((s) => s.id)).toContain(audienciaA.id);
+        expect(staff.map((s) => s.id)).not.toContain(corteB.id);
+
+        // 3. Filtro por categoria.
+        const porCategoria = await consulta(
+          buildServiceListWhere(shopA.id, { categoryId: categoriaA.id }),
+        );
+        expect(porCategoria.map((s) => s.id)).toEqual([
+          corteA.id,
+          barbaA.id,
+          inativoA.id,
+        ]);
+
+        // 4. Busca por nome de OUTRO salão: lista vazia, nunca vaza a do B.
+        const buscaAlheia = await consulta(
+          buildServiceListWhere(shopA.id, { search: "Corte Isolamento B" }),
+        );
+        expect(buscaAlheia).toEqual([]);
+
+        // 5. Busca por nome do próprio salão: acha o serviço.
+        const buscaPropria = await consulta(
+          buildServiceListWhere(shopA.id, { search: "Barba Isolamento A" }),
+        );
+        expect(buscaPropria.map((s) => s.id)).toEqual([barbaA.id]);
+
+        // 6. Situação: `active` filtra; sem o filtro, o inativo continua
+        //    aparecendo (comportamento atual da listagem).
+        const ativos = await consulta(
+          buildServiceListWhere(shopA.id, { active: true }),
+        );
+        const inativos = await consulta(
+          buildServiceListWhere(shopA.id, { active: false }),
+        );
+        expect(ativos.map((s) => s.id)).toEqual([corteA.id, barbaA.id]);
+        expect(inativos.map((s) => s.id)).toEqual([inativoA.id]);
+
+        // 7. Ordenação: a whitelist produz a coluna pedida.
+        const porPreco = await consulta(
+          buildServiceListWhere(shopA.id, {}),
+          buildServiceListOrderBy({ field: "preco", dir: "asc" }),
+        );
+        expect(porPreco.map((s) => s.name)).toEqual([
+          "Barba Isolamento A",
+          "Inativo Isolamento A",
+          "Corte Isolamento A",
+        ]);
+
+        // 8. PROVA de que a RLS não filtra nada neste ambiente: a mesma consulta
+        //    SEM o `barbershopId` no `where` enxerga o salão B.
+        const semBarbershop = await consulta({ id: corteB.id });
+        expect(semBarbershop.map((s) => s.id)).toEqual([corteB.id]);
+        expect(semBarbershop[0].barbershopId).toBe(shopB.id);
+      });
+
+      // ── contexto do salão B ────────────────────────────────
+      await requestContext.run({ barbershopId: shopB.id } as never, async () => {
+        const baseB = await consulta(buildServiceListWhere(shopB.id, {}));
+        expect(baseB.map((s) => s.id)).toEqual([corteB.id]);
+        expect(baseB.every((s) => s.barbershopId === shopB.id)).toBe(true);
       });
 
       throw new Error("ROLLBACK_ISOLATION");
