@@ -1,3 +1,4 @@
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { describe, expect, it } from "vitest";
 import type { Prisma } from "@prisma/client";
 import {
@@ -72,7 +73,7 @@ describe("modules/clients — buildSalonClientListWhere", () => {
 
   // ─── createdFrom / createdTo ───────────────────────────────
 
-  it("createdFrom isolado: limites UTC do dia", () => {
+  it("createdFrom isolado: início do dia civil no fuso do salão", () => {
     const where = buildSalonClientListWhere(
       { page: 1, limit: 20, createdFrom: "2026-01-01" },
       SHOP,
@@ -80,11 +81,11 @@ describe("modules/clients — buildSalonClientListWhere", () => {
     );
 
     expect(where.AND).toEqual([
-      { createdAt: { gte: new Date("2026-01-01T00:00:00.000Z") } },
+      { createdAt: { gte: civilDayBounds("2026-01-01").gte } },
     ]);
   });
 
-  it("createdTo isolado: limite exclusivo no início do dia seguinte", () => {
+  it("createdTo isolado: limite exclusivo no início do dia seguinte (fuso do salão)", () => {
     const where = buildSalonClientListWhere(
       { page: 1, limit: 20, createdTo: "2026-01-31" },
       SHOP,
@@ -92,8 +93,24 @@ describe("modules/clients — buildSalonClientListWhere", () => {
     );
 
     expect(where.AND).toEqual([
-      { createdAt: { lt: new Date("2026-02-01T00:00:00.000Z") } },
+      { createdAt: { lt: civilDayBounds("2026-01-31").lt } },
     ]);
+  });
+
+  it("evento às 22h locais do último dia ENTRA; 01h UTC do dia seguinte não", () => {
+    const where = buildSalonClientListWhere(
+      { page: 1, limit: 20, createdFrom: "2026-10-05", createdTo: "2026-10-05" },
+      SHOP,
+      NOW,
+    );
+    const clause = (
+      (where.AND ?? []) as Array<{ createdAt: { gte: Date; lt: Date } }>
+    )[0].createdAt;
+
+    // 2026-10-06T01:00Z = 2026-10-05 22:00 em São Paulo → dentro do dia 05
+    const evento = new Date("2026-10-06T01:00:00.000Z");
+    expect(evento.getTime()).toBeGreaterThanOrEqual(clause.gte.getTime());
+    expect(evento.getTime()).toBeLessThan(clause.lt.getTime());
   });
 
   // ─── inactiveDays ─────────────────────────────────────────
@@ -207,7 +224,7 @@ describe("modules/clients — buildSalonClientListWhere", () => {
     expect(where).toEqual({
       barbershopId: SHOP,
       AND: [
-        { createdAt: { gte: new Date("2026-01-01T00:00:00.000Z") } },
+        { createdAt: { gte: civilDayBounds("2026-01-01").gte } },
         {
           packages: {
             some: {

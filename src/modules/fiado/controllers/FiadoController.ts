@@ -20,6 +20,7 @@ import {
 import { AppError } from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/utils/pagination";
 import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
+import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 
 export class FiadoController {
   async charge(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -75,9 +76,11 @@ export class FiadoController {
       user,
       (request.query as { barbershopId?: string }).barbershopId ?? null,
     );
+    // O dia civil dos filtros de criação/vencimento é o do salão.
+    const timeZone = await getShopTimezone(barbershopId);
 
     const useCase = container.resolve(ListFiadosUseCase);
-    const result = await useCase.execute({ ...query, barbershopId }, user);
+    const result = await useCase.execute({ ...query, barbershopId, timeZone }, user);
 
     reply.send({
       success: true,

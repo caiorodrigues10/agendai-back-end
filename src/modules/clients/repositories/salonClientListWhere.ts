@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { utcDayBounds } from "@/shared/utils/dateUtils";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import type { ISalonClientListQuery } from "../dtos/ISalonClientDTO";
 import { activePackageWhere } from "./clientPackageActive";
 
@@ -58,8 +58,12 @@ export function buildSalonClientListWhere(
   if (query.createdFrom || query.createdTo) {
     and.push({
       createdAt: {
-        ...(query.createdFrom ? { gte: utcDayBounds(query.createdFrom).gte } : {}),
-        ...(query.createdTo ? { lt: utcDayBounds(query.createdTo).lt } : {}),
+        ...(query.createdFrom
+          ? { gte: civilDayBounds(query.createdFrom, query.timeZone).gte }
+          : {}),
+        ...(query.createdTo
+          ? { lt: civilDayBounds(query.createdTo, query.timeZone).lt }
+          : {}),
       },
     });
   }

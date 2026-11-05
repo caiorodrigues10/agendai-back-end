@@ -18,6 +18,7 @@ vi.mock("@/libs/prismaClient", async () => {
   };
 });
 
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { FiadoRepository } from "./FiadoRepository";
 
 describe("FiadoRepository.list", () => {
@@ -91,14 +92,14 @@ describe("FiadoRepository.list", () => {
         { clientId: "client-1" },
         {
           createdAt: {
-            gte: new Date("2026-10-05T00:00:00.000Z"),
-            lt: new Date("2026-10-08T00:00:00.000Z"),
+            gte: civilDayBounds("2026-10-05").gte,
+            lt: civilDayBounds("2026-10-07").lt,
           },
         },
         {
           dueDate: {
-            gte: new Date("2026-11-01T00:00:00.000Z"),
-            lt: new Date("2026-12-01T00:00:00.000Z"),
+            gte: civilDayBounds("2026-11-01").gte,
+            lt: civilDayBounds("2026-11-30").lt,
           },
         },
         {

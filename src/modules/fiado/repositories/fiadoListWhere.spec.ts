@@ -1,3 +1,4 @@
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { describe, expect, it } from "vitest";
 import type { Prisma } from "@prisma/client";
 import {
@@ -73,7 +74,7 @@ describe("modules/fiado — buildFiadoListWhere", () => {
     ]);
   });
 
-  it("from/to: filtram createdAt com limites UTC e o último dia inteiro", () => {
+  it("from/to: filtram createdAt com limites do dia civil do salão e o último dia inteiro", () => {
     const where = buildFiadoListWhere(SHOP, {
       ...base,
       from: "2026-10-05",
@@ -83,9 +84,9 @@ describe("modules/fiado — buildFiadoListWhere", () => {
     expect(where.AND).toEqual([
       {
         createdAt: {
-          gte: new Date("2026-10-05T00:00:00.000Z"),
+          gte: civilDayBounds("2026-10-05").gte,
           // exclusivo no início do dia seguinte: o dia 07 entra inteiro
-          lt: new Date("2026-10-08T00:00:00.000Z"),
+          lt: civilDayBounds("2026-10-07").lt,
         },
       },
     ]);
@@ -95,7 +96,7 @@ describe("modules/fiado — buildFiadoListWhere", () => {
     const where = buildFiadoListWhere(SHOP, { ...base, from: "2026-10-05" });
 
     expect(where.AND).toEqual([
-      { createdAt: { gte: new Date("2026-10-05T00:00:00.000Z") } },
+      { createdAt: { gte: civilDayBounds("2026-10-05").gte } },
     ]);
   });
 
@@ -103,8 +104,24 @@ describe("modules/fiado — buildFiadoListWhere", () => {
     const where = buildFiadoListWhere(SHOP, { ...base, to: "2026-10-05" });
 
     expect(where.AND).toEqual([
-      { createdAt: { lt: new Date("2026-10-06T00:00:00.000Z") } },
+      { createdAt: { lt: civilDayBounds("2026-10-05").lt } },
     ]);
+  });
+
+  it("evento às 22h locais do último dia ENTRA; 01h UTC do dia seguinte não", () => {
+    const where = buildFiadoListWhere(SHOP, {
+      ...base,
+      from: "2026-10-05",
+      to: "2026-10-05",
+    });
+    const clause = (
+      andClauses(where)[0] as { createdAt: { gte: Date; lt: Date } }
+    ).createdAt;
+
+    // 2026-10-06T01:00Z = 2026-10-05 22:00 em São Paulo → dentro do dia 05
+    const evento = new Date("2026-10-06T01:00:00.000Z");
+    expect(evento.getTime()).toBeGreaterThanOrEqual(clause.gte.getTime());
+    expect(evento.getTime()).toBeLessThan(clause.lt.getTime());
   });
 
   it("dueFrom/dueTo: filtram dueDate, não createdAt", () => {
@@ -117,8 +134,8 @@ describe("modules/fiado — buildFiadoListWhere", () => {
     expect(where.AND).toEqual([
       {
         dueDate: {
-          gte: new Date("2026-10-01T00:00:00.000Z"),
-          lt: new Date("2026-11-01T00:00:00.000Z"),
+          gte: civilDayBounds("2026-10-01").gte,
+          lt: civilDayBounds("2026-10-31").lt,
         },
       },
     ]);
@@ -136,14 +153,14 @@ describe("modules/fiado — buildFiadoListWhere", () => {
     expect(where.AND).toEqual([
       {
         createdAt: {
-          gte: new Date("2026-10-05T00:00:00.000Z"),
-          lt: new Date("2026-10-08T00:00:00.000Z"),
+          gte: civilDayBounds("2026-10-05").gte,
+          lt: civilDayBounds("2026-10-07").lt,
         },
       },
       {
         dueDate: {
-          gte: new Date("2026-11-01T00:00:00.000Z"),
-          lt: new Date("2026-12-01T00:00:00.000Z"),
+          gte: civilDayBounds("2026-11-01").gte,
+          lt: civilDayBounds("2026-11-30").lt,
         },
       },
     ]);

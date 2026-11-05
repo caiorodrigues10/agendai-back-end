@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/utils/pagination";
 import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
+import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 import {
   CreateSalonClientUseCase,
   DeleteSalonClientUseCase,
@@ -50,9 +51,11 @@ export class ClientController {
       request.user!,
       (request.query as { barbershopId?: string }).barbershopId ?? null,
     );
+    // O dia civil do filtro de criação é o do salão (`Barbershop.timezone`).
+    const timeZone = await getShopTimezone(barbershopId);
 
     const useCase = container.resolve(ListSalonClientsUseCase);
-    const result = await useCase.execute({ ...query, barbershopId }, user);
+    const result = await useCase.execute({ ...query, barbershopId, timeZone }, user);
 
     reply.send({
       success: true,

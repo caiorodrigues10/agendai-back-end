@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { utcDayBounds } from "@/shared/utils/dateUtils";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import type { SortInput } from "@/shared/utils/pagination";
 import type { IFiadoListQuery } from "../dtos/IFiadoDTO";
 
@@ -17,9 +17,10 @@ export const OPEN_FIADO_STATUSES = ["PENDING", "PARTIAL"] as const;
  *   `from/to` (em `createdAt`) e `dueFrom/dueTo` (em `dueDate`) possam ser
  *   combinados sem conflito.
  * - `from`/`to` filtram `createdAt`; `dueFrom`/`dueTo` filtram `dueDate`.
- *   Os dois pares usam dias civis com limites UTC: o início é inclusivo
- *   (meia-noite UTC do dia) e o fim é **exclusivo** (meia-noite UTC do dia
- *   seguinte), de modo que o último dia do intervalo entra inteiro.
+ *   Os dois pares usam dias civis com limites do **fuso do salão**
+ *   (`civilDayBounds`): o início é inclusivo (meia-noite local do dia) e o
+ *   fim é **exclusivo** (meia-noite local do dia seguinte), de modo que o
+ *   último dia do intervalo entra inteiro.
  * - `overdue=true` exige **sempre** status em `PENDING`/`PARTIAL` e
  *   `dueDate` anterior ao momento da consulta, mesmo que `status` venha no
  *   query — as duas cláusulas ficam em `AND`, então o resultado é a interseção
@@ -44,8 +45,8 @@ export function buildFiadoListWhere(
   if (query.from || query.to) {
     and.push({
       createdAt: {
-        ...(query.from ? { gte: utcDayBounds(query.from).gte } : {}),
-        ...(query.to ? { lt: utcDayBounds(query.to).lt } : {}),
+        ...(query.from ? { gte: civilDayBounds(query.from, query.timeZone).gte } : {}),
+        ...(query.to ? { lt: civilDayBounds(query.to, query.timeZone).lt } : {}),
       },
     });
   }
@@ -53,8 +54,12 @@ export function buildFiadoListWhere(
   if (query.dueFrom || query.dueTo) {
     and.push({
       dueDate: {
-        ...(query.dueFrom ? { gte: utcDayBounds(query.dueFrom).gte } : {}),
-        ...(query.dueTo ? { lt: utcDayBounds(query.dueTo).lt } : {}),
+        ...(query.dueFrom
+          ? { gte: civilDayBounds(query.dueFrom, query.timeZone).gte }
+          : {}),
+        ...(query.dueTo
+          ? { lt: civilDayBounds(query.dueTo, query.timeZone).lt }
+          : {}),
       },
     });
   }

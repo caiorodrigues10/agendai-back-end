@@ -2,11 +2,12 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { prisma } from "@/libs/prismaClient";
+import { DEFAULT_SHOP_TIMEZONE } from "@/shared/utils/dateUtils";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-export const DEFAULT_SHOP_TIMEZONE = "America/Sao_Paulo";
+export { DEFAULT_SHOP_TIMEZONE };
 
 /** Fuso do salão; `Barbershop.timezone` sempre existe no schema, com este default. */
 export async function getShopTimezone(barbershopId: string): Promise<string> {

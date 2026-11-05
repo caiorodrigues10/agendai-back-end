@@ -1,5 +1,5 @@
 import { IExpenseRepository } from "@/modules/expenses/repositories/IExpenseRepository";
-import { utcDayBounds } from "@/shared/utils/dateUtils";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import {
   ICreateExpenseDTO,
   IUpdateExpenseDTO,
@@ -97,8 +97,8 @@ export class MockExpenseRepository implements IExpenseRepository {
     }
 
     if (query.from || query.to) {
-      const gte = query.from ? utcDayBounds(query.from).gte : null;
-      const lt = query.to ? utcDayBounds(query.to).lt : null;
+      const gte = query.from ? civilDayBounds(query.from, query.timeZone).gte : null;
+      const lt = query.to ? civilDayBounds(query.to, query.timeZone).lt : null;
       results = results.filter(
         (e) =>
           (!gte || e.referenceDate >= gte) && (!lt || e.referenceDate < lt)

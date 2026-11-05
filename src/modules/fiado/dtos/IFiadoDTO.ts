@@ -99,6 +99,8 @@ export interface IFiadoListQuery {
   dueFrom?: string;          // YYYY-MM-DD — vencimento mínimo (`dueDate`)
   dueTo?: string;            // YYYY-MM-DD — vencimento máximo (`dueDate`)
   sort?: SortInput;           // ordenação por createdAt | dueDate | amount
+  /** Fuso do salão — o dia civil de `createdAt`/`dueDate` é o do salão. */
+  timeZone?: string;
 }
 
 // ─── Resumo financeiro ────────────────────────────────────────────────────────

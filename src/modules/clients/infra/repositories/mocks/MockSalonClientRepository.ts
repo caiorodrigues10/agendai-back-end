@@ -12,7 +12,7 @@ import {
   salonClientDisplayName,
   salonClientPublicWhatsapp,
 } from "@/modules/clients/utils/ensureSalonClient";
-import { utcDayBounds } from "@/shared/utils/dateUtils";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { inactiveThreshold } from "@/modules/clients/repositories/salonClientListWhere";
 import { isPackageActive } from "@/modules/clients/repositories/clientPackageActive";
 
@@ -118,11 +118,11 @@ export class MockSalonClientRepository implements ISalonClientRepository {
       );
     }
     if (query.createdFrom) {
-      const from = utcDayBounds(query.createdFrom).gte;
+      const from = civilDayBounds(query.createdFrom, query.timeZone).gte;
       results = results.filter((c) => c.createdAt >= from);
     }
     if (query.createdTo) {
-      const to = utcDayBounds(query.createdTo).lt;
+      const to = civilDayBounds(query.createdTo, query.timeZone).lt;
       results = results.filter((c) => c.createdAt < to);
     }
     if (query.inactiveDays !== undefined) {

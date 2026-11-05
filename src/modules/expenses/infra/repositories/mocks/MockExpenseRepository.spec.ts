@@ -94,15 +94,15 @@ describe("modules/expenses — MockExpenseRepository.list", () => {
     repo.expenses = [
       despesa({
         id: "inicio",
-        referenceDate: new Date("2026-10-05T00:00:00.000Z"),
+        referenceDate: new Date("2026-10-05T12:00:00.000Z"),
       }),
       despesa({
         id: "ultimo-dia",
-        referenceDate: new Date("2026-10-07T23:59:59.999Z"),
+        referenceDate: new Date("2026-10-08T02:00:00.000Z"),
       }),
       despesa({
         id: "fora",
-        referenceDate: new Date("2026-10-08T00:00:00.000Z"),
+        referenceDate: new Date("2026-10-08T12:00:00.000Z"),
       }),
     ];
 
@@ -176,7 +176,7 @@ describe("modules/expenses — MockExpenseRepository.list", () => {
       }),
       despesa({
         id: "recente",
-        referenceDate: new Date("2026-10-05T00:00:00.000Z"),
+        referenceDate: new Date("2026-10-05T12:00:00.000Z"),
       }),
     ];
 

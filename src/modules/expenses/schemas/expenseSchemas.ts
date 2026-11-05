@@ -114,10 +114,11 @@ const expensePaymentListSchema = z
  * Query da listagem de despesas.
  *
  * - `from`/`to` filtram **`referenceDate`** (data de competência) em dias civis
- *   (`YYYY-MM-DD`) com limites **UTC**: `from` inclusivo a partir da meia-noite
- *   UTC do dia e `to` **exclusivo** na meia-noite UTC do dia seguinte — assim o
- *   último dia do intervalo entra inteiro. Como `referenceDate` é um
- *   `DateTime` (timestamp, não `@db.Date`), o agrupamento por dia é o **UTC**.
+ *   (`YYYY-MM-DD`) com limites do **dia civil do salão** (`civilDayBounds`
+ *   com o fuso do salão): `from` inclusivo a partir da meia-noite local do dia
+ *   e `to` **exclusivo** na meia-noite local do dia seguinte — assim o último
+ *   dia do intervalo entra inteiro. Como `referenceDate` é um `DateTime`
+ *   (timestamp, não `@db.Date`), o dia é o do salão, não o UTC.
  * - `payment` deriva o status de pagamento de `paidAt`/`dueDate` (ver
  *   `EXPENSE_PAYMENT_VALUES`). `paid` e `pending`/`overdue` são mutuamente
  *   excludentes: a combinação é **400** (contraditória). `pending` +

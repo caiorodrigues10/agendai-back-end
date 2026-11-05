@@ -1,3 +1,4 @@
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { describe, expect, it } from "vitest";
 import type { Prisma } from "@prisma/client";
 import {
@@ -154,7 +155,7 @@ describe("modules/expenses — buildExpenseListWhere", () => {
     expect(where.AND).toEqual([{ paidAt: null }]);
   });
 
-  it("from/to: filtram referenceDate com limites UTC e o último dia inteiro", () => {
+  it("from/to: filtram referenceDate com limites do dia civil do salão e o último dia inteiro", () => {
     const where = buildExpenseListWhere(SHOP, {
       ...base,
       from: "2026-10-05",
@@ -164,9 +165,9 @@ describe("modules/expenses — buildExpenseListWhere", () => {
     expect(where.AND).toEqual([
       {
         referenceDate: {
-          gte: new Date("2026-10-05T00:00:00.000Z"),
+          gte: civilDayBounds("2026-10-05").gte,
           // exclusivo no início do dia seguinte: o dia 07 entra inteiro
-          lt: new Date("2026-10-08T00:00:00.000Z"),
+          lt: civilDayBounds("2026-10-07").lt,
         },
       },
     ]);
@@ -176,7 +177,7 @@ describe("modules/expenses — buildExpenseListWhere", () => {
     const where = buildExpenseListWhere(SHOP, { ...base, from: "2026-10-05" });
 
     expect(where.AND).toEqual([
-      { referenceDate: { gte: new Date("2026-10-05T00:00:00.000Z") } },
+      { referenceDate: { gte: civilDayBounds("2026-10-05").gte } },
     ]);
   });
 
@@ -184,7 +185,7 @@ describe("modules/expenses — buildExpenseListWhere", () => {
     const where = buildExpenseListWhere(SHOP, { ...base, to: "2026-10-05" });
 
     expect(where.AND).toEqual([
-      { referenceDate: { lt: new Date("2026-10-06T00:00:00.000Z") } },
+      { referenceDate: { lt: civilDayBounds("2026-10-05").lt } },
     ]);
   });
 
@@ -201,6 +202,29 @@ describe("modules/expenses — buildExpenseListWhere", () => {
         ],
       },
     ]);
+  });
+
+  it("evento às 22h locais do último dia ENTRA; 01h UTC do dia seguinte não", () => {
+    const where = buildExpenseListWhere(SHOP, {
+      ...base,
+      from: "2026-10-05",
+      to: "2026-10-05",
+    });
+    const clause = (
+      andClauses(where)[0] as { referenceDate: { gte: Date; lt: Date } }
+    ).referenceDate;
+
+    // 2026-10-06T01:00Z = 2026-10-05 22:00 em São Paulo → dentro do dia 05
+    const evento = new Date("2026-10-06T01:00:00.000Z");
+    expect(evento.getTime()).toBeGreaterThanOrEqual(clause.gte.getTime());
+    expect(evento.getTime()).toBeLessThan(clause.lt.getTime());
+
+    // o dia 06 começa depois do evento (o evento é do dia 05)
+    const dia06 = buildExpenseListWhere(SHOP, { ...base, from: "2026-10-06" });
+    const limite06 = (
+      andClauses(dia06)[0] as { referenceDate: { gte: Date } }
+    ).referenceDate;
+    expect(evento.getTime()).toBeLessThan(limite06.gte.getTime());
   });
 
   it("search + payment: duas cláusulas em AND", () => {

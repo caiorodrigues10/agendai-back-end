@@ -179,6 +179,8 @@ export const financialCommands: OwnerBotCommand[] = [
           from: shopDateKey(period.from, ctx.timezone),
           to: shopDateKey(period.to, ctx.timezone),
           limit: 8,
+          // O dia civil do filtro é o do salão (fuso do bot).
+          timeZone: ctx.timezone,
         }),
         ctx.actions.expenseSummary(ctx.actor.barbershopId, period.from, period.to),
       ]);

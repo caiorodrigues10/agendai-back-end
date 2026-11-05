@@ -32,6 +32,8 @@ export interface ISalonClientListQuery {
   hasActivePackage?: boolean;
   /** Ordenação por whitelist (name | lastVisitAt | createdAt). */
   sort?: SortInput;
+  /** Fuso do salão — o dia civil de `createdAt` é o do salão. */
+  timeZone?: string;
 }
 
 export interface ISalonClientAppointmentDTO {

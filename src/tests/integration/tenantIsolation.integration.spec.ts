@@ -21,6 +21,7 @@ import { requestContext } from "@/shared/infra/http/requestContext";
 import { buildAppointmentListWhere } from "@/modules/appointments/repositories/appointmentListWhere";
 import { buildFiadoListWhere } from "@/modules/fiado/repositories/fiadoListWhere";
 import { buildExpenseListWhere } from "@/modules/expenses/repositories/expenseListWhere";
+import { shopToday } from "@/modules/financial/ledger/shopTime";
 
 const DIA = "2026-10-05";
 
@@ -182,7 +183,8 @@ describe("isolamento por salão — fiados (Postgres real, rollback)", () => {
       });
 
       const hoje = new Date();
-      const diaDeHoje = hoje.toISOString().slice(0, 10);
+      // O dia civil do filtro é o do salão (America/Sao_Paulo).
+      const diaDeHoje = shopToday("America/Sao_Paulo");
       const vencido = new Date(hoje.getTime() - 5 * 24 * 60 * 60 * 1000);
 
       // A: PENDING e vencido (entra no filtro `overdue`)
@@ -335,7 +337,8 @@ describe("isolamento por salão — despesas (Postgres real, rollback)", () => {
       });
 
       const hoje = new Date();
-      const diaDeHoje = hoje.toISOString().slice(0, 10);
+      // O dia civil do filtro é o do salão (America/Sao_Paulo).
+      const diaDeHoje = shopToday("America/Sao_Paulo");
       const vencido = new Date(hoje.getTime() - 5 * 24 * 60 * 60 * 1000);
 
       // A: pendente e vencida (entra no filtro `overdue`)

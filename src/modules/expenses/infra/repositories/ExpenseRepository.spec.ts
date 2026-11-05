@@ -26,6 +26,7 @@ vi.mock("@/libs/prismaClient", async () => {
   };
 });
 
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { ExpenseRepository } from "./ExpenseRepository";
 
 type RawCall = { strings: string[]; values: unknown[] };
@@ -70,8 +71,8 @@ describe("ExpenseRepository.list", () => {
     const countWhere = (count.mock.calls[0][0] as { where: Record<string, unknown> }).where;
 
     const window = {
-      gte: new Date("2026-09-01T00:00:00.000Z"),
-      lt: new Date("2026-10-01T00:00:00.000Z"),
+      gte: civilDayBounds("2026-09-01").gte,
+      lt: civilDayBounds("2026-09-30").lt,
     };
     expect(listWhere).toEqual({
       barbershopId: "shop-1",

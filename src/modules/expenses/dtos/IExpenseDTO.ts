@@ -77,6 +77,8 @@ export interface IExpenseListQuery {
   paid?: boolean;                // legado: true = só pagas | false = só pendentes | undefined = todas
   search?: string;               // Busca por texto no título, fornecedor ou observações
   sort?: SortInput;              // Ordenação por referenceDate | amount | dueDate | createdAt
+  /** Fuso do salão — o dia civil de `referenceDate` é o do salão. */
+  timeZone?: string;
 }
 
 export interface IExpenseSummary {

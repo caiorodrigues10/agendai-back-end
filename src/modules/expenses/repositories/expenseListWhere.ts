@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { utcDayBounds } from "@/shared/utils/dateUtils";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import type { SortInput } from "@/shared/utils/pagination";
 import type { IExpenseListQuery } from "../dtos/IExpenseDTO";
 
@@ -11,9 +11,10 @@ import type { IExpenseListQuery } from "../dtos/IExpenseDTO";
  *   filtro da query — nenhum parâmetro aceito aqui consegue trocar o salão.
  * - Cada filtro vira uma cláusula própria dentro de `AND`, para que o filtro
  *   de busca (que usa `OR` interno) não seja sobrescrito por outro.
- * - `from`/`to` filtram `referenceDate` com limites **UTC**: o início é
- *   inclusivo (meia-noite UTC do dia) e o fim é **exclusivo** (meia-noite UTC
- *   do dia seguinte), de modo que o último dia do intervalo entra inteiro.
+ * - `from`/`to` filtram `referenceDate` com limites do **dia civil do salão**
+ *   (`civilDayBounds` com o fuso do salão): o início é inclusivo (meia-noite
+ *   local do dia) e o fim é **exclusivo** (meia-noite local do dia seguinte),
+ *   de modo que o último dia do intervalo entra inteiro.
  * - O status de pagamento é **derivado** de `paidAt`/`dueDate`:
  *   `paid` → `paidAt IS NOT NULL`; `pending` → `paidAt IS NULL`;
  *   `overdue` → `paidAt IS NULL AND dueDate < agora` (estrito). O `overdue`
@@ -65,8 +66,8 @@ export function buildExpenseListWhere(
   if (query.from || query.to) {
     and.push({
       referenceDate: {
-        ...(query.from ? { gte: utcDayBounds(query.from).gte } : {}),
-        ...(query.to ? { lt: utcDayBounds(query.to).lt } : {}),
+        ...(query.from ? { gte: civilDayBounds(query.from, query.timeZone).gte } : {}),
+        ...(query.to ? { lt: civilDayBounds(query.to, query.timeZone).lt } : {}),
       },
     });
   }

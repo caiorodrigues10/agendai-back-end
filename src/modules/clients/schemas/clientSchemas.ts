@@ -43,7 +43,7 @@ export const listClientsQuerySchema = basePaginationQuerySchema({
     // max generoso: busca longa não pode derrubar a listagem inteira com 400
     // busca vazia (ou só espaços) vira undefined = "sem filtro"
     search: searchTermSchema({ max: 300 }),
-    /** Intervalo civil de criação (YYYY-MM-DD), convertido para limites UTC do dia. */
+    /** Intervalo civil de criação (YYYY-MM-DD), convertido para os limites do dia civil do salão. */
     createdFrom: dateOnlySchema.optional(),
     createdTo: dateOnlySchema.optional(),
     /** Sem visita há N dias: `lastVisitAt` antigo ou, se nunca visitou, `createdAt` antigo. */

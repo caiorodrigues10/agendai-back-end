@@ -361,6 +361,7 @@ export interface OwnerBotActions {
       search?: string;
       paid?: boolean;
       limit?: number;
+      timeZone?: string;
     }
   ): Promise<IExpenseResponseDTO[]>;
   expenseSummary(
@@ -986,6 +987,7 @@ export function createOwnerBotActions(): OwnerBotActions {
           to: query.to,
           search: query.search,
           paid: query.paid,
+          timeZone: query.timeZone,
         },
         { role: "OWNER", barbershopId }
       );

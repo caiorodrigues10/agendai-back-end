@@ -1,5 +1,5 @@
 import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
-import { utcDayBounds } from "@/shared/utils/dateUtils";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import {
   ICreateFiadoDTO,
   ICreateFiadoPaymentDTO,
@@ -63,8 +63,8 @@ export class MockFiadoRepository implements IFiadoRepository {
     }
 
     if (query.from || query.to) {
-      const gte = query.from ? utcDayBounds(query.from).gte : null;
-      const lt = query.to ? utcDayBounds(query.to).lt : null;
+      const gte = query.from ? civilDayBounds(query.from, query.timeZone).gte : null;
+      const lt = query.to ? civilDayBounds(query.to, query.timeZone).lt : null;
       results = results.filter(
         (f) =>
           (!gte || f.createdAt >= gte) && (!lt || f.createdAt < lt)
@@ -72,8 +72,8 @@ export class MockFiadoRepository implements IFiadoRepository {
     }
 
     if (query.dueFrom || query.dueTo) {
-      const gte = query.dueFrom ? utcDayBounds(query.dueFrom).gte : null;
-      const lt = query.dueTo ? utcDayBounds(query.dueTo).lt : null;
+      const gte = query.dueFrom ? civilDayBounds(query.dueFrom, query.timeZone).gte : null;
+      const lt = query.dueTo ? civilDayBounds(query.dueTo, query.timeZone).lt : null;
       results = results.filter(
         (f) =>
           f.dueDate !== null &&

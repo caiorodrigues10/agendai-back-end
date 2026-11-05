@@ -17,6 +17,7 @@ import {
 import { AppError } from "@/shared/errors/AppError";
 import { buildPaginationMeta } from "@/shared/utils/pagination";
 import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
+import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 
 export class ExpenseController {
   async create(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -49,9 +50,11 @@ export class ExpenseController {
       user,
       (request.query as { barbershopId?: string }).barbershopId ?? null,
     );
+    // O dia civil do filtro de `referenceDate` é o do salão.
+    const timeZone = await getShopTimezone(barbershopId);
 
     const useCase = container.resolve(ListExpensesUseCase);
-    const result = await useCase.execute({ ...query, barbershopId }, user);
+    const result = await useCase.execute({ ...query, barbershopId, timeZone }, user);
 
     reply.send({
       success: true,

@@ -113,8 +113,9 @@ const fiadoStatusListSchema = z
  *
  * - `from`/`to` filtram **`createdAt`** (data de criação) e `dueFrom`/`dueTo`
  *   filtram **`dueDate`** (vencimento). Ambos são dias civis (`YYYY-MM-DD`) com
- *   limites UTC: `from`/`dueFrom` inclusivos a partir da meia-noite UTC do dia
- *   e `to`/`dueTo` **exclusivos** na meia-noite UTC do dia seguinte — assim o
+ *   limites do **dia civil do salão** (`civilDayBounds` com o fuso do salão):
+ *   `from`/`dueFrom` inclusivos a partir da meia-noite local do dia e
+ *   `to`/`dueTo` **exclusivos** na meia-noite local do dia seguinte — assim o
  *   último dia do intervalo entra inteiro (o `lte` na meia-noite do próprio dia
  *   excluía tudo o que aconteceu depois dela).
  * - `overdue=true` significa "dívida em aberto e vencida": sempre exige status
