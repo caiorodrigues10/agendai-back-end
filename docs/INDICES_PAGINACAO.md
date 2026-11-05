@@ -141,12 +141,12 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A14 | `commission_entries` | `(barbershopId, amount)` | `sort=valor` |
 | A15 | `users` | `(barbershopId, name)` | listagem da equipe do dono: filtro por salão + `sort=nome` |
 | A16 | `users` | `(barbershopId, createdAt)` | listagem da equipe do dono: ordenação padrão (`createdAt asc`) |
-| A17 | `services` | `(barbershopId, name)` | listagem de serviços: filtro por salão + ordenação padrão (`name asc`) |
-| A18 | `services` | `(barbershopId, publicBookable, name)` | catálogo público: filtro `publicBookable` + ordenação por nome |
-| A19 | `services` | `(barbershopId, categoryId)` | filtro `categoryId` da listagem de serviços |
-| A20 | `services` | `(barbershopId, price)` | `sort=preco` |
-| A21 | `services` | `(barbershopId, avgTimeMinutes)` | `sort=duracao` |
-| A22 | `services` | `(barbershopId, createdAt)` | `sort=criado` |
+| A17 | `services` | `(barbershopId, name)` | listagem de serviços: filtro por salão + ordenação padrão (`name asc`) — **opcional** |
+| A18 | `services` | `(barbershopId, publicBookable, name)` | catálogo público: filtro `publicBookable` + ordenação por nome — **recomendado** |
+| A19 | `services` | `(barbershopId, categoryId)` | filtro `categoryId` da listagem de serviços — **opcional** |
+| A20 | `services` | `(barbershopId, price)` | `sort=preco` — **opcional** |
+| A21 | `services` | `(barbershopId, avgTimeMinutes)` | `sort=duracao` — **opcional** |
+| A22 | `services` | `(barbershopId, createdAt)` | `sort=criado` — **opcional** |
 
 **Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
@@ -431,6 +431,11 @@ removido (`deletedAt` preenchido) **nunca** aparece.
 | `(barbershopId, active)` — filtro de situação | nenhuma | **falta** (baixa prioridade) |
 | `name`/`email` — busca textual (`ILIKE '%termo%'`) | nenhum (GIN de `pg_trgm`) | **falta** (C3/C4) |
 
+**Volume observado (consulta somente leitura, 2026-11-05, agregada — sem
+nomes):** maior quantidade de usuários ativos (`deletedAt` nulo) em um salão =
+**1**. Está bem abaixo do limiar de 70 que dispara reavaliação — o mesmo
+limiar aplicado a serviços (seção 2.6, máximo de 5 por salão).
+
 Por que A15–A16 faltam:
 
 - A tabela **não tem nenhum índice com `barbershopId`**: os índices que existem
@@ -480,24 +485,33 @@ despacho).
 
 | Consulta da listagem | Índice que a cobre | Situação |
 |---|---|---|
-| `(barbershopId, name)` — filtro por salão + ordenação padrão (`name asc`) | nenhuma | **falta** (A17) |
-| `(barbershopId, publicBookable, name)` — catálogo público | nenhuma | **falta** (A18) |
-| `(barbershopId, categoryId)` — filtro por categoria | nenhuma | **falta** (A19) |
-| `(barbershopId, price)` — `sort=preco` | nenhuma | **falta** (A20, baixa prioridade) |
-| `(barbershopId, avgTimeMinutes)` — `sort=duracao` | nenhuma | **falta** (A21, baixa prioridade) |
-| `(barbershopId, createdAt)` — `sort=criado` | nenhuma | **falta** (A22, baixa prioridade) |
-| `(barbershopId, active)` — filtro de situação | nenhuma | **falta** (baixa prioridade: igualdade simples, volume baixo por salão) |
-| `name` — busca textual (`ILIKE '%termo%'`) | nenhum (GIN de `pg_trgm`) | **falta** (C6) |
+| `(barbershopId, publicBookable, name)` — catálogo público | nenhuma | **falta** (A18 — **recomendado**) |
+| `name` — busca textual (`ILIKE '%termo%'`) | nenhum (GIN de `pg_trgm`) | **falta** (C6 — **recomendado**) |
+| `(barbershopId, name)` — filtro por salão + ordenação padrão (`name asc`) | nenhuma | **falta** (A17 — opcional) |
+| `(barbershopId, categoryId)` — filtro por categoria | nenhuma | **falta** (A19 — opcional) |
+| `(barbershopId, price)` — `sort=preco` | nenhuma | **falta** (A20 — opcional) |
+| `(barbershopId, avgTimeMinutes)` — `sort=duracao` | nenhuma | **falta** (A21 — opcional) |
+| `(barbershopId, createdAt)` — `sort=criado` | nenhuma | **falta** (A22 — opcional) |
+| `(barbershopId, active)` — filtro de situação | nenhuma | **falta** (opcional: igualdade simples, volume baixo por salão) |
+
+**Recomendados: só A18 e C6.** A18 cobre o caminho quente (catálogo público,
+que é a rota mais consultada: a página de agendamento) e o C6 cobre a busca por
+nome. Os demais (A17, A19–A22) ficam **opcionais** — são otimizações para
+filtros e ordenações menos frequentes, com o volume atual por salão logo abaixo.
+
+**Volume observado (consulta somente leitura, 2026-11-05, agregada — sem
+nomes):** maior quantidade de serviços em um salão = **5**; maior quantidade de
+usuários ativos (`deletedAt` nulo) em um salão = **1**. Os dois estão bem
+abaixo do limiar de 70 que dispara reavaliação — por isso a lista de índices
+recomendados é curta.
 
 Por que A17–A22 faltam:
 
 - A tabela tem **um único índice** (`services_pkey`, em `id`): nenhum índice
   ajuda o filtro por salão, que é obrigatório em toda consulta da listagem.
   O Postgres faz varredura sequencial da tabela inteira a cada chamada.
-- O volume por salão é baixo (catálogo de serviços), então A17 e A18 — os dois
-  índices que atendem o caminho quente (listagem staff e catálogo público) —
-  bastam para o dia a dia; A19–A22 cobrem filtros e ordenações menos
-  frequentes.
+- O volume por salão é baixo (máximo de 5 serviços), então A18 + C6 bastam
+  para o dia a dia; A17 e A19–A22 são opcionais.
 - A busca por nome com `ILIKE '%termo%'` não usa btree (o `%` à frente impede o
   uso do índice) — precisa do GIN de `pg_trgm` (seção 3.3).
 
@@ -506,6 +520,15 @@ listagem quando o filtro `active` não é informado — desativar é a forma de
 "remover" um serviço, e a listagem nunca escondeu serviço desativado. Com o
 filtro `active=true`/`active=false`, a listagem passa a separar os dois
 grupos.
+
+Isso **não** abre brecha de reserva: criar agendamento (público **ou** staff)
+rejeita serviço desativado — `assertAppointmentBookable` procura o serviço com
+`active: true` e devolve 400 ("Serviço inválido para este estabelecimento") em
+`src/modules/appointments/utils/assertAppointmentBookable.ts:61-71`; o
+`JoinQueueUseCase` faz a mesma checagem
+(`src/modules/queue/useCases/joinQueue/JoinQueueUseCase.ts:48-56`). Listar o
+serviço inativo e recusar a reserva são comportamentos complementares:
+desativar bloqueia a reserva sem apagar o histórico do serviço.
 
 RLS: `services` **não tem** RLS (`rowsecurity = false`) — mesma situação de
 `commission_entries` (seção 8): o isolamento hoje vem do `where` construído pela
@@ -591,7 +614,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 | C2 | `salon_clients` | GIN (`whatsapp gin_trgm_ops`) | busca por dígitos do WhatsApp (`LIKE '%dígitos%'`) |
 | C3 | `users` | GIN (`name gin_trgm_ops`) | busca por nome do membro da equipe (`ILIKE '%termo%'`) |
 | C4 | `users` | GIN (`email gin_trgm_ops`) | busca por e-mail do membro da equipe (`ILIKE '%termo%'`) |
-| C6 | `services` | GIN (`name gin_trgm_ops`) | busca por nome do serviço (`ILIKE '%termo%'`) |
+| C6 | `services` | GIN (`name gin_trgm_ops`) | busca por nome do serviço (`ILIKE '%termo%'`) — **recomendado** |
 
 `whatsapp` é `VarChar(20)` e `normalizedWhatsapp` é `VarChar(11)`. O índice C2
 cobre a coluna `whatsapp` usada pela listagem de clientes. Para a coluna

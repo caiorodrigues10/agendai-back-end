@@ -437,6 +437,26 @@ importação.
 
 ---
 
+## 8.1 Ciclo de vida do arquivo temporário do lote
+
+Quem apaga o CSV (e o sidecar `.ocr.json`) do lote:
+
+| momento | quem apaga | onde |
+|---|---|---|
+| Lote **concluído** com sucesso | `apagarArquivosLote(batch.filePath)`, logo após o processamento | `src/modules/dataImport/importProcessor.ts:243` |
+| Lote **cancelado** pelo dono | `apagarArquivosLote(batch.filePath)` | `src/modules/dataImport/dataImportUseCases.ts:617` |
+| Lote **expirado** (passou da janela de desfazer de 30 dias) | cron `data-import-cleanup` (`30 4 * * *`, `America/Sao_Paulo`), que marca o lote como `EXPIRED` e apaga os arquivos | `src/shared/infra/cron/dataImportCleanup.cron.ts:23` |
+| Lote **concluído** que ficou com arquivo em disco (rede de segurança) | cron `data-import-cleanup` → `findCompletedForFileCleanup` | `src/shared/infra/cron/dataImportCleanup.cron.ts:32` |
+| Arquivo **órfão** (o processo caiu no meio) | `cleanupOldTempFiles(7)` — apaga o que estiver no diretório temporário com mais de 7 dias | `src/modules/dataImport/utils/tempFiles.ts:43` |
+
+O TTL do arquivo temporário é `IMPORT_FILE_RETENTION_DAYS = 7`
+(`src/modules/dataImport/dataImport.constants.ts:57`), aplicado pelo cron de
+limpeza; a janela de desfazer do lote é `IMPORT_UNDO_WINDOW_DAYS = 30`. O
+arquivo **precisa** sobreviver ao processamento: é ele que permite desfazer a
+importação depois.
+
+---
+
 ## 9. Modelos (.xlsx)
 
 `GET .../imports/template?target=<TIPO>` devolve um modelo por tipo (10 modelos),
