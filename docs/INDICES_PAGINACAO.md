@@ -86,6 +86,21 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A5 | `fiados` | `(barbershopId, dueDate)` | ordenação por vencimento e filtro de atraso (`dueDate < hoje`) |
 | A6 | `appointments` | `(barbershopId, date, time)` | listagem por data sem filtro de profissional (o índice atual só cobre `(barbershopId, staffId, date, status)`) |
 
+**Sobre o A6 — nomes reais das colunas de data/hora** ( conferidos em
+`prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
+
+```prisma
+date   DateTime  @db.Date
+time   String    @db.VarChar(5)
+```
+
+`date` é um `DateTime` truncado em data (`@db.Date`) e `time` é uma **string**
+`"HH:MM"` (`VarChar(5)`), não um timestamp. O índice composto
+`(barbershopId, date, time)` ordena `date` como data e `time` lexicograficamente
+— que é exatamente a ordem já usada pelo repositório
+(`orderBy: [{ date: "asc" }, { time: "asc" }, { id: "asc" }]`). Nenhum
+`time` numérico existe na tabela.
+
 ### Proposta — grupo B: relação (some/none)
 
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
@@ -195,21 +210,114 @@ Procedimento, na ordem:
    `prisma/migrations/`. Para o `migrate status` continuar coerente, criar a
    pasta da migration com o SQL e marcá-la como aplicada — procedimento de
    `docs/RUNBOOK_MIGRATIONS.md` ("Uso excepcional de `migrate resolve`"):
+
    ```bash
    mkdir -p prisma/migrations/<timestamp>_indices_paginacao
-   # migration.sql com os mesmos CREATE INDEX (para o histórico ficar completo)
+   # migration.sql: MESMOS índices, porém com CREATE INDEX IF NOT EXISTS
+   # SEM "CONCURRENTLY" — ver a nota abaixo. NUNCA usar CONCURRENTLY aqui.
    npx prisma migrate resolve --applied <timestamp>_indices_paginacao
    ```
-   O prefixo `<timestamp>` **deve** ser maior que o maior prefixo já existente
-   em `prisma/migrations/` (regra do `backend/AGENTS.md`).
-6. **Validar** conforme `docs/RUNBOOK_MIGRATIONS.md` (seção "4. Pós-validação"):
+
+   > **O `migration.sql` do histórico NÃO pode usar `CREATE INDEX
+   > CONCURRENTLY`.** O `prisma migrate deploy` executa a migration dentro de
+   > uma transação e o `CONCURRENTLY` falha ali com
+   > `CREATE INDEX CONCURRENTLY cannot run inside a transaction block` — o que
+   > quebraria banco novo e CI. No arquivo de histórico use
+   > `CREATE INDEX IF NOT EXISTS` **sem** `CONCURRENTLY`; o `CONCURRENTLY` fica
+   > apenas no passo 4 (aplicação manual em produção, via `psql`).
+   >
+   > O prefixo `<timestamp>` **deve** ser maior que o maior prefixo já
+   > existente em `prisma/migrations/` (regra do `backend/AGENTS.md`).
+
+6. **Declarar os índices no `schema.prisma` — sem isso há drift.** O
+   `prisma migrate diff` compara o **datamodel** com o banco: um índice que
+   existe no banco mas não está declarado no schema aparece como **drift** e o
+   passo de validação abaixo acusaria código `2` mesmo com tudo aplicado
+   corretamente.
+
+   **Grupo A e B (btree) — declarar como `@@index` nos modelos:**
+
+   ```prisma
+   model SalonClient {
+     // ...
+     @@index([barbershopId, name])        // A1
+     @@index([barbershopId, lastVisitAt])  // A2
+     @@index([barbershopId, createdAt])    // A3
+   }
+
+   model Fiado {
+     // ...
+     @@index([barbershopId, status, createdAt])  // A4
+     @@index([barbershopId, dueDate])             // A5
+     @@index([clientId, status])                  // B1
+   }
+
+   model ClientPackage {
+     // ...
+     @@index([clientId, status])  // B2
+   }
+
+   model Appointment {
+     // ...
+     @@index([barbershopId, date, time])  // A6
+   }
+   ```
+
+   O nome do índice que o Prisma gera precisa bater com o do passo 4
+   (`<tabela>_<colunas>_idx`), para que o `migrate diff` não acuse diferença
+   de nome.
+
+   **Grupo C (GIN com `gin_trgm_ops`) — caminho diferente.** O Prisma só
+   declara índice GIN com operador customizado se a extensão estiver declarada
+   no schema. Hoje o `schema.prisma` tem:
+
+   ```prisma
+   generator client {
+     provider        = "prisma-client-js"
+     previewFeatures = ["driverAdapters"]
+   }
+   ```
+
+   — **sem `postgresqlExtensions`**. O caminho é:
+
+   1. Habilitar a preview feature no generator:
+      ```prisma
+      generator client {
+        provider        = "prisma-client-js"
+        previewFeatures = ["driverAdapters", "postgresqlExtensions"]
+      }
+      ```
+   2. Declarar a extensão no datasource:
+      ```prisma
+      datasource db {
+        provider  = "postgresql"
+        url       = env("DATABASE_URL")
+        directUrl = env("DIRECT_URL")
+        extensions = [pg_trgm(map: "pg_trgm", schema: "public")]
+      }
+      ```
+   3. Declarar os índices GIN com operador raw:
+      ```prisma
+      model SalonClient {
+        // ...
+        @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)       // C1
+        @@index([whatsapp(ops: raw("gin_trgm_ops"))], type: Gin)    // C2
+      }
+      ```
+
+   **Nada disso foi feito agora** — o schema segue intocado nesta fase. O
+  habilitar `postgresqlExtensions` muda o comportamento do Prisma em relação
+   à extensão (o cliente passa a gerenciar a criação dela), o que exige
+   validação própria antes de ser adotado.
+
+7. **Validar** conforme `docs/RUNBOOK_MIGRATIONS.md` (seção "4. Pós-validação"):
    ```bash
    npx prisma migrate status
    npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
    ```
    O código `0` significa ausência de diferença; `2` significa drift — parar e
    investigar.
-7. **Medir** antes/depois com `EXPLAIN (ANALYZE, BUFFERS)` nas consultas de
+8. **Medir** antes/depois com `EXPLAIN (ANALYZE, BUFFERS)` nas consultas de
    listagem para confirmar o uso do índice (`Index Scan` em vez de
    `Seq Scan` + `Sort`).
 
@@ -249,12 +357,139 @@ WHERE n.nspname = 'public' AND c.relname IN
   ('salon_clients','fiados','client_packages','appointments');
 ```
 
+**Resultado real da consulta de RLS (2026-11-04):**
+
+| tablename | rowsecurity | forcerowsecurity |
+|---|---|---|
+| `appointments` | `true` | `true` |
+| `client_packages` | `true` | `true` |
+| `fiados` | `true` | `true` |
+| `salon_clients` | `true` | `true` |
+
+| papel | rolsuper | rolbypassrls |
+|---|---|---|
+| `agendai` | `true` | `true` |
+
+Políticas ativas nas quatro tabelas: `tenant_isolation` (comando `*`, ou seja,
+vale para `SELECT`, `INSERT`, `UPDATE` e `DELETE`).
+
 **Achado relevante:** o papel `agendai` é **superuser com `BYPASSRLS`**
 (`rolsuper = true`, `rolbypassrls = true`). As tabelas têm `tenant_isolation`
-com `ROW LEVEL SECURITY` e `FORCE ROW LEVEL SECURITY`, mas superusuário e
-papéis com `BYPASSRLS` **sempre** ignoram RLS — o `FORCE` só atinge o dono da
-tabela. Prova prática: com `requestContext` de um salão, a listagem de
-clientes devolveu clientes de **outros salões** (3 de 3). Ou seja, **no banco
-de dev a RLS não filtra nada**; o isolamento entre salões depende
-integralmente do `where` construído pela aplicação. Os testes E2E de dois
-salões validam pelo `where`, não pela RLS.
+com `ROW LEVEL SECURITY` **e `FORCE ROW LEVEL SECURITY`** (confirmado na
+tabela acima), mas superusuário e papéis com `BYPASSRLS` **sempre** ignoram
+RLS — o `FORCE` só atinge o dono da tabela, não o superusuário. Prova prática:
+com `requestContext` de um salão, a listagem de clientes devolveu clientes de
+**outros salões** (3 de 3). Ou seja, **no banco de dev a RLS não filtra nada**;
+o isolamento entre salões depende integralmente do `where` construído pela
+aplicação. Os testes E2E de dois salões validam pelo `where`, não pela RLS.
+
+---
+
+## 7. Isolamento por salão no ambiente de testes
+
+### 7.1 O achado
+
+O papel usado pela aplicação nos bancos locais (`agendai`) é **SUPERUSER** e
+tem **BYPASSRLS**. Em PostgreSQL, esses papéis **sempre** ignoram as políticas
+de RLS, mesmo com `FORCE ROW LEVEL SECURITY` — o `FORCE` apenas faz a política
+valer para o *dono* da tabela.
+
+Consequência prática: **nos bancos de dev e de teste, o isolamento por salão no
+nível do banco não é exercido**. Qualquer consulta que forgets de filtrar por
+`barbershopId` leria dados de todos os salões sem erro. O único filtro real é o
+`where` que a aplicação monta.
+
+### 7.2 Proposta de papel de aplicação sem privilégios (NÃO EXECUTAR)
+
+Proposta, para discussão — **nada foi executado e nenhum papel foi criado**.
+Requer aprovação e janela de manutenção, porque mexe em permissões do banco:
+
+```sql
+-- PROPOSTA — não executada. Criar papel de aplicação sem SUPERUSER/BYPASSRLS.
+CREATE ROLE agendai_app LOGIN PASSWORD '<via .env / PGPASSFILE, nunca na linha de comando>';
+
+-- Sem privilégios de superusuário e sem bypass de RLS.
+ALTER ROLE agendai_app NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+
+-- Acesso de leitura/escrita apenas ao schema public.
+GRANT USAGE ON SCHEMA public TO agendai_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO agendai_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO agendai_app;
+
+-- O papel de aplicação precisa ser dono das tabelas para o FORCE RLS valer
+-- (ou a policy precisa ser reescrita para o novo papel).
+ALTER TABLE salon_clients    OWNER TO agendai_app;
+ALTER TABLE fiados           OWNER TO agendai_app;
+ALTER TABLE client_packages  OWNER TO agendai_app;
+ALTER TABLE appointments     OWNER TO agendai_app;
+
+-- Default privileges para objetos futuros.
+ALTER DEFAULT PRIVILEGES FOR ROLE agendai_app IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO agendai_app;
+```
+
+Depois de criado, o papel passa a ser o dono das tabelas, e aí o
+`FORCE ROW LEVEL SECURITY` passa a valer: a policy `tenant_isolation` filtra
+pelo `app.current_barbershop_id` (que o cliente Prisma define via `SET LOCAL` —
+ver `src/libs/prismaExtensions.ts`).
+
+**Ordem de implantação sugerida:** (1) criar o papel; (2) rodar os testes de
+isolamento com ele; (3) só depois migrar a aplicação e o banco de dev para ele.
+Enquanto isso, o papel antigo continua em uso.
+
+### 7.3 Consulta de verificação para staging/produção
+
+**Não executar nos bancos locais** (lá o papel já é superuser e o resultado
+seria sempre "bypass"). Rodar em staging/produção, somente leitura:
+
+```sql
+-- 1) Privilégios do papel efetivamente usado pela aplicação
+SELECT r.rolname::text            AS role,
+       r.rolsuper                 AS superuser,
+       r.rolbypassrls             AS bypassrls,
+       r.rolinherit               AS rolinherit,
+       pg_has_role(r.rolname, 'agendai', 'MEMBER') AS membro_de_agendai
+FROM pg_roles r
+WHERE r.rolname = current_user;
+
+-- 2) RLS por tabela (a tabela real do ambiente alvo)
+SELECT c.relname::text        AS tabela,
+       c.relrowsecurity       AS rls,
+       c.relforcerowsecurity  AS force_rls,
+       pg_get_userbyid(c.relowner)::text AS owner
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname IN ('salon_clients','fiados','client_packages','appointments')
+ORDER BY c.relname;
+
+-- 3) Políticas e suas expressões
+SELECT c.relname::text AS tabela,
+       pol.polname::text AS politica,
+       pol.polcmd::text  AS comando,
+       pg_get_expr(pol.polqual, pol.polrelid) AS usando_qual,
+       pg_get_expr(pol.polwithcheck, pol.polrelid) AS usando_check
+FROM pg_policy pol
+JOIN pg_class c ON c.oid = pol.polrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname IN ('salon_clients','fiados','client_packages','appointments')
+ORDER BY c.relname, pol.polname;
+
+-- 4) Efetividade real: o papel da aplicação é dono das tabelas?
+--    Se 'sim' e force_rls = true, a policy passa a valer para ele.
+SELECT c.relname::text AS tabela,
+       pg_get_userbyid(c.relowner)::text AS owner,
+       (pg_get_userbyid(c.relowner)::text = current_user) AS sou_o_dono
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname IN ('salon_clients','fiados','client_packages','appointments')
+ORDER BY c.relname;
+```
+
+**Leitura do resultado:** se `superuser = true` **ou** `bypassrls = true` para
+o papel da aplicação, a RLS **não protege nada** nesse ambiente — o isolamento
+depende só do `where`. Se `superuser = false`, `bypassrls = false` e o papel
+for dono das tabelas (`sou_o_dono = true`) com `force_rls = true`, a policy
+`tenant_isolation` passa a valer de fato.
