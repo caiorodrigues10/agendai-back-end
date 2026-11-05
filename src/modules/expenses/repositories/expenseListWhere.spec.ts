@@ -113,7 +113,7 @@ describe("modules/expenses — buildExpenseListWhere", () => {
     });
   });
 
-  it("payment=pending,overdue: interseção (overdue ⊂ pending)", () => {
+  it("payment=pending,overdue: interseção (overdue subconjunto de pending)", () => {
     const agora = new Date("2026-10-10T12:00:00.000Z");
     const where = buildExpenseListWhere(
       SHOP,
@@ -214,7 +214,7 @@ describe("modules/expenses — buildExpenseListWhere", () => {
       andClauses(where)[0] as { referenceDate: { gte: Date; lt: Date } }
     ).referenceDate;
 
-    // 2026-10-06T01:00Z = 2026-10-05 22:00 em São Paulo → dentro do dia 05
+    // 2026-10-06T01:00Z = 2026-10-05 22:00 em São Paulo => dentro do dia 05
     const evento = new Date("2026-10-06T01:00:00.000Z");
     expect(evento.getTime()).toBeGreaterThanOrEqual(clause.gte.getTime());
     expect(evento.getTime()).toBeLessThan(clause.lt.getTime());

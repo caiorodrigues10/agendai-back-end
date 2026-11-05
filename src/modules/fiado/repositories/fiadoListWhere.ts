@@ -89,10 +89,10 @@ export function buildFiadoListWhere(
 /**
  * `orderBy` da listagem.
  *
- * - `createdAt` → `{ createdAt: dir }`
- * - `dueDate` → `{ dueDate: { sort: dir, nulls: "last" } }` — fiados sem
+ * - `createdAt` => `{ createdAt: dir }`
+ * - `dueDate` => `{ dueDate: { sort: dir, nulls: "last" } }` — fiados sem
  *   vencimento ficam **por último nas duas direções**
- * - `amount` → `{ originalAmount: dir }` (coluna real do valor cobrado)
+ * - `amount` => `{ originalAmount: dir }` (coluna real do valor cobrado)
  * - `id` sempre por último, como desempate estável para a paginação, na mesma
  *   direção do campo principal.
  *

@@ -58,7 +58,7 @@ export function isBusinessHour(timeStr: string): boolean {
  * intervalo do dia, sumindo registros na virada. Os limites em UTC mantêm
  * o dia civil exato (convenção já usada no filtro por data de agendamentos).
  *
- * ⚠️ Use apenas para colunas `@db.Date` (a data não tem hora: o dia é o dia
+ * Atenção: use apenas para colunas `@db.Date` (a data não tem hora: o dia é o dia
  * em UTC). Para colunas `DateTime` (timestamp) use {@link civilDayBounds},
  * que respeita o fuso do salão.
  */
@@ -149,10 +149,10 @@ function civilOffsetMs(instant: Date, timeZone: string): number | null {
  * Calculado por tentativa: o deslocamento do fuso é avaliado no instante
  * candidato e o resultado é conferido contra o horário de parede desejado.
  * Assim:
- * - dias normais → meia-noite local exata;
- * - virada de horário de verão → meia-noite local exata (o dia pode ter 23h
+ * - dias normais => meia-noite local exata;
+ * - virada de horário de verão => meia-noite local exata (o dia pode ter 23h
  *   ou 25h de duração);
- * - meia-noite inexistente (o relógio saltou de 23:59 para 01:00) → o próprio
+ * - meia-noite inexistente (o relógio saltou de 23:59 para 01:00) => o próprio
  *   instante da virada, que é o primeiro segundo do dia.
  */
 function civilStartOfDay(

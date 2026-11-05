@@ -107,7 +107,7 @@ describe("modules/clients — buildSalonClientListWhere", () => {
       (where.AND ?? []) as Array<{ createdAt: { gte: Date; lt: Date } }>
     )[0].createdAt;
 
-    // 2026-10-06T01:00Z = 2026-10-05 22:00 em São Paulo → dentro do dia 05
+    // 2026-10-06T01:00Z = 2026-10-05 22:00 em São Paulo => dentro do dia 05
     const evento = new Date("2026-10-06T01:00:00.000Z");
     expect(evento.getTime()).toBeGreaterThanOrEqual(clause.gte.getTime());
     expect(evento.getTime()).toBeLessThan(clause.lt.getTime());

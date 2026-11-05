@@ -58,9 +58,9 @@ export const EXPENSE_RECURRENCE_VALUES = [
  *
  * Não existe enum de pagamento em `Expense`: o status é **derivado** dos
  * campos `paidAt` (data do pagamento) e `dueDate` (vencimento):
- * - `paid` → `paidAt IS NOT NULL` (paga, vencimento é irrelevante);
- * - `pending` → `paidAt IS NULL` (não paga — **inclui** as vencidas);
- * - `overdue` → `paidAt IS NULL AND dueDate < agora` (não paga e vencida —
+ * - `paid` => `paidAt IS NOT NULL` (paga, vencimento é irrelevante);
+ * - `pending` => `paidAt IS NULL` (não paga — **inclui** as vencidas);
+ * - `overdue` => `paidAt IS NULL AND dueDate < agora` (não paga e vencida —
  *   comparação estrita, então vence em `dueDate == agora` ainda não conta).
  */
 export const EXPENSE_PAYMENT_VALUES = ["paid", "pending", "overdue"] as const;

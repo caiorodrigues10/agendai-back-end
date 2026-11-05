@@ -8,7 +8,8 @@ import { civilDayBounds } from "@/shared/utils/dateUtils";
  * `shopMonthRange`). Antes do helper `civilDayBounds`, a listagem de despesas
  * recebia os `Date` do período (início/fim exatos no fuso do salão); hoje
  * recebe os dias civis + o fuso. Este spec prova que a janela resultante
- * **cobre os mesmos instantes** de antes.
+ * **é idêntica** ao cálculo anterior em `Date`: `gte` é o mesmo `from` e `lt`
+ * é o mesmo `to` + 1ms (a janela antiga era inclusiva via `lte`).
  */
 describe("whatsappOwnerBot — período da listagem de despesas cobre o mesmo intervalo", () => {
   const timezone = "America/Sao_Paulo";
@@ -23,9 +24,9 @@ describe("whatsappOwnerBot — período da listagem de despesas cobre o mesmo in
     const period = resolveOwnerBotPeriod("", timezone, agora, "day")!;
     const { gte, lt } = limites(period);
 
-    // antes: gte = period.from, lte = period.to
-    expect(gte.getTime()).toBeLessThanOrEqual(period.from.getTime());
-    expect(lt.getTime()).toBeGreaterThan(period.to.getTime());
+    // antes: gte = period.from, lte = period.to (inclusivo)
+    expect(gte).toEqual(period.from);
+    expect(lt).toEqual(new Date(period.to.getTime() + 1));
     expect(gte.toISOString()).toBe("2026-11-15T03:00:00.000Z");
     expect(lt.toISOString()).toBe("2026-11-16T03:00:00.000Z");
   });
@@ -34,8 +35,8 @@ describe("whatsappOwnerBot — período da listagem de despesas cobre o mesmo in
     const period = resolveOwnerBotPeriod("", timezone, agora, "month")!;
     const { gte, lt } = limites(period);
 
-    expect(gte.getTime()).toBeLessThanOrEqual(period.from.getTime());
-    expect(lt.getTime()).toBeGreaterThan(period.to.getTime());
+    expect(gte).toEqual(period.from);
+    expect(lt).toEqual(new Date(period.to.getTime() + 1));
     expect(gte.toISOString()).toBe("2026-11-01T03:00:00.000Z");
     expect(lt.toISOString()).toBe("2026-12-01T03:00:00.000Z");
   });
@@ -44,8 +45,8 @@ describe("whatsappOwnerBot — período da listagem de despesas cobre o mesmo in
     const period = resolveOwnerBotPeriod("", timezone, agora, "week")!;
     const { gte, lt } = limites(period);
 
-    expect(gte.getTime()).toBeLessThanOrEqual(period.from.getTime());
-    expect(lt.getTime()).toBeGreaterThan(period.to.getTime());
+    expect(gte).toEqual(period.from);
+    expect(lt).toEqual(new Date(period.to.getTime() + 1));
     expect(gte.toISOString()).toBe("2026-11-15T03:00:00.000Z");
     expect(lt.toISOString()).toBe("2026-11-22T03:00:00.000Z");
   });

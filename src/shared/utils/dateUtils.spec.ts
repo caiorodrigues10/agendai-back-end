@@ -201,7 +201,7 @@ describe("dateUtils — civilDayBounds (dia civil no fuso do salão)", () => {
     });
 
     it("SP histórico: meia-noite inexistente (saltou de 23:59 para 01:00)", () => {
-      // Brasil began DST em 04/11/2018 às 00:00 → 01:00
+      // Brasil began DST em 04/11/2018 às 00:00 => 01:00
       const { gte } = civilDayBounds("2018-11-04", SAO_PAULO);
 
       // primeiro instante do dia (01:00 local = 03:00Z)

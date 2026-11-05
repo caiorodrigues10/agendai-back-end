@@ -5,7 +5,7 @@
  * Dois salões (A e B) com dados próprios, criados **dentro de uma transação que
  * é revertida no fim** — nada é persistido.
  *
- * ⚠️ **A RLS não é efetiva no ambiente de desenvolvimento.** O papel `agendai`
+ * Atenção: **A RLS não é efetiva no ambiente de desenvolvimento.** O papel `agendai`
  * é SUPERUSER com BYPASSRLS, e superusuário/BYPASSRLS sempre ignoram RLS,
  * mesmo com `FORCE ROW LEVEL SECURITY`. Portanto este teste valida o
  * isolamento **pelo `where` construído pela aplicação** — que é o único

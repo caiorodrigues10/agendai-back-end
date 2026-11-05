@@ -16,8 +16,8 @@ import type { IExpenseListQuery } from "../dtos/IExpenseDTO";
  *   local do dia) e o fim é **exclusivo** (meia-noite local do dia seguinte),
  *   de modo que o último dia do intervalo entra inteiro.
  * - O status de pagamento é **derivado** de `paidAt`/`dueDate`:
- *   `paid` → `paidAt IS NOT NULL`; `pending` → `paidAt IS NULL`;
- *   `overdue` → `paidAt IS NULL AND dueDate < agora` (estrito). O `overdue`
+ *   `paid` => `paidAt IS NOT NULL`; `pending` => `paidAt IS NULL`;
+ *   `overdue` => `paidAt IS NULL AND dueDate < agora` (estrito). O `overdue`
  *   sempre carrega o `paidAt IS NULL`, então nunca vaza despesas pagas.
  *   O filtro legado `paid` (booleano) é convertido nos mesmos casos.
  */
@@ -91,11 +91,11 @@ export function buildExpenseListWhere(
 /**
  * `orderBy` da listagem.
  *
- * - `referenceDate` → `{ referenceDate: dir }`
- * - `amount` → `{ amount: dir }`
- * - `dueDate` → `{ dueDate: { sort: dir, nulls: "last" } }` — despesas sem
+ * - `referenceDate` => `{ referenceDate: dir }`
+ * - `amount` => `{ amount: dir }`
+ * - `dueDate` => `{ dueDate: { sort: dir, nulls: "last" } }` — despesas sem
  *   vencimento ficam **por último nas duas direções**
- * - `createdAt` → `{ createdAt: dir }`
+ * - `createdAt` => `{ createdAt: dir }`
  * - `id` sempre por último, como desempate estável para a paginação, na mesma
  *   direção do campo principal.
  *
