@@ -699,6 +699,48 @@ model User {
 }
 ```
 
+### 2.8 Estoque baixo de produtos (`products`) — diagnóstico, sem mudança
+
+O filtro "estoque baixo" é `minStock > 0 AND stockQty <= minStock` — uma
+comparação **coluna × coluna**. Hoje ele aparece em três formatos diferentes
+no código:
+
+| formato | onde | como |
+|---|---|---|
+| field reference do Prisma | `src/modules/analytics/services/recommendationEngine.ts:198-210` (`stockQty: { lte: prisma.product.fields.minStock }`) | campo × campo no `where` |
+| `$queryRaw` parametrizado | `src/modules/products/useCases/productUseCases.ts:192-224` (listagem de produtos com `lowStock=true`) | `"stockQty" <= "minStock"` no SQL |
+| filtro em memória | `src/modules/products/useCases/productUseCases.ts:693` (dashboard/relatórios), `src/modules/products/utils/productAttention.ts:75` e `114-115`, `src/modules/admin/controllers/AdminProductController.ts:86-88` | `p.minStock > 0 && p.stockQty <= p.minStock` no JS |
+
+Other caminhos que contam estoque baixo: agregação em SQL puro
+(`src/modules/barbershops/controllers/BarbershopFinancialController.ts:179-180`,
+`COUNT(*) FILTER (WHERE "minStock" > 0 AND "stockQty" <= "minStock")`) e o
+comando "estoque baixo" do bot do dono
+(`src/modules/whatsappOwnerBot/commands/inventoryCommands.ts:74-95`), que na
+verdade usa `stockAlerts` — alertas de **validade**
+(`src/modules/products/useCases/productUseCases.ts:847`), não o mínimo de
+estoque; a comparação por produto no comando "estoque" é feita em memória
+(`inventoryCommands.ts:38-39`).
+
+**Colunas** (`prisma/schema.prisma:3091-3130`): `stockQty Float @default(0)
+@db.Real` e `minStock Float @default(0) @db.Real` — as duas **não nulos**
+(`Float`, nunca `null`).
+
+**Índices de `products`:** `@@index([barbershopId, active])`,
+`@@index([barbershopId, name])`, `@@index([barbershopId, sku])`,
+`@@index([barbershopId, barcode])` e `@@index([barbershopId, expirationDate])`.
+**Nenhum índice ajuda a comparação coluna × coluna** (`stockQty <= minStock`):
+btree não atende desigualdade entre duas colunas, e um índice de expressão
+(`(stockQty <= minStock)`) não é prático aqui — o filtro já roda sobre o
+conjunto pequeno de produtos do salão, coberto por `(barbershopId, active)`.
+**Nada é proposto nesta seção**; a troca de abordagem é uma decisão em aberto
+(ver o diagnóstico entregue na sessão do Módulo 9).
+
+**RLS:** `products` **não tem** RLS (`rowsecurity = false`) — o isolamento do
+estoque baixo vem do `barbershopId` no `where`, não do banco. O teste
+`src/tests/integration/tenantIsolation.integration.spec.ts` (bloco "estoque
+baixo") prova isso: com o filtro do salão, só volta o produto do contexto; sem
+ele, volta o do outro salão.
+
 ### Proposta — grupo B: relação (some/none)
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
 `fiados.clientId` e `client_packages.clientId`. O índice ideal traz o status

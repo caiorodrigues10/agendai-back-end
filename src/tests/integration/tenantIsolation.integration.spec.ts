@@ -1088,3 +1088,121 @@ describe("isolamento por salão — equipe interna do admin (Postgres real, roll
     });
   });
 });
+
+describe("isolamento por salão — estoque baixo (Produtos, Postgres real, rollback)", () => {
+  it("o resultado de estoque baixo só traz produtos do salão do contexto", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Estoque A ${randomUUID()}`, whatsapp: "11991110007" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Estoque B ${randomUUID()}`, whatsapp: "11991110008" },
+      });
+
+      // Salão A: um produto em estoque baixo e um com estoque saudável.
+      const baixoA = await tx.product.create({
+        data: {
+          barbershopId: shopA.id,
+          name: "Shampoo Isolamento A",
+          stockQty: 2,
+          minStock: 5,
+          trackStock: true,
+          active: true,
+          salePrice: 20,
+        },
+      });
+      const saudavelA = await tx.product.create({
+        data: {
+          barbershopId: shopA.id,
+          name: "Perfume Isolamento A",
+          stockQty: 20,
+          minStock: 5,
+          trackStock: true,
+          active: true,
+          salePrice: 80,
+        },
+      });
+      // Salão B: também em estoque baixo — nunca pode aparecer para o salão A.
+      const baixoB = await tx.product.create({
+        data: {
+          barbershopId: shopB.id,
+          name: "Shampoo Isolamento B",
+          stockQty: 1,
+          minStock: 5,
+          trackStock: true,
+          active: true,
+          salePrice: 20,
+        },
+      });
+
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Abordagem (a) — field reference do Prisma (campo × campo):
+        //    `stockQty <= minStock`.
+        const fieldRef = await tx.product.findMany({
+          where: {
+            barbershopId: shopA.id,
+            minStock: { gt: 0 },
+            stockQty: { lte: tx.product.fields.minStock },
+          },
+          select: { id: true },
+        });
+        expect(fieldRef.map((p) => p.id)).toEqual([baixoA.id]);
+        expect(fieldRef.map((p) => p.id)).not.toContain(baixoB.id);
+        expect(fieldRef.map((p) => p.id)).not.toContain(saudavelA.id);
+
+        // 2. Abordagem (b) — $queryRaw parametrizado (mesma forma da listagem
+        //    de produtos em `productUseCases.ts`).
+        const raw = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "products"
+          WHERE "barbershopId" = ${shopA.id}::uuid
+            AND "minStock" > 0
+            AND "stockQty" <= "minStock"
+        `;
+        expect(raw.map((p) => p.id)).toEqual([baixoA.id]);
+        expect(raw.map((p) => p.id)).not.toContain(baixoB.id);
+
+        // 3. Abordagem (c) — filtro em memória (mesma forma do dashboard em
+        //    `productUseCases.reports`).
+        const todos = await tx.product.findMany({
+          where: { barbershopId: shopA.id },
+          select: { id: true, stockQty: true, minStock: true },
+        });
+        const emMemoria = todos.filter(
+          (p) => p.minStock > 0 && p.stockQty <= p.minStock,
+        );
+        expect(emMemoria.map((p) => p.id)).toEqual([baixoA.id]);
+
+        // 4. PROVA de que a RLS não filtra nada neste ambiente: a MESMA
+        //    comparação sem o `barbershopId` no `where` enxerga o salão B.
+        //    O isolamento vem do filtro da aplicação, não do banco.
+        const semSalhao = await tx.$queryRaw<Array<{ id: string; barbershopId: string }>>`
+          SELECT "id", "barbershopId" FROM "products"
+          WHERE "minStock" > 0
+            AND "stockQty" <= "minStock"
+        `;
+        expect(semSalhao.map((p) => p.id)).toContain(baixoA.id);
+        expect(semSalhao.map((p) => p.id)).toContain(baixoB.id);
+        expect(
+          semSalhao.find((p) => p.id === baixoB.id)?.barbershopId,
+        ).toBe(shopB.id);
+      });
+
+      // ── contexto do salão B ────────────────────────────────
+      await requestContext.run({ barbershopId: shopB.id } as never, async () => {
+        const fieldRefB = await tx.product.findMany({
+          where: {
+            barbershopId: shopB.id,
+            minStock: { gt: 0 },
+            stockQty: { lte: tx.product.fields.minStock },
+          },
+          select: { id: true },
+        });
+        expect(fieldRefB.map((p) => p.id)).toEqual([baixoB.id]);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
