@@ -18,6 +18,7 @@ import {
   chargeFiadoSchema,
 } from "../schemas/fiadoSchemas";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 
 export class FiadoController {
   async charge(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -84,12 +85,7 @@ export class FiadoController {
     reply.send({
       success: true,
       data: result.data,
-      meta: {
-        total: result.total,
-        page: query.page,
-        limit: query.limit,
-        totalPages: Math.ceil(result.total / query.limit),
-      },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 

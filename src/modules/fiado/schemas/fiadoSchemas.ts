@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
+import { paginationQuerySchema as basePaginationQuerySchema } from "@/shared/utils/pagination";
 
 /** Formas de pagamento aceitas no recebimento de fiado (mesmo vocabulário do caixa). */
 const paymentMethodEnum = z.enum(["cash", "pix", "credit_card", "debit_card", "card", "other"]);
@@ -50,9 +51,10 @@ export const chargeFiadoSchema = z
     message: "Informe uma chave PIX ou um link para pagamento com cartão",
   });
 
-export const listFiadoQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+export const listFiadoQuerySchema = basePaginationQuerySchema({
+  defaultLimit: 20,
+  maxLimit: 100,
+}).extend({
   status: z.enum(["PENDING", "PARTIAL", "PAID", "FORGIVEN"]).optional(),
   search: z.string().max(100).optional(),
   overdue: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
