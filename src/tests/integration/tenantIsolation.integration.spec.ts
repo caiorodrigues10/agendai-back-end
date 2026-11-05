@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
 import { requestContext } from "@/shared/infra/http/requestContext";
 import { buildAppointmentListWhere } from "@/modules/appointments/repositories/appointmentListWhere";
+import { buildFiadoListWhere } from "@/modules/fiado/repositories/fiadoListWhere";
 
 const DIA = "2026-10-05";
 
@@ -166,5 +167,158 @@ describe("isolamento por salão — agendamentos (Postgres real, rollback)", () 
       where: { name: { startsWith: "QA Isolamento" } },
     });
     expect(sobrou).toBe(0);
+  });
+});
+
+describe("isolamento por salão — fiados (Postgres real, rollback)", () => {
+  it("os filtros só devolvem dados do salão do contexto", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Isolamento A ${randomUUID()}`, whatsapp: "11990000001" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Isolamento B ${randomUUID()}`, whatsapp: "11990000002" },
+      });
+
+      const hoje = new Date();
+      const diaDeHoje = hoje.toISOString().slice(0, 10);
+      const vencido = new Date(hoje.getTime() - 5 * 24 * 60 * 60 * 1000);
+
+      // A: PENDING e vencido (entra no filtro `overdue`)
+      const fiadoA = await tx.fiado.create({
+        data: {
+          barbershopId: shopA.id,
+          customerName: "Devedor Isolamento A",
+          whatsapp: "11991110001",
+          description: "Corte fiado QA A",
+          originalAmount: 120,
+          status: "PENDING",
+          dueDate: vencido,
+          createdById: randomUUID(),
+        },
+      });
+      // A: PENDING sem vencimento (não entra no filtro `overdue`)
+      const fiadoASemPrazo = await tx.fiado.create({
+        data: {
+          barbershopId: shopA.id,
+          customerName: "Devedor Isolamento A",
+          whatsapp: "11991110001",
+          description: "Barba fiada QA A",
+          originalAmount: 60,
+          status: "PENDING",
+          createdById: randomUUID(),
+        },
+      });
+      // B: PAID e vencido (incompatível com `overdue`)
+      const fiadoB = await tx.fiado.create({
+        data: {
+          barbershopId: shopB.id,
+          customerName: "Devedor Isolamento B",
+          whatsapp: "11992220002",
+          description: "Corte fiado QA B",
+          originalAmount: 200,
+          status: "PAID",
+          dueDate: vencido,
+          createdById: randomUUID(),
+        },
+      });
+
+      const consulta = (where: unknown) =>
+        tx.fiado.findMany({
+          where: where as never,
+          select: { id: true, barbershopId: true, status: true, dueDate: true },
+        });
+
+      // ── contexto do salão A ────────────────────────────────
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Sem filtro: só os fiados do salão A (barbershopId do contexto).
+        const base = await consulta(
+          buildFiadoListWhere(shopA.id, { page: 1, limit: 50 })
+        );
+        expect(base.map((r) => r.id).sort()).toEqual(
+          [fiadoA.id, fiadoASemPrazo.id].sort()
+        );
+        expect(base.every((r) => r.barbershopId === shopA.id)).toBe(true);
+
+        // 2. `overdue`: só o fiado em aberto e vencido.
+        const overdue = await consulta(
+          buildFiadoListWhere(shopA.id, { page: 1, limit: 50, overdue: true })
+        );
+        expect(overdue.map((r) => r.id)).toEqual([fiadoA.id]);
+
+        // 3. `overdue` + status incompatível (PAID): as cláusulas se anulam.
+        const overduePago = await consulta(
+          buildFiadoListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            overdue: true,
+            status: ["PAID"],
+          })
+        );
+        expect(overduePago).toEqual([]);
+
+        // 4. Filtro de status: PAID não existe no salão A.
+        const pagos = await consulta(
+          buildFiadoListWhere(shopA.id, { page: 1, limit: 50, status: ["PAID"] })
+        );
+        expect(pagos).toEqual([]);
+
+        // 5. Busca: só o fiado do salão A.
+        const busca = await consulta(
+          buildFiadoListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            search: "Isolamento A",
+          })
+        );
+        expect(busca.map((r) => r.id).sort()).toEqual(
+          [fiadoA.id, fiadoASemPrazo.id].sort()
+        );
+
+        // 6. from/to em `createdAt`: o dia de hoje entra inteiro (limite `lt`
+        //    no início do dia seguinte).
+        const periodo = await consulta(
+          buildFiadoListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            from: diaDeHoje,
+            to: diaDeHoje,
+          })
+        );
+        expect(periodo.map((r) => r.id).sort()).toEqual(
+          [fiadoA.id, fiadoASemPrazo.id].sort()
+        );
+
+        // 7. dueFrom/dueTo em `dueDate`: o fiado sem prazo não entra.
+        const prazo = await consulta(
+          buildFiadoListWhere(shopA.id, {
+            page: 1,
+            limit: 50,
+            dueFrom: "2020-01-01",
+            dueTo: "2020-12-31",
+          })
+        );
+        expect(prazo).toEqual([]);
+
+        // 8. PROVA de que a RLS não filtra nada neste ambiente: a mesma consulta
+        //    SEM o `barbershopId` no `where` enxerga o salão B.
+        const semBarbershop = await consulta({ status: { in: ["PAID"] } });
+        expect(semBarbershop.map((r) => r.id)).toEqual([fiadoB.id]);
+        expect(semBarbershop[0].barbershopId).toBe(shopB.id);
+      });
+
+      // ── contexto do salão B ────────────────────────────────
+      await requestContext.run({ barbershopId: shopB.id } as never, async () => {
+        const baseB = await consulta(
+          buildFiadoListWhere(shopB.id, { page: 1, limit: 50 })
+        );
+        expect(baseB.map((r) => r.id)).toEqual([fiadoB.id]);
+        expect(baseB.every((r) => r.barbershopId === shopB.id)).toBe(true);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
   });
 });

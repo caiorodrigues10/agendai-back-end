@@ -85,6 +85,7 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A4 | `fiados` | `(barbershopId, status, createdAt)` | listagem de fiados por status + ordenação por data de criação |
 | A5 | `fiados` | `(barbershopId, dueDate)` | ordenação por vencimento e filtro de atraso (`dueDate < hoje`) |
 | A6 | `appointments` | `(barbershopId, date, time)` | listagem por data sem filtro de profissional (o índice atual só cobre `(barbershopId, staffId, date, status)`) |
+| A7 | `fiados` | `(barbershopId, createdAt)` | ordenação padrão da listagem de fiados (`createdAt desc`) e faixa `from/to` (em `createdAt`) |
 
 **Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
@@ -104,7 +105,7 @@ time   String    @db.VarChar(5)
 ### 2.1 Análise dos índices de `Appointment` (listagem da Fase 2)
 
 `@@index` declarados no modelo `Appointment` (`prisma/schema.prisma`, linhas
-1095-1101):
+1094-1100):
 
 ```prisma
 @@index([barbershopId, staffId, date, status])
@@ -151,6 +152,65 @@ model Appointment {
   @@index([barbershopId, date, time])
   @@index([barbershopId, status, date])
   @@index([barbershopId, serviceId, date])
+}
+```
+
+### 2.2 Análise dos índices de `Fiado` (listagem da Fase 2)
+
+`@@index` declarados no modelo `Fiado` (`prisma/schema.prisma`, linhas
+2277-2282):
+
+```prisma
+@@index([barbershopId])
+@@index([status])
+@@index([whatsapp])
+@@index([clientId])
+@@index([dueDate])
+@@index([barbershopId, status])
+```
+
+| Consulta da listagem | Índice que a cobre | Situação |
+|---|---|---|
+| `(barbershopId, status)` | `@@index([barbershopId, status])` — casa pelo prefixo | **coberta** |
+| `(barbershopId, status, createdAt)` — filtro de status **+** ordenação por criação | nenhuma | **falta** (A4) |
+| `(barbershopId, dueDate)` — `dueFrom/dueTo`, `overdue` e `sort=dueDate` | nenhuma | **falta** (A5) |
+| `(barbershopId, createdAt)` — ordenação padrão (`createdAt desc`) e faixa `from/to` | nenhuma | **falta** (A7) |
+| `(barbershopId, clientId)` — filtro por cliente do CRM | `@@index([clientId])` sozinho (sem o salão) | **parcial** |
+
+Por que A4, A5 e A7 faltam:
+
+- `@@index([barbershopId, status])` cobre o par `(barbershopId, status)`, mas a
+  ordenação da listagem de fiados é por `createdAt` (padrão) — sem `createdAt`
+  no índice, o Postgres ainda precisa ordenar o conjunto filtrado em memória.
+- `@@index([dueDate])` não contém `barbershopId`: como a listagem é sempre por
+  salão, ele não serve como prefixo. `@@index([barbershopId])` também não
+  ajuda — não tem `dueDate`.
+- Não há índice nenhum com `createdAt` junto do salão, então o ordenamento
+  padrão da listagem (`createdAt desc, id desc`) e a faixa `from/to`
+  (em `createdAt`) não têm apoio.
+- `@@index([clientId])` existe, mas o filtro da listagem combina
+  `barbershopId + clientId`; um índice composto deixaria a busca por fiado de
+  um cliente direto no índice.
+
+Proposta (somente proposta, nada aplicado — ver seção 4):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_barbershopId_status_createdAt_idx"
+  ON "fiados" ("barbershopId", "status", "createdAt");   -- A4
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_barbershopId_dueDate_idx"
+  ON "fiados" ("barbershopId", "dueDate");                -- A5
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_barbershopId_createdAt_idx"
+  ON "fiados" ("barbershopId", "createdAt");              -- A7
+```
+
+E, no `schema.prisma`, para não gerar drift (ver o passo 6 da seção 4):
+
+```prisma
+model Fiado {
+  // ...
+  @@index([barbershopId, status, createdAt])
+  @@index([barbershopId, dueDate])
+  @@index([barbershopId, createdAt])
 }
 ```
 
@@ -249,6 +309,12 @@ Procedimento, na ordem:
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_barbershopId_name_idx" ON "salon_clients" ("barbershopId", "name");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_barbershopId_lastVisitAt_idx" ON "salon_clients" ("barbershopId", "lastVisitAt");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_barbershopId_createdAt_idx" ON "salon_clients" ("barbershopId", "createdAt");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_barbershopId_status_createdAt_idx" ON "fiados" ("barbershopId", "status", "createdAt");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_barbershopId_dueDate_idx" ON "fiados" ("barbershopId", "dueDate");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_barbershopId_createdAt_idx" ON "fiados" ("barbershopId", "createdAt");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_date_time_idx" ON "appointments" ("barbershopId", "date", "time");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_status_date_idx" ON "appointments" ("barbershopId", "status", "date");'
+   psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_serviceId_date_idx" ON "appointments" ("barbershopId", "serviceId", "date");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "fiados_clientId_status_idx" ON "fiados" ("clientId", "status");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "client_packages_clientId_status_idx" ON "client_packages" ("clientId", "status");'
    psql "$DATABASE_URL" -c 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "salon_clients_name_trgm_idx" ON "salon_clients" USING gin ("name" gin_trgm_ops);'
@@ -302,6 +368,7 @@ Procedimento, na ordem:
      // ...
      @@index([barbershopId, status, createdAt])  // A4
      @@index([barbershopId, dueDate])             // A5
+     @@index([barbershopId, createdAt])           // A7
      @@index([clientId, status])                  // B1
    }
 
@@ -312,7 +379,9 @@ Procedimento, na ordem:
 
    model Appointment {
      // ...
-     @@index([barbershopId, date, time])  // A6
+     @@index([barbershopId, date, time])        // A6
+     @@index([barbershopId, status, date])       // filtro de status
+     @@index([barbershopId, serviceId, date])    // filtro por serviço
    }
    ```
 
