@@ -4,6 +4,7 @@ import {
   IUpdateSalonClientDTO,
   ISalonClientListQuery,
   ISalonClientResponseDTO,
+  ISalonClientPackageSummaryDTO,
 } from "@/modules/clients/dtos/ISalonClientDTO";
 import { AppError } from "@/shared/errors/AppError";
 import {
@@ -13,13 +14,20 @@ import {
 } from "@/modules/clients/utils/ensureSalonClient";
 import { utcDayBounds } from "@/shared/utils/dateUtils";
 import { inactiveThreshold } from "@/modules/clients/repositories/salonClientListWhere";
+import { isPackageActive } from "@/modules/clients/repositories/clientPackageActive";
 
 /**
  * Cliente do mock. Além do DTO público, carrega os dados que os filtros
  * novos da listagem precisam (`lastVisitAt` e os fiados vinculados) sem
  * alterar o contrato exposto pela API.
  */
-export type MockSalonClient = ISalonClientResponseDTO & {
+/** Pacote do mock: o `barbershopId` é opcional (pacotes sem salão são do próprio cliente). */
+export type MockClientPackage = ISalonClientPackageSummaryDTO & {
+  barbershopId?: string;
+};
+
+export type MockSalonClient = Omit<ISalonClientResponseDTO, "packages"> & {
+  packages?: MockClientPackage[];
   lastVisitAt?: Date | null;
   openFiados?: { status: string; barbershopId: string }[];
 };
@@ -138,7 +146,11 @@ export class MockSalonClientRepository implements ISalonClientRepository {
     }
     if (query.hasActivePackage !== undefined) {
       const hasActive = (c: MockSalonClient) =>
-        (c.packages ?? []).some((p) => p.status === "ACTIVE");
+        (c.packages ?? []).some(
+          (p) =>
+            (p.barbershopId === undefined || p.barbershopId === c.barbershopId) &&
+            isPackageActive(p)
+        );
       results = results.filter((c) =>
         query.hasActivePackage ? hasActive(c) : !hasActive(c)
       );

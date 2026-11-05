@@ -160,7 +160,18 @@ describe("modules/clients — buildSalonClientListWhere", () => {
       NOW,
     );
 
-    expect(where.AND).toEqual([{ packages: { some: { status: "ACTIVE" } } }]);
+    expect(where.AND).toEqual([
+      {
+        packages: {
+          some: {
+            barbershopId: SHOP,
+            status: "ACTIVE",
+            remainingSessions: { gt: 0 },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: NOW } }],
+          },
+        },
+      },
+    ]);
   });
 
   it("hasActivePackage=false: relação none com status ACTIVE", () => {
@@ -170,7 +181,18 @@ describe("modules/clients — buildSalonClientListWhere", () => {
       NOW,
     );
 
-    expect(where.AND).toEqual([{ packages: { none: { status: "ACTIVE" } } }]);
+    expect(where.AND).toEqual([
+      {
+        packages: {
+          none: {
+            barbershopId: SHOP,
+            status: "ACTIVE",
+            remainingSessions: { gt: 0 },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: NOW } }],
+          },
+        },
+      },
+    ]);
   });
 
   // ─── combinação ───────────────────────────────────────────
@@ -186,7 +208,16 @@ describe("modules/clients — buildSalonClientListWhere", () => {
       barbershopId: SHOP,
       AND: [
         { createdAt: { gte: new Date("2026-01-01T00:00:00.000Z") } },
-        { packages: { some: { status: "ACTIVE" } } },
+        {
+          packages: {
+            some: {
+              barbershopId: SHOP,
+              status: "ACTIVE",
+              remainingSessions: { gt: 0 },
+              OR: [{ expiresAt: null }, { expiresAt: { gt: NOW } }],
+            },
+          },
+        },
       ],
     });
   });

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { utcDayBounds } from "@/shared/utils/dateUtils";
 import type { ISalonClientListQuery } from "../dtos/ISalonClientDTO";
+import { activePackageWhere } from "./clientPackageActive";
 
 /** Status de fiado que conta como "em aberto". */
 export const OPEN_FIADO_STATUSES = ["PENDING", "PARTIAL"] as const;
@@ -86,7 +87,7 @@ export function buildSalonClientListWhere(
   }
 
   if (query.hasActivePackage !== undefined) {
-    const activePackage: Prisma.ClientPackageWhereInput = { status: "ACTIVE" };
+    const activePackage = activePackageWhere(barbershopId, now.getTime());
     and.push(
       query.hasActivePackage
         ? { packages: { some: activePackage } }
