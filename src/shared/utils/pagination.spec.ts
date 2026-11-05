@@ -4,6 +4,7 @@ import {
   buildPaginationMeta,
   dateRangeSchema,
   paginationQuerySchema,
+  resolveBarbershopId,
   searchTermSchema,
   sortSchema,
   toSkipTake,
@@ -128,5 +129,42 @@ describe("sortSchema", () => {
     const out = schema.parse("name:desc");
     expect(typeof out).toBe("object");
     expect(out?.field).toBe("name");
+  });
+});
+
+describe("resolveBarbershopId (isolamento por salão)", () => {
+  const master = { role: "MASTER_ADMIN" as const, barbershopId: "shop-a" };
+  const owner = { role: "OWNER" as const, barbershopId: "shop-a" };
+  const employee = { role: "EMPLOYEE" as const, barbershopId: "shop-a" };
+
+  it("MASTER_ADMIN usa barbershopId da query (acesso cross-salão)", () => {
+    expect(resolveBarbershopId(master, "shop-b")).toBe("shop-b");
+  });
+
+  it("MASTER_ADMIN cai para o da sessão quando a query não informa", () => {
+    expect(resolveBarbershopId(master, null)).toBe("shop-a");
+    expect(resolveBarbershopId(master, undefined)).toBe("shop-a");
+  });
+
+  it("OWNER ignora barbershopId de outro salão na query", () => {
+    expect(resolveBarbershopId(owner, "shop-b")).toBe("shop-a");
+  });
+
+  it("EMPLOYEE ignora barbershopId de outro salão na query", () => {
+    expect(resolveBarbershopId(employee, "shop-b")).toBe("shop-a");
+  });
+
+  it("OWNER sem barbershopId na sessão lança 400 mesmo com query", () => {
+    const semLoja = { role: "OWNER" as const, barbershopId: null };
+    expect(() => resolveBarbershopId(semLoja, "shop-b")).toThrow(
+      "barbershopId é obrigatório",
+    );
+  });
+
+  it("MASTER_ADMIN sem barbershopId nem query lança 400", () => {
+    const masterSemLoja = { role: "MASTER_ADMIN" as const, barbershopId: null };
+    expect(() => resolveBarbershopId(masterSemLoja, null)).toThrow(
+      "barbershopId é obrigatório",
+    );
   });
 });

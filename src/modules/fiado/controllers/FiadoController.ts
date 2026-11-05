@@ -18,7 +18,7 @@ import {
   chargeFiadoSchema,
 } from "../schemas/fiadoSchemas";
 import { AppError } from "@/shared/errors/AppError";
-import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { buildPaginationMeta, resolveBarbershopId } from "@/shared/utils/pagination";
 
 export class FiadoController {
   async charge(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -34,14 +34,10 @@ export class FiadoController {
     const user = request.user!;
     const body = createFiadoSchema.parse(request.body);
 
-    const barbershopId =
-      user.role === "MASTER_ADMIN"
-        ? body.barbershopId
-        : user.barbershopId;
-
-    if (!barbershopId) {
-      throw new AppError("barbershopId é obrigatório", 400);
-    }
+    const barbershopId = resolveBarbershopId(
+      user,
+      (request.query as { barbershopId?: string }).barbershopId ?? null,
+    );
 
     const useCase = container.resolve(CreateFiadoUseCase);
     const fiado = await useCase.execute(

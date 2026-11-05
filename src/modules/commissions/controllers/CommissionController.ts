@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta, resolveBarbershopId } from "@/shared/utils/pagination";
 import { ICommissionRepository } from "../repositories/ICommissionRepository";
 import { listCommissionsQuerySchema } from "../schemas/commissionSchemas";
 
@@ -12,9 +13,7 @@ export class CommissionController {
   private barbershopId(request: FastifyRequest): string {
     const user = request.user!;
     const requested = (request.query as { barbershopId?: string }).barbershopId;
-    const id = user.role === "MASTER_ADMIN" ? requested : user.barbershopId;
-    if (!id) throw new AppError("barbershopId é obrigatório", 400);
-    return id;
+    return resolveBarbershopId(user, requested ?? null);
   }
 
   async list(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -23,7 +22,7 @@ export class CommissionController {
     reply.send({
       success: true,
       data: result.data,
-      meta: { total: result.total, page: query.page, limit: query.limit, totalPages: Math.ceil(result.total / query.limit) },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 

@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
-import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { buildPaginationMeta, resolveBarbershopId } from "@/shared/utils/pagination";
 import {
   CreateSalonClientUseCase,
   DeleteSalonClientUseCase,
@@ -45,14 +45,10 @@ export class ClientController {
     const user = request.user!;
     const query = listClientsQuerySchema.parse(request.query);
 
-    const barbershopId =
-      user.role === "MASTER_ADMIN"
-        ? ((request.query as { barbershopId?: string }).barbershopId ?? "")
-        : user.barbershopId ?? "";
-
-    if (!barbershopId) {
-      throw new AppError("barbershopId é obrigatório", 400);
-    }
+    const barbershopId = resolveBarbershopId(
+      request.user!,
+      (request.query as { barbershopId?: string }).barbershopId ?? null,
+    );
 
     const useCase = container.resolve(ListSalonClientsUseCase);
     const result = await useCase.execute({ ...query, barbershopId }, user);
