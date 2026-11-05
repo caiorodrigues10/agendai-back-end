@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BusinessSegment } from "@prisma/client";
 import { MAX_MONETARY_VALUE, MONETARY_VALUE_TOO_HIGH } from "@/shared/constants/money";
+import { paginationQuerySchema as basePaginationQuerySchema } from "@/shared/utils/pagination";
 
 export const retailPaymentMethodSchema = z.enum(["cash", "pix", "credit_card", "debit_card", "fiado"]);
 
@@ -95,7 +96,10 @@ export const updateProductSchema = productBaseSchema.partial().superRefine((data
   }
 });
 
-export const listProductsQuerySchema = z.object({
+export const listProductsQuerySchema = basePaginationQuerySchema({
+  defaultLimit: 30,
+  maxLimit: 100,
+}).extend({
   search: z.string().trim().max(80).optional(),
   categoryId: z.string().uuid().optional(),
   active: z.enum(["true", "false"]).optional(),
@@ -106,8 +110,6 @@ export const listProductsQuerySchema = z.object({
   forSale: z.enum(["true", "false"]).optional(),
   expiry: z.enum(["expired", "expiring"]).optional(),
   days: z.coerce.number().int().min(1).max(365).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
 }).superRefine((data, ctx) => {
   if (data.expiry && data.lowStock === "true") {
     ctx.addIssue({
@@ -159,9 +161,9 @@ export const adjustmentSchema = z.object({
   type: z.enum(["MANUAL_ADJUSTMENT", "INTERNAL_CONSUMPTION"]).optional(),
 });
 
-export const paginationQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+export const paginationQuerySchema = basePaginationQuerySchema({
+  defaultLimit: 50,
+  maxLimit: 100,
 });
 
 export const createRetailSaleSchema = retailSalePayloadSchema

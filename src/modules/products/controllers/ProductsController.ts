@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { z } from "zod";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 import { ProductCatalogUseCase } from "../useCases/productUseCases";
 import { ALLOWED_LOGO_MIME_TYPES } from "@/shared/config/upload";
 import {
@@ -37,7 +38,11 @@ export class ProductsController {
     const query = listProductsQuerySchema.parse(request.query);
     const barbershopId = shopId(request, (request.query as { barbershopId?: string }).barbershopId);
     const result = await this.useCase().listProducts(barbershopId, request.user!, query);
-    reply.send({ success: true, data: result.data, meta: { total: result.total, page: query.page, limit: query.limit } });
+    reply.send({
+      success: true,
+      data: result.data,
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
+    });
   }
 
   async listPublicSaleProducts(request: FastifyRequest, reply: FastifyReply) {
