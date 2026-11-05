@@ -115,15 +115,25 @@ function makeNeed(overrides: Partial<MockNeed> & { barbershopId: string; name: s
 // ─── Mock repository ────────────────────────────────────────
 
 const mockRepo = {
-  listByBarbershop: async (barbershopId: string, filters?: any) =>
-    equipments.filter(
+  listByBarbershop: async (barbershopId: string, filters?: any, pagination?: { page: number; limit: number }) => {
+    const filtered = equipments.filter(
       (e) =>
         e.barbershopId === barbershopId &&
         e.isActive &&
         (!filters?.category || e.category === filters.category.toUpperCase()) &&
         (!filters?.condition || e.condition === filters.condition.toUpperCase()) &&
         (!filters?.search || e.name.toLowerCase().includes(filters.search.toLowerCase()))
-    ),
+    );
+    if (!pagination) return { paginated: false, items: filtered };
+    const start = (pagination.page - 1) * pagination.limit;
+    return {
+      paginated: true,
+      items: filtered.slice(start, start + pagination.limit),
+      total: filtered.length,
+      page: pagination.page,
+      limit: pagination.limit,
+    };
+  },
 
   findById: async (id: string) => equipments.find((e) => e.id === id) ?? null,
 
@@ -173,13 +183,23 @@ const mockRepo = {
     return equipments[idx];
   },
 
-  listMovements: async (barbershopId: string, filters?: any) =>
-    movements.filter(
+  listMovements: async (barbershopId: string, filters?: any, pagination?: { page: number; limit: number }) => {
+    const filtered = movements.filter(
       (m) =>
         m.barbershopId === barbershopId &&
         (!filters?.equipmentId || m.equipmentId === filters.equipmentId) &&
         (!filters?.type || m.type === filters.type.toUpperCase())
-    ),
+    );
+    if (!pagination) return { paginated: false, items: filtered };
+    const start = (pagination.page - 1) * pagination.limit;
+    return {
+      paginated: true,
+      items: filtered.slice(start, start + pagination.limit),
+      total: filtered.length,
+      page: pagination.page,
+      limit: pagination.limit,
+    };
+  },
 
   createMovement: async (data: any) => {
     const m: MockMovement = {
@@ -196,13 +216,23 @@ const mockRepo = {
     return m;
   },
 
-  listNeeds: async (barbershopId: string, filters?: any) =>
-    needs.filter(
+  listNeeds: async (barbershopId: string, filters?: any, pagination?: { page: number; limit: number }) => {
+    const filtered = needs.filter(
       (n) =>
         n.barbershopId === barbershopId &&
         (!filters?.status || n.status === filters.status.toUpperCase()) &&
         (!filters?.priority || n.priority === filters.priority.toUpperCase())
-    ),
+    );
+    if (!pagination) return { paginated: false, items: filtered };
+    const start = (pagination.page - 1) * pagination.limit;
+    return {
+      paginated: true,
+      items: filtered.slice(start, start + pagination.limit),
+      total: filtered.length,
+      page: pagination.page,
+      limit: pagination.limit,
+    };
+  },
 
   findNeedById: async (id: string) => needs.find((n) => n.id === id) ?? null,
 

@@ -28,15 +28,15 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const result: any = await this.useCases.listEquipment(resolvedBarbershopId, query);
-    if (result && "total" in result) {
+    const result = await this.useCases.listEquipment(resolvedBarbershopId, query);
+    if (result.paginated) {
       reply.send({
         success: true,
         data: result.items,
-        meta: buildPaginationMeta(result.total, query.page!, query.limit!),
+        meta: buildPaginationMeta(result.total, result.page, result.limit),
       });
     } else {
-      reply.send({ success: true, data: result });
+      reply.send({ success: true, data: result.items });
     }
   }
 
@@ -106,15 +106,15 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const result: any = await this.useCases.listMovements(resolvedBarbershopId, query);
-    if (result && "total" in result) {
+    const result = await this.useCases.listMovements(resolvedBarbershopId, query);
+    if (result.paginated) {
       reply.send({
         success: true,
         data: result.items,
-        meta: buildPaginationMeta(result.total, query.page!, query.limit!),
+        meta: buildPaginationMeta(result.total, result.page, result.limit),
       });
     } else {
-      reply.send({ success: true, data: result });
+      reply.send({ success: true, data: result.items });
     }
   }
 
@@ -148,15 +148,15 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const result: any = await this.useCases.listNeeds(resolvedBarbershopId, query);
-    if (result && "total" in result) {
+    const result = await this.useCases.listNeeds(resolvedBarbershopId, query);
+    if (result.paginated) {
       reply.send({
         success: true,
         data: result.items,
-        meta: buildPaginationMeta(result.total, query.page!, query.limit!),
+        meta: buildPaginationMeta(result.total, result.page, result.limit),
       });
     } else {
-      reply.send({ success: true, data: result });
+      reply.send({ success: true, data: result.items });
     }
   }
 
