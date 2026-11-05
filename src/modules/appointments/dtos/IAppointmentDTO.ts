@@ -1,3 +1,4 @@
+import type { SortInput } from "@/shared/utils/pagination";
 export type AppointmentStatus = "CONFIRMED" | "CANCELLED" | "COMPLETED" | "CHECKED_IN" | "NO_SHOW";
 
 /** Origem do agendamento (espelha o enum `AppointmentSource` do Prisma). */
@@ -123,10 +124,14 @@ export interface IListAppointmentsQuery {
   from?: string;
   /** Intervalo civil: fim (inclusive) */
   to?: string;
-  /** Filtrar por status */
-  status?: AppointmentStatus;
+  /** Filtrar por status — um valor ou uma lista */
+  status?: AppointmentStatus[];
   /** Filtrar por funcionário */
   staffId?: string;
+  /** Filtrar por serviço */
+  serviceId?: string;
   /** Busca por nome do cliente ou whatsapp */
   search?: string;
+  /** Ordenação por data (asc/desc) */
+  sort?: SortInput;
 }

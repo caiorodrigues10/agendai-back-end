@@ -62,17 +62,21 @@ export class MockAppointmentRepository implements IAppointmentRepository {
       (a) => a.barbershopId === barbershopId
     );
 
-    if (query.status) results = results.filter((a) => a.status === query.status);
+    if (query.status && query.status.length > 0) {
+      const wanted = query.status;
+      results = results.filter((a) => wanted.includes(a.status));
+    }
     if (query.staffId) results = results.filter((a) => a.staffId === query.staffId);
+    if (query.serviceId) results = results.filter((a) => a.serviceId === query.serviceId);
     if (query.date) {
+      // `date` tem precedência sobre from/to (como no repositório Prisma)
       const start = Date.parse(`${query.date}T00:00:00.000Z`);
       const end = start + 86_400_000;
       results = results.filter((a) => {
         const t = (a.date instanceof Date ? a.date : new Date(a.date)).getTime();
         return t >= start && t < end;
       });
-    }
-    if (query.from || query.to) {
+    } else if (query.from || query.to) {
       results = results.filter((a) => {
         const t = (a.date instanceof Date ? a.date : new Date(a.date)).getTime();
         if (query.from && t < Date.parse(`${query.from}T00:00:00.000Z`)) return false;
@@ -87,6 +91,18 @@ export class MockAppointmentRepository implements IAppointmentRepository {
           a.customerName.toLowerCase().includes(term) ||
           a.whatsapp.includes(term)
       );
+    }
+
+    if (query.sort) {
+      const dir = query.sort.dir === "desc" ? -1 : 1;
+      results = [...results].sort((a, b) => {
+        const at = (a.date instanceof Date ? a.date : new Date(a.date)).getTime();
+        const bt = (b.date instanceof Date ? b.date : new Date(b.date)).getTime();
+        if (at !== bt) return (at - bt) * dir;
+        // horário como segundo critério, na mesma direção
+        if (a.time !== b.time) return a.time.localeCompare(b.time) * dir;
+        return a.id.localeCompare(b.id);
+      });
     }
 
     const total = results.length;

@@ -86,7 +86,7 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A5 | `fiados` | `(barbershopId, dueDate)` | ordenação por vencimento e filtro de atraso (`dueDate < hoje`) |
 | A6 | `appointments` | `(barbershopId, date, time)` | listagem por data sem filtro de profissional (o índice atual só cobre `(barbershopId, staffId, date, status)`) |
 
-**Sobre o A6 — nomes reais das colunas de data/hora** ( conferidos em
+**Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
 
 ```prisma
@@ -100,6 +100,59 @@ time   String    @db.VarChar(5)
 — que é exatamente a ordem já usada pelo repositório
 (`orderBy: [{ date: "asc" }, { time: "asc" }, { id: "asc" }]`). Nenhum
 `time` numérico existe na tabela.
+
+### 2.1 Análise dos índices de `Appointment` (listagem da Fase 2)
+
+`@@index` declarados no modelo `Appointment` (`prisma/schema.prisma`, linhas
+1095-1101):
+
+```prisma
+@@index([barbershopId, staffId, date, status])
+@@index([barbershopId, completedAt])
+@@index([clientId])
+@@index([clientPackageId])
+@@index([seriesId, occurrenceIndex])
+@@index([visitId])
+@@index([date])
+```
+
+| Consulta da listagem | Índice que a cobre | Situação |
+|---|---|---|
+| `(barbershopId, staffId, date)` | `@@index([barbershopId, staffId, date, status])` — casa pelo prefixo | **coberta** |
+| `(barbershopId, date)` — listagem por data **sem** profissional | nenhuma | **falta** |
+| `(barbershopId, status)` — filtro de status (inclusive em lista) | nenhuma | **falta** |
+| `(barbershopId, serviceId)` — filtro por serviço | nenhuma | **falta** |
+
+Por que as três últimas faltam:
+
+- `@@index([barbershopId, staffId, date, status])` **não** serve a consulta por
+  data sem profissional: `staffId` é a segunda coluna do índice e não é
+  filtrado nessa consulta, então o Postgres não consegue usá-lo como prefixo.
+- `@@index([date])` sozinho não ajuda: não contém `barbershopId`, e a listagem
+  é sempre por salão.
+- Não há índice nenhum sobre `status` ou `serviceId` em `Appointment`.
+
+Proposta (somente proposta, nada aplicado — ver seção 4):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_date_time_idx"
+  ON "appointments" ("barbershopId", "date", "time");       -- A6
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_status_date_idx"
+  ON "appointments" ("barbershopId", "status", "date");      -- filtro de status
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "appointments_barbershopId_serviceId_date_idx"
+  ON "appointments" ("barbershopId", "serviceId", "date");   -- filtro por serviço
+```
+
+E, no `schema.prisma`, para não gerar drift (ver o passo 6 da seção 4):
+
+```prisma
+model Appointment {
+  // ...
+  @@index([barbershopId, date, time])
+  @@index([barbershopId, status, date])
+  @@index([barbershopId, serviceId, date])
+}
+```
 
 ### Proposta — grupo B: relação (some/none)
 
