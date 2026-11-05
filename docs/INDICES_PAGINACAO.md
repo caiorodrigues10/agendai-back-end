@@ -147,6 +147,8 @@ filtra por salão, então o índice composto serve ao filtro **e** à ordenaçã
 | A20 | `services` | `(barbershopId, price)` | `sort=preco` — **opcional** |
 | A21 | `services` | `(barbershopId, avgTimeMinutes)` | `sort=duracao` — **opcional** |
 | A22 | `services` | `(barbershopId, createdAt)` | `sort=criado` — **opcional** |
+| A23 | `users` | `(role, createdAt)` | equipe interna do admin: escopo por papel + ordenação padrão (`createdAt desc`) — **opcional** |
+| A24 | `users` | `(role, deletedAt)` | equipe interna do admin: filtro de membro removido (`status=inactive`) — **opcional** |
 
 **Sobre o A6 — nomes reais das colunas de data/hora** (conferidos em
 `prisma/schema.prisma`, modelo `Appointment`, linhas 1029-1030):
@@ -450,6 +452,12 @@ Por que A15–A16 faltam:
 RLS: `users` **tem** RLS (`rowsecurity = true`, `forcerowsecurity = true`) e a
 policy `tenant_isolation` — ao contrário de `commission_entries` (seção 8).
 
+**Diferença de escopo em relação ao admin da plataforma:** a rota do dono é por
+salão (`barbershopId` do contexto, `role` só `OWNER`/`EMPLOYEE`, membro
+removido sempre fora). A rota do admin (`GET /api/admin/team`, seção 2.7) é de
+escopo plataforma: sem salão, `role` aceita qualquer papel da plataforma e o
+membro removido aparece quando `status=inactive` é pedido.
+
 Proposta (somente proposta, nada aplicado — ver seção 4):
 
 ```sql
@@ -565,8 +573,58 @@ model Service {
 }
 ```
 
-### Proposta — grupo B: relação (some/none)
+### 2.7 Análise dos índices de `users` — equipe interna do admin (`GET /api/admin/team`)
 
+A rota do admin da plataforma (`GET /api/admin/team`) lista a **equipe interna**
+(`role = MASTER_ADMIN`) e é **de escopo plataforma**: não há salão no filtro.
+Sem `role`, o escopo é a equipe interna; com `role`, o escopo passa a ser o
+papel pedido — é o que o admin enxerga além do dono (o dono da equipe do salão
+só filtra `OWNER`/`EMPLOYEE`, ver seção 2.5).
+
+Filtros: `search` (nome **ou** e-mail, `ILIKE`), `status` (`active` = ativo e
+não removido; `inactive` = desativado **ou** removido), `active` e `sort`
+(`nome`, `email`, `cargo`, `criado`). A paginação mantém o **default 25** da
+rota (o chamador que não manda `page`/`limit` continua recebendo as 25
+primeiras posições, como antes).
+
+| Consulta da listagem | Índice que a cobre | Situação |
+|---|---|---|
+| `(role, createdAt)` — escopo da equipe interna + ordenação padrão (`createdAt desc`) | nenhuma | **falta** (A23 — opcional) |
+| `(role, deletedAt)` — filtro de membro removido (`status=inactive`) | nenhuma | **falta** (A24 — opcional) |
+| `(role, name)` / `(role, email)` — ordenação por nome/e-mail com filtro de papel | nenhuma | **falta** (opcional, mesma razão do volume) |
+| `name`/`email` — busca textual (`ILIKE '%termo%'`) | nenhum (GIN de `pg_trgm`) | **falta** (C3/C4 — reaproveitados) |
+
+**Volume observado (consulta somente leitura, 2026-11-05, agregada — sem
+nomes):** 1 `MASTER_ADMIN`, 19 `OWNER` e 5 `EMPLOYEE` na plataforma inteira —
+muito abaixo do limiar de 70 que dispara reavaliação. Por isso **nenhum índice
+novo é recomendado** aqui: A23 e A24 ficam como opção, e a busca reaproveita
+os GIN de `pg_trgm` já propostos em C3/C4.
+
+RLS: `users` **tem** RLS (`rowsecurity = true`, `forcerowsecurity = true`) e a
+policy `tenant_isolation` (seção 7) — mas, como o papel `agendai` é SUPERUSER
+com BYPASSRLS, a RLS **não é efetiva no ambiente de desenvolvimento**: o
+isolamento real vem do `where` construído pela aplicação.
+
+Proposta (somente proposta, nada aplicado — ver seção 4):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_role_createdAt_idx"
+  ON "users" ("role", "createdAt");   -- A23 (opcional)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_role_deletedAt_idx"
+  ON "users" ("role", "deletedAt");   -- A24 (opcional)
+```
+
+E, no `schema.prisma`, para não gerar drift (ver o passo 6 da seção 4):
+
+```prisma
+model User {
+  // ...
+  @@index([role, createdAt])   // A23
+  @@index([role, deletedAt])   // A24
+}
+```
+
+### Proposta — grupo B: relação (some/none)
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
 `fiados.clientId` e `client_packages.clientId`. O índice ideal traz o status
 junto, porque o `some` sempre filtra por status:

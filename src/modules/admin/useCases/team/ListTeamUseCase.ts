@@ -1,95 +1,45 @@
-import { prisma } from "@/libs/prismaClient";
+import { inject, injectable } from "tsyringe";
+import type {
+  IAdminTeamInvitation,
+  IAdminTeamListFilters,
+  IAdminTeamListItem,
+} from "../../dtos/IAdminTeamListDTO";
+import type { IAdminTeamRepository } from "../../repositories/IAdminTeamRepository";
+import type { SortInput } from "@/shared/utils/pagination";
 
+@injectable()
 export class ListTeamUseCase {
-  async execute(params: {
-    page?: number;
-    limit?: number;
+  constructor(
+    @inject("AdminTeamRepository")
+    private adminTeamRepository: IAdminTeamRepository,
+  ) {}
+
+  /**
+   * Lista a equipe interna da plataforma (`GET /api/admin/team`).
+   *
+   * A paginação é do chamador (`page`/`limit`): o default **25** vem do
+   * schema da rota e é o que a tela do master usa quando não manda `limit`.
+   *
+   * O escopo é da plataforma: sem `role`, só a equipe interna
+   * (`MASTER_ADMIN`); com `role`, o papel pedido — o admin da plataforma
+   * enxerga mais papéis que o dono da equipe do salão.
+   */
+  async execute(query: {
+    page: number;
+    limit: number;
     search?: string;
-    status?: string;
-  }) {
-    const { page = 1, limit = 25, search, status } = params;
-    const skip = (page - 1) * limit;
+    status?: "active" | "inactive";
+    active?: boolean;
+    role?: IAdminTeamListFilters["role"];
+    sort?: SortInput;
+  }): Promise<{
+    users: IAdminTeamListItem[];
+    invitations: IAdminTeamInvitation[];
+    total: number;
+  }> {
+    const { users, total } = await this.adminTeamRepository.list(query);
+    const invitations = await this.adminTeamRepository.listInvitations(query.status);
 
-    const where: any = {};
-    const and: any[] = [];
-
-    if (search) {
-      and.push({
-        OR: [
-        { name: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-        ],
-      });
-    }
-
-    if (status === "active") {
-      and.push({ active: true, deletedAt: null });
-    } else if (status === "inactive") {
-      and.push({ OR: [{ active: false }, { deletedAt: { not: null } }] });
-    } else {
-      and.push({ deletedAt: null });
-    }
-
-    if (and.length > 0) {
-      where.AND = and;
-    }
-
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where: { ...where, role: "MASTER_ADMIN" },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          active: true,
-          avatarUrl: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: {
-            select: {
-              ticketsAssigned: { where: { status: { notIn: ["RESOLVED", "CANCELLED"] } } },
-              tasksAssigned: { where: { status: { notIn: ["DONE", "CANCELLED"] } } },
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-      }),
-      prisma.user.count({
-        where: { ...where, role: "MASTER_ADMIN" },
-      }),
-    ]);
-
-    const invitations = await prisma.internalInvitation.findMany({
-      where: status === "active"
-        ? { status: "PENDING" }
-        : status === "inactive"
-          ? { status: { in: ["EXPIRED", "REVOKED"] } }
-          : {},
-      select: {
-        id: true,
-        email: true,
-        status: true,
-        permissions: true,
-        expiresAt: true,
-        createdAt: true,
-        invitedBy: { select: { name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
-    return {
-      users,
-      invitations,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    return { users, invitations, total };
   }
 }

@@ -27,6 +27,10 @@ import {
   buildServiceListOrderBy,
   buildServiceListWhere,
 } from "@/modules/services/repositories/serviceListWhere";
+import {
+  buildAdminTeamListOrderBy,
+  buildAdminTeamListWhere,
+} from "@/modules/admin/repositories/adminTeamListWhere";
 import { shopToday } from "@/modules/financial/ledger/shopTime";
 
 const DIA = "2026-10-05";
@@ -929,6 +933,153 @@ describe("isolamento por salão — serviços (Postgres real, rollback)", () => 
         const baseB = await consulta(buildServiceListWhere(shopB.id, {}));
         expect(baseB.map((s) => s.id)).toEqual([corteB.id]);
         expect(baseB.every((s) => s.barbershopId === shopB.id)).toBe(true);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
+
+describe("isolamento por salão — equipe interna do admin (Postgres real, rollback)", () => {
+  it("o admin da plataforma enxerga a equipe de salões diferentes; o dono só a do seu", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Admin A ${randomUUID()}`, whatsapp: "11991110005" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Admin B ${randomUUID()}`, whatsapp: "11991110006" },
+      });
+
+      // Equipe interna da plataforma (não pertence a salão).
+      const internoAtivo = await tx.user.create({
+        data: {
+          name: "Interno Isolamento Ativo",
+          email: `interno-ativo-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "MASTER_ADMIN",
+        },
+      });
+      const internoInativo = await tx.user.create({
+        data: {
+          name: "Interno Isolamento Inativo",
+          email: `interno-inativo-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "MASTER_ADMIN",
+          active: false,
+        },
+      });
+      const internoRemovido = await tx.user.create({
+        data: {
+          name: "Interno Isolamento Removido",
+          email: `interno-removido-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "MASTER_ADMIN",
+          active: false,
+          deletedAt: new Date(),
+        },
+      });
+
+      // Equipe dos salões.
+      const donoA = await tx.user.create({
+        data: {
+          name: "Dono Isolamento A",
+          email: `dono-admin-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "OWNER",
+          barbershopId: shopA.id,
+        },
+      });
+      const funcionarioA = await tx.user.create({
+        data: {
+          name: "Funcionario Isolamento A",
+          email: `func-admin-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          barbershopId: shopA.id,
+        },
+      });
+      const funcionarioB = await tx.user.create({
+        data: {
+          name: "Funcionario Isolamento B",
+          email: `func-admin-b-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "EMPLOYEE",
+          barbershopId: shopB.id,
+        },
+      });
+
+      const consulta = (where: unknown, orderBy?: unknown) =>
+        tx.user.findMany({
+          where: where as never,
+          orderBy: (orderBy ?? { createdAt: "asc" }) as never,
+          select: { id: true, name: true, role: true, barbershopId: true },
+        });
+
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Escopo padrão do admin: só a equipe interna da plataforma, sem o
+        //    membro removido (a base pode ter outros Admins da plataforma).
+        const internos = await consulta(buildAdminTeamListWhere({}));
+        expect(internos.map((u) => u.id)).toContain(internoAtivo.id);
+        expect(internos.map((u) => u.id)).toContain(internoInativo.id);
+        expect(internos.map((u) => u.id)).not.toContain(internoRemovido.id);
+        expect(internos.map((u) => u.id)).not.toContain(funcionarioA.id);
+        expect(internos.map((u) => u.id)).not.toContain(funcionarioB.id);
+        expect(internos.every((u) => u.role === "MASTER_ADMIN")).toBe(true);
+
+        // 2. status=inactive: desativado OU removido.
+        const inativos = await consulta(
+          buildAdminTeamListWhere({ status: "inactive" }),
+        );
+        expect(inativos.map((u) => u.id)).toContain(internoInativo.id);
+        expect(inativos.map((u) => u.id)).toContain(internoRemovido.id);
+        expect(inativos.map((u) => u.id)).not.toContain(internoAtivo.id);
+
+        // 3. Com `role`, o admin enxerga salões diferentes: o funcionário do
+        //    salão A e o do salão B na mesma listagem (escopo da plataforma).
+        const funcionarios = await consulta(
+          buildAdminTeamListWhere({ role: "EMPLOYEE" }),
+        );
+        expect(funcionarios.map((u) => u.id)).toContain(funcionarioA.id);
+        expect(funcionarios.map((u) => u.id)).toContain(funcionarioB.id);
+        expect(
+          funcionarios
+            .filter((u) => [funcionarioA.id, funcionarioB.id].includes(u.id))
+            .map((u) => u.barbershopId)
+            .sort(),
+        ).toEqual([shopA.id, shopB.id].sort());
+
+        // 4. Busca do admin em outro salão: encontra (o admin não é preso ao
+        //    salão do contexto).
+        const busca = await consulta(
+          buildAdminTeamListWhere({
+            role: "EMPLOYEE",
+            search: "Funcionario Isolamento B",
+          }),
+        );
+        expect(busca.map((u) => u.id)).toEqual([funcionarioB.id]);
+
+        // 5. A listagem do DONO continua presa ao salão: só a equipe do A.
+        const equipeDonoA = await consulta(buildUserListWhere(shopA.id, {}));
+        expect(equipeDonoA.map((u) => u.id)).toEqual([donoA.id, funcionarioA.id]);
+        expect(equipeDonoA.map((u) => u.id)).not.toContain(funcionarioB.id);
+
+        // 6. Ordenação: a whitelist produz a coluna pedida.
+        const porNome = await consulta(
+          buildAdminTeamListWhere({ role: "EMPLOYEE" }),
+          buildAdminTeamListOrderBy({ field: "nome", dir: "asc" }),
+        );
+        const nomes = porNome.map((u) => u.name);
+        expect(nomes.indexOf("Funcionario Isolamento A")).toBeLessThan(
+          nomes.indexOf("Funcionario Isolamento B"),
+        );
+
+        // 7. PROVA de que a RLS não filtra nada neste ambiente: a mesma consulta
+        //    SEM o `barbershopId` no `where` enxerga o salão B.
+        const semBarbershop = await consulta({ id: funcionarioB.id });
+        expect(semBarbershop.map((u) => u.id)).toEqual([funcionarioB.id]);
+        expect(semBarbershop[0].barbershopId).toBe(shopB.id);
       });
 
       throw new Error("ROLLBACK_ISOLATION");
