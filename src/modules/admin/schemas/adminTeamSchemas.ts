@@ -13,13 +13,17 @@ import { TEAM_SORT_FIELDS } from "@/modules/users/schemas/userSchemas";
  * Diferença em relação ao dono (`GET /api/users`), cujo filtro de papel é
  * apenas `OWNER`/`EMPLOYEE` (os papéis que formam a equipe do salão): o admin
  * enxerga a plataforma inteira, então pode filtrar também por `MASTER_ADMIN`
- * (equipe interna) e `CUSTOMER` (papel reservado).
+ * (equipe interna) e pelos donos/funcionários dos salões.
+ *
+ * `CUSTOMER` fica **fora** da whitelist: é um papel reservado, sem uso hoje
+ * (o comentário do `enum Role` no `prisma/schema.prisma` diz o mesmo) e a tela
+ * do master não filtra por papel — o filtro existindo, só produziria lista
+ * vazia.
  */
 export const ADMIN_TEAM_ROLE_FIELDS = [
   "MASTER_ADMIN",
   "OWNER",
   "EMPLOYEE",
-  "CUSTOMER",
 ] as const;
 
 /**
@@ -33,8 +37,9 @@ export const ADMIN_TEAM_ROLE_FIELDS = [
  * - `status`: `active` (ativo e **não removido**) ou `inactive` (desativado
  *   **ou** removido). Sem `status`, o membro removido fica de fora.
  * - `active`: `true`/`false` — situação do membro.
- * - `role`: papel do membro, na whitelist da plataforma acima. **Sem `role`, o
- *   escopo é a equipe interna** (`MASTER_ADMIN`).
+ * - `role`: papel do membro, na whitelist da plataforma acima (`MASTER_ADMIN`,
+ *   `OWNER`, `EMPLOYEE`). **Sem `role`, o escopo é a equipe interna**
+ *   (`MASTER_ADMIN`).
  * - `sort`: `<campo>:<asc|desc>`, campo na whitelist compartilhada com a
  *   listagem do dono (`nome`, `email`, `cargo`, `criado`).
  */

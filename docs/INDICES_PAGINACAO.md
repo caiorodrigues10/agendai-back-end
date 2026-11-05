@@ -438,6 +438,20 @@ nomes):** maior quantidade de usuários ativos (`deletedAt` nulo) em um salão =
 **1**. Está bem abaixo do limiar de 70 que dispara reavaliação — o mesmo
 limiar aplicado a serviços (seção 2.6, máximo de 5 por salão).
 
+> **Origem do número:** medido no **banco local de DEV** (`agendai`,
+> `localhost:5442`) — e o mesmo valor no banco de testes (`agendai_db`,
+> `localhost:5442`). São dados locais, não de produção: **a mesma consulta
+> precisa rodar em produção antes de dispensar a reavaliação** (ou de aplicar
+> qualquer índice). Consulta usada:
+>
+> ```sql
+> select max(cnt) from (
+>   select "barbershopId", count(*) cnt
+>   from users where "deletedAt" is null
+>   group by "barbershopId"
+> ) t;
+> ```
+
 Por que A15–A16 faltam:
 
 - A tabela **não tem nenhum índice com `barbershopId`**: os índices que existem
@@ -455,8 +469,16 @@ policy `tenant_isolation` — ao contrário de `commission_entries` (seção 8).
 **Diferença de escopo em relação ao admin da plataforma:** a rota do dono é por
 salão (`barbershopId` do contexto, `role` só `OWNER`/`EMPLOYEE`, membro
 removido sempre fora). A rota do admin (`GET /api/admin/team`, seção 2.7) é de
-escopo plataforma: sem salão, `role` aceita qualquer papel da plataforma e o
-membro removido aparece quando `status=inactive` é pedido.
+escopo plataforma: sem salão, `role` aceita `MASTER_ADMIN`/`OWNER`/`EMPLOYEE`
+e o membro removido aparece quando `status=inactive` é pedido.
+
+**Auditoria:** o acesso do admin interno à **listagem** (`GET /api/admin/team`)
+**não passa por `createAuditLog`** — a rota é só leitura e não grava registro
+de auditoria. Quem grava é só a mutação, por exemplo
+`src/modules/admin/useCases/team/DeactivateMemberUseCase.ts:45`
+(`tx.auditLog.create({ data: { action: "DEACTIVATE_INTERNAL_ADMIN", ... } })`)
+e `ReactivateMemberUseCase.ts:27`. Registrar leitura de dado sensível (e-mail
+de toda a plataforma) fica como **pendência conhecida**, não implementada.
 
 Proposta (somente proposta, nada aplicado — ver seção 4):
 
@@ -513,6 +535,24 @@ usuários ativos (`deletedAt` nulo) em um salão = **1**. Os dois estão bem
 abaixo do limiar de 70 que dispara reavaliação — por isso a lista de índices
 recomendados é curta.
 
+> **Origem do número:** medido no **banco local de DEV** (`agendai`,
+> `localhost:5442`) — e o mesmo valor no banco de testes (`agendai_db`,
+> `localhost:5442`). São dados locais, não de produção: **a mesma consulta
+> precisa rodar em produção antes de dispensar a reavaliação**. Consultas
+> usadas:
+>
+> ```sql
+> select max(cnt) from (
+>   select "barbershopId", count(*) cnt from services group by "barbershopId"
+> ) t;
+>
+> select max(cnt) from (
+>   select "barbershopId", count(*) cnt
+>   from users where "deletedAt" is null
+>   group by "barbershopId"
+> ) t;
+> ```
+
 Por que A17–A22 faltam:
 
 - A tabela tem **um único índice** (`services_pkey`, em `id`): nenhum índice
@@ -537,6 +577,32 @@ rejeita serviço desativado — `assertAppointmentBookable` procura o serviço c
 (`src/modules/queue/useCases/joinQueue/JoinQueueUseCase.ts:48-56`). Listar o
 serviço inativo e recusar a reserva são comportamentos complementares:
 desativar bloqueia a reserva sem apagar o histórico do serviço.
+
+**Onde a página pública de agendamento busca os serviços** (`rg -n`, só
+leitura):
+
+| passo | arquivo:linha |
+|---|---|
+| rota da página pública (`/queue/:id`, aba "Agenda") | `frontend/src/app/App.tsx:90-93` |
+| página que consome os serviços | `frontend/src/pages/PublicHome.tsx:32-42` e `227-250` |
+| seletor que desenha os serviços | `frontend/src/features/appointments/AppointmentScheduler.tsx:274-308` |
+| contexto que carrega os dados | `frontend/src/contexts/BarbershopContext.tsx:105-107` e `150` |
+| wrapper da API | `frontend/src/infra/barbershopApi.ts:214-225` |
+| rota do backend | `backend/src/shared/infra/http/routes/services.routes.ts:22` |
+| visão pública (where) | `backend/src/modules/services/repositories/serviceListWhere.ts:20-29` |
+
+O wrapper chama `GET /api/services?barbershopId=<id>` **sem token** (visitante
+anônimo) e **sem `active`**: nem o backend filtra `active` na visão pública
+(where = `{ barbershopId, AND: [{ publicBookable: true }] }`), nem o front
+filtra (`PublicHome.tsx:59-64` calcula um `publicServices` por
+`publicBookable`, mas **não o aplica** ao agendador — `PublicHome.tsx:228-230`
+passa `services`). Resultado: serviço inativo pode aparecer e ser selecionável
+na agenda pública, e só falha na hora de buscar o horário/confirmar.
+
+**Proposta (não implementada):** na visão pública do `buildServiceListWhere`,
+empilhar `{ active: true }` junto de `{ publicBookable: true }` — assim a agenda
+pública só lista serviços ativos, sem mexer na visão staff (que continua
+listando inativos para o dono, como hoje).
 
 RLS: `services` **não tem** RLS (`rowsecurity = false`) — mesma situação de
 `commission_entries` (seção 8): o isolamento hoje vem do `where` construído pela
@@ -599,6 +665,15 @@ nomes):** 1 `MASTER_ADMIN`, 19 `OWNER` e 5 `EMPLOYEE` na plataforma inteira —
 muito abaixo do limiar de 70 que dispara reavaliação. Por isso **nenhum índice
 novo é recomendado** aqui: A23 e A24 ficam como opção, e a busca reaproveita
 os GIN de `pg_trgm` já propostos em C3/C4.
+
+> **Origem do número:** medido no **banco local de DEV** (`agendai`,
+> `localhost:5442`) — e o mesmo valor no banco de testes (`agendai_db`,
+> `localhost:5442`). São dados locais, não de produção: **a mesma consulta
+> precisa rodar em produção antes de dispensar a reavaliação**. Consulta usada:
+>
+> ```sql
+> select role, count(*) from users group by role;
+> ```
 
 RLS: `users` **tem** RLS (`rowsecurity = true`, `forcerowsecurity = true`) e a
 policy `tenant_isolation` (seção 7) — mas, como o papel `agendai` é SUPERUSER

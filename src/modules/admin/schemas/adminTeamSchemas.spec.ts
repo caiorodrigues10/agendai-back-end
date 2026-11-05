@@ -49,8 +49,11 @@ describe("adminTeamQuerySchema", () => {
     );
     expect(adminTeamQuerySchema.parse({ role: "OWNER" }).role).toBe("OWNER");
     expect(adminTeamQuerySchema.parse({ role: "EMPLOYEE" }).role).toBe("EMPLOYEE");
-    expect(adminTeamQuerySchema.parse({ role: "CUSTOMER" }).role).toBe("CUSTOMER");
     expect(() => adminTeamQuerySchema.parse({ role: "root" })).toThrow();
+  });
+
+  it("role CUSTOMER é recusado (papel reservado, sem uso — só daria lista vazia)", () => {
+    expect(() => adminTeamQuerySchema.parse({ role: "CUSTOMER" })).toThrow();
   });
 
   it("sort aceita apenas os campos da whitelist compartilhada com o dono", () => {

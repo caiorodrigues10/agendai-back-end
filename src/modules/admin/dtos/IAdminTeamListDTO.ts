@@ -12,7 +12,7 @@ import type { SortInput } from "@/shared/utils/pagination";
  * - A rota do admin é **da plataforma**: não tem salão. O escopo padrão é a
  *   equipe interna (`role = MASTER_ADMIN`) e, quando o admin informa `role`,
  *   o escopo passa a ser o papel pedido — o admin enxerga **mais papéis** que
- *   o dono (`OWNER`, `EMPLOYEE`, `CUSTOMER` também).
+ *   o dono (`OWNER`, `EMPLOYEE` também).
  *
  * O `status` mantém a semântica atual da rota: `active` só mostra quem está
  * ativo e **não removido**; `inactive` mostra quem está desativado **e** quem
@@ -27,7 +27,7 @@ export interface IAdminTeamListFilters {
   /** Situação do membro (ativo/inativo), filtro independente do `status`. */
   active?: boolean;
   /** Papel do membro. Whitelist da plataforma (veja a nota acima). */
-  role?: Role;
+  role?: Exclude<Role, "CUSTOMER">;
 }
 
 export interface IAdminTeamListQuery extends IAdminTeamListFilters {
