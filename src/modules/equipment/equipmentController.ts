@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 import {
   createEquipmentSchema,
   updateEquipmentSchema,
@@ -27,8 +28,16 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const items = await this.useCases.listEquipment(resolvedBarbershopId, query);
-    reply.send({ success: true, data: items });
+    const result: any = await this.useCases.listEquipment(resolvedBarbershopId, query);
+    if (result && "total" in result) {
+      reply.send({
+        success: true,
+        data: result.items,
+        meta: buildPaginationMeta(result.total, query.page!, query.limit!),
+      });
+    } else {
+      reply.send({ success: true, data: result });
+    }
   }
 
   async getEquipment(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -97,8 +106,16 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const items = await this.useCases.listMovements(resolvedBarbershopId, query);
-    reply.send({ success: true, data: items });
+    const result: any = await this.useCases.listMovements(resolvedBarbershopId, query);
+    if (result && "total" in result) {
+      reply.send({
+        success: true,
+        data: result.items,
+        meta: buildPaginationMeta(result.total, query.page!, query.limit!),
+      });
+    } else {
+      reply.send({ success: true, data: result });
+    }
   }
 
   async createMovement(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -131,8 +148,16 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const items = await this.useCases.listNeeds(resolvedBarbershopId, query);
-    reply.send({ success: true, data: items });
+    const result: any = await this.useCases.listNeeds(resolvedBarbershopId, query);
+    if (result && "total" in result) {
+      reply.send({
+        success: true,
+        data: result.items,
+        meta: buildPaginationMeta(result.total, query.page!, query.limit!),
+      });
+    } else {
+      reply.send({ success: true, data: result });
+    }
   }
 
   async createNeed(request: FastifyRequest, reply: FastifyReply): Promise<void> {

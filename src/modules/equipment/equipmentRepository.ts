@@ -1,5 +1,6 @@
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
+import type { Equipment, EquipmentMovement, EquipmentNeed } from "@prisma/client";
 import {
   createEquipmentSchema,
   updateEquipmentSchema,
@@ -78,9 +79,20 @@ export class EquipmentRepository {
 
   async listByBarbershop(
     barbershopId: string,
-    filters?: { category?: string; isActive?: boolean; condition?: string; search?: string }
+    filters?: { category?: string; isActive?: boolean; condition?: string; search?: string },
+    pagination?: { page?: number; limit?: number }
+  ): Promise<Equipment[]>;
+  async listByBarbershop(
+    barbershopId: string,
+    filters: { category?: string; isActive?: boolean; condition?: string; search?: string },
+    pagination: { page: number; limit: number }
+  ): Promise<{ items: Equipment[]; total: number }>;
+  async listByBarbershop(
+    barbershopId: string,
+    filters?: { category?: string; isActive?: boolean; condition?: string; search?: string },
+    pagination?: { page?: number; limit?: number }
   ) {
-    return prisma.equipment.findMany({
+    const items = await prisma.equipment.findMany({
       where: {
         barbershopId,
         ...(filters?.category ? { category: filters.category.toUpperCase() as any } : {}),
@@ -92,7 +104,26 @@ export class EquipmentRepository {
       },
       select: equipmentSelect,
       orderBy: { name: "asc" },
+      ...(pagination?.page && pagination?.limit
+        ? { skip: (pagination.page - 1) * pagination.limit, take: pagination.limit }
+        : {}),
     });
+
+    if (!pagination?.page || !pagination?.limit) return items as Equipment[];
+
+    const total = await prisma.equipment.count({
+      where: {
+        barbershopId,
+        ...(filters?.category ? { category: filters.category.toUpperCase() as any } : {}),
+        ...(filters?.isActive !== undefined ? { isActive: filters.isActive } : {}),
+        ...(filters?.condition ? { condition: filters.condition.toUpperCase() as any } : {}),
+        ...(filters?.search
+          ? { name: { contains: filters.search, mode: "insensitive" } }
+          : {}),
+      },
+    });
+
+    return { items: items as Equipment[], total };
   }
 
   async findById(id: string) {
@@ -186,8 +217,22 @@ export class EquipmentRepository {
 
   // ─── Movements ───────────────────────────────────────────
 
-  async listMovements(barbershopId: string, filters?: { equipmentId?: string; type?: string; dateFrom?: Date; dateTo?: Date }) {
-    return prisma.equipmentMovement.findMany({
+  async listMovements(
+    barbershopId: string,
+    filters?: { equipmentId?: string; type?: string; dateFrom?: Date; dateTo?: Date },
+    pagination?: { page?: number; limit?: number }
+  ): Promise<EquipmentMovement[]>;
+  async listMovements(
+    barbershopId: string,
+    filters: { equipmentId?: string; type?: string; dateFrom?: Date; dateTo?: Date },
+    pagination: { page: number; limit: number }
+  ): Promise<{ items: EquipmentMovement[]; total: number }>;
+  async listMovements(
+    barbershopId: string,
+    filters?: { equipmentId?: string; type?: string; dateFrom?: Date; dateTo?: Date },
+    pagination?: { page?: number; limit?: number }
+  ) {
+    const items = await prisma.equipmentMovement.findMany({
       where: {
         barbershopId,
         ...(filters?.equipmentId ? { equipmentId: filters.equipmentId } : {}),
@@ -197,7 +242,24 @@ export class EquipmentRepository {
       },
       select: movementSelect,
       orderBy: { createdAt: "desc" },
+      ...(pagination?.page && pagination?.limit
+        ? { skip: (pagination.page - 1) * pagination.limit, take: pagination.limit }
+        : {}),
     });
+
+    if (!pagination?.page || !pagination?.limit) return items as EquipmentMovement[];
+
+    const total = await prisma.equipmentMovement.count({
+      where: {
+        barbershopId,
+        ...(filters?.equipmentId ? { equipmentId: filters.equipmentId } : {}),
+        ...(filters?.type ? { type: filters.type.toUpperCase() as any } : {}),
+        ...(filters?.dateFrom ? { createdAt: { gte: filters.dateFrom } } : {}),
+        ...(filters?.dateTo ? { createdAt: { lte: filters.dateTo } } : {}),
+      },
+    });
+
+    return { items: items as EquipmentMovement[], total };
   }
 
   async createMovement(data: CreateMovementInput) {
@@ -216,8 +278,22 @@ export class EquipmentRepository {
 
   // ─── Needs ───────────────────────────────────────────────
 
-  async listNeeds(barbershopId: string, filters?: { status?: string; priority?: string }) {
-    return prisma.equipmentNeed.findMany({
+  async listNeeds(
+    barbershopId: string,
+    filters?: { status?: string; priority?: string },
+    pagination?: { page?: number; limit?: number }
+  ): Promise<EquipmentNeed[]>;
+  async listNeeds(
+    barbershopId: string,
+    filters: { status?: string; priority?: string },
+    pagination: { page: number; limit: number }
+  ): Promise<{ items: EquipmentNeed[]; total: number }>;
+  async listNeeds(
+    barbershopId: string,
+    filters?: { status?: string; priority?: string },
+    pagination?: { page?: number; limit?: number }
+  ) {
+    const items = await prisma.equipmentNeed.findMany({
       where: {
         barbershopId,
         ...(filters?.status ? { status: filters.status.toUpperCase() as any } : {}),
@@ -225,7 +301,22 @@ export class EquipmentRepository {
       },
       select: needSelect,
       orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+      ...(pagination?.page && pagination?.limit
+        ? { skip: (pagination.page - 1) * pagination.limit, take: pagination.limit }
+        : {}),
     });
+
+    if (!pagination?.page || !pagination?.limit) return items as EquipmentNeed[];
+
+    const total = await prisma.equipmentNeed.count({
+      where: {
+        barbershopId,
+        ...(filters?.status ? { status: filters.status.toUpperCase() as any } : {}),
+        ...(filters?.priority ? { priority: filters.priority.toUpperCase() as any } : {}),
+      },
+    });
+
+    return { items: items as EquipmentNeed[], total };
   }
 
   async findNeedById(id: string) {

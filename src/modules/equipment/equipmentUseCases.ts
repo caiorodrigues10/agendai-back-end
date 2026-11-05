@@ -34,6 +34,9 @@ export class EquipmentUseCases {
       isActive: query.isActive,
       condition: query.condition,
       search: query.search,
+    }, {
+      page: query.page,
+      limit: query.limit,
     });
   }
 
@@ -114,6 +117,9 @@ export class EquipmentUseCases {
       type: query.type,
       dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
       dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+    }, {
+      page: query.page,
+      limit: query.limit,
     });
   }
 
@@ -169,6 +175,9 @@ export class EquipmentUseCases {
     return this.repo.listNeeds(barbershopId, {
       status: query.status,
       priority: query.priority,
+    }, {
+      page: query.page,
+      limit: query.limit,
     });
   }
 
