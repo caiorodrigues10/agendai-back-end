@@ -43,16 +43,17 @@ export interface PreprocessSteps {
  *
  * Adotadas: `exifRotate` (foto de celular deitada) e `deskew` (linha da
  * tabela torta). Descartadas pelo benchmark: `grayscale`, `normalise`,
- * `clahe`, `median` e `scaleToFloor`.
+ * `clahe`, `median` e `scaleToFloor` (esta última, no alvo de 924 px,
+ * ganhava acerto mas aumentava o falso confiante).
  */
 export const PREPROCESS_STEPS: PreprocessSteps = {
-  exifRotate: false,
+  exifRotate: true,
   grayscale: false,
   normalise: false,
   clahe: false,
   median: false,
   scaleToFloor: false,
-  deskew: false,
+  deskew: true,
 };
 
 /** Nomes das etapas (para log e para o benchmark). */

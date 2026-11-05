@@ -19,6 +19,17 @@ function readPositiveInt(name: string, fallback: number): number {
 export const OCR_IMPORT_ENABLED = process.env.OCR_IMPORT_ENABLED === "on";
 
 /**
+ * Pré-processamento da imagem antes do OCR (`OCR_PREPROCESS`).
+ *
+ * `on` (padrão) | `off`. O padrão é `on` porque o benchmark mediu ganho real
+ * (acerto exato 135 → 181 em 187 células, sem aumentar o falso confiante);
+ * `off` volta ao Tesseract cru, para comparar ou para ambientes sem folga
+ * de CPU.
+ */
+export const OCR_PREPROCESS =
+  (process.env.OCR_PREPROCESS ?? "on").trim().toLowerCase() !== "off";
+
+/**
  * Tamanho máximo do arquivo de imagem (`OCR_MAX_FILE_SIZE_BYTES`).
  *
  * O valor vem do ambiente: o `.env.example` documenta a variável e o código

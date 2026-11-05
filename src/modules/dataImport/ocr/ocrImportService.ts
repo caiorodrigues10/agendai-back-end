@@ -13,11 +13,14 @@ import {
   OCR_IMPORT_ENABLED,
   OCR_MIN_TABLE_WIDTH_PX_TELEFONE,
   OCR_MIN_TABLE_WIDTH_PX_VALOR,
+  OCR_PREPROCESS,
 } from "./ocr.constants";
 import { validateAndPrepareImage, cleanupImage, type ValidatedImage } from "./ocrSecurity";
 import { enqueueOcrJob, ocrQueueStats, ocrQueueCanEnqueue } from "./ocrQueue";
 import { extrairImagem } from "./ocrExtractor";
+import { preprocessOcrImage, dimensoesImagem } from "./ocrPreprocess";
 import { salvarArquivoLoteOcr } from "./ocrBatchFile";
+import { readFile } from "node:fs/promises";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
 import type { OcrCellResult } from "./ocr.types";
@@ -45,6 +48,12 @@ export interface OcrImportResult {
     larguraImagemPx: number;
     /** A tabela está abaixo do piso de resolução? */
     abaixoDoPiso: boolean;
+    /** Pré-processamento ligado nesta importação? */
+    preprocessAtivo: boolean;
+    /** Tempo do pré-processamento (ms). */
+    tempoPreprocessMs: number;
+    /** Largura da imagem que o OCR leu (depois do pré-processamento). */
+    larguraProcessadaPx: number;
   };
   /** Aviso quando o valor lido fica abaixo do piso de 924 px (não bloqueia). */
   avisoQualidade?: string;
@@ -93,18 +102,31 @@ export async function importarImagemOcr(
     validated = await validateAndPrepareImage(fileName, buffer);
     atualizarPicoRam();
 
-    // 2) Fila de OCR (concorrência 1) — a extração roda dentro da fila, então
+    // 2) Pré-processamento (antes do OCR). A imagem preparada é a que o OCR
+    //    lê: o limite de pixels (OCR_MAX_IMAGE_PIXELS) vale e o EXIF da foto
+    //    de celular é aplicado. O pré-processamento é opcional por flag.
+    const inicioPreprocess = Date.now();
+    let imagemOcr: Buffer = await readFile(validated.ocrPath);
+    if (OCR_PREPROCESS) {
+      imagemOcr = await preprocessOcrImage(imagemOcr);
+    }
+    const tempoPreprocessMs = Date.now() - inicioPreprocess;
+    const { larguraPx: larguraProcessadaPx } = await dimensoesImagem(imagemOcr);
+    atualizarPicoRam();
+
+    // 3) Fila de OCR (concorrência 1) — a extração roda dentro da fila, então
     //    a imagem é reconhecida uma única vez.
     const extraido = await enqueueOcrJob(() =>
-      extrairImagem(buffer, fileName, validated!.width),
+      extrairImagem(imagemOcr, fileName, larguraProcessadaPx),
     );
     atualizarPicoRam();
 
-    // 3) A largura da tabela é medida na escala da imagem ORIGINAL: o
-    //    redimensionamento para OCR não pode baixar a régua do piso.
+    // 4) A largura da tabela é medida na escala da imagem ORIGINAL (orientada):
+    //    nem o redimensionamento para OCR nem a rotação do deskew podem
+    //    baixar a régua do piso.
     const escala =
-      validated.larguraOriginalPx > 0
-        ? validated.width / validated.larguraOriginalPx
+      validated.larguraOrientadaPx > 0
+        ? larguraProcessadaPx / validated.larguraOrientadaPx
         : 1;
     const larguraTabelaPx = Math.round(extraido.larguraTabelaPx / (escala || 1));
 
@@ -126,16 +148,32 @@ export async function importarImagemOcr(
       );
     }
 
-    // 4) Grava o lote: o CSV da tabela + o arquivo lateral da revisão.
+    // 5) Grava o lote: o CSV da tabela + o arquivo lateral da revisão.
     const { filePath } = await salvarArquivoLoteOcr({
       headers: extraido.headers,
       celulas: extraido.celulas,
       larguraTabelaPx,
-      larguraImagemPx: validated.larguraOriginalPx,
+      larguraImagemPx: validated.larguraOrientadaPx,
     });
 
     const tempoOcrMs = Date.now() - inicio;
     const abaixoDoPisoValor = larguraTabelaPx < OCR_MIN_TABLE_WIDTH_PX_VALOR;
+
+    // Log de operação: só contagens, dimensões e tempo — **nunca** o valor
+    // lido na célula.
+    logger.info(
+      {
+        preprocessAtivo: OCR_PREPROCESS,
+        tempoPreprocessMs,
+        tempoOcrMs,
+        larguraProcessadaPx,
+        larguraTabelaPx,
+        linhas: extraido.celulas.length,
+        colunas: extraido.headers.length,
+        celulas: extraido.celulas.reduce((total, linha) => total + linha.length, 0),
+      },
+      "Importação por imagem lida",
+    );
 
     return {
       filePath,
@@ -148,8 +186,11 @@ export async function importarImagemOcr(
         ramPicoBytes: memoriaPicoBytes,
         fila: ocrQueueStats(),
         larguraTabelaPx,
-        larguraImagemPx: validated.larguraOriginalPx,
+        larguraImagemPx: validated.larguraOrientadaPx,
         abaixoDoPiso: abaixoDoPisoValor,
+        preprocessAtivo: OCR_PREPROCESS,
+        tempoPreprocessMs,
+        larguraProcessadaPx,
       },
       ...(abaixoDoPisoValor
         ? {

@@ -13,6 +13,27 @@ import { validateImportFile } from "../utils/fileValidation";
 import { gerarImagensSinteticas } from "./ocrImagensSinteticas";
 import { OCR_ERROR_CODES } from "./ocr.constants";
 
+// O "sem traineddata" é simulado: o teste não pode depender do que está
+// instalado na máquina (com o traineddata local o upload passaria a seguir
+// para o banco, e este teste é unitário).
+vi.mock("./ocrWorker", () => ({
+  OCR_TESSDATA_PATH: "/tmp/tessdata-upload",
+  caminhoTessdata: () => "/tmp/tessdata-upload",
+  linguasTessdata: () => ["por", "eng"],
+  verificarTessdata: () => ({
+    ok: false,
+    caminho: "/tmp/tessdata-upload",
+    faltantes: ["por", "eng"],
+  }),
+  erroTessdataAusente: () => ({
+    statusCode: 503,
+    code: OCR_ERROR_CODES.traineddataAusente,
+  }),
+  shutdownOcrWorker: vi.fn(),
+  getOcrWorker: vi.fn(),
+  ocrImage: vi.fn(),
+}));
+
 const [imagem] = gerarImagensSinteticas();
 
 /** Buffer com assinatura de PNG (sem imagem real). */

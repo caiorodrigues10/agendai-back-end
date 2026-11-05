@@ -64,10 +64,14 @@ describe("pré-processamento — etapas ligáveis", () => {
     expect(resultado.equals(TABELA.buffer)).toBe(true);
   });
 
-  it("nenhuma etapa entra no caminho antes do benchmark decidir", () => {
-    for (const nome of NOMES_ETAPAS_PREPROCESS) {
-      expect(PREPROCESS_STEPS[nome]).toBe(false);
-    }
+  it("as etapas ligadas por padrão são só as que o benchmark adotou", () => {
+    expect(PREPROCESS_STEPS.exifRotate).toBe(true);
+    expect(PREPROCESS_STEPS.deskew).toBe(true);
+    expect(PREPROCESS_STEPS.grayscale).toBe(false);
+    expect(PREPROCESS_STEPS.normalise).toBe(false);
+    expect(PREPROCESS_STEPS.clahe).toBe(false);
+    expect(PREPROCESS_STEPS.median).toBe(false);
+    expect(PREPROCESS_STEPS.scaleToFloor).toBe(false);
   });
 });
 

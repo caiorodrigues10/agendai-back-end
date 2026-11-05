@@ -29,6 +29,16 @@ export interface ValidatedImage {
   larguraOriginalPx: number;
   /** Altura da imagem **original**. */
   alturaOriginalPx: number;
+  /**
+   * Largura da imagem original **já orientada** (EXIF aplicado).
+   *
+   * Foto de celular deitada tem os pixels deitados e a orientação no EXIF:
+   * a régua do piso de resolução tem de ser medida na largura que o dono
+   * realmente vê.
+   */
+  larguraOrientadaPx: number;
+  /** Altura da imagem original já orientada. */
+  alturaOrientadaPx: number;
   sizeBytes: number;
   /** Caminho da imagem (possivelmente redimensionada) pronta para OCR. */
   ocrPath: string;
@@ -99,6 +109,8 @@ export async function validateAndPrepareImage(
   let height = 0;
   let larguraOriginalPx = 0;
   let alturaOriginalPx = 0;
+  let larguraOrientadaPx = 0;
+  let alturaOrientadaPx = 0;
 
   try {
     const sharp = (await import("sharp")).default;
@@ -107,6 +119,12 @@ export async function validateAndPrepareImage(
     height = metadata.height ?? 0;
     larguraOriginalPx = width;
     alturaOriginalPx = height;
+
+    // Orientação 5–8: os pixels estão deitados e quem exibe gira a imagem.
+    const orientation = metadata.orientation ?? 1;
+    const deitada = orientation >= 5 && orientation <= 8;
+    larguraOrientadaPx = deitada ? alturaOriginalPx : larguraOriginalPx;
+    alturaOrientadaPx = deitada ? larguraOriginalPx : alturaOriginalPx;
 
     const maxSide = Math.max(width, height);
     if (maxSide > OCR_MAX_IMAGE_PIXELS) {
@@ -138,6 +156,8 @@ export async function validateAndPrepareImage(
     height,
     larguraOriginalPx,
     alturaOriginalPx,
+    larguraOrientadaPx,
+    alturaOrientadaPx,
     sizeBytes: buffer.length,
     ocrPath,
   };
