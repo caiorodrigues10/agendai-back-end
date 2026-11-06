@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { sanitizeNotificationError } from "@/modules/notifications/services/notificationSecurity";
 import {
@@ -103,8 +104,8 @@ async function dispatchBatch(): Promise<BatchOutcome | null> {
               { deliveryId: candidate.deliveryId, correlationId },
               { jobId: candidate.deliveryId },
             );
-            await prisma.$transaction([
-              prisma.notificationOutbox.update({
+            await rlsTransaction(async (tx) => {
+              await tx.notificationOutbox.update({
                 where: { id: candidate.id },
                 data: {
                   status: "PUBLISHED",
@@ -113,12 +114,12 @@ async function dispatchBatch(): Promise<BatchOutcome | null> {
                   lockedBy: null,
                   lastError: null,
                 },
-              }),
-              prisma.notificationDelivery.updateMany({
+              });
+              await tx.notificationDelivery.updateMany({
                 where: { id: candidate.deliveryId, status: { in: ["PENDING", "RETRYING"] } },
                 data: { status: "QUEUED", queuedAt: new Date() },
-              }),
-            ]);
+              });
+            });
           } catch (error) {
             const safe = sanitizeNotificationError(error);
             await prisma.notificationOutbox.update({
