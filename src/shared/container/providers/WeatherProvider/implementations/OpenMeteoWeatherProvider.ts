@@ -67,7 +67,19 @@ export class OpenMeteoWeatherProvider implements IWeatherProvider {
       throw new Error(`Open-Meteo API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+      daily?: {
+        time?: string[];
+        weather_code?: number[];
+        temperature_2m_max?: number[];
+        temperature_2m_min?: number[];
+        precipitation_sum?: number[];
+        precipitation_probability_max?: number[];
+        precipitation_hours?: number[];
+        wind_speed_10m_max?: number[];
+        relative_humidity_2m_max?: number[];
+      };
+    };
     const daily = data.daily;
 
     if (!daily || !Array.isArray(daily.time)) {

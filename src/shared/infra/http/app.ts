@@ -99,11 +99,19 @@ export async function buildApp() {
   // de proxy. Apenas orienta — a resolução segue as regras de shareUrls.ts.
   for (const warning of shareEnvProductionWarnings()) logger.warn(warning);
 
+  const trustProxy = resolveTrustProxy();
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test). Fora disso, o nível
     // segue o LOG_LEVEL já documentado no .env.example (default: info).
     logger: process.env.NODE_ENV !== "test" ? { level: process.env.LOG_LEVEL || "info" } : false,
-    trustProxy: resolveTrustProxy(),
+    // Fastify 5 removeu `number` do tipo de trustProxy e passou a ignorar
+    // (fail-closed) valores numéricos. Convertemos a contagem de saltos para a
+    // forma função equivalente: confia nos N saltos da cadeia (hop 0 = peer
+    // imediato), preservando o comportamento do Fastify 4.
+    trustProxy:
+      typeof trustProxy === "number"
+        ? (_address: string, hop: number) => hop < trustProxy
+        : trustProxy,
     // reqId == correlationId: os logs nativos do Fastify ("incoming
     // request", "request completed") saem já correlacionados (B21).
     requestIdHeader: false,

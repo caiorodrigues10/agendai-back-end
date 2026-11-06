@@ -35,7 +35,7 @@ describe("WhatsAppConnectionUseCase", () => {
     const shop = await repo.create({ name: "Salon", whatsapp: "11999999999" });
     const expectedName = shopEvolutionInstanceName(shop.id);
 
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    globalThis.fetch = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = String(input);
       if (url.includes("/instance/create")) {
         return jsonRes(201, { qrcode: { base64: "abcQR" } }) as any;
@@ -100,7 +100,7 @@ describe("WhatsAppConnectionUseCase", () => {
   it("connect por código normaliza o telefone e não devolve QR", async () => {
     const shop = await repo.create({ name: "Salon", whatsapp: "11999999999" });
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/instance/delete")) return jsonRes(200, {}) as any;
       if (url.includes("/instance/create")) {
@@ -141,7 +141,7 @@ describe("WhatsAppConnectionUseCase", () => {
   it("status não gera QR nem chama endpoint de conexão", async () => {
     const shop = await repo.create({ name: "Salon", whatsapp: "11999999999" });
     await repo.update(shop.id, { evolutionInstanceName: shopEvolutionInstanceName(shop.id) });
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    globalThis.fetch = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = String(input);
       if (url.includes("connectionState")) return jsonRes(200, { instance: { state: "connecting" } }) as any;
       return jsonRes(200, {}) as any;
