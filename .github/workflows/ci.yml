@@ -67,6 +67,7 @@ jobs:
       JWT_REFRESH_EXPIRES_IN: 7d
       ASAAS_WEBHOOK_TOKEN: ci-test-webhook-token-that-is-at-least-32-chars
       ALLOW_TEST_REDIS: "1"
+      DB_POOL_MAX: "20"
 
     steps:
       - uses: actions/checkout@v4
@@ -94,5 +95,8 @@ jobs:
       # Integração: banco real compartilhado → serial (maxWorkers=1, sem paralelismo
       # de arquivos). Em paralelo os testes brigam pelo mesmo Postgres/Redis e os
       # timeouts de 30s do dataExport + o smoke de /health ficam flaky.
+      # O timeout de teste sobe para 60s: o Postgres do runner é lento
+      # (checkpoint de ~100s observado em 2026-11-06) e o default de 30s matava
+      # transações legítimas com P2028 "Transaction already closed".
       - name: Integration tests (serial)
-        run: npx vitest run --maxWorkers=1 --no-file-parallelism src/tests/integration
+        run: npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=60000 src/tests/integration

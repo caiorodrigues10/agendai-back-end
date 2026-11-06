@@ -28,11 +28,18 @@ describe("Monitoring routes smoke (inject)", () => {
     const body = res.json() as {
       status: string;
       checks: {
+        postgres: string;
+        redis: string;
         migrations: { status: string; pending: number };
         storage: { status: string; provider: string };
       };
     };
-    expect(body.status).toBe("ok");
+    // `status` agregado depende do storage: sem GCS/Cloudinary no ambiente
+    // (CI/dev) o storage fica "degraded" e o agregado também. O que não pode
+    // faltar são as dependências essenciais: Postgres, Redis e migrations.
+    expect(["ok", "degraded"]).toContain(body.status);
+    expect(body.checks.postgres).toBe("healthy");
+    expect(body.checks.redis).toBe("healthy");
     expect(body.checks.migrations).toBeDefined();
     expect(["ok", "pending", "error"]).toContain(body.checks.migrations.status);
     expect(typeof body.checks.migrations.pending).toBe("number");

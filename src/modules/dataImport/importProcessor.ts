@@ -195,15 +195,15 @@ export async function processImportBatch(batchId: string): Promise<ProcessBatchR
             }
           }
 
-          await rowsRepo.createMany(rowResults);
-          await entitiesRepo.createMany(batch.id, batch.barbershopId, created);
+          await rowsRepo.createMany(rowResults, tx);
+          await entitiesRepo.createMany(batch.id, batch.barbershopId, created, tx);
 
           return {
             imported: rowResults.filter((row) => row.status === "IMPORTED").length,
             skipped: rowResults.filter((row) => row.status === "SKIPPED").length,
             failed: rowResults.filter((row) => row.status === "FAILED").length,
           };
-        }),
+        }, { maxWait: 15_000, timeout: 120_000 }),
       );
 
       importedRows += chunkResult.imported;

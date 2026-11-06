@@ -25,7 +25,32 @@ type DelegatesTx = Record<string, DelegateDinamico | undefined>;
  * "Type instantiation is excessively deep" na definição da extensão).
  */
 type ClienteDaExtensao = {
-  $transaction<R>(fn: (tx: Prisma.TransactionClient) => Promise<R>): Promise<R>;
+  $transaction<R>(
+    fn: (tx: Prisma.TransactionClient) => Promise<R>,
+    opts?: { maxWait?: number; timeout?: number },
+  ): Promise<R>;
+};
+
+/**
+ * Limites das transações interativas do Prisma.
+ *
+ * O default do Prisma é `timeout: 5s` / `maxWait: 2s`. O CI roda Postgres em
+ * disco lento (checkpoint de ~100s observado em 2026-11-06) e a transação da
+ * importação/write-heavy estourava 5s → P2028 "Transaction already closed" →
+ * o lote nunca concluía e o teste morria no timeout do vitest.
+ *
+ * `maxWait` limita a espera por conexão do pool (o node-postgres espera
+ * indefinidamente por uma conexão livre, então sem esse teto um pool saturado
+ * trava a requisição para sempre). `timeout` limita a duração da transação.
+ */
+const RLS_MAX_WAIT_MS = 10_000;
+const RLS_TIMEOUT_MS = 30_000;
+
+export type RlsTransactionOptions = {
+  /** Espera máxima por uma conexão livre do pool (ms). */
+  maxWait?: number;
+  /** Duração máxima da transação (ms). */
+  timeout?: number;
 };
 
 /** Evita reentrar a extensão quando a query já roda no `tx` (loop infinito). */
@@ -66,18 +91,21 @@ export const rlsExtension = Prisma.defineExtension({
         };
 
         return insideRlsTx.run(true, () =>
-          prisma.$transaction(async (tx) => {
-            await tx.$executeRaw`
-              SELECT set_config('app.current_barbershop_id', ${barbershopId}, TRUE)
-            `;
-            const key = modelDelegateKey(String(model));
-            const delegate = (tx as unknown as DelegatesTx)[key];
-            const operacao = delegate?.[operation];
-            if (typeof operacao !== "function") {
-              return query(args);
-            }
-            return operacao(args);
-          })
+          prisma.$transaction(
+            async (tx) => {
+              await tx.$executeRaw`
+                SELECT set_config('app.current_barbershop_id', ${barbershopId}, TRUE)
+              `;
+              const key = modelDelegateKey(String(model));
+              const delegate = (tx as unknown as DelegatesTx)[key];
+              const operacao = delegate?.[operation];
+              if (typeof operacao !== "function") {
+                return query(args);
+              }
+              return operacao(args);
+            },
+            { maxWait: RLS_MAX_WAIT_MS, timeout: RLS_TIMEOUT_MS },
+          ),
         );
       },
     },
@@ -100,17 +128,26 @@ export const rlsExtension = Prisma.defineExtension({
  * Uso: `rlsTransaction(async (tx) => { ... })` — sempre com `tx.*` por dentro;
  * qualquer uso do `prisma` global dentro do callback escapa da transação.
  */
-export async function rlsTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+export async function rlsTransaction<T>(
+  fn: (tx: any) => Promise<T>,
+  options?: RlsTransactionOptions,
+): Promise<T> {
   const barbershopId = requestContext.getStore()?.barbershopId ?? "";
   const { prisma } = await import("./prismaClient");
 
   return insideRlsTx.run(true, () =>
-    prisma.$transaction(async (tx: any) => {
-      await tx.$executeRaw`
-        SELECT set_config('app.current_barbershop_id', ${barbershopId}, TRUE)
-      `;
-      return fn(tx);
-    })
+    prisma.$transaction(
+      async (tx: any) => {
+        await tx.$executeRaw`
+          SELECT set_config('app.current_barbershop_id', ${barbershopId}, TRUE)
+        `;
+        return fn(tx);
+      },
+      {
+        maxWait: options?.maxWait ?? RLS_MAX_WAIT_MS,
+        timeout: options?.timeout ?? RLS_TIMEOUT_MS,
+      },
+    ),
   );
 }
 
