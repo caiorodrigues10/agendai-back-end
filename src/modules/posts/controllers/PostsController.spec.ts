@@ -710,7 +710,72 @@ describe("PostsController price-split — modelo por flag + motor v2", () => {
     expect(sent.data.imageUrl.startsWith("data:image/jpeg;base64,")).toBe(true);
   });
 
+  it("recusa price-split com POST_PRICE_SPLIT desligado em criar, atualizar e pré-visualizar", async () => {
+    vi.stubEnv("POST_PRICE_SPLIT", "0");
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow());
+
+    await expect(
+      new PostsController().create(
+        {
+          body: {
+            barbershopId: BARBERSHOP_ID,
+            type: "announcement",
+            templateKey: "price-split",
+            priceSplit: { items: [{ name: "Corte", price: 45 }] },
+          },
+          user: fakeUser(),
+        } as unknown as FastifyRequest,
+        fakeReply()
+      )
+    ).rejects.toMatchObject({ statusCode: 400, message: "Modelo de post não encontrado" });
+
+    await expect(
+      new PostsController().update(
+        {
+          params: { id: POST_ID },
+          body: { templateKey: "price-split" },
+          user: fakeUser(),
+        } as unknown as FastifyRequest,
+        fakeReply()
+      )
+    ).rejects.toMatchObject({ statusCode: 400, message: "Modelo de post não encontrado" });
+
+    await expect(
+      new PostsController().preview(
+        {
+          query: {
+            barbershopId: BARBERSHOP_ID,
+            templateKey: "price-split",
+            priceSplit: JSON.stringify({ items: [{ name: "Corte", price: 45 }] }),
+          },
+          user: fakeUser(),
+        } as unknown as FastifyRequest,
+        fakeReply()
+      )
+    ).rejects.toMatchObject({ statusCode: 400, message: "Modelo de post não encontrado" });
+
+    expect(mockRenderPostSpec).not.toHaveBeenCalled();
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+    expect(mockFeedPostUpdate).not.toHaveBeenCalled();
+  });
+
+  it("recusa uma templateKey fora do catálogo", async () => {
+    await expect(
+      new PostsController().create(
+        {
+          body: { barbershopId: BARBERSHOP_ID, type: "announcement", templateKey: "modelo-inexistente" },
+          user: fakeUser(),
+        } as unknown as FastifyRequest,
+        fakeReply()
+      )
+    ).rejects.toMatchObject({ statusCode: 400, message: "Modelo de post não encontrado" });
+
+    expect(mockRenderPostSpec).not.toHaveBeenCalled();
+    expect(mockFeedPostCreate).not.toHaveBeenCalled();
+  });
+
   it("criar sem serviço na lista falha antes de gerar a arte", async () => {
+    vi.stubEnv("POST_PRICE_SPLIT", "1");
     await expect(
       new PostsController().create(
         {
@@ -767,6 +832,7 @@ describe("PostsController price-split — modelo por flag + motor v2", () => {
   });
 
   it("editar só o focal preserva a lista de preços já gravada e re-renderiza", async () => {
+    vi.stubEnv("POST_PRICE_SPLIT", "1");
     const storedPriceSplit = { items: [{ name: "Corte", price: 45 }], businessName: "Barber Test" };
     mockFeedPostFindUnique.mockResolvedValue(
       makeDraftRow({ templateKey: "price-split", designOptions: { priceSplit: storedPriceSplit } })
