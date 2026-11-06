@@ -25,7 +25,10 @@ function trimOrigin(raw: string | undefined): string {
 
 /** Origem da requisição, honrando o trustProxy do Fastify. */
 export function requestOrigin(request: FastifyRequest, env: ShareUrlEnv = process.env): string {
-  const host = request.hostname;
+  // `request.host` (não `hostname`): preserva a porta do Host header
+  // ("10.0.0.7:8080"), que é a origem real chamada pelo cliente. O fallback
+  // para `hostname` cobre requisições sem Host (host vazio).
+  const host = request.host || request.hostname;
   if (host) return `${request.protocol}://${host}`;
   return `http://localhost:${env.PORT ?? 3333}`;
 }
