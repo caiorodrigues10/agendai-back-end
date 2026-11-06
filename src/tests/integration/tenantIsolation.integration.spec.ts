@@ -32,9 +32,13 @@ import {
   buildAdminTeamListWhere,
 } from "@/modules/admin/repositories/adminTeamListWhere";
 import {
+  lowStockConditionsSql,
   lowStockSql,
   lowStockWhere,
 } from "@/modules/products/repositories/lowStockWhere";
+import { isLowStock } from "@/modules/products/utils/lowStockRule";
+import { buildProductAttention } from "@/modules/products/utils/productAttention";
+import { inventoryCommands } from "@/modules/whatsappOwnerBot/commands/inventoryCommands";
 import {
   buildSalonClientListWhere,
   buildSalonClientOrderBy,
@@ -1570,6 +1574,177 @@ describe("isolamento por salão — clientes (Postgres real, rollback)", () => {
           expect.arrayContaining([anaA.id, anaB.id]),
         );
       });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
+
+describe("estoque baixo — consistência da definição em todos os pontos", () => {
+  it("listagem, dashboard, atenção, recomendações, financeiro, admin e bot usam a mesma definição", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Estoque Consistencia A ${randomUUID()}`, whatsapp: "11994440001" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Estoque Consistencia B ${randomUUID()}`, whatsapp: "11994440002" },
+      });
+
+      const criar = (barbershopId: string, nome: string, dados: {
+        stockQty: number;
+        minStock: number;
+        trackStock?: boolean;
+        active?: boolean;
+      }) =>
+        tx.product.create({
+          data: {
+            barbershopId,
+            name: nome,
+            salePrice: 10,
+            stockQty: dados.stockQty,
+            minStock: dados.minStock,
+            trackStock: dados.trackStock ?? true,
+            active: dados.active ?? true,
+            type: "RETAIL",
+          },
+        });
+
+      // ── fixture do salão A ────────────────────────────────
+      const baixoAtivo = await criar(shopA.id, "QA Baixo Ativo", { stockQty: 2, minStock: 5 });
+      const baixoInativo = await criar(shopA.id, "QA Baixo Inativo", { stockQty: 2, minStock: 5, active: false });
+      const semControle = await criar(shopA.id, "QA Sem Controle de Estoque", { stockQty: 2, minStock: 5, trackStock: false });
+      const minimoZero = await criar(shopA.id, "QA Minimo Zero", { stockQty: 0, minStock: 0 });
+      const zeradoComMinimo = await criar(shopA.id, "QA Zerado Com Minimo", { stockQty: 0, minStock: 5 });
+      const saudavel = await criar(shopA.id, "QA Saudavel", { stockQty: 20, minStock: 5 });
+      // ── fixture do salão B (nunca pode aparecer para o salão A) ──
+      const baixoB = await criar(shopB.id, "QA Baixo Ativo B", { stockQty: 2, minStock: 5 });
+
+      const ids = (rows: Array<{ id: string }>) => rows.map((r) => r.id).sort();
+      const idsAtencao = (itens: Array<{ productId: string }>) =>
+        itens.map((i) => i.productId).sort();
+      const BAIXO_DEFINICAO = ids([baixoAtivo, zeradoComMinimo]);
+
+      // ── 1. LISTAGEM (produtos?lowStock=true) ─────────────
+      // A listagem não aplica `active` por padrão: entra o que a definição
+      // diz, ou seja, também o produto inativo.
+      const listagem = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"::text AS "id" FROM products
+        WHERE ${lowStockSql(shopA.id)}
+        ORDER BY "name" ASC
+      `;
+      expect(ids(listagem)).toEqual(ids([baixoAtivo, baixoInativo, zeradoComMinimo]));
+      expect(ids(listagem)).not.toContain(baixoB.id);
+
+      // Listagem com `active=true` pedido: sai o inativo.
+      const listagemAtivos = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"::text AS "id" FROM products
+        WHERE ${lowStockSql(shopA.id)} AND "active" = true
+        ORDER BY "name" ASC
+      `;
+      expect(ids(listagemAtivos)).toEqual(BAIXO_DEFINICAO);
+
+      // ── 2. DASHBOARD / RELATÓRIOS (active = true) ─────────
+      const produtosDoDashboard = await tx.product.findMany({
+        where: { barbershopId: shopA.id, trackStock: true, active: true },
+        select: { id: true, name: true, stockQty: true, minStock: true, trackStock: true, type: true },
+      });
+      const lowStockDashboard = produtosDoDashboard.filter((p) => isLowStock(p));
+      expect(ids(lowStockDashboard)).toEqual(BAIXO_DEFINICAO);
+      expect(ids(lowStockDashboard)).not.toContain(baixoB.id);
+
+      // ── 3. ATENÇÃO (faltando / repor) ─────────────────────
+      const attention = buildProductAttention({ products: produtosDoDashboard, byProduct: [] });
+      expect(idsAtencao(attention.missing)).toEqual(BAIXO_DEFINICAO);
+      expect(idsAtencao(attention.missing)).not.toContain(baixoB.id);
+
+      // ── 4. RECOMENDAÇÕES (active = true + minStock > 0) ──
+      const recomendacoes = await tx.product.findMany({
+        where: { ...lowStockWhere(shopA.id), active: true },
+        select: { id: true },
+      });
+      expect(ids(recomendacoes)).toEqual(BAIXO_DEFINICAO);
+      expect(ids(recomendacoes)).not.toContain(minimoZero.id);
+      expect(ids(recomendacoes)).not.toContain(baixoB.id);
+
+      // ── 5. FINANCEIRO (lowStockCount do painel financeiro) ─
+      const financeiro = await tx.$queryRaw<Array<{ lowStockCount: number }>>`
+        SELECT (COUNT(*) FILTER (WHERE ${lowStockSql(shopA.id)}))::int AS "lowStockCount"
+        FROM products
+        WHERE "barbershopId" = ${shopA.id}::uuid
+          AND "trackStock" = true
+          AND "active" = true
+      `;
+      expect(financeiro[0]?.lowStockCount).toBe(2);
+
+      // ── 6. ADMIN (contagem por salão, sem carregar produtos) ─
+      const adminPorSalao = await tx.$queryRaw<Array<{ barbershopId: string; count: number }>>`
+        SELECT "barbershopId"::text AS "barbershopId", COUNT(*)::int AS count
+        FROM products
+        WHERE ${lowStockConditionsSql()}
+          AND "active" = true
+          AND "stockQty" > 0
+        GROUP BY "barbershopId"
+      `;
+      const adminA = adminPorSalao.find((row) => row.barbershopId === shopA.id);
+      const adminB = adminPorSalao.find((row) => row.barbershopId === shopB.id);
+      // No admin, "Estoque baixo" exclui o zerado (que fica no cartão
+      // "Estoque zerado"): por isso só o baixo com saldo > 0 conta.
+      expect(adminA?.count).toBe(1);
+      expect(adminB?.count).toBe(1);
+      expect(adminPorSalao.reduce((sum, row) => sum + row.count, 0)).toBe(2);
+
+      // ── 7. BOT DO DONO (comando "estoque") ────────────────
+      const listaDoBot = await tx.product.findMany({
+        where: {
+          barbershopId: shopA.id,
+          active: true,
+          salePrice: { gt: 0 },
+          type: { in: ["RETAIL", "BOTH"] },
+          OR: [{ trackStock: false }, { stockQty: { gt: 0 } }],
+        },
+        select: { id: true, name: true, salePrice: true, stockQty: true, minStock: true, trackStock: true },
+        orderBy: { name: "asc" },
+        take: 20,
+      });
+      const comandoEstoque = inventoryCommands.find((command) => command.id === "stock.list");
+      expect(comandoEstoque).toBeDefined();
+      const ctx = {
+        actor: { barbershopId: shopA.id },
+        actions: { listProducts: async () => listaDoBot },
+      } as never;
+
+      const textoBaixo = await comandoEstoque!.run(ctx, { raw: "estoque", subject: baixoAtivo.name } as never);
+      expect(textoBaixo.text).toContain("2 em estoque");
+      expect(textoBaixo.text).toContain("— estoque baixo!");
+
+      // Produto que não controla estoque: não é "estoque baixo" (definição).
+      const textoSemControle = await comandoEstoque!.run(ctx, { raw: "estoque", subject: semControle.name } as never);
+      expect(textoSemControle.text).not.toContain("— estoque baixo!");
+
+      // Produto saudável: idem.
+      const textoSaudavel = await comandoEstoque!.run(ctx, { raw: "estoque", subject: saudavel.name } as never);
+      expect(textoSaudavel.text).not.toContain("— estoque baixo!");
+
+      // ── 8. PROVA DE ISOLAMENTO ────────────────────────────
+      // O salão B tem o mesmo produto em estoque baixo e nunca pode vazar
+      // para nenhum ponto do salão A.
+      expect(ids(listagem)).not.toContain(baixoB.id);
+      expect(ids(lowStockDashboard)).not.toContain(baixoB.id);
+      expect(idsAtencao(attention.missing)).not.toContain(baixoB.id);
+      expect(ids(recomendacoes)).not.toContain(baixoB.id);
+      expect(listaDoBot.map((p) => p.id)).not.toContain(baixoB.id);
+
+      // A RLS NÃO é efetiva no dev (papel SUPERUSER/BYPASSRLS): sem o filtro
+      // de salão, a MESMA consulta enxerga o produto do salão B.
+      const semFiltroDeSalao = await tx.product.findMany({
+        where: { ...lowStockWhere(shopA.id), barbershopId: undefined },
+        select: { id: true, barbershopId: true },
+      });
+      expect(semFiltroDeSalao.map((r) => r.id)).toEqual(
+        expect.arrayContaining([baixoAtivo.id, baixoB.id]),
+      );
 
       throw new Error("ROLLBACK_ISOLATION");
     }).catch((error: unknown) => {

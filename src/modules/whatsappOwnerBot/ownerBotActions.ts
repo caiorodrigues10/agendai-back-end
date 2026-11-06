@@ -528,8 +528,9 @@ export interface OwnerBotActions {
       id: string;
       name: string;
       salePrice: number;
-      stockQuantity?: number;
-      minimumStock?: number | null;
+      stockQty?: number;
+      minStock?: number | null;
+      trackStock?: boolean;
       active?: boolean;
     }>
   >;

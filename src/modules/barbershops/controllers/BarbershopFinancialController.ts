@@ -7,6 +7,7 @@ import {
 } from "../useCases/getBarbershopInsights/GetBarbershopInsightsUseCase";
 import { GetWeatherInsightsUseCase } from "../useCases/getWeatherInsights/GetWeatherInsightsUseCase";
 import { summarizeRetailFinancials } from "@/modules/products/utils/retailSummary";
+import { lowStockSql } from "@/modules/products/repositories/lowStockWhere";
 import { resolveOrgAccessToBarbershop } from "@/shared/utils/organizationAccess";
 import { withShopContext } from "@/shared/utils/withShopContext";
 import { calendarDateKey, getShopTimezone, shopDayRange } from "@/modules/financial/ledger/shopTime";
@@ -177,7 +178,7 @@ export class BarbershopFinancialController {
         prisma.$queryRaw<InventoryTotalsRow[]>`
           SELECT
             COALESCE(SUM("stockQty"::float8 * "averageCost"::float8), 0) AS "inventoryValue",
-            (COUNT(*) FILTER (WHERE "minStock" > 0 AND "stockQty" <= "minStock"))::int AS "lowStockCount"
+            (COUNT(*) FILTER (WHERE ${lowStockSql(barbershopId)}))::int AS "lowStockCount"
           FROM products
           WHERE "barbershopId" = ${barbershopId}::uuid
             AND "trackStock" = true

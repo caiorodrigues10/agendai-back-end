@@ -1,4 +1,5 @@
 import { prisma } from '@/libs/prismaClient';
+import { lowStockWhere } from '@/modules/products/repositories/lowStockWhere';
 import type { Prisma } from '@prisma/client';
 
 export interface Recommendation {
@@ -197,10 +198,8 @@ export class RecommendationEngine {
     try {
       const lowStockProducts = await prisma.product.findMany({
         where: {
-          barbershopId: this.barbershopId,
+          ...lowStockWhere(this.barbershopId),
           active: true,
-          trackStock: true,
-          stockQty: { lte: prisma.product.fields.minStock },
         },
         select: {
           id: true,

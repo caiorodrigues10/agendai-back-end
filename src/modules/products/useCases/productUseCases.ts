@@ -28,6 +28,7 @@ import {
 import { summarizeRetailLines } from "../utils/retailSummary";
 import { buildProductAttention } from "../utils/productAttention";
 import { lowStockSql } from "../repositories/lowStockWhere";
+import { isLowStock } from "../utils/lowStockRule";
 import { resolveUnitFields } from "../utils/productStockUnit";
 import {
   getShopToday,
@@ -285,6 +286,7 @@ export class ProductCatalogUseCase {
         imageUrl: true,
         salePrice: true,
         stockQty: true,
+        minStock: true,
         trackStock: true,
         unitLabel: true,
         category: { select: { id: true, name: true, color: true } },
@@ -689,7 +691,7 @@ export class ProductCatalogUseCase {
     });
     const byProduct = [...byProductMap.values()].map((row) => ({ ...row, margin: row.revenue - row.cost }));
     const attention = buildProductAttention({ products, byProduct, from, to });
-    const lowStock = products.filter((p: { minStock: number; stockQty: number }) => p.minStock > 0 && p.stockQty <= p.minStock);
+    const lowStock = products.filter((p: { minStock: number; stockQty: number; trackStock: boolean }) => isLowStock(p));
     const inventoryValue = products.reduce((sum: number, p: { stockQty: number; averageCost: number }) => sum + p.stockQty * p.averageCost, 0);
     const byStaffRaw = await prisma.retailSale.groupBy({
       by: ["soldById"],

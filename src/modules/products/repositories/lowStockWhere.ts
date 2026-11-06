@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/libs/prismaClient";
+import { LOW_STOCK_RULE } from "../utils/lowStockRule";
 
 /**
  * Definição única de "estoque baixo" (`products`).
@@ -16,29 +17,41 @@ import { prisma } from "@/libs/prismaClient";
  * no recorte é o chamador (o dashboard e o financeiro filtram `active = true`;
  * a listagem filtra só quando a query pede).
  *
- * Esta função é **pura**: não executa nenhuma consulta — ela só monta o
- * `where`. A *field reference* vem do cliente Prisma (importado do módulo), que
- * não abre conexão no import.
+ * A regra vem de `LOW_STOCK_RULE` (`utils/lowStockRule.ts`), que é também a
+ * forma em memória usada por dashboard, atenção e bot do dono
+ * (`isLowStock`) — assim as três formas não podem divergir.
+ *
+ * Estas funções são **puras**: não executam nenhuma consulta — elas só montam
+ * o `where`/o SQL. A *field reference* vem do cliente Prisma (importado do
+ * módulo), que não abre conexão no import.
  */
 export function lowStockWhere(barbershopId: string): Prisma.ProductWhereInput {
   return {
     barbershopId,
-    trackStock: true,
-    minStock: { gt: 0 },
+    trackStock: LOW_STOCK_RULE.trackStock,
+    minStock: { gt: LOW_STOCK_RULE.minStockGreaterThan },
     stockQty: { lte: prisma.product.fields.minStock },
   };
 }
 
 /**
- * Versão SQL da mesma definição, para agregações e para os pontos que já
- * usavam `$queryRaw` (contagens, `COUNT(*) FILTER`).
+ * Condições da definição **sem o salão** — para agregações que agrupam por
+ * salão (o painel do admin conta os salões todos de uma vez).
+ */
+export function lowStockConditionsSql(): Prisma.Sql {
+  return Prisma.sql`"trackStock" = ${LOW_STOCK_RULE.trackStock}::boolean
+    AND "minStock" > ${LOW_STOCK_RULE.minStockGreaterThan}::float8
+    AND "stockQty" <= "minStock"`;
+}
+
+/**
+ * Versão SQL da mesma definição, com o salão, para agregações e para os
+ * pontos que já usavam `$queryRaw` (contagens, `COUNT(*) FILTER`).
  *
- * Mantém as mesmas quatro condições da `lowStockWhere`, na mesma ordem:
- * salão, `trackStock`, `minStock > 0` e `stockQty <= minStock`.
+ * Mantém as mesmas condições da `lowStockWhere`: salão, `trackStock`,
+ * `minStock > 0` e `stockQty <= minStock`.
  */
 export function lowStockSql(barbershopId: string): Prisma.Sql {
   return Prisma.sql`"barbershopId" = ${barbershopId}::uuid
-    AND "trackStock" = true
-    AND "minStock" > 0
-    AND "stockQty" <= "minStock"`;
+    AND ${lowStockConditionsSql()}`;
 }

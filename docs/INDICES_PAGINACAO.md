@@ -706,69 +706,81 @@ model User {
 
 ### 2.8 Estoque baixo de produtos (`products`) — definição única (Módulo 9)
 
-**Definição canônica:** produto **do salão** que **controla estoque**
-(`trackStock = true`), com **mínimo configurado** (`minStock > 0`) e **estoque
-no ou abaixo do mínimo** (`stockQty <= minStock`). `active` **não** faz parte
-da definição — quem decide se produto inativo entra no recorte é o chamador.
+**Definição canônica (decidida na rodada de correção):** produto **do salão**
+que **controla estoque** (`trackStock = true`), com **mínimo configurado**
+(`minStock > 0`) e **estoque no ou abaixo do mínimo** (`stockQty <= minStock`).
+**`active` é decisão do chamador** — a definição **não** filtra por `active`.
 
-Implementada em `src/modules/products/repositories/lowStockWhere.ts`:
+| arquivo | exports | forma | onde é usada |
+|---|---|---|---|
+| `src/modules/products/utils/lowStockRule.ts` | `LOW_STOCK_RULE`, `isLowStock` | **em memória** (puro, sem banco) | dashboard, atenção, bot do dono |
+| `src/modules/products/repositories/lowStockWhere.ts` | `lowStockWhere`, `lowStockSql`, `lowStockConditionsSql` | **Prisma** (`field reference`) e **SQL** | listagem, recomendações, financeiro, admin |
 
-| helper | tipo | uso |
-|---|---|---|
-| `lowStockWhere(barbershopId)` | `Prisma.ProductWhereInput` (field reference `prisma.product.fields.minStock`) | consultas Prisma (`findMany`, `count`) |
-| `lowStockSql(barbershopId)` | `Prisma.Sql` | agregações e `$queryRaw` (`COUNT(*) FILTER`, etc.) |
+O spec `lowStockWhere.spec.ts` (8 testes) trava a regra e prova que as **três**
+formas expressam a mesma condição (salão + `trackStock` + `minStock > 0` +
+`stockQty <= minStock`).
 
-Spec `lowStockWhere.spec.ts` (6 testes) trava a regra e garante que as duas
-versões expressam **as mesmas** condições (mesmo par salão / `trackStock` /
-`minStock > 0` / `stockQty <= minStock`).
+**Os 7 pontos — como cada um ficou:**
 
-**Os 7 pontos de "estoque baixo" no código:**
+| # | Ponto | Arquivo | Regra usada | `active` |
+|---|---|---|---|---|
+| 1 | Listagem (`?lowStock=true`) | `products/useCases/productUseCases.ts:194-227` | `lowStockSql` | só quando a query pede |
+| 2 | Dashboard/relatórios | `products/useCases/productUseCases.ts:694` | `isLowStock` | `active: true` na própria consulta |
+| 3 | Atenção (faltando / repor) | `products/utils/productAttention.ts:77,113` | `isLowStock` | `active: true` na própria consulta |
+| 4 | Recomendações (repor produto) | `analytics/services/recommendationEngine.ts:199-206` | `lowStockWhere` | `active: true` |
+| 5 | Contador do admin | `admin/controllers/AdminProductController.ts:69-82,95` | `lowStockConditionsSql` + `COUNT(*)` **por salão** | `active: true` (+ `stockQty > 0`, ver abaixo) |
+| 6 | Financeiro (`lowStockCount`) | `barbershops/controllers/BarbershopFinancialController.ts:181` | `lowStockSql` no `FILTER` | `active: true` |
+| 7 | Bot do dono (texto "estoque baixo!") | `whatsappOwnerBot/commands/inventoryCommands.ts:36-45` | `isLowStock` | a lista do bot já é de produtos ativos |
 
-| # | Ponto | Arquivo:linha | Formato | Salão | `trackStock` | `active` | `minStock > 0` | Operador | Regra = definição? |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | Listagem de produtos (`lowStock=true`) | `products/useCases/productUseCases.ts:193-226` | `$queryRaw` | sim | sim | só se pedido | sim | `<=` | **sim** → **aplicado** |
-| 2 | Dashboard/relatórios do produto | `products/useCases/productUseCases.ts:678-692` | memória | sim | sim | **sim** | sim | `<=` | não (diverge em `active`) |
-| 3 | Atenção de produto (faltando/repor) | `products/utils/productAttention.ts:75,111-116` | memória (snapshot) | sim | sim | depende do snapshot | sim | `<=` | não (diverge em `active`) |
-| 4 | Recomendações (repor produto) | `analytics/services/recommendationEngine.ts:198-212` | field reference | sim | sim | **sim** | **não** | `<=` | não (`active` + `minStock > 0`) |
-| 5 | Contador do admin (salões) | `admin/controllers/AdminProductController.ts:69-88` | memória | **não** | sim | **sim** | sim | `<=` **e** `stockQty > 0` | não (salão, `active`, operador) |
-| 6 | Financeiro (`lowStockCount`) | `barbershops/controllers/BarbershopFinancialController.ts:177-185` | SQL puro | sim | sim | **sim** | sim | `<=` | não (diverge em `active`) |
-| 7 | Bot do dono — comando "estoque" | `whatsappOwnerBot/commands/inventoryCommands.ts:38-39` | memória | sim | **não** | **não** | **não** | `<=` | não (`trackStock`, `active`, `minStock > 0`) |
+**Comportamento que mudou:**
 
-**Aplicado (ponto 1):** a listagem `lowStock=true` passou a montar a cláusula
-com `lowStockSql(barbershopId)` — mesma consulta, mesma regra, sem cópia inline.
-Os filtros da query (`active`, categoria, tipo, busca) continuam **por cima**,
-como antes.
+- **Ponto 4** — produto com `minStock = 0` e `stockQty = 0` **entrava** como
+  "recomendar reposição"; agora **não entra** (mínimo não configurado).
+- **Ponto 7** — o bot comparava `stock <= min` **sem** `trackStock` e **sem**
+  `minStock > 0`: marcava como "estoque baixo!" produto que **não controla
+  estoque** e qualquer zerado com mínimo 0. Além disso, lia os campos
+  `stockQuantity`/`minimumStock`, que **não existem** no retorno (são
+  `stockQty`/`minStock`): o texto exibia sempre "0 em estoque" e o aviso
+  **nunca** aparecia. Agora usa a definição e os campos reais.
+- **Ponto 5** — **mesma** regra, mas sem carregar produtos: antes era
+  `findMany` de **todos** os produtos de **todos** os salões (filtrando em
+  memória); agora é `COUNT(*)` no banco, **agrupado por salão** (sem trazer
+  produtos). O total continua sendo a soma das linhas por salão.
+- **Pontos 1, 2, 3 e 6** — **sem mudança de comportamento** (a regra já era a
+  mesma); só a fonte da regra passou a ser a definição única.
 
-**Medição antes × depois (consulta somente leitura, banco local de DEV
-`agendai`, 2026-11-05).** O banco de dev **não tem produtos** (`count(*) = 0`
-em `products`), então todas as variantes devolvem **0** e a contagem **não
-distingue** as regras:
+**Ponto 5 — por que o `stockQty > 0` foi mantido.** O painel do admin mostra
+**dois** cartões (`frontend/src/pages/master-admin/OverviewProductAdoption.tsx:170-181`):
+"Estoque baixo" (`catalog.lowStock`, dica "no mínimo configurado") e "Estoque
+zerado" (`catalog.outOfStock`, dica "produtos ativos sem estoque"). O
+`outOfStock` conta `active + trackStock + stockQty <= 0` — ou seja, **cobre os
+zerados**, inclusive os que têm `minStock > 0`. Como o zerado já aparece no
+outro cartão, o "Estoque baixo" mantém `stockQty > 0` (evita contagem dupla).
+Se o outro número deixasse de existir, o `stockQty > 0` cairia e o cartão
+passaria a usar a definição pura.
 
-| salão | total | definição (1) | dashboard/financeiro (2, 6) | recomendações (4) | admin em memória (5) | bot do dono (7) |
-|---|---|---|---|---|---|---|
-| *(sem produtos)* | 0 | 0 | 0 | 0 | 0 | 0 |
+**Teste de consistência** (`src/tests/integration/tenantIsolation.integration.spec.ts`,
+bloco "estoque baixo — consistência da definição em todos os pontos"): fixture
+própria (dois salões, tudo em transação revertida) com seis produtos no salão
+A — (a) baixo e ativo, (b) baixo e **inativo**, (c) **sem controle de estoque**
+e baixo, (d) **mínimo 0** e estoque 0, (e) estoque **0** e mínimo 5, (f)
+saudável — e o mesmo produto baixo no salão B. Cada ponto é confrontado com o
+conjunto esperado:
 
-> **Ressalva:** a mesma consulta precisa ser rodada em **produção** (que
-> provavelmente tem dados) antes de usar a contagem como critério de decisão.
-> O banco de testes `agendai_db` também está vazio (`0` produtos).
+| ponto | conjunto esperado (salão A) |
+|---|---|
+| listagem (sem `active`) | (a), (b), (e) |
+| listagem (`active=true`) | (a), (e) |
+| dashboard | (a), (e) |
+| atenção | (a), (e) |
+| recomendações | (a), (e) |
+| financeiro | contagem = 2 |
+| admin | 1 no salão A (o zerado fica no cartão "Estoque zerado") e 1 no salão B |
+| bot | só (a) recebe "— estoque baixo!" |
 
-**Decisões pendentes (não implementadas — aguardando decisão):**
-
-- **(a) Pontos 2, 3 e 6 — `active`:** hoje dashboard, alertas de atenção e
-  financeiro **excluem** produto inativo; a definição **inclui**. Alinhar
-  (remover o `active` do ponto) ou mover o `active` para dentro da definição
-  (mudando os 7 pontos de uma vez)? Efeito: contadores/alertas do dono.
-- **(b) Ponto 4 — `minStock > 0`:** hoje a recomendação de reposição entra com
-  `minStock = 0` e `stockQty = 0` (não há "mínimo configurado"); a definição
-  exclui. Incluir `minStock > 0` (alinhando com a definição) ou manter?
-- **(c) Ponto 5 — contador do admin carrega todos os salões:** hoje
-  `AdminProductController.ts:69-88` faz `findMany` **sem `barbershopId`** (ou
-  seja, produtos de **todos** os salões) e filtra em memória. Proposta: contar
-  no banco (`COUNT(*)` com o SQL da definição), opcionalmente agrupado por
-  salão — **não implementado** (mudança de escopo).
-- **(d) Ponto 7 — bot do dono:** compara `stock <= min` **sem** `trackStock` e
-  **sem** `minStock > 0` → marca como "estoque baixo" produto que não controla
-  estoque e qualquer produto zerado com mínimo 0. Alinhar com a definição?
+O mesmo teste prova que o salão B **nunca** aparece em nenhum ponto do salão A
+e que **a RLS não é efetiva no dev**: sem o filtro de salão, a mesma consulta
+devolve o produto do salão B (§7).
 
 **Colunas** (`prisma/schema.prisma:3091-3130`): `stockQty Float @default(0)
 @db.Real` e `minStock Float @default(0) @db.Real` — as duas **não nulos**
@@ -784,40 +796,7 @@ conjunto pequeno de produtos do salão, coberto por `(barbershopId, active)`.
 **Nada é proposto nesta seção**.
 
 **RLS:** `products` **não tem** RLS (`rowsecurity = false`) — o isolamento do
-estoque baixo vem do `barbershopId` no filtro, não do banco. O teste
-`src/tests/integration/tenantIsolation.integration.spec.ts` (bloco "estoque
-baixo") prova isso usando **a própria definição** (`lowStockWhere` e
-`lowStockSql`, sem cópias inline): com o salão do contexto, só volta o produto
-dele; sem o salão no filtro, volta o do outro salão.
-
-### 2.9 Clientes (`salon_clients`) — E2E de dois salões
-
-A listagem de clientes (`GET /api/clients`) já é padronizada: `where` builder
-próprio (`src/modules/clients/repositories/salonClientListWhere.ts:41-106`),
-`orderBy` com whitelist (`salonClientListWhere.ts:116-130`) e **regra única de
-pacote ativo** (`src/modules/clients/repositories/clientPackageActive.ts:53-63`).
-O E2E de dois salões (Postgres real, tudo em transação revertida) está em
-`src/tests/integration/tenantIsolation.integration.spec.ts` (bloco "clientes") e
-**não copia regra inline** — usa `buildSalonClientListWhere` e
-`buildSalonClientOrderBy` (os mesmos do produção).
-
-O que o teste prova:
-
-| # | Comportamento | Regra exercida |
-|---|---|---|
-| 1 | Sem filtro, só volta o cliente do salão do contexto | `barbershopId` vem do contexto (`salonClientListWhere.ts:103`) |
-| 2 | Busca por nome **não** pega o homônimo do outro salão; busca pelo WhatsApp do outro salão não acha nada | `search` (`salonClientListWhere.ts:48-56`) |
-| 3 | `hasOpenFiado` marca só quem tem fiado em aberto **do próprio salão** — fiado de outro salão ligado ao mesmo cliente não marca | `fiados.some` com `barbershopId` dentro (`salonClientListWhere.ts:81-91`) |
-| 4 | `hasActivePackage` exige `status = ACTIVE` **e** `remainingSessions > 0` **e** `expiresAt` nulo ou futuro **e** pacote do salão — vencido, sem sessões, `DEPLETED` ou de outro salão não contam | `activePackageWhere` (`clientPackageActive.ts:53-63`) |
-| 5 | `inactiveDays`: sem visita há N dias — ou nunca visitou e criado há N dias | `salonClientListWhere.ts:71-79` |
-| 6 | `createdFrom`/`createdTo` usam o **dia civil do fuso do salão**: cliente criado às 03:30Z entra em 05/10 em São Paulo (00:30 local) e **não** entra no mesmo intervalo em Nova York (23:30 de 04/10) | `civilDayBounds(..., timeZone)` (`salonClientListWhere.ts:58-69`) |
-| 7 | `sort=name` (whitelist) e `sort=lastVisitAt`: nulos **sempre no fim**, nos dois sentidos (`asc` e `desc`) | `buildSalonClientOrderBy` (`salonClientListWhere.ts:116-130`) |
-| 8 | **PROVA** de que a RLS não filtra neste ambiente: a mesma consulta **sem** o salão no `where` devolve clientes dos dois salões | §7 |
-
-**Índices:** `salon_clients` já tem `@@index([barbershopId])` e
-`@@index([whatsapp])` (§1). As propostas que atendem à listagem continuam sendo
-**A1 `(barbershopId, name)`**, **A2 `(barbershopId, lastVisitAt)`** e
-**A3 `(barbershopId, createdAt)`** — **nada novo é proposto aqui**.
+estoque baixo vem do `barbershopId` no filtro, não do banco.
 
 ### Proposta — grupo B: relação (some/none)
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam

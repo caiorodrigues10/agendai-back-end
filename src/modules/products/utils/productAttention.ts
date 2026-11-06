@@ -1,3 +1,5 @@
+import { isLowStock } from "./lowStockRule";
+
 export type AttentionProductSnap = {
   id: string;
   name: string;
@@ -72,7 +74,7 @@ export function buildProductAttention(input: {
   const salesById = new Map(input.byProduct.map((row) => [row.productId, row]));
 
   const missing: AttentionItem[] = input.products
-    .filter((p) => p.trackStock && p.minStock > 0 && p.stockQty <= p.minStock)
+    .filter((p) => isLowStock(p))
     .map((p) => ({
       productId: p.id,
       name: p.name,
@@ -108,11 +110,7 @@ export function buildProductAttention(input: {
 
   const needsReorder: AttentionItem[] = hot.filter((item) => {
     const product = productById.get(item.productId);
-    const low =
-      product != null &&
-      product.trackStock &&
-      product.minStock > 0 &&
-      product.stockQty <= product.minStock;
+    const low = product != null && isLowStock(product);
     const coverLow = item.daysOfCover != null && item.daysOfCover < 7;
     return low || coverLow;
   });
