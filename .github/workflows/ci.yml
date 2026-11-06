@@ -35,34 +35,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: agendai
-          POSTGRES_PASSWORD: agendai123
-          POSTGRES_DB: agendai
-        # O disco do runner é lento (checkpoint de ~99s observado em 2026-11-06).
-        # A extensão de RLS abre uma transação por query, e cada commit com
-        # `synchronous_commit=on` espera o fsync do WAL → o export do dataExport
-        # estourava o timeout do teste. Banco descartável do CI: sem fsync.
-        command:
-          - postgres
-          - -c
-          - fsync=off
-          - -c
-          - synchronous_commit=off
-          - -c
-          - full_page_writes=off
-          - -c
-          - checkpoint_timeout=30min
-          - -c
-          - max_wal_size=2GB
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U agendai"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -91,6 +63,29 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+      # O Postgres sobe como passo (e não como `service`) porque `services` não
+      # aceita `command`: o disco do runner é lento (checkpoint de ~99s em
+      # 2026-11-06) e a extensão de RLS abre uma transação por query — cada
+      # commit com `synchronous_commit=on` espera o fsync do WAL e o export do
+      # dataExport estourava o timeout do teste. Banco do CI é descartável:
+      # fsync desligado e checkpoint raro.
+      - name: Sobe o Postgres (sem fsync)
+        run: |
+          docker run -d --name agendai-pg \
+            -e POSTGRES_USER=agendai \
+            -e POSTGRES_PASSWORD=agendai123 \
+            -e POSTGRES_DB=agendai \
+            -p 5432:5432 \
+            postgres:16-alpine \
+            postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off \
+              -c checkpoint_timeout=30min -c max_wal_size=2GB
+          for attempt in $(seq 1 60); do
+            if docker exec agendai-pg pg_isready -U agendai >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec agendai-pg pg_isready -U agendai
       - run: npm ci
       - run: npm run docs:check
       - run: npx prisma generate
