@@ -94,6 +94,12 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Desliga: campanhas/mensagens em massa do assistente, pedido de avaliação e nota/reputação públicas, NPS, indicações (o código nem é gerado no cadastro), fidelidade (nasce inativa) e preços públicos no perfil/agenda.
 - Não desliga: a consulta interna do dono ("quem não vem há X dias") — é lista para o dono, não disparo ao cliente; agenda, clientes, honorários e financeiro continuam.
 - APIs: middleware `advertisingGuard` (403 `ADVERTISING_FEATURE_UNAVAILABLE`) em referrals e loyalty; NPS nega em `assertShopEligible`; `reviewInvitationService` não cria convite, não expõe resumo público e recusa envio de link antigo; `notificationDeliveryService` marca `ADVERTISING_RESTRICTED` nas notificações promocionais.
+## Posts (formato da arte)
+
+- **Formato padrão por modelo:** `price-split` → `portrait` (4:5); todos os demais → `square` (1:1). Fonte única no back: `defaultPostFormat()` em `modules/posts/services/postTemplates.ts`, que lê `PRICE_SPLIT_MANIFEST.defaultFormat` (manifesto do modelo).
+- O catálogo `GET /api/posts/templates` devolve `defaultFormat` em cada modelo — **é o que o frontend lê** (o fallback local do editor vale só enquanto a lista não carrega/erro de rede). Front e back precisam ficar iguais: mudar a regra = mudar o manifesto/`defaultPostFormat` **e** o fallback do editor no mesmo PR, com o teste do catálogo (`postEditorialTemplates.spec.ts`) verificando os dois lados.
+- `format` explícito sempre vence o default: `previewPostQuerySchema.format` é opcional (sem valor, a prévia usa o default do modelo) e o `create` persiste `body.format ?? defaultPostFormat(templateKey)`. O default é aplicado em um único ponto de render (`buildPostImage`), que alimenta prévia, preview de template, create e update.
+- Prévia e arte final precisam sair no mesmo formato — por isso o `price-split` nasce 4:5 e não 1:1.
 
 ## Fila / agenda / híbrido
 

@@ -96,6 +96,23 @@ describe("catálogo de templates v2", () => {
     }
   });
 
+  it("todo modelo expõe defaultFormat válido (fonte do default do editor)", () => {
+    const catalog = listPostTemplates();
+    for (const item of catalog) {
+      expect(["square", "portrait", "story"], item.key).toContain(item.defaultFormat);
+    }
+    expect(catalog.find((t) => t.key === "agenda-aberta")!.defaultFormat).toBe("square");
+  });
+
+  it("price-split (flag ligada) expõe defaultFormat portrait", () => {
+    vi.stubEnv("POST_PRICE_SPLIT", "1");
+    try {
+      expect(listPostTemplates().find((t) => t.key === "price-split")!.defaultFormat).toBe("portrait");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("modelos comerciais usam artes promocionais editáveis como fallback", () => {
     const catalog = listPostTemplates();
     for (const item of promoStockTemplates) {

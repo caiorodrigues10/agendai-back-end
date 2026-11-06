@@ -33,7 +33,7 @@ import {
 } from "../services/postImageStorageService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
-import { listPostTemplates } from "../services/postTemplates";
+import { defaultPostFormat, listPostTemplates } from "../services/postTemplates";
 import { loadPostStockImage } from "../services/postStockImages";
 import { assertOwnedPostVideo } from "../services/postVideoOwnership";
 import { POST_PALETTES, listPostPalettes } from "../services/postPalettes";
@@ -366,6 +366,7 @@ async function buildPostImage(
     renderPreview?: boolean;
   }
 ) {
+  const format = opts.format ?? defaultPostFormat(opts.templateKey);
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
   const title = opts.title ?? "Vem pra cá hoje!";
   const ctaText = opts.ctaText ?? defaultCtaText(opts.postMode);
@@ -377,7 +378,7 @@ async function buildPostImage(
   ]);
   // price-split: motor de camadas (pool v2), não o fluxo SVG legado.
   if (opts.templateKey === "price-split") {
-    return buildPriceSplitImage(barbershopId, opts, { barbershop, services, schedule }, primaryImageUrl, logoDataUrl);
+    return buildPriceSplitImage(barbershopId, { ...opts, format }, { barbershop, services, schedule }, primaryImageUrl, logoDataUrl);
   }
   const template = listPostTemplates().find(item => item.key === (opts.templateKey ?? "agenda-aberta")) as { stockImageKey?: string } | undefined;
   const stockImageUrl = primaryImageUrl ? null : loadPostStockImage(template?.stockImageKey);
@@ -391,7 +392,7 @@ async function buildPostImage(
     ctaText,
     title,
     templateKey: opts.templateKey,
-    format: opts.format,
+    format,
     paletteKey: opts.paletteKey,
     designOptions: opts.designOptions,
     primaryImageUrl: primaryImageUrl ?? stockImageUrl,
@@ -500,7 +501,7 @@ export class PostsController {
         ctaText: body.ctaText,
         postMode: body.postMode,
         templateKey: body.templateKey ?? "agenda-aberta",
-        format: body.format ?? "square",
+        format: body.format,
         paletteKey: body.paletteKey ?? "brand",
         designOptions: body.designOptions ?? undefined,
         primaryMediaId: body.primaryMediaId,
@@ -525,7 +526,7 @@ export class PostsController {
           postMode: POST_MODE_MAP[body.postMode],
           ctaText: body.ctaText ?? defaultCtaText(body.postMode),
           templateKey: body.templateKey ?? "agenda-aberta",
-          format: (body.format ?? "square").toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
+          format: (body.format ?? defaultPostFormat(body.templateKey)).toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
           paletteKey: body.paletteKey ?? "brand",
           designOptions: mergeDesignOptions(undefined, body.designOptions, body.priceSplit),
           primaryMediaId: body.primaryMediaId ?? null,
