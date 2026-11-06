@@ -113,8 +113,9 @@ jobs:
         run: npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=60000 src/tests/integration
       # DIAGNÓSTICO TEMPORÁRIO: o dataExport estourava 60s no runner. Roda
       # isolado, com timeout alto e relatório verbose, para medir quanto cada
-      # teste leva de verdade.
+      # teste leva de verdade (roda mesmo com a integração anterior falhando).
       - name: Diagnóstico dataExport
+        if: always()
         run: >
           npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=300000
           --reporter=verbose
