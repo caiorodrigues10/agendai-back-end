@@ -1,12 +1,13 @@
 import fastify, { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import cookie from "@fastify/cookie";
-import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
 import { registerRoutes } from "./routes";
 import { apiRoutes } from "./routes/api";
+import { shareRoutes } from "@/modules/barbershops/routes/share.routes";
+import { shareEnvProductionWarnings } from "@/modules/barbershops/useCases/share/shareUrls";
 import { realtimeHub } from "@/shared/services/realtimeService";
 import { warmupApiRedis } from "@/shared/infra/queue/redisConnection";
 import { healthRoutes } from "./health";
@@ -93,6 +94,11 @@ function shopIdFromRequest(request: FastifyRequest): string | null {
 }
 
 export async function buildApp() {
+  // Avisos de configuração da página de compartilhamento (somente produção):
+  // sem PUBLIC_APP_URL/PUBLIC_API_URL o /s/salon/:id cai em URL errada atrás
+  // de proxy. Apenas orienta — a resolução segue as regras de shareUrls.ts.
+  for (const warning of shareEnvProductionWarnings()) logger.warn(warning);
+
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test). Fora disso, o nível
     // segue o LOG_LEVEL já documentado no .env.example (default: info).
@@ -110,56 +116,8 @@ export async function buildApp() {
 
   await app.register(cookie);
 
-  // CORS com whitelist de origens configurável via env
-  await app.register(cors, {
-    origin: (origin, cb) => {
-      const allowed = (process.env.ALLOWED_ORIGINS || "")
-        .split(",")
-        .map((o) => o.trim())
-        .filter(Boolean);
-
-      // Sem origin = requisição server-side (webhook do MP, ferramentas internas) → permitir
-      if (!origin) {
-        cb(null, true);
-        return;
-      }
-      if (allowed.includes(origin)) {
-        cb(null, true);
-        return;
-      }
-      // Dev: aceitar localhost / 127.0.0.1 em qualquer porta comum do Vite
-      if (process.env.NODE_ENV !== "production") {
-        try {
-          const url = new URL(origin);
-          if (
-            (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
-            ["http:", "https:"].includes(url.protocol)
-          ) {
-            cb(null, true);
-            return;
-          }
-        } catch {
-          /* ignore invalid origin */
-        }
-      }
-      // Origem fora da whitelist: 403 explícito. Um Error genérico aqui virava
-      // 500 "Erro interno do servidor" no error handler (falso alarme em
-      // monitoramento e log poluído por requisição cruzada malformada).
-      cb(new AppError("Origem não permitida", 403), false);
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Signature",
-      "X-Request-Id",
-      "X-Webhook-Signature",
-      "X-Correlation-Id",
-      "Idempotency-Key",
-    ],
-    exposedHeaders: ["X-Correlation-Id"],
-  });
+  // CORS: registrado em routes/api.ts (escopo /api). Páginas fora do prefixo
+  // (/health, /s/salon/:id, swagger) não precisam de cabeçalhos CORS.
 
   // Global correlation ID middleware
   app.addHook("onRequest", correlationIdMiddleware);
@@ -252,6 +210,8 @@ export async function buildApp() {
 
   // Rotas
   await registerRoutes(app);
+  // Páginas públicas fora do prefixo /api (o crawler lê HTML): /s/salon/:id
+  await app.register(shareRoutes);
   await app.register(apiRoutes, { prefix: "/api" });
 
   if (!process.env.VITEST) {
