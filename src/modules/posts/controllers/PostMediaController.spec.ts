@@ -90,7 +90,7 @@ describe("PostMediaController — galeria (inGallery)", () => {
     expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: [] }));
   });
 
-  it("upload cria a foto na galeria quando inGallery=true", async () => {
+  it("upload cria a foto na galeria mesmo sem o campo inGallery", async () => {
     mockPostMediaCount.mockResolvedValueOnce(0);
     mockPostMediaCreate.mockResolvedValueOnce(mediaRow({ inGallery: true }));
     const controller = new PostMediaController();
@@ -99,7 +99,6 @@ describe("PostMediaController — galeria (inGallery)", () => {
       fakeRequest({
         params: { barbershopId: BARBERSHOP_ID },
         parts: () => fakeParts([
-          { type: "field", fieldname: "inGallery", value: "true" },
           { type: "file", mimetype: "image/png", toBuffer: async () => PNG },
         ]),
       }),
@@ -115,26 +114,6 @@ describe("PostMediaController — galeria (inGallery)", () => {
     }));
   });
 
-  it("upload fora da galeria (inGallery=false) não conta capacidade", async () => {
-    mockPostMediaCreate.mockResolvedValueOnce(mediaRow({ inGallery: false }));
-    const controller = new PostMediaController();
-    const reply = fakeReply();
-    await controller.upload(
-      fakeRequest({
-        params: { barbershopId: BARBERSHOP_ID },
-        parts: () => fakeParts([
-          { type: "field", fieldname: "inGallery", value: "false" },
-          { type: "file", mimetype: "image/png", toBuffer: async () => PNG },
-        ]),
-      }),
-      reply
-    );
-    expect(mockPostMediaCount).not.toHaveBeenCalled();
-    expect(mockPostMediaCreate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ inGallery: false }),
-    }));
-  });
-
   it("upload rejeita a 31ª foto da galeria com 400 e mensagem clara (sem enviar ao storage)", async () => {
     mockPostMediaCount.mockResolvedValueOnce(GALLERY_MAX_PHOTOS);
     const controller = new PostMediaController();
@@ -142,7 +121,6 @@ describe("PostMediaController — galeria (inGallery)", () => {
       fakeRequest({
         params: { barbershopId: BARBERSHOP_ID },
         parts: () => fakeParts([
-          { type: "field", fieldname: "inGallery", value: "true" },
           { type: "file", mimetype: "image/png", toBuffer: async () => PNG },
         ]),
       }),
@@ -208,7 +186,7 @@ describe("PostMediaController — galeria (inGallery)", () => {
     }));
   });
 
-  it("update para dentro da galeria respeita o limite de fotos", async () => {
+  it("update para dentro da galeria respeita o limite de fotos (400 com mensagem clara)", async () => {
     mockPostMediaFindUnique.mockResolvedValueOnce(mediaRow({ inGallery: false }));
     mockPostMediaCount.mockResolvedValueOnce(GALLERY_MAX_PHOTOS);
     const controller = new PostMediaController();
@@ -218,6 +196,7 @@ describe("PostMediaController — galeria (inGallery)", () => {
     );
     const err = await promise.catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
+    expect(err).toMatchObject({ statusCode: 400, message: expect.stringContaining(`Sua galeria já tem ${GALLERY_MAX_PHOTOS} fotos`) });
     expect(mockPostMediaUpdate).not.toHaveBeenCalled();
   });
 });

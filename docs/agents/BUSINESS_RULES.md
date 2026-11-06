@@ -31,11 +31,11 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 
 ## Galeria do perfil (aba Fotos)
 
-- A galeria é alimentada **exclusivamente** pela sub-aba "Fotos do perfil" (dentro da tela "Posts" do painel do dono): `POST /posts/media/:barbershopId` com `inGallery=true`. O upload do editor de posts grava `inGallery=false` e **não** publica no perfil.
+- **Upload sempre grava `inGallery: true`** (o campo multipart `inGallery` é ignorado): toda foto enviada pelo painel entra na galeria pública do perfil (aba "Fotos").
 - Limite de `GALLERY_MAX_PHOTOS = 30` (`PostMediaController`): a verificação roda **antes** do envio ao Cloudinary → **400** "Sua galeria já tem 30 fotos. Remova uma foto para enviar outra." (nada é enviado ao storage, sem arquivo órfão).
 - `GET /posts/media?barbershopId=…&inGallery=true` lista a galeria respeitando o tenant (`ensureTenant` → 403 para outro salão); a rota pública `GET /social/:salonId/gallery` devolve `inGallery: true` em `createdAt DESC` (`take: 30`).
-- Excluir foto de galeria funciona normalmente: o bloqueio 409 ("remova a imagem dos rascunhos ou posts agendados") só vale para foto usada em rascunho/post agendado — foto de galeria nunca é usada em post.
-- Sem backfill: fotos já existentes mantêm o `inGallery` atual (default da coluna: `false`).
+- Excluir foto de galeria funciona normalmente: o bloqueio 409 ("remova a imagem dos rascunhos ou posts agendados") só vale para foto **fora** da galeria (`inGallery=false`) em uso por rascunho/post agendado — foto de galeria é excluída normalmente (o registro some e ela sai da galeria do perfil).
+- Coluna `post_media.inGallery` com **default `true`** (migration `20261027000000_post_media_gallery_default`) + backfill que promove as fotos **mais recentes** de cada salão até completar 30, **sem rebaixar** foto já publicada e **sem ultrapassar** o limite.
 
 ## Posts do feed — agendamento fora da UI
 
@@ -100,6 +100,7 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - O catálogo `GET /api/posts/templates` devolve `defaultFormat` em cada modelo — **é o que o frontend lê** (o fallback local do editor vale só enquanto a lista não carrega/erro de rede). Front e back precisam ficar iguais: mudar a regra = mudar o manifesto/`defaultPostFormat` **e** o fallback do editor no mesmo PR, com o teste do catálogo (`postEditorialTemplates.spec.ts`) verificando os dois lados.
 - `format` explícito sempre vence o default: `previewPostQuerySchema.format` é opcional (sem valor, a prévia usa o default do modelo) e o `create` persiste `body.format ?? defaultPostFormat(templateKey)`. O default é aplicado em um único ponto de render (`buildPostImage`), que alimenta prévia, preview de template, create e update.
 - Prévia e arte final precisam sair no mesmo formato — por isso o `price-split` nasce 4:5 e não 1:1.
+- `PATCH /api/posts/media/:id` (toggle) continua na API, mas o front não usa mais (não há escolha de galeria na UI).
 
 ## Fila / agenda / híbrido
 
