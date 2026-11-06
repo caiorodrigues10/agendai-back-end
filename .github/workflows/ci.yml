@@ -41,6 +41,22 @@ jobs:
           POSTGRES_USER: agendai
           POSTGRES_PASSWORD: agendai123
           POSTGRES_DB: agendai
+        # O disco do runner é lento (checkpoint de ~99s observado em 2026-11-06).
+        # A extensão de RLS abre uma transação por query, e cada commit com
+        # `synchronous_commit=on` espera o fsync do WAL → o export do dataExport
+        # estourava o timeout do teste. Banco descartável do CI: sem fsync.
+        command:
+          - postgres
+          - -c
+          - fsync=off
+          - -c
+          - synchronous_commit=off
+          - -c
+          - full_page_writes=off
+          - -c
+          - checkpoint_timeout=30min
+          - -c
+          - max_wal_size=2GB
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U agendai"
