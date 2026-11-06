@@ -33,7 +33,7 @@ jobs:
     name: Backend and migration integrity
     needs: secrets
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       redis:
         image: redis:7-alpine
@@ -78,7 +78,10 @@ jobs:
             -p 5432:5432 \
             postgres:16-alpine \
             postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off \
-              -c checkpoint_timeout=30min -c max_wal_size=2GB
+              -c checkpoint_timeout=30min -c max_wal_size=2GB \
+              -c log_min_duration_statement=1000 -c log_lock_waits=on \
+              -c deadlock_timeout=5s -c log_checkpoints=on \
+              -c log_autovacuum_min_duration=1000
           for attempt in $(seq 1 60); do
             if docker exec agendai-pg pg_isready -U agendai >/dev/null 2>&1; then
               break
@@ -110,13 +113,31 @@ jobs:
       # (checkpoint de ~100s observado em 2026-11-06) e o default de 30s matava
       # transações legítimas com P2028 "Transaction already closed".
       - name: Integration tests (serial)
-        run: npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=60000 src/tests/integration
+        run: |
+          ( while true; do
+              echo "=== $(date -u +%H:%M:%S) ==="
+              docker exec agendai-pg psql -U agendai -d agendai -Atc \
+                "select pid, state, coalesce(wait_event_type,'-'), coalesce(wait_event,'-'), left(regexp_replace(query, '\s+', ' ', 'g'), 180) from pg_stat_activity where datname='agendai' and state <> 'idle'"
+              sleep 5
+            done ) > /tmp/pg-sampler.log 2>&1 &
+          SAMPLER=$!
+          set +e
+          npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=60000 src/tests/integration
+          STATUS=$?
+          set -e
+          kill $SAMPLER || true
+          echo "--- sampler do Postgres ---"
+          cat /tmp/pg-sampler.log
+          exit $STATUS
+      - name: Logs do Postgres (diagnóstico)
+        if: always()
+        run: docker logs agendai-pg 2>&1 | tail -400
       # DIAGNÓSTICO TEMPORÁRIO: o dataExport estourava 60s no runner. Roda
       # isolado, com timeout alto e relatório verbose, para medir quanto cada
       # teste leva de verdade (roda mesmo com a integração anterior falhando).
       - name: Diagnóstico dataExport
         if: always()
         run: >
-          npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=300000
-          --reporter=verbose
+          npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=45000
+          --bail=1 --reporter=verbose
           src/tests/integration/dataExport.integration.spec.ts
