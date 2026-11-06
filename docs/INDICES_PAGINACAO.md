@@ -790,6 +790,35 @@ baixo") prova isso usando **a própria definição** (`lowStockWhere` e
 `lowStockSql`, sem cópias inline): com o salão do contexto, só volta o produto
 dele; sem o salão no filtro, volta o do outro salão.
 
+### 2.9 Clientes (`salon_clients`) — E2E de dois salões
+
+A listagem de clientes (`GET /api/clients`) já é padronizada: `where` builder
+próprio (`src/modules/clients/repositories/salonClientListWhere.ts:41-106`),
+`orderBy` com whitelist (`salonClientListWhere.ts:116-130`) e **regra única de
+pacote ativo** (`src/modules/clients/repositories/clientPackageActive.ts:53-63`).
+O E2E de dois salões (Postgres real, tudo em transação revertida) está em
+`src/tests/integration/tenantIsolation.integration.spec.ts` (bloco "clientes") e
+**não copia regra inline** — usa `buildSalonClientListWhere` e
+`buildSalonClientOrderBy` (os mesmos do produção).
+
+O que o teste prova:
+
+| # | Comportamento | Regra exercida |
+|---|---|---|
+| 1 | Sem filtro, só volta o cliente do salão do contexto | `barbershopId` vem do contexto (`salonClientListWhere.ts:103`) |
+| 2 | Busca por nome **não** pega o homônimo do outro salão; busca pelo WhatsApp do outro salão não acha nada | `search` (`salonClientListWhere.ts:48-56`) |
+| 3 | `hasOpenFiado` marca só quem tem fiado em aberto **do próprio salão** — fiado de outro salão ligado ao mesmo cliente não marca | `fiados.some` com `barbershopId` dentro (`salonClientListWhere.ts:81-91`) |
+| 4 | `hasActivePackage` exige `status = ACTIVE` **e** `remainingSessions > 0` **e** `expiresAt` nulo ou futuro **e** pacote do salão — vencido, sem sessões, `DEPLETED` ou de outro salão não contam | `activePackageWhere` (`clientPackageActive.ts:53-63`) |
+| 5 | `inactiveDays`: sem visita há N dias — ou nunca visitou e criado há N dias | `salonClientListWhere.ts:71-79` |
+| 6 | `createdFrom`/`createdTo` usam o **dia civil do fuso do salão**: cliente criado às 03:30Z entra em 05/10 em São Paulo (00:30 local) e **não** entra no mesmo intervalo em Nova York (23:30 de 04/10) | `civilDayBounds(..., timeZone)` (`salonClientListWhere.ts:58-69`) |
+| 7 | `sort=name` (whitelist) e `sort=lastVisitAt`: nulos **sempre no fim**, nos dois sentidos (`asc` e `desc`) | `buildSalonClientOrderBy` (`salonClientListWhere.ts:116-130`) |
+| 8 | **PROVA** de que a RLS não filtra neste ambiente: a mesma consulta **sem** o salão no `where` devolve clientes dos dois salões | §7 |
+
+**Índices:** `salon_clients` já tem `@@index([barbershopId])` e
+`@@index([whatsapp])` (§1). As propostas que atendem à listagem continuam sendo
+**A1 `(barbershopId, name)`**, **A2 `(barbershopId, lastVisitAt)`** e
+**A3 `(barbershopId, createdAt)`** — **nada novo é proposto aqui**.
+
 ### Proposta — grupo B: relação (some/none)
 Os filtros por relação (`hasOpenFiado`, `hasActivePackage`) usam
 `fiados.clientId` e `client_packages.clientId`. O índice ideal traz o status

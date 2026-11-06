@@ -35,6 +35,11 @@ import {
   lowStockSql,
   lowStockWhere,
 } from "@/modules/products/repositories/lowStockWhere";
+import {
+  buildSalonClientListWhere,
+  buildSalonClientOrderBy,
+} from "@/modules/clients/repositories/salonClientListWhere";
+import type { ISalonClientListQuery } from "@/modules/clients/dtos/ISalonClientDTO";
 import { shopToday } from "@/modules/financial/ledger/shopTime";
 
 const DIA = "2026-10-05";
@@ -1204,6 +1209,366 @@ describe("isolamento por salão — estoque baixo (Produtos, Postgres real, roll
           select: { id: true },
         });
         expect(porWhereB.map((p) => p.id)).toEqual([baixoB.id]);
+      });
+
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
+
+describe("isolamento por salão — clientes (Postgres real, rollback)", () => {
+  it("filtros, ordenação e pacote ativo só devolvem dados do salão do contexto", async () => {
+    // "Agora" fixo: as regras de data (inatividade, validade de pacote) são
+    // determinísticas com esta referência.
+    const AGORA = new Date("2026-11-04T12:00:00.000Z");
+    const DIA_FUSO = "2026-10-05";
+
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Clientes A ${randomUUID()}`, whatsapp: "11993330001" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Clientes B ${randomUUID()}`, whatsapp: "11993330002" },
+      });
+
+      const userA = await tx.user.create({
+        data: {
+          name: "Dono Clientes A",
+          email: `clientes-a-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "OWNER",
+          barbershopId: shopA.id,
+        },
+      });
+      const userB = await tx.user.create({
+        data: {
+          name: "Dono Clientes B",
+          email: `clientes-b-${randomUUID()}@qa.local`,
+          password: "qa-sem-login",
+          role: "OWNER",
+          barbershopId: shopB.id,
+        },
+      });
+
+      const serviceA = await tx.service.create({
+        data: {
+          barbershopId: shopA.id,
+          name: `Corte Clientes A ${randomUUID()}`,
+          price: 50,
+          avgTimeMinutes: 30,
+          icon: "scissors",
+        },
+      });
+      const serviceB = await tx.service.create({
+        data: {
+          barbershopId: shopB.id,
+          name: `Corte Clientes B ${randomUUID()}`,
+          price: 50,
+          avgTimeMinutes: 30,
+          icon: "scissors",
+        },
+      });
+      const pacoteServicoA = await tx.servicePackage.create({
+        data: {
+          barbershopId: shopA.id,
+          serviceId: serviceA.id,
+          name: "Pacote QA A",
+          sessionCount: 5,
+          price: 200,
+        },
+      });
+      const pacoteServicoB = await tx.servicePackage.create({
+        data: {
+          barbershopId: shopB.id,
+          serviceId: serviceB.id,
+          name: "Pacote QA B",
+          sessionCount: 5,
+          price: 200,
+        },
+      });
+
+      // ── clientes do salão A ────────────────────────────────
+      const anaA = await tx.salonClient.create({
+        data: {
+          barbershopId: shopA.id,
+          name: "Ana QA",
+          whatsapp: "11991110010",
+          normalizedWhatsapp: "11991110010",
+          createdAt: new Date("2026-10-01T12:00:00.000Z"),
+          lastVisitAt: new Date("2026-11-02T12:00:00.000Z"),
+        },
+      });
+      const diegoA = await tx.salonClient.create({
+        data: {
+          barbershopId: shopA.id,
+          name: "Diego QA",
+          whatsapp: "11991110012",
+          normalizedWhatsapp: "11991110012",
+          createdAt: new Date("2026-09-20T12:00:00.000Z"),
+          lastVisitAt: new Date("2026-09-20T12:00:00.000Z"),
+        },
+      });
+      const brunoA = await tx.salonClient.create({
+        data: {
+          barbershopId: shopA.id,
+          name: "Bruno QA",
+          whatsapp: "11991110011",
+          normalizedWhatsapp: "11991110011",
+          createdAt: new Date("2026-09-01T12:00:00.000Z"),
+          lastVisitAt: null,
+        },
+      });
+      // Criado às 03:30Z do dia 05/10: em São Paulo é 00:30 de 05/10; em Nova
+      // York é 23:30 de 04/10 — o fuso do salão muda o dia civil.
+      const carlaA = await tx.salonClient.create({
+        data: {
+          barbershopId: shopA.id,
+          name: "Carla QA",
+          whatsapp: "11991110013",
+          normalizedWhatsapp: "11991110013",
+          createdAt: new Date(`${DIA_FUSO}T03:30:00.000Z`),
+          lastVisitAt: null,
+        },
+      });
+
+      // ── clientes do salão B ────────────────────────────────
+      const anaB = await tx.salonClient.create({
+        data: {
+          barbershopId: shopB.id,
+          name: "Ana QA B",
+          whatsapp: "11992220010",
+          normalizedWhatsapp: "11992220010",
+          createdAt: new Date("2026-10-01T12:00:00.000Z"),
+          lastVisitAt: new Date("2026-11-03T12:00:00.000Z"),
+        },
+      });
+      await tx.salonClient.create({
+        data: {
+          barbershopId: shopB.id,
+          name: "Bruno QA B",
+          whatsapp: "11992220011",
+          normalizedWhatsapp: "11992220011",
+          createdAt: new Date("2026-09-01T12:00:00.000Z"),
+          lastVisitAt: null,
+        },
+      });
+
+      // ── fiados ─────────────────────────────────────────────
+      // A: fiado em aberto ligado à Ana (entra no filtro).
+      await tx.fiado.create({
+        data: {
+          barbershopId: shopA.id,
+          clientId: anaA.id,
+          customerName: "Ana QA",
+          whatsapp: "11991110010",
+          description: "Fiado QA A",
+          originalAmount: 100,
+          status: "PENDING",
+          createdById: userA.id,
+        },
+      });
+      // A: fiado de OUTRO salão ligado à Ana — não pode marcar a Ana como
+      // "com fiado em aberto" no salão A.
+      await tx.fiado.create({
+        data: {
+          barbershopId: shopB.id,
+          clientId: anaA.id,
+          customerName: "Ana QA",
+          whatsapp: "11991110010",
+          description: "Fiado QA B na Ana A",
+          originalAmount: 50,
+          status: "PENDING",
+          createdById: userB.id,
+        },
+      });
+      // B: fiado em aberto da cliente B — nunca aparece para o salão A.
+      await tx.fiado.create({
+        data: {
+          barbershopId: shopB.id,
+          clientId: anaB.id,
+          customerName: "Ana QA B",
+          whatsapp: "11992220010",
+          description: "Fiado QA B",
+          originalAmount: 100,
+          status: "PENDING",
+          createdById: userB.id,
+        },
+      });
+
+      // ── pacotes ────────────────────────────────────────────
+      const basePacote = {
+        clientId: anaA.id,
+        packageId: pacoteServicoA.id,
+        serviceId: serviceA.id,
+        totalSessions: 5,
+        pricePaid: 200,
+        paymentMethod: "pix" as const,
+        status: "ACTIVE" as const,
+      };
+      // Ana: pacote ativo e válido (entra no filtro).
+      await tx.clientPackage.create({
+        data: {
+          ...basePacote,
+          barbershopId: shopA.id,
+          remainingSessions: 3,
+          expiresAt: null,
+        },
+      });
+      // Ana: pacote DEPLETED — não conta.
+      await tx.clientPackage.create({
+        data: {
+          ...basePacote,
+          barbershopId: shopA.id,
+          remainingSessions: 5,
+          status: "DEPLETED",
+        },
+      });
+      // Ana: pacote ativo válido, mas de OUTRO salão — não conta no salão A.
+      await tx.clientPackage.create({
+        data: {
+          ...basePacote,
+          barbershopId: shopB.id,
+          packageId: pacoteServicoB.id,
+          serviceId: serviceB.id,
+          remainingSessions: 5,
+        },
+      });
+      // Bruno: pacote ativo vencido — não conta.
+      await tx.clientPackage.create({
+        data: {
+          ...basePacote,
+          barbershopId: shopA.id,
+          clientId: brunoA.id,
+          remainingSessions: 5,
+          expiresAt: new Date("2026-11-01T12:00:00.000Z"),
+        },
+      });
+      // Carla: pacote ativo sem sessões restantes — não conta.
+      await tx.clientPackage.create({
+        data: {
+          ...basePacote,
+          barbershopId: shopA.id,
+          clientId: carlaA.id,
+          remainingSessions: 0,
+        },
+      });
+      // B: pacote ativo e válido da cliente B — nunca aparece para o salão A.
+      await tx.clientPackage.create({
+        data: {
+          ...basePacote,
+          barbershopId: shopB.id,
+          clientId: anaB.id,
+          packageId: pacoteServicoB.id,
+          serviceId: serviceB.id,
+          remainingSessions: 2,
+        },
+      });
+
+      const consulta = (query: Partial<ISalonClientListQuery> & { page: number; limit: number }) =>
+        tx.salonClient.findMany({
+          where: buildSalonClientListWhere(query, shopA.id, AGORA),
+          orderBy: buildSalonClientOrderBy(query.sort),
+          select: { id: true, name: true, lastVisitAt: true, createdAt: true },
+        });
+
+      const ids = (rows: Array<{ id: string }>) => rows.map((r) => r.id).sort();
+      const nomes = (rows: Array<{ name: string }>) => rows.map((r) => r.name).sort();
+
+      // ── contexto do salão A ────────────────────────────────
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        // 1. Sem filtro: só os clientes do salão A (o `where` carrega o salão).
+        const base = await consulta({ page: 1, limit: 50 });
+        expect(ids(base)).toEqual(
+          ids([anaA, diegoA, brunoA, carlaA]),
+        );
+        expect(base.every((r) => r.id !== anaB.id)).toBe(true);
+
+        // 2. Busca por nome: não pega o homônimo do salão B.
+        const porNome = await consulta({ page: 1, limit: 50, search: "Ana" });
+        expect(porNome.map((r) => r.id)).toEqual([anaA.id]);
+
+        // 3. Busca por WhatsApp: o número do salão B não encontra nada em A.
+        const porWhatsappB = await consulta({ page: 1, limit: 50, search: "11992220010" });
+        expect(porWhatsappB).toEqual([]);
+
+        // 4. Fiado em aberto: só a Ana (fiado de outro salão não marca).
+        const comFiado = await consulta({ page: 1, limit: 50, hasOpenFiado: true });
+        expect(comFiado.map((r) => r.id)).toEqual([anaA.id]);
+
+        const semFiado = await consulta({ page: 1, limit: 50, hasOpenFiado: false });
+        expect(ids(semFiado)).toEqual(ids([diegoA, brunoA, carlaA]));
+
+        // 5. Pacote ativo: só a Ana (ACTIVE + sessões + não vencido + do salão).
+        const comPacote = await consulta({ page: 1, limit: 50, hasActivePackage: true });
+        expect(comPacote.map((r) => r.id)).toEqual([anaA.id]);
+
+        const semPacote = await consulta({ page: 1, limit: 50, hasActivePackage: false });
+        expect(ids(semPacote)).toEqual(ids([diegoA, brunoA, carlaA]));
+
+        // 6. Sem visita há 30 dias: Diego (visita antiga) e Bruno (nunca
+        //    visitou, criado há mais de 30 dias); Ana e Carla não entram.
+        const inativos = await consulta({ page: 1, limit: 50, inactiveDays: 30 });
+        expect(ids(inativos)).toEqual(ids([diegoA, brunoA, carlaA]));
+
+        // 7. Fuso do salão no `createdAt`: 05/10 em São Paulo inclui a Carla;
+        //    o mesmo intervalo em Nova York (23:30 de 04/10) não inclui.
+        const diaSaoPaulo = await consulta({
+          page: 1,
+          limit: 50,
+          createdFrom: DIA_FUSO,
+          createdTo: DIA_FUSO,
+          timeZone: "America/Sao_Paulo",
+        });
+        expect(diaSaoPaulo.map((r) => r.id)).toEqual([carlaA.id]);
+
+        const diaNovaYork = await consulta({
+          page: 1,
+          limit: 50,
+          createdFrom: DIA_FUSO,
+          createdTo: DIA_FUSO,
+          timeZone: "America/New_York",
+        });
+        expect(diaNovaYork).toEqual([]);
+
+        // 8. Ordenação por `name` (whitelist) com desempate por `id`.
+        const porNomeOrdenado = await consulta({
+          page: 1,
+          limit: 50,
+          sort: { field: "name", dir: "asc" },
+        });
+        expect(nomes(porNomeOrdenado)).toEqual(["Ana QA", "Bruno QA", "Carla QA", "Diego QA"]);
+
+        // 9. Ordenação por `lastVisitAt`: nulos sempre no fim (nos dois
+        //    sentidos), nunca no topo.
+        const asc = await consulta({
+          page: 1,
+          limit: 50,
+          sort: { field: "lastVisitAt", dir: "asc" },
+        });
+        expect(asc[0]?.id).toBe(diegoA.id);
+        expect(asc[1]?.id).toBe(anaA.id);
+        expect(asc.slice(2).every((r) => r.lastVisitAt === null)).toBe(true);
+
+        const desc = await consulta({
+          page: 1,
+          limit: 50,
+          sort: { field: "lastVisitAt", dir: "desc" },
+        });
+        expect(desc[0]?.id).toBe(anaA.id);
+        expect(desc[1]?.id).toBe(diegoA.id);
+        expect(desc.slice(2).every((r) => r.lastVisitAt === null)).toBe(true);
+
+        // 10. PROVA de que a RLS não filtra nada neste ambiente: a MESMA
+        //     consulta sem o salão no `where` enxerga o salão B.
+        const semSalao = await tx.salonClient.findMany({
+          where: { name: { contains: "Ana", mode: "insensitive" } },
+          select: { id: true, barbershopId: true },
+        });
+        expect(semSalao.map((r) => r.id)).toEqual(
+          expect.arrayContaining([anaA.id, anaB.id]),
+        );
       });
 
       throw new Error("ROLLBACK_ISOLATION");
