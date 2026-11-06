@@ -87,3 +87,40 @@ describe('comando "estoque" do assistente do dono', () => {
     expect(resultado.text).not.toContain("— estoque baixo!");
   });
 });
+
+describe('comando "estoque baixo" do assistente do dono', () => {
+  function comandoEstoqueBaixo() {
+    const comando = inventoryCommands.find((c) => c.id === "stock.low");
+    if (!comando) throw new Error("comando stock.low não encontrado");
+    return comando;
+  }
+
+  it("lista os itens para repor com estoque e mínimo reais", async () => {
+    const resultado = await comandoEstoqueBaixo().run(
+      {
+        actor: { barbershopId: SHOP },
+        actions: {
+          lowStockProducts: async () => [
+            { id: "p1", name: "Shampoo Hidratante", stockQty: 2, minStock: 5 },
+          ],
+        },
+      } as never,
+      { raw: "estoque baixo" } as never,
+    );
+
+    expect(resultado.text).toContain("Itens para repor:");
+    expect(resultado.text).toContain("1. Shampoo Hidratante — 2 un. (mínimo 5)");
+  });
+
+  it("avisa quando não há item em estoque baixo", async () => {
+    const resultado = await comandoEstoqueBaixo().run(
+      {
+        actor: { barbershopId: SHOP },
+        actions: { lowStockProducts: async () => [] },
+      } as never,
+      { raw: "estoque baixo" } as never,
+    );
+
+    expect(resultado.text).toContain("Nenhum item com estoque baixo");
+  });
+});

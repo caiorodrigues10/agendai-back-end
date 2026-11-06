@@ -76,18 +76,16 @@ export const inventoryCommands: OwnerBotCommand[] = [
     description: "Itens acabando",
     examples: ["estoque baixo", "o que está acabando"],
     async run(ctx) {
-      const alerts = await ctx.actions.stockAlerts(ctx.actor.barbershopId);
-      if (!alerts.length) {
+      const lowStock = await ctx.actions.lowStockProducts(ctx.actor.barbershopId);
+      if (!lowStock.length) {
         return {
           text: "Nenhum item com estoque baixo. 👍",
           suggestions: ["estoque", "faturamento do mês"],
         };
       }
-      const lines = alerts.slice(0, 10).map(
-        (alert, index) =>
-          `${index + 1}. ${alert.name} — ${alert.stockQuantity ?? 0} un. (mínimo ${
-            alert.minimumStock ?? 0
-          })`
+      const lines = lowStock.slice(0, 10).map(
+        (product, index) =>
+          `${index + 1}. ${product.name} — ${product.stockQty} un. (mínimo ${product.minStock})`
       );
       return {
         text: `Itens para repor:\n${lines.join("\n")}`,

@@ -542,6 +542,10 @@ export interface OwnerBotActions {
   stockAlerts(barbershopId: string): Promise<
     Array<{ id: string; name: string; stockQuantity?: number; minimumStock?: number | null }>
   >;
+  /** Produtos em estoque baixo (definição única de `products`). */
+  lowStockProducts(barbershopId: string): Promise<
+    Array<{ id: string; name: string; stockQty: number; minStock: number }>
+  >;
 
   // ─── auditing, preferências e campanhas ───────────────────────────────────
   actionLogs(
@@ -1206,6 +1210,15 @@ export function createOwnerBotActions(): OwnerBotActions {
         to
       )) as Record<string, unknown>;
       return reports;
+    },
+
+    async lowStockProducts(barbershopId) {
+      const useCase = container.resolve(ProductCatalogUseCase);
+      return (await useCase.lowStockProducts(barbershopId, {
+        id: "owner-bot",
+        role: "OWNER",
+        barbershopId,
+      })) as Array<{ id: string; name: string; stockQty: number; minStock: number }>;
     },
 
     async stockAlerts(barbershopId) {

@@ -27,7 +27,7 @@ import {
 } from "../utils/productCodeUtils";
 import { summarizeRetailLines } from "../utils/retailSummary";
 import { buildProductAttention } from "../utils/productAttention";
-import { lowStockSql } from "../repositories/lowStockWhere";
+import { lowStockSql, lowStockWhere } from "../repositories/lowStockWhere";
 import { isLowStock } from "../utils/lowStockRule";
 import { resolveUnitFields } from "../utils/productStockUnit";
 import {
@@ -293,6 +293,22 @@ export class ProductCatalogUseCase {
       },
       orderBy: [{ name: "asc" }],
       take: 20,
+    });
+  }
+
+  /**
+   * Produtos em **estoque baixo** pela definição única (`lowStockWhere`),
+   * contando só o que está **ativo** (decisão do chamador).
+   *
+   * Usado pelo assistente do dono (WhatsApp) no comando "estoque baixo".
+   */
+  async lowStockProducts(barbershopId: string, user: ProductActor, limit = 20) {
+    await assertProductPermission(user, barbershopId, ["PRODUCTS_VIEW", "PRODUCTS_MANAGE", "INVENTORY_MANAGE"]);
+    return prisma.product.findMany({
+      where: { ...lowStockWhere(barbershopId), active: true },
+      select: { id: true, name: true, stockQty: true, minStock: true },
+      orderBy: [{ stockQty: "asc" }, { name: "asc" }],
+      take: Math.min(Math.max(limit, 1), 50),
     });
   }
 
