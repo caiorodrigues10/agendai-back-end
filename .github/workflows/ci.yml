@@ -112,6 +112,15 @@ jobs:
       # O timeout de teste sobe para 60s: o Postgres do runner é lento
       # (checkpoint de ~100s observado em 2026-11-06) e o default de 30s matava
       # transações legítimas com P2028 "Transaction already closed".
+      # DIAGNÓSTICO TEMPORÁRIO: o dataExport estourava 60s no runner. Roda
+      # isolado ANTES da integração (banco recém-migrado) e com relatório
+      # verbose, para comparar com a execução dentro da suíte.
+      - name: Diagnóstico dataExport (isolado, banco novo)
+        if: always()
+        run: >
+          npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=45000
+          --bail=1 --reporter=verbose
+          src/tests/integration/dataExport.integration.spec.ts
       - name: Integration tests (serial)
         run: |
           ( while true; do
@@ -122,7 +131,7 @@ jobs:
             done ) > /tmp/pg-sampler.log 2>&1 &
           SAMPLER=$!
           set +e
-          npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=60000 src/tests/integration
+          npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=60000 --reporter=verbose src/tests/integration
           STATUS=$?
           set -e
           kill $SAMPLER || true
@@ -132,12 +141,3 @@ jobs:
       - name: Logs do Postgres (diagnóstico)
         if: always()
         run: docker logs agendai-pg 2>&1 | tail -400
-      # DIAGNÓSTICO TEMPORÁRIO: o dataExport estourava 60s no runner. Roda
-      # isolado, com timeout alto e relatório verbose, para medir quanto cada
-      # teste leva de verdade (roda mesmo com a integração anterior falhando).
-      - name: Diagnóstico dataExport
-        if: always()
-        run: >
-          npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=45000
-          --bail=1 --reporter=verbose
-          src/tests/integration/dataExport.integration.spec.ts
