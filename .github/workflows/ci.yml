@@ -89,4 +89,10 @@ jobs:
           --exit-code
       - run: npm run typecheck
       - run: npm run test:security
-      - run: npx vitest run
+      # Unitários: sem a pasta de integração (mesma convenção de `npm test`).
+      - run: npm run test:unit
+      # Integração: banco real compartilhado → serial (maxWorkers=1, sem paralelismo
+      # de arquivos). Em paralelo os testes brigam pelo mesmo Postgres/Redis e os
+      # timeouts de 30s do dataExport + o smoke de /health ficam flaky.
+      - name: Integration tests (serial)
+        run: npx vitest run --maxWorkers=1 --no-file-parallelism src/tests/integration
