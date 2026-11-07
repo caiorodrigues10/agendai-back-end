@@ -5,7 +5,7 @@
  * é carregada inteira em memória: as linhas são lidas por cursor, em lotes.
  */
 import ExcelJS from "exceljs";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -310,6 +310,17 @@ export async function buildExportFile(opts: BuildExportOptions): Promise<BuildEx
   return { filePath, fileName, fileSizeBytes: info.size, warnings: ctx.warnings };
 }
 
+/** DIAGNÓSTICO TEMPORÁRIO: shape mínimo do stream de arquivo do ExcelJS. */
+type DiagFileStream = {
+  destroy: (...args: unknown[]) => unknown;
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  path?: string;
+  writableFinished?: boolean;
+  writableLength?: number;
+  destroyed?: boolean;
+  closed?: boolean;
+};
+
 /** Gera o .xlsx em streaming. */
 async function buildXlsx(
   opts: BuildExportOptions,
@@ -321,6 +332,20 @@ async function buildXlsx(
     filename: filePath,
     useStyles: true,
     useSharedStrings: true,
+  });
+
+  // DIAGNÓSTICO TEMPORÁRIO: rastreia quem destrói o stream do arquivo.
+  const fileStream = (workbook as unknown as { stream: DiagFileStream }).stream;
+  const originalDestroy = fileStream.destroy.bind(fileStream);
+  fileStream.destroy = (...args: unknown[]) => {
+    console.error(
+      `[diag] file stream.destroy(${args.map(String).join(", ")}) chamado em:\n${new Error().stack ?? ""}`,
+    );
+    return originalDestroy(...args);
+  };
+  fileStream.on("error", (...args: unknown[]) => {
+    const error = args[0] as { code?: string; message?: string } | undefined;
+    console.error(`[diag] file stream error: ${error?.code ?? ""} ${error?.message ?? ""}`);
   });
 
   let sheetsDone = 0;
@@ -428,6 +453,8 @@ function dumpWorkbookState(workbook: unknown): string {
         writableLength: wb.stream?.writableLength,
         destroyed: wb.stream?.destroyed,
         closed: wb.stream?.closed,
+        path: (wb.stream as { path?: string } | undefined)?.path,
+        dirExists: existsSync(exportTempDirectory()),
       },
     },
     null,
