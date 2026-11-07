@@ -5,7 +5,7 @@
  * é carregada inteira em memória: as linhas são lidas por cursor, em lotes.
  */
 import ExcelJS from "exceljs";
-import { createWriteStream, existsSync } from "node:fs";
+import { createWriteStream } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -289,6 +289,11 @@ export async function buildExportFile(opts: BuildExportOptions): Promise<BuildEx
     extension,
   );
 
+  // A pasta de temporários precisa existir antes de abrir o arquivo: sem ela o
+  // stream do ExcelJS recebe ENOENT, é destruído sem 'finish' e o
+  // `workbook.commit()` espera esse evento para sempre (hang do worker).
+  await mkdir(exportTempDirectory(), { recursive: true, mode: 0o700 });
+
   if (opts.format === "CSV_ZIP") {
     await buildCsvZip(opts, ctx, sheets, filePath);
   } else if (opts.format === "PDF") {
@@ -310,15 +315,10 @@ export async function buildExportFile(opts: BuildExportOptions): Promise<BuildEx
   return { filePath, fileName, fileSizeBytes: info.size, warnings: ctx.warnings };
 }
 
-/** DIAGNÓSTICO TEMPORÁRIO: shape mínimo do stream de arquivo do ExcelJS. */
-type DiagFileStream = {
-  destroy: (...args: unknown[]) => unknown;
-  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
-  path?: string;
+/** Stream de arquivo do ExcelJS (não exportado nos tipos públicos). */
+type ExportFileStream = {
+  on: (event: string, listener: (...args: never[]) => void) => unknown;
   writableFinished?: boolean;
-  writableLength?: number;
-  destroyed?: boolean;
-  closed?: boolean;
 };
 
 /** Gera o .xlsx em streaming. */
@@ -334,18 +334,17 @@ async function buildXlsx(
     useSharedStrings: true,
   });
 
-  // DIAGNÓSTICO TEMPORÁRIO: rastreia quem destrói o stream do arquivo.
-  const fileStream = (workbook as unknown as { stream: DiagFileStream }).stream;
-  const originalDestroy = fileStream.destroy.bind(fileStream);
-  fileStream.destroy = (...args: unknown[]) => {
-    console.error(
-      `[diag] file stream.destroy(${args.map(String).join(", ")}) chamado em:\n${new Error().stack ?? ""}`,
-    );
-    return originalDestroy(...args);
-  };
-  fileStream.on("error", (...args: unknown[]) => {
-    const error = args[0] as { code?: string; message?: string } | undefined;
-    console.error(`[diag] file stream error: ${error?.code ?? ""} ${error?.message ?? ""}`);
+  // Se o stream de arquivo morrer (ENOSPC, EMFILE, permissão), o ExcelJS nunca
+  // emite 'finish' e o `commit()` ficaria pendurado para sempre: aqui o erro
+  // vira rejeição imediata em vez de travar o worker de exportação.
+  const fileStream = (workbook as unknown as { stream: ExportFileStream }).stream;
+  const streamFailure = new Promise<never>((_, reject) => {
+    fileStream.on("error", (error: never) => reject(error));
+    fileStream.on("close", () => {
+      if (!fileStream.writableFinished) {
+        reject(new Error(`O arquivo da exportação foi fechado antes de concluir: ${filePath}`));
+      }
+    });
   });
 
   let sheetsDone = 0;
@@ -368,98 +367,7 @@ async function buildXlsx(
     });
   }
 
-  // DIAGNÓSTICO TEMPORÁRIO: detecta o hang do commit() e despeja o estado.
-  const commitPromise = workbook.commit();
-  const timer = setTimeout(() => {
-    try {
-      console.error(`[diag] workbook.commit() travou 5s\n${dumpWorkbookState(workbook)}`);
-    } catch (error) {
-      console.error("[diag] dump do workbook falhou", error);
-    }
-  }, 5_000);
-  try {
-    await commitPromise;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** DIAGNÓSTICO TEMPORÁRIO: estado interno do ExcelJS/archiver. */
-function dumpWorkbookState(workbook: unknown): string {
-  const wb = workbook as {
-    _worksheets?: Array<{
-      name?: string;
-      committed?: boolean;
-      stream?: {
-        pipes?: unknown[];
-        buffers?: unknown[];
-        paused?: boolean;
-      };
-    }>;
-    zip?: {
-      _state?: unknown;
-      _queue?: { length?: () => number; running?: () => number };
-      _pending?: number;
-      _entriesCount?: number;
-      _entriesProcessedCount?: number;
-      _task?: { data?: { name?: string } };
-      _module?: {
-        _archive?: {
-          finish?: boolean;
-          finished?: boolean;
-          processing?: boolean;
-          _entry?: { name?: string };
-        };
-      };
-    };
-    stream?: {
-      writableFinished?: boolean;
-      writableLength?: number;
-      destroyed?: boolean;
-      closed?: boolean;
-    };
-  };
-  const sheets = (wb._worksheets ?? []).filter(Boolean).map((ws) => ({
-    name: ws.name,
-    committed: ws.committed,
-    pipeCtors: ws.stream?.pipes?.map(
-      (pipe) => (pipe as { constructor?: { name?: string } })?.constructor?.name ?? "?",
-    ),
-    buffers: ws.stream?.buffers?.length,
-    paused: ws.stream?.paused,
-  }));
-  const zip = wb.zip;
-  const archive = zip?._module?._archive;
-  return JSON.stringify(
-    {
-      sheets,
-      zip: {
-        state: zip?._state,
-        queueLen: zip?._queue?.length?.(),
-        queueRunning: zip?._queue?.running?.(),
-        pending: zip?._pending,
-        entriesCount: zip?._entriesCount,
-        processed: zip?._entriesProcessedCount,
-        currentTask: zip?._task?.data?.name,
-      },
-      archive: {
-        finish: archive?.finish,
-        finished: archive?.finished,
-        processing: archive?.processing,
-        entry: archive?._entry?.name,
-      },
-      fileStream: {
-        writableFinished: wb.stream?.writableFinished,
-        writableLength: wb.stream?.writableLength,
-        destroyed: wb.stream?.destroyed,
-        closed: wb.stream?.closed,
-        path: (wb.stream as { path?: string } | undefined)?.path,
-        dirExists: existsSync(exportTempDirectory()),
-      },
-    },
-    null,
-    2,
-  );
+  await Promise.race([workbook.commit(), streamFailure]);
 }
 
 /** Gera um .zip com um CSV por aba (escrita direta, sem xlsx intermediário). */

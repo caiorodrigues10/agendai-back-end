@@ -28,10 +28,8 @@ import { processImportBatch } from "@/modules/dataImport/importProcessor";
 
 /** Lê uma aba do .xlsx como matriz de strings. */
 async function readSheet(path: string, name: string): Promise<string[][]> {
-  const t0 = Date.now();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(path);
-  console.log(`[diag] readFile ok ${name} em ${Date.now() - t0}ms`);
   const sheet = workbook.getWorksheet(name);
   if (!sheet) return [];
   const rows: string[][] = [];
@@ -116,10 +114,6 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
     const from = options.from ?? new Date("2026-01-01T00:00:00Z");
     const to = options.to ?? new Date("2026-12-31T23:59:59Z");
     const tenant = options.barbershopId ?? shopId;
-    const t0 = Date.now();
-    console.log(
-      `[diag] generate start modules=${(options.modules ?? ["appointments", "clients", "services", "team", "financial"]).join("|")} format=${options.format ?? "XLSX"}`,
-    );
     const result = await inTenant(() =>
       buildExportFile({
         exportId: randomUUID(),
@@ -139,15 +133,10 @@ describe("exportação de planilhas — fluxo completo no banco real", () => {
           includeCase: options.includeCase ?? false,
         },
         generatedAt: new Date("2026-10-30T12:00:00Z"),
-        onProgress: async (progress) => {
-          console.log(
-            `[diag] aba ${progress.currentSheet} ${progress.sheetsDone}/${progress.sheetsTotal} em ${Date.now() - t0}ms`,
-          );
-        },
+        onProgress: async () => undefined,
       }),
       tenant,
     );
-    console.log(`[diag] generate ok em ${Date.now() - t0}ms`);
     generatedFiles.push(result.filePath);
     return result;
   }
