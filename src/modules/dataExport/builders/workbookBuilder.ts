@@ -343,7 +343,96 @@ async function buildXlsx(
     });
   }
 
-  await workbook.commit();
+  // DIAGNÓSTICO TEMPORÁRIO: detecta o hang do commit() e despeja o estado.
+  const commitPromise = workbook.commit();
+  const timer = setTimeout(() => {
+    try {
+      console.error(`[diag] workbook.commit() travou 5s\n${dumpWorkbookState(workbook)}`);
+    } catch (error) {
+      console.error("[diag] dump do workbook falhou", error);
+    }
+  }, 5_000);
+  try {
+    await commitPromise;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** DIAGNÓSTICO TEMPORÁRIO: estado interno do ExcelJS/archiver. */
+function dumpWorkbookState(workbook: unknown): string {
+  const wb = workbook as {
+    _worksheets?: Array<{
+      name?: string;
+      committed?: boolean;
+      stream?: {
+        pipes?: unknown[];
+        buffers?: unknown[];
+        paused?: boolean;
+      };
+    }>;
+    zip?: {
+      _state?: unknown;
+      _queue?: { length?: () => number; running?: () => number };
+      _pending?: number;
+      _entriesCount?: number;
+      _entriesProcessedCount?: number;
+      _task?: { data?: { name?: string } };
+      _module?: {
+        _archive?: {
+          finish?: boolean;
+          finished?: boolean;
+          processing?: boolean;
+          _entry?: { name?: string };
+        };
+      };
+    };
+    stream?: {
+      writableFinished?: boolean;
+      writableLength?: number;
+      destroyed?: boolean;
+      closed?: boolean;
+    };
+  };
+  const sheets = (wb._worksheets ?? []).filter(Boolean).map((ws) => ({
+    name: ws.name,
+    committed: ws.committed,
+    pipeCtors: ws.stream?.pipes?.map(
+      (pipe) => (pipe as { constructor?: { name?: string } })?.constructor?.name ?? "?",
+    ),
+    buffers: ws.stream?.buffers?.length,
+    paused: ws.stream?.paused,
+  }));
+  const zip = wb.zip;
+  const archive = zip?._module?._archive;
+  return JSON.stringify(
+    {
+      sheets,
+      zip: {
+        state: zip?._state,
+        queueLen: zip?._queue?.length?.(),
+        queueRunning: zip?._queue?.running?.(),
+        pending: zip?._pending,
+        entriesCount: zip?._entriesCount,
+        processed: zip?._entriesProcessedCount,
+        currentTask: zip?._task?.data?.name,
+      },
+      archive: {
+        finish: archive?.finish,
+        finished: archive?.finished,
+        processing: archive?.processing,
+        entry: archive?._entry?.name,
+      },
+      fileStream: {
+        writableFinished: wb.stream?.writableFinished,
+        writableLength: wb.stream?.writableLength,
+        destroyed: wb.stream?.destroyed,
+        closed: wb.stream?.closed,
+      },
+    },
+    null,
+    2,
+  );
 }
 
 /** Gera um .zip com um CSV por aba (escrita direta, sem xlsx intermediário). */
