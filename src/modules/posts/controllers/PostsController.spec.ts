@@ -16,6 +16,12 @@ const mockPostMediaFindFirst = vi.fn();
 const mockFeedPostDelete = vi.fn();
 const mockPersistPostImage = vi.fn();
 const mockDeletePostImage = vi.fn();
+const mockGeneratePostContent = vi.fn();
+
+vi.mock('../services/postAiService', async importOriginal => ({
+  ...(await importOriginal<typeof import('../services/postAiService')>()),
+  generatePostContent: (...args: unknown[]) => mockGeneratePostContent(...args),
+}));
 
 vi.mock("@/libs/prismaClient", () => ({
   prisma: {
@@ -657,6 +663,23 @@ describe("PostsController price-split — modelo por flag + motor v2", () => {
     return payload.data.map(item => item.key);
   }
 
+  it('preserva acesso ao catálogo legado na edição sem liberar price-split desabilitado', async () => {
+    vi.stubEnv("POST_PRICE_SPLIT", "0");
+    mockBarbershopFindUnique.mockResolvedValue({ id: BARBERSHOP_ID, businessSegment: 'PETSHOP', name: 'Pet Test' });
+    const regular = fakeReply();
+    await new PostsController().templates({ query: { barbershopId: BARBERSHOP_ID }, user: fakeUser() } as unknown as FastifyRequest, regular);
+    const ordinary = (sentPayload(regular) as { data: { key: string }[] }).data;
+    expect(ordinary).toHaveLength(10);
+    expect(ordinary.every(item => item.key.startsWith('petshop-colecao-'))).toBe(true);
+    const historical = fakeReply();
+    await new PostsController().templates({ query: { barbershopId: BARBERSHOP_ID, includeLegacy: '1' }, user: fakeUser() } as unknown as FastifyRequest, historical);
+    const compatible = (sentPayload(historical) as { data: { key: string }[] }).data;
+    expect(compatible).toHaveLength(36);
+    expect(compatible.some(item => item.key === 'agenda-aberta')).toBe(true);
+    expect(compatible.some(item => item.key === 'price-split')).toBe(false);
+    expect(compatible.some(item => item.key.startsWith('advocacia-') || item.key.startsWith('salao-colecao-'))).toBe(false);
+  });
+
   it("exibe o modelo no catálogo apenas com POST_PRICE_SPLIT=1", async () => {
     const controller = new PostsController();
 
@@ -675,6 +698,7 @@ describe("PostsController price-split — modelo por flag + motor v2", () => {
 
   it("prévia price-split renderiza pelo pool v2 (preview 540) e não pelo SVG", async () => {
     vi.stubEnv("POST_PRICE_SPLIT", "1");
+    mockBarbershopFindUnique.mockResolvedValue({ id: BARBERSHOP_ID, name: 'Barber Test', logoUrl: null, businessSegment: 'BARBERSHOP' });
     mockRenderPostSpec.mockResolvedValue({
       buffer: Buffer.from("jpeg"),
       mimeType: "image/jpeg",
@@ -821,7 +845,7 @@ describe("Posts — auditoria de rascunhos (Parte 2)", () => {
   });
 
   it("item 2: cria rascunho incompleto (sem título/conteúdo/foto) com 201, sem exigir mídia", async () => {
-    mockFeedPostCreate.mockResolvedValue(makeDraftRow({ title: "Vem pra cá hoje!", content: "" }));
+    mockFeedPostCreate.mockResolvedValue(makeDraftRow({ title: "Conheça nossos serviços", content: "" }));
 
     const reply = fakeReply();
     await new PostsController().create(
@@ -833,7 +857,7 @@ describe("Posts — auditoria de rascunhos (Parte 2)", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: "DRAFT",
-          title: "Vem pra cá hoje!",
+          title: "Conheça nossos serviços",
           content: "",
           primaryMediaId: null,
           secondaryMediaId: null,
@@ -897,4 +921,106 @@ describe("Posts — auditoria de rascunhos (Parte 2)", () => {
     await expect(new PostsController().delete(request, fakeReply())).rejects.toMatchObject({ statusCode: 403 });
     expect(mockFeedPostDelete).not.toHaveBeenCalled();
   });
+});
+
+
+describe('PostsController — escritórios de advocacia', () => {
+  const legalPost = { professionalName: 'Escritório Exemplo', registration: 'OAB/UF 00000', areas: [{ title: 'Trabalho', description: 'Relações profissionais.' }, { title: 'Consumo', description: '' }, { title: 'Contratos', description: '' }, { title: 'Família', description: '' }], eyebrow: 'MAPA DE ATUAÇÃO', summary: 'Uma apresentação do escritório.', highlight: 'Atendimento com hora marcada', contact: '(00) 00000-0000' };
+  beforeEach(() => {
+    mockBarbershopFindUnique.mockResolvedValue({ id: BARBERSHOP_ID, name: 'Escritório Exemplo', logoUrl: null, businessSegment: 'LAW_FIRM', targetAudience: 'UNISSEX', evolutionInstanceName: 'connected' });
+  });
+  it('envia o modelo escolhido à geração com o segmento cadastrado do estabelecimento', async () => {
+    mockGeneratePostContent.mockResolvedValue({ source: 'template', provider: null, suggestions: [] });
+    await new PostsController().generate({ body: {
+      barbershopId: BARBERSHOP_ID, type: 'announcement', templateKey: 'advocacia-comunicado',
+      businessSegment: 'BARBERSHOP', extra: 'Informe o horário de atendimento.',
+    }, user: fakeUser() } as unknown as FastifyRequest, fakeReply());
+    expect(mockGeneratePostContent).toHaveBeenLastCalledWith(expect.objectContaining({
+      templateKey: 'advocacia-comunicado', businessSegment: 'LAW_FIRM', extra: 'Informe o horário de atendimento.',
+    }));
+  });
+  it('rejeita geração com modelo de outra categoria antes de acionar o provedor', async () => {
+    await expect(new PostsController().generate({ body: {
+      barbershopId: BARBERSHOP_ID, type: 'announcement', templateKey: 'promocao-relampago',
+    }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toThrow('categoria');
+    expect(mockGeneratePostContent).not.toHaveBeenCalled();
+  });
+  it('catálogo do escritório contém dez modelos jurídicos e não ofertas de salão', async () => {
+    const reply = fakeReply();
+    await new PostsController().templates({ query: { barbershopId: BARBERSHOP_ID }, user: fakeUser() } as unknown as FastifyRequest, reply);
+    const payload = vi.mocked(reply.send).mock.calls[0][0] as unknown as { data: { businessCategory: string }[] };
+    expect(payload.data).toHaveLength(10);
+    expect(payload.data.every(template => template.businessCategory === 'advocacia')).toBe(true);
+  });
+  it('não aceita consultar o catálogo de outra conta', async () => {
+    await expect(new PostsController().templates({ query: { barbershopId: POST_ID }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it('salva identificação e áreas na mesma estrutura do post', async () => {
+    mockFeedPostCreate.mockResolvedValue(makeDraftRow({ templateKey: 'advocacia-cartao', designOptions: { legalPost } }));
+    await new PostsController().create({ body: { barbershopId: BARBERSHOP_ID, type: 'announcement', templateKey: 'advocacia-cartao', designOptions: { legalPost } }, user: fakeUser() } as unknown as FastifyRequest, fakeReply());
+    expect(mockFeedPostCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ title: 'Conheça o escritório', ctaText: 'Conheça a atuação', designOptions: { legalPost } }) }));
+  });
+  it('edição só do título preserva a identificação na nova imagem', async () => {
+    const existing = makeDraftRow({ templateKey: 'advocacia-cartao', designOptions: { legalPost } });
+    mockFeedPostFindUnique.mockResolvedValue(existing);
+    mockFeedPostUpdate.mockResolvedValue(existing);
+    await new PostsController().update({ params: { id: POST_ID }, body: { title: 'Nossas áreas de atuação' }, user: fakeUser() } as unknown as FastifyRequest, fakeReply());
+    const { buildPostSvg } = await import('../services/postImageService');
+    expect(buildPostSvg).toHaveBeenLastCalledWith(expect.objectContaining({ designOptions: { legalPost }, services: [] }));
+  });
+  it('rejeita publicação sem identificação e modelos comerciais de outras categorias', async () => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow({ templateKey: 'advocacia-cartao', designOptions: { legalPost: { ...legalPost, registration: '' } } }));
+    await expect(new PostsController().publish({ params: { id: POST_ID }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toThrow('inscrição na OAB');
+    expect(mockFeedPostUpdateMany).not.toHaveBeenCalled();
+    await expect(new PostsController().preview({ query: { barbershopId: BARBERSHOP_ID, templateKey: 'promocao-relampago' }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toThrow('categoria');
+  });
+  it.each([undefined, null, {}])('responde erro de preenchimento ao publicar post jurídico sem dados (%j)', async designOptions => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow({ templateKey: 'advocacia-cartao', designOptions }));
+    await expect(new PostsController().publish({ params: { id: POST_ID }, user: fakeUser() } as unknown as FastifyRequest, fakeReply()))
+      .rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining('inscrição na OAB') });
+    expect(mockFeedPostUpdateMany).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['advocacia-trabalhista', 'resposta'],
+    ['advocacia-comunicado', 'data'],
+  ])('não publica nem agenda %s sem o conteúdo obrigatório do modelo', async (templateKey, missingField) => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow({
+      templateKey,
+      designOptions: { legalPost: { ...legalPost, summary: '', highlight: '' } },
+    }));
+    const request = { params: { id: POST_ID }, user: fakeUser() } as unknown as FastifyRequest;
+    await expect(new PostsController().publish(request, fakeReply())).rejects.toThrow(missingField);
+    await expect(new PostsController().schedule({
+      ...request,
+      body: { scheduledFor: new Date(Date.now() + 60_000).toISOString() },
+    } as unknown as FastifyRequest, fakeReply())).rejects.toThrow(missingField);
+    expect(mockFeedPostUpdateMany).not.toHaveBeenCalled();
+    expect(mockFeedPostUpdate).not.toHaveBeenCalled();
+  });
+  it('publica uma pergunta respondida sem exigir blocos de apoio opcionais', async () => {
+    const draft = makeDraftRow({
+      templateKey: 'advocacia-trabalhista',
+      designOptions: { legalPost: { ...legalPost, areas: [], highlight: '', summary: 'Uma orientação depende dos fatos e documentos apresentados.' } },
+    });
+    mockFeedPostFindUnique.mockResolvedValueOnce(draft).mockResolvedValueOnce({ ...draft, status: 'PUBLISHED', publishedAt: new Date() });
+    mockFeedPostUpdateMany.mockResolvedValue({ count: 1 });
+    await new PostsController().publish({ params: { id: POST_ID }, user: fakeUser() } as unknown as FastifyRequest, fakeReply());
+    expect(mockFeedPostUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'PUBLISHED' }),
+    }));
+    expect(mockBroadcast).not.toHaveBeenCalled();
+  });
+  it('respeita a restrição de mensagens em massa antes de enfileirar qualquer envio', async () => {
+    mockFeedPostFindUnique.mockResolvedValue(makeDraftRow({ status: 'PUBLISHED', templateKey: 'advocacia-cartao' }));
+    await expect(new PostsController().sendWhatsapp({ params: { id: POST_ID }, user: fakeUser() } as unknown as FastifyRequest, fakeReply())).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockBroadcast).not.toHaveBeenCalled();
+  });
+});
+
+
+it('a imagem da promoção usa o preço do post, não o primeiro serviço do cadastro', async () => {
+  mockServiceFindMany.mockResolvedValue([{ name: 'Serviço do cadastro', price: 500 }]);
+  await new PostsController().preview({ query: { barbershopId: BARBERSHOP_ID, templateKey: 'promocao-relampago', priceSplit: JSON.stringify({ items: [{ name: 'Combo da promoção', price: '59,90' }] }) }, user: fakeUser() } as unknown as FastifyRequest, fakeReply());
+  const { buildPostSvg } = await import('../services/postImageService');
+  expect(buildPostSvg).toHaveBeenLastCalledWith(expect.objectContaining({ services: [{ name: 'Combo da promoção', price: 59.9 }] }));
 });

@@ -1,6 +1,10 @@
-import { PRICE_SPLIT_MANIFEST } from "../templates/price-split/manifest";
+import { POST_CATEGORY_COLLECTIONS, type PostCategory } from './postCategoryCollections';
+import { LEGAL_POST_TEMPLATES } from './legalPostTemplates';
+import { postAudience, type PostBusinessContext } from './postAudience';
+import { PRICE_SPLIT_MANIFEST } from '../templates/price-split/manifest';
 
-export const TEMPLATE_VERSION = 2;
+import { TEMPLATE_VERSION } from './postTemplateVersion';
+export { TEMPLATE_VERSION } from './postTemplateVersion';
 
 /**
  * Rollout do modelo "Tabela de valores · Foto + painel" (price-split).
@@ -11,9 +15,12 @@ export function priceSplitEnabled(): boolean {
   return process.env.POST_PRICE_SPLIT === "1";
 }
 
-export type PostTemplateGroup = "agenda" | "ofertas" | "resultados" | "equipe" | "depoimentos" | "editorial";
+export type PostTemplateGroup = "agenda" | "ofertas" | "resultados" | "equipe" | "depoimentos" | "editorial" | "advocacia";
 export type PostTemplatePhotoMode = "none" | "optional" | "required";
 export type PostStockImageKey =
+  | "law-columns"
+  | "law-desk"
+  | "law-office"
   | "salon"
   | "barber"
   | "beauty"
@@ -44,6 +51,9 @@ export interface PostTemplate {
   photoMode: PostTemplatePhotoMode;
   /** Imagem ilustrativa de fallback (assets locais) quando photoMode permite foto e não há upload. */
   stockImageKey?: PostStockImageKey;
+  businessCategory?: PostCategory;
+  layoutVariant?: number;
+  sampleTitle?: string;
 }
 
 /**
@@ -86,20 +96,82 @@ export const POST_TEMPLATES: PostTemplate[] = [
   { key: "lancamento-premium", name: "Lançamento premium", description: "Anuncie inauguração, novidade ou serviço novo.", requiredMedia: 0, group: "ofertas", photoMode: "optional", stockImageKey: "promo-launch" },
 ];
 
-export function listPostTemplates() {
-  const list = POST_TEMPLATES.map(({ key, name, description, requiredMedia, group, photoMode, stockImageKey }) => ({
+// Ten useful compositions for every registered segment; legacy keys stay stable.
+const compositions = ['Apresentação', 'Serviço em foco', 'Como funciona', 'Atendimento e horários', 'Orientação', 'Prepare sua visita', 'Serviços do espaço', 'Dúvidas e contato', 'Equipe e bastidores', 'Aviso'];
+const descriptions = [
+  'Fotografia e mensagem em regiões separadas, com respiro.',
+  'Um serviço com nome completo em destaque.',
+  'Etapas do contato e confirmação de atendimento.',
+  'Horários informados pelo estabelecimento, sem inventar vagas.',
+  'Uma orientação curta com tipografia ampla.',
+  'Mensagem de preparação, com imagem própria opcional.',
+  'Lista legível dos serviços selecionados.',
+  'Mensagem para iniciar uma conversa com a equipe.',
+  'Foto própria ou identificação ilustrativa, sem retrato automático.',
+  'Comunicado centralizado com informação operacional.',
+];
+for (const collection of POST_CATEGORY_COLLECTIONS) {
+  if (collection.category === 'advocacia') continue;
+  compositions.forEach((composition, index) => POST_TEMPLATES.push({
+    key: `${collection.category}-colecao-${index + 1}`,
+    name: `${collection.label} · ${composition}`,
+    description: `${descriptions[index]} Personalize com os dados de ${collection.label.toLocaleLowerCase('pt-BR')}.`,
+    requiredMedia: 0, photoMode: [2, 3, 4, 6, 7, 9].includes(index) ? 'none' : 'optional', group: index === 3 || index === 9 ? 'agenda' : 'editorial',
+    ...(collection.stock && ![2, 3, 4, 6, 7, 8, 9].includes(index) ? { stockImageKey: collection.stock } : {}),
+    businessCategory: collection.category, layoutVariant: index, sampleTitle: collection.titles[index],
+  }));
+}
+
+// The editor only offers media controls for compositions that actually draw it.
+const textOnlyKeys = new Set(['agenda-aberta', 'ultimas-vagas', 'agenda-premium', 'depoimento', 'avaliacao-clientes', 'menu-servicos', 'horario-especial', 'recado-studio', 'tipografico', 'fidelidade']);
+for (const template of POST_TEMPLATES) if (textOnlyKeys.has(template.key)) {
+  template.photoMode = 'none';
+  delete template.stockImageKey;
+}
+
+LEGAL_POST_TEMPLATES.forEach(([key, name, sampleTitle, description], layoutVariant) => POST_TEMPLATES.push({
+  key, name, sampleTitle, description, layoutVariant,
+  group: 'advocacia', businessCategory: 'advocacia', requiredMedia: 0,
+  photoMode: [0, 8].includes(layoutVariant) ? 'optional' : 'none',
+  ...(layoutVariant === 0 ? { stockImageKey: 'law-office' as const } : {}),
+}));
+
+const formerlyBeautySegments = new Set(['NAIL_STUDIO', 'LASH_BROW_STUDIO', 'AESTHETICS', 'SPA', 'MAKEUP_STUDIO']);
+
+export function availablePostTemplates(context: PostBusinessContext, includeDisabled = false, includeLegacy = false) {
+  const category = postAudience(context).category;
+  const showLegacy = includeLegacy || includeDisabled || !context.businessSegment || ['barbearia', 'salao', 'beleza'].includes(category);
+  const catalog = listPostTemplates(includeDisabled);
+  const active = catalog.filter(template => category === 'advocacia'
+    ? template.businessCategory === 'advocacia'
+    : template.businessCategory === category || !template.businessCategory && (showLegacy || template.key === 'price-split'));
+  // The new collections split these segments out of the former beauty category.
+  // Keep their saved templates editable without advertising them in the new-post catalog.
+  if ((includeLegacy || includeDisabled) && formerlyBeautySegments.has(context.businessSegment ?? '')) {
+    return [...active, ...catalog.filter(template => template.businessCategory === 'beleza')];
+  }
+  return active;
+}
+
+const OFFER_TEMPLATES = new Set(['promocao-relampago', 'servico-destaque', 'oferta-clean', 'promocao-cobre', 'combo-premium', 'beleza-luxo', 'gift-card']);
+export function listPostTemplates(includeDisabled = false) {
+  const list = POST_TEMPLATES.map(({ key, name, description, requiredMedia, group, photoMode, stockImageKey, businessCategory, layoutVariant, sampleTitle }) => ({
     key,
     name,
     description,
     requiredMedia,
     group,
     photoMode,
+    ...(OFFER_TEMPLATES.has(key) ? { priceMode: 'single' as 'single' | 'list' } : {}),
+    ...(businessCategory ? { businessCategory } : {}),
+    ...(layoutVariant !== undefined ? { layoutVariant } : {}),
+    ...(sampleTitle ? { sampleTitle } : {}),
     ...(stockImageKey ? { stockImageKey } : {}),
     formats: ["square", "portrait", "story"],
     previewUrl: `/api/posts/templates/${key}/preview`,
     templateVersion: TEMPLATE_VERSION,
   }));
-  if (priceSplitEnabled()) list.push(priceSplitTemplate());
+  if (priceSplitEnabled() || includeDisabled) list.push(priceSplitTemplate());
   return list;
 }
 
@@ -114,6 +186,7 @@ function priceSplitTemplate() {
     requiredMedia: 0 as const,
     group: "ofertas" as const,
     photoMode: PRICE_SPLIT_MANIFEST.photoMode,
+    priceMode: "list" as "single" | "list",
     formats: ["square", "portrait", "story"],
     previewUrl: `/api/posts/templates/${key}/preview`,
     templateVersion: TEMPLATE_VERSION,

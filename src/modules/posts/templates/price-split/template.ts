@@ -1,23 +1,18 @@
-/**
- * Modelo #1 — "Tabela de valores · Foto + painel" (Ref A), formato de CAMADAS.
- *
- * Função pura: (data, tokens, size) => Layer[]. Sem lógica de negócio, sem fetch.
- * Valores nunca no markup — tudo vem de data/tokens.
- */
+/** Price list artwork. Layout reserves complete, readable text before rendering. */
 import { h, type VNode } from "../_shared/h";
 import type { Layer } from "../_engine/types";
-import type { PostTokens } from "../_engine/tokens";
-import { fitPills, nameFontScale, fitName, fitPrice, formatPhoneBR, formatInsta, fitFooter, estimateTitleH } from "../_engine/fit";
+import { contrastRatio, type PostTokens } from "../_engine/tokens";
+import { fitPrice, formatPhoneBR } from "../_engine/fit";
 import { sanitizeText } from "../_engine/sanitize";
+import { AppError } from "@/shared/errors/AppError";
+import metrics from "../../services/legalFontMetrics.json";
 import type { PriceSplitSizeKey } from "./manifest";
 
 export type PriceItem = { name: string; price: number | null };
-
 export type PriceSplitData = {
   title?: string;
   items: PriceItem[];
   businessName: string;
-  /** URL de foto ou stock key (ex.: "barber"). Sem foto → stock do segmento. */
   photoUrl?: string | null;
   logoUrl?: string | null;
   whatsapp?: string | null;
@@ -26,185 +21,161 @@ export type PriceSplitData = {
   focal?: { x: number; y: number };
 };
 
+// Only photos whose subject matches the segment may be chosen automatically.
+// Unknown/pet/health/service segments use a neutral typographic composition.
 const SEGMENT_STOCK: Record<string, string> = {
   BARBERSHOP: "barber-editorial",
   HAIR_SALON: "salon-editorial",
   BEAUTY_STUDIO: "beauty-editorial",
-  NAIL_STUDIO: "promo-beauty-ivory",
-  LASH_BROW_STUDIO: "promo-beauty-luxe",
-  AESTHETICS: "promo-beauty-ivory",
-  SPA: "promo-beauty-luxe",
 };
 
-type Geo = { photoW: number; photoH: number; contentX: number; contentY: number; contentW: number; titleY: number };
-
-function geometry(size: PriceSplitSizeKey): Geo {
-  if (size === "story") {
-    const photoH = Math.round(1920 * 0.4);
-    return { photoW: 1080, photoH, contentX: 56, contentY: photoH + 60, contentW: 968, titleY: photoH + 60 };
-  }
-  if (size === "square") {
-    return { photoW: 432, photoH: 1080, contentX: 472, contentY: 0, contentW: 552, titleY: 120 };
-  }
-  return { photoW: 480, photoH: 1350, contentX: 520, contentY: 0, contentW: 504, titleY: 150 };
-}
-
-const SIZE_DIMS: Record<PriceSplitSizeKey, { w: number; h: number }> = {
+const SIZE_DIMS = {
   "feed-4x5": { w: 1080, h: 1350 },
   square: { w: 1080, h: 1080 },
   story: { w: 1080, h: 1920 },
+} as const;
+
+type Font = "sans" | "sansBold";
+type TextBlock = { lines: string[]; size: number; height: number };
+type Row = { name: TextBlock; price: string; priceWidth: number; height: number };
+export type PriceSplitLayout = {
+  width: number; height: number;
+  contentX: number; contentWidth: number; contentTop: number;
+  photoRect: { x: number; y: number; w: number; h: number } | null;
+  title: TextBlock;
+  rows: Row[]; rowGap: number; rowsTop: number; rowsBottom: number;
+  brand: TextBlock; contacts: TextBlock[]; footerTop: number; footerBottom: number;
 };
 
-export function priceSplitLayers(
-  data: PriceSplitData,
-  tokens: PostTokens,
-  size: PriceSplitSizeKey = "feed-4x5"
-): Layer[] {
-  const { w: canvasW, h: canvasH } = SIZE_DIMS[size];
-  const geo = geometry(size);
+const clean = (value: string) => sanitizeText(value, Infinity).text;
+const overflow = () => new AppError(
+  "A tabela ficou longa para este formato com texto legível. Reduza os itens ou escolha Retrato ou Story.", 400,
+);
 
-  // Foto ou fallback de segmento (nunca caixa vazia). `fallbackSrc` cobre o caso
-  // de a URL existir e falhar no fetch/decode (host caído, bytes inválidos).
-  const segmentStock = SEGMENT_STOCK[data.segment || "BARBERSHOP"] || "barber-editorial";
-  const photoSrc = data.photoUrl || segmentStock;
-
-  // Título: 1ª palavra(s) branca(s), última em accent (sanitiza corte em fronteira).
-  const rawTitle = sanitizeText(data.title || "TABELA DE VALORES", 40).text || "TABELA DE VALORES";
-  const words = rawTitle.split(" ");
-  const lastWord = words.pop() || "VALORES";
-  const firstPart = words.join(" ") || "TABELA DE";
-  const titleFirstSize = size === "story" ? 72 : 64;
-  const titleLastSize = size === "story" ? 116 : 100;
-
-  // Rodapé: nome ajustado à coluna e ancorado embaixo (nunca estoura o canvas).
-  // Limite 60 p/ o nome completo da marca sobreviver (fit encolhe p/ caber).
-  const biz = sanitizeText(data.businessName, 60).text || "SEU NEGÓCIO";
-  const bizWords = biz.split(" ");
-  const bizFirst = bizWords.shift() || "SEU";
-  const bizRest = bizWords.join(" ") || "NEGÓCIO";
-  const contactParts: string[] = [];
-  if (data.whatsapp) contactParts.push(`WhatsApp · ${formatPhoneBR(data.whatsapp)}`);
-  if (data.instagram) contactParts.push(formatInsta(data.instagram));
-  const contact = contactParts.join("  ·  ");
-  const footer = fitFooter(bizFirst, bizRest, contact, geo.contentW);
-  const footerTop = Math.max(geo.titleY + 120, canvasH - 48 - footer.height);
-
-  // Espaço real p/ pílulas: do fim do título até 24px acima do rodapé.
-  const titleH = estimateTitleH(firstPart, lastWord, {
-    columnW: geo.contentW,
-    firstSize: titleFirstSize,
-    lastSize: titleLastSize,
-  });
-  const availableH = footerTop - 24 - (geo.titleY + titleH);
-
-  // Pílulas (fit automático — comprime antes de esconder, nunca sobrepõe rodapé).
-  const items = data.items.slice(0, 20);
-  const fit = fitPills(items.length, availableH);
-  const visible = items.slice(0, fit.visibleCount);
-  const pillFontScale = 1;
-  const maxNameChars = Math.floor((geo.contentW - 56 - 120) / (fit.fontSize * 0.58));
-
-  const pillNodes: VNode[] = visible.map((it) => {
-    const name = sanitizeText(it.name, 48).text;
-    const scale = nameFontScale(name) * pillFontScale;
-    const fittedName = fitName(name, Math.floor(maxNameChars / scale));
-    const price = fitPrice(it.price);
-    return h(
-      "div",
-      {
-        style: {
-          display: "flex",
-          width: geo.contentW,
-          height: fit.rowHeight,
-          borderRadius: 999,
-          background: tokens.accent,
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingLeft: 28,
-          paddingRight: 28,
-          marginBottom: 14,
-        },
-      },
-      h("div", { style: { fontFamily: tokens.fontHeading, fontWeight: 800, fontSize: Math.round(fit.fontSize * scale), color: tokens.accentInk } }, fittedName),
-      h("div", { style: { fontFamily: tokens.fontHeading, fontWeight: 800, fontSize: fit.fontSize, color: tokens.accentInk, whiteSpace: "nowrap" } }, price)
-    );
-  });
-
-  if (fit.hiddenCount > 0) {
-    pillNodes.push(
-      h("div", { style: { fontFamily: tokens.fontBody, fontWeight: 500, fontSize: 24, color: tokens.muted, marginTop: 4 } }, `+${fit.hiddenCount} serviços`)
-    );
-  }
-
-  // ─── Camada vetorial única (fade + tinta + conteúdo), fundo transparente ────
-  const contentNode = h(
-    "div",
-    { style: { width: canvasW, height: canvasH, position: "relative" } },
-    // fade foto→painel (só nos formatos com foto lateral)
-    ...(size !== "story"
-      ? [
-          h("div", {
-            style: {
-              position: "absolute", left: geo.photoW - 110, top: 0, width: 110, height: canvasH,
-              backgroundImage: `linear-gradient(to right, rgba(0,0,0,0), ${tokens.panel})`,
-            },
-          }),
-          // tinta accent diagonal (canto sup esq sobre a foto)
-          h("div", {
-            style: {
-              position: "absolute", left: 0, top: 0, width: geo.photoW, height: Math.round(canvasH * 0.42),
-              backgroundImage: `linear-gradient(135deg, ${hexA(tokens.accent, 0.5)}, ${hexA(tokens.accent, 0)} 40%)`,
-            },
-          }),
-        ]
-      : [
-          // story: fade inferior da foto p/ o painel
-          h("div", {
-            style: {
-              position: "absolute", left: 0, top: geo.photoH - 120, width: canvasW, height: 120,
-              backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0), ${tokens.panel})`,
-            },
-          }),
-        ]),
-    // coluna de conteúdo (título + pílulas)
-    h(
-      "div",
-      { style: { position: "absolute", left: geo.contentX, top: geo.titleY, width: geo.contentW, display: "flex", flexDirection: "column" } },
-      h("div", { style: { fontFamily: tokens.fontHeading, fontWeight: 800, fontSize: titleFirstSize, color: tokens.text, lineHeight: 1 } }, firstPart.toUpperCase()),
-      h("div", { style: { fontFamily: tokens.fontHeading, fontWeight: 900, fontSize: titleLastSize, color: tokens.accent, lineHeight: 0.95, marginTop: 4, marginBottom: 40 } }, lastWord.toUpperCase()),
-      ...pillNodes
-    ),
-    // rodapé de marca
-    h(
-      "div",
-      { style: { position: "absolute", left: geo.contentX, top: footerTop, width: geo.contentW, display: "flex", flexDirection: "column", alignItems: "center" } },
-      h("div", { style: { fontFamily: tokens.fontHeading, fontWeight: 800, fontSize: footer.firstSize, color: tokens.text, lineHeight: 1 } }, bizFirst.toUpperCase()),
-      h("div", { style: { fontFamily: tokens.fontHeading, fontWeight: 900, fontSize: footer.restSize, color: tokens.accent, lineHeight: 1 } }, bizRest.toUpperCase()),
-      ...(contact
-        ? [h("div", { style: { fontFamily: tokens.fontBody, fontWeight: 500, fontSize: 22, color: tokens.muted, marginTop: 12, lineHeight: 1.35 } }, contact)]
-        : [])
-    )
-  );
-
-  return [
-    {
-      kind: "photo",
-      src: photoSrc,
-      fallbackSrc: segmentStock,
-      rect: size === "story" ? { x: 0, y: 0, w: canvasW, h: geo.photoH } : { x: 0, y: 0, w: geo.photoW, h: geo.photoH },
-      fit: "cover",
-      focal: data.focal,
-    },
-    { kind: "vector", node: contentNode },
-  ];
+function widthOf(value: string, size: number, font: Font): number {
+  const glyphs = metrics[font].advance as Record<string, number>;
+  return Array.from(value).reduce((sum, char) => sum + (glyphs[String(char.codePointAt(0))] ?? 1) * size * 1.035, 0);
 }
 
-/** #rrggbb + alpha (0..1) → rgba() css. */
-function hexA(hex: string, a: number): string {
-  const hpart = hex.replace("#", "");
-  const full = hpart.length === 3 ? hpart.split("").map((c) => c + c).join("") : hpart;
-  const r = parseInt(full.slice(0, 2), 16);
-  const g = parseInt(full.slice(2, 4), 16);
-  const b = parseInt(full.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
+function textBlock(value: string, width: number, size: number, font: Font): TextBlock {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of value.split(/\s+/).filter(Boolean)) {
+    if (widthOf(word, size, font) > width) throw overflow();
+    if (line && widthOf(`${line} ${word}`, size, font) > width) {
+      lines.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) lines.push(line);
+  return { lines, size, height: lines.length * size * 1.3 };
+}
+
+function contactLines(data: PriceSplitData): string[] {
+  const contacts: string[] = [];
+  if (data.whatsapp?.trim()) {
+    const raw = data.whatsapp.trim();
+    let digits = raw.replace(/\D/g, "");
+    if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) digits = digits.slice(2);
+    const phone = digits.length === 10 || digits.length === 11 ? formatPhoneBR(digits) : raw;
+    contacts.push(`WhatsApp · ${phone}`);
+  }
+  if (data.instagram?.trim()) contacts.push(`@${data.instagram.trim().replace(/^@+/, "")}`);
+  return contacts;
+}
+
+/** Also exported for geometry audits; overflowing content is never silently removed. */
+export function priceSplitLayout(data: PriceSplitData, size: PriceSplitSizeKey = "feed-4x5"): PriceSplitLayout {
+  if (data.items.length > 8) throw new AppError("A tabela aceita até 8 serviços. Divida a lista em outra publicação.", 400);
+  const { w: width, h: height } = SIZE_DIMS[size];
+  const story = size === "story";
+  const hasPhoto = Boolean(data.photoUrl || SEGMENT_STOCK[data.segment ?? ""]);
+  const photoW = data.items.length >= 6 ? 240 : 360;
+  const photoRect = !hasPhoto ? null : story
+    ? { x: 0, y: 0, w: width, h: data.items.length >= 6 ? 360 : 480 }
+    : { x: 0, y: 0, w: photoW, h: height };
+  const contentX = photoRect && !story ? photoW + 40 : 64;
+  const contentWidth = width - contentX - 56;
+  const contentTop = story ? (photoRect ? photoRect.h + 48 : 176) : 48;
+  const title = textBlock(clean(data.title || "Tabela de valores").toUpperCase(), contentWidth, story ? 72 : 58, "sansBold");
+  const brand = textBlock(clean(data.businessName || "Seu negócio"), contentWidth - (data.logoUrl ? 76 : 0), story ? 48 : 42, "sansBold");
+  const contacts = contactLines(data).map(value => textBlock(clean(value), contentWidth, story ? 42 : 39, "sans"));
+  const footerHeight = Math.max(brand.height, data.logoUrl ? 64 : 0) + (contacts.length ? 14 : 0)
+    + contacts.reduce((sum, contact, i) => sum + contact.height + (i ? 8 : 0), 0);
+  const footerBottom = height - (story ? 190 : 48);
+  const footerTop = footerBottom - footerHeight;
+  const rowsTop = contentTop + title.height + 24;
+  const rowFontSize = story ? 48 : 41;
+  const rows = data.items.map(item => {
+    const name = clean(item.name);
+    if (!name) throw new AppError("Informe o nome de cada serviço da tabela.", 400);
+    if (item.price !== null && (!Number.isFinite(item.price) || item.price < 0))
+      throw new AppError("Informe um preço válido ou deixe o serviço sob consulta.", 400);
+    const price = fitPrice(item.price);
+    const priceWidth = Math.ceil(widthOf(price, rowFontSize, "sansBold")) + 4;
+    const text = textBlock(name, contentWidth - 44 - 24 - priceWidth, rowFontSize, "sansBold");
+    return { name: text, price, priceWidth, height: Math.max(text.height, rowFontSize * 1.3) + 20 };
+  });
+  const minimumRowsHeight = rows.reduce((sum, row) => sum + row.height, 0) + Math.max(0, rows.length - 1) * 10;
+  if (title.lines.length > 4 || rowsTop + minimumRowsHeight > footerTop - 28) throw overflow();
+  const spareHeight = footerTop - 28 - rowsTop - minimumRowsHeight;
+  const gaps = Math.max(0, rows.length - 1);
+  const rowGap = 10 + Math.min(story ? 10 : 6, Math.floor(spareHeight / Math.max(1, gaps * 2)));
+  const extraPerRow = Math.min(story ? 40 : 24, (spareHeight - gaps * (rowGap - 10)) / Math.max(rows.length, 1));
+  rows.forEach(row => { row.height += extraPerRow; });
+  const rowsBottom = rowsTop + rows.reduce((sum, row) => sum + row.height, 0) + gaps * rowGap;
+  return { width, height, contentX, contentWidth, contentTop, photoRect, title, rows, rowGap, rowsTop, rowsBottom, brand, contacts, footerTop, footerBottom };
+}
+
+function drawText(block: TextBlock, tokens: PostTokens, weight: 400 | 700, color: string): VNode {
+  return h("div", { style: { display: "flex", flexDirection: "column", fontFamily: tokens.fontBody, fontWeight: weight, fontSize: block.size, color, lineHeight: 1.3 } },
+    ...block.lines.map(line => h("div", { style: { display: "flex", whiteSpace: "nowrap", height: block.size * 1.3 } }, line)));
+}
+
+export function priceSplitLayers(data: PriceSplitData, tokens: PostTokens, size: PriceSplitSizeKey = "feed-4x5"): Layer[] {
+  const plan = priceSplitLayout(data, size);
+  const channels = (hex: string) => (hex.length === 4 ? [...hex.slice(1)].map(c => c + c) : hex.slice(1).match(/../g)!).map(c => parseInt(c, 16));
+  const ink = channels(tokens.text);
+  const surface = `#${channels(tokens.panel).map((channel, i) => Math.round(channel * .9 + ink[i] * .1).toString(16).padStart(2, "0")).join("")}`;
+  const priceInk = contrastRatio(tokens.accent, surface) >= 4.5 ? tokens.accent : tokens.text;
+  const segmentStock = SEGMENT_STOCK[data.segment ?? ""];
+  const photoSrc = data.photoUrl || segmentStock;
+  const nodes: VNode[] = [
+    h("div", { style: { position: "absolute", left: 0, top: 0, width: plan.width, height: plan.height, background: tokens.panel } }),
+  ];
+  if (plan.photoRect && size !== "story") nodes.push(h("div", { style: {
+    position: "absolute", left: plan.photoRect.w - 64, top: 0, width: 64, height: plan.height,
+    backgroundImage: `linear-gradient(to right, rgba(0,0,0,0), ${tokens.panel})`,
+  } }));
+  nodes.push(h("div", { style: { position: "absolute", left: plan.contentX, top: plan.contentTop, width: plan.contentWidth, display: "flex", flexDirection: "column" } },
+    drawText(plan.title, tokens, 700, tokens.text)));
+  let rowY = plan.rowsTop;
+  for (const row of plan.rows) {
+    nodes.push(h("div", { style: {
+      // Satori uses content-box widths: include padding in the planned outer width.
+      position: "absolute", left: plan.contentX, top: rowY, width: plan.contentWidth - 44, height: row.height,
+      display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 22, paddingRight: 22,
+      borderRadius: 12, background: surface,
+    } }, drawText(row.name, tokens, 400, tokens.text),
+    h("div", { style: { display: "flex", width: row.priceWidth, justifyContent: "flex-end", whiteSpace: "nowrap", fontFamily: tokens.fontBody, fontWeight: 700, fontSize: row.name.size, lineHeight: 1.3, color: priceInk } }, row.price)));
+    rowY += row.height + plan.rowGap;
+  }
+  nodes.push(h("div", { style: {
+    position: "absolute", left: plan.contentX, top: plan.footerTop - 14, width: plan.contentWidth, height: 2, background: tokens.accent, opacity: 0.55,
+  } }));
+  const footer: VNode[] = [h("div", { style: { display: "flex", alignItems: "center", minHeight: data.logoUrl ? 64 : plan.brand.height, gap: 12 } },
+    ...(data.logoUrl ? [h("img", { src: data.logoUrl, width: 64, height: 64, style: { objectFit: "contain" } })] : []),
+    drawText(plan.brand, tokens, 700, tokens.text))];
+  plan.contacts.forEach((contact, i) => footer.push(h("div", { style: { display: "flex", marginTop: i ? 8 : 14 } }, drawText(contact, tokens, 400, tokens.muted))));
+  nodes.push(h("div", { style: { position: "absolute", left: plan.contentX, top: plan.footerTop, width: plan.contentWidth, display: "flex", flexDirection: "column" } }, ...footer));
+
+  const photo: Layer[] = photoSrc && plan.photoRect ? [{
+    kind: "photo", src: photoSrc, ...(segmentStock ? { fallbackSrc: segmentStock } : {}), rect: plan.photoRect, fit: "cover", focal: data.focal,
+  }] : [];
+  // Background precedes the photo; content follows it, so a failed photo leaves
+  // a quiet neutral panel and never an unrelated photograph.
+  const background = nodes.shift()!;
+  return [{ kind: "vector", node: h("div", { style: { width: plan.width, height: plan.height, position: "relative", display: "flex" } }, background) },
+    ...photo,
+    { kind: "vector", node: h("div", { style: { width: plan.width, height: plan.height, position: "relative", display: "flex" } }, ...nodes) }];
 }

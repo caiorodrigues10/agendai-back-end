@@ -1,3 +1,7 @@
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
+import { postAudience } from "../services/postAudience";
+import { legalDefaultCta, legalPostMissingReason, legalTemplateIndex, readLegalPost, type LegalPostData } from "../services/legalPostTemplates";
+import { z } from "zod";
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import type { Prisma } from "@prisma/client";
@@ -33,7 +37,7 @@ import {
 } from "../services/postImageStorageService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
-import { listPostTemplates } from "../services/postTemplates";
+import { availablePostTemplates, listPostTemplates } from "../services/postTemplates";
 import { loadPostStockImage } from "../services/postStockImages";
 import { assertOwnedPostVideo } from "../services/postVideoOwnership";
 import { POST_PALETTES, listPostPalettes } from "../services/postPalettes";
@@ -147,8 +151,9 @@ function defaultCtaText(postMode: "queue" | "appointments" | "both"): string {
 async function assertShopWhatsAppConnected(barbershopId: string): Promise<void> {
   const shop = await prisma.barbershop.findUnique({
     where: { id: barbershopId },
-    select: { evolutionInstanceName: true },
+    select: { evolutionInstanceName: true, businessSegment: true },
   });
+  if (isAdvertisingRestricted(shop?.businessSegment)) throw new AppError('Envio de posts em massa indisponível para a categoria deste estabelecimento', 403, undefined, 'ADVERTISING_FEATURE_UNAVAILABLE');
   if (!shop?.evolutionInstanceName?.trim()) throw whatsAppNotConnectedError();
 }
 
@@ -156,7 +161,7 @@ async function assertShopWhatsAppConnected(barbershopId: string): Promise<void> 
 async function loadPostContext(barbershopId: string) {
   const barbershop = await prisma.barbershop.findUnique({
     where: { id: barbershopId },
-    select: { id: true, name: true, logoUrl: true, whatsapp: true, businessSegment: true },
+    select: { id: true, name: true, logoUrl: true, whatsapp: true, businessSegment: true, targetAudience: true },
   });
   if (!barbershop) throw new AppError("Barbearia não encontrada", 404);
 
@@ -205,9 +210,20 @@ async function loadExternalImageUrl(url: string): Promise<string | null> {
   }
 }
 
-async function assertRequiredPostMedia(post: { barbershopId: string; templateKey: string; primaryMediaId: string | null; secondaryMediaId: string | null }) {
-  const template = listPostTemplates().find(item => item.key === post.templateKey);
-  if (!template) throw new AppError("Modelo de post não encontrado", 400);
+async function assertRequiredPostMedia(post: { barbershopId: string; templateKey: string; primaryMediaId: string | null; secondaryMediaId: string | null; designOptions?: unknown }) {
+  const shop = await prisma.barbershop.findUnique({ where: { id: post.barbershopId }, select: { businessSegment: true, targetAudience: true } });
+  if (!shop) throw new AppError("Estabelecimento não encontrado", 404);
+  const template = availablePostTemplates(shop, true).find(item => item.key === post.templateKey);
+  if (!template) throw new AppError("Selecione um modelo disponível para a categoria do estabelecimento", 400);
+  if (legalTemplateIndex(post.templateKey) >= 0) {
+    const missing = legalPostMissingReason(readLegalPost(post.designOptions), post.templateKey);
+    if (missing) throw new AppError(missing, 400);
+  }
+  if (template.priceMode === 'single') {
+    const offer = readPriceSplit(post.designOptions)?.items[0];
+    const price = offer ? toPrice(offer.price) : null;
+    if (!offer?.name.trim() || price === null || price < 0) throw new AppError('Informe o serviço e o valor real da oferta antes de publicar', 400);
+  }
   if (template.requiredMedia > 0 && !post.primaryMediaId) throw new AppError("Adicione uma foto própria para publicar este modelo", 400);
   if (template.requiredMedia > 1 && !post.secondaryMediaId) throw new AppError("Adicione as fotos de antes e depois para publicar este modelo", 400);
   await Promise.all([
@@ -234,6 +250,7 @@ const PRICE_SPLIT_SIZE: Record<"square" | "portrait" | "story", PriceSplitSizeKe
 function toPrice(value: number | string | null | undefined): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string") {
+    if (!value.trim()) return null;
     const parsed = Number(value.replace(",", ".").trim());
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -261,16 +278,14 @@ function readPriceSplit(designOptions: unknown): PriceSplitInput | undefined {
  */
 function mergeDesignOptions(
   current: unknown,
-  designOptions: { focalX?: number; focalY?: number; overlay?: number } | null | undefined,
+  designOptions: { focalX?: number; focalY?: number; overlay?: number; legalPost?: LegalPostData } | null | undefined,
   priceSplit: PriceSplitInput | undefined
 ): Prisma.InputJsonValue | undefined {
   const currentObject = typeof current === "object" && current !== null ? (current as Record<string, unknown>) : undefined;
   const hasDesign = typeof designOptions === "object" && designOptions !== null;
   if (priceSplit === undefined && !hasDesign && !currentObject) return undefined;
   if (priceSplit === undefined && !hasDesign) return currentObject as Prisma.InputJsonValue | undefined;
-  const base: Record<string, unknown> = hasDesign
-    ? { ...(designOptions as Record<string, unknown>) }
-    : { ...(currentObject ?? {}) };
+  const base: Record<string, unknown> = { ...(currentObject ?? {}), ...(hasDesign ? designOptions : {}) };
   if (priceSplit !== undefined) base.priceSplit = priceSplit;
   else if (currentObject?.priceSplit !== undefined && base.priceSplit === undefined) {
     base.priceSplit = currentObject.priceSplit;
@@ -355,7 +370,7 @@ async function buildPostImage(
     templateKey?: string;
     format?: "square" | "portrait" | "story";
     paletteKey?: string;
-    designOptions?: { focalX?: number; focalY?: number; overlay?: number };
+    designOptions?: { focalX?: number; focalY?: number; overlay?: number; legalPost?: LegalPostData };
     primaryMediaId?: string | null;
     secondaryMediaId?: string | null;
     /** Lista de preços do modelo price-split (contrato items[] ≤ 8). */
@@ -367,8 +382,12 @@ async function buildPostImage(
   }
 ) {
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
-  const title = opts.title ?? "Vem pra cá hoje!";
-  const ctaText = opts.ctaText ?? defaultCtaText(opts.postMode);
+  const template = availablePostTemplates(barbershop, true).find(item => item.key === (opts.templateKey ?? "agenda-aberta"));
+  if (!template) throw new AppError("Selecione um modelo disponível para a categoria do estabelecimento", 400);
+  const profile = postAudience(barbershop);
+  const legal = profile.category === 'advocacia';
+  const title = opts.title?.trim() || template.sampleTitle || "Conheça nossos serviços";
+  const ctaText = opts.ctaText?.trim() || (legal ? legalDefaultCta(opts.templateKey) : defaultCtaText(opts.postMode));
   const [primaryImageUrl, secondaryImageUrl, logoDataUrl] = await Promise.all([
     loadMediaDataUrl(opts.primaryMediaId, barbershopId),
     loadMediaDataUrl(opts.secondaryMediaId, barbershopId),
@@ -379,13 +398,12 @@ async function buildPostImage(
   if (opts.templateKey === "price-split") {
     return buildPriceSplitImage(barbershopId, opts, { barbershop, services, schedule }, primaryImageUrl, logoDataUrl);
   }
-  const template = listPostTemplates().find(item => item.key === (opts.templateKey ?? "agenda-aberta")) as { stockImageKey?: string } | undefined;
-  const stockImageUrl = primaryImageUrl ? null : loadPostStockImage(template?.stockImageKey);
+  const stockImageUrl = primaryImageUrl ? null : loadPostStockImage(template.businessCategory ? template.stockImageKey : template.stockImageKey ? profile.stock : undefined);
   const illustrativeBackground = Boolean(stockImageUrl && template?.stockImageKey?.startsWith("promo-"));
   const svg = buildPostSvg({
     shopName: barbershop.name,
     logoUrl: logoDataUrl,
-    services,
+    services: legal ? [] : template.priceMode === 'single' ? normalizePriceItems(opts.priceSplit?.items ?? []).filter((item): item is { name: string; price: number } => item.price !== null && item.price >= 0).slice(0, 1) : services,
     todaySchedule: schedule,
     postMode: opts.postMode,
     ctaText,
@@ -393,7 +411,11 @@ async function buildPostImage(
     templateKey: opts.templateKey,
     format: opts.format,
     paletteKey: opts.paletteKey,
-    designOptions: opts.designOptions,
+    designOptions: opts.designOptions ?? (legal && opts.renderPreview ? { legalPost: {
+      professionalName: barbershop.name, registration: 'Sua inscrição na OAB',
+      areas: [{ title: 'Área de atuação', description: 'Inclua uma descrição breve dos temas atendidos pelo escritório.' }],
+      contact: barbershop.whatsapp || undefined,
+    } } : undefined),
     primaryImageUrl: primaryImageUrl ?? stockImageUrl,
     secondaryImageUrl,
     illustrativeBackground,
@@ -412,8 +434,14 @@ export class PostsController {
       data: { imageUrl: await buildPostImage(query.barbershopId, { ...query, allowEmptyPriceItems: true, renderPreview: true }) },
     });
   }
-  async templates(_request: FastifyRequest, reply: FastifyReply) {
-    return reply.status(200).send({ success: true, data: listPostTemplates() });
+  async templates(request: FastifyRequest, reply: FastifyReply) {
+    const query = z.object({ barbershopId: z.string().uuid().optional(), includeLegacy: z.literal('1').optional() }).parse(request.query ?? {});
+    const barbershopId = query.barbershopId ?? request.user?.barbershopId;
+    if (!barbershopId) return reply.status(200).send({ success: true, data: listPostTemplates() });
+    assertSameBarbershop(request.user!, barbershopId);
+    const shop = await prisma.barbershop.findUnique({ where: { id: barbershopId }, select: { businessSegment: true, targetAudience: true } });
+    if (!shop) throw new AppError("Estabelecimento não encontrado", 404);
+    return reply.status(200).send({ success: true, data: availablePostTemplates(shop, false, query.includeLegacy === '1') });
   }
 
   async palettes(_request: FastifyRequest, reply: FastifyReply) {
@@ -449,7 +477,12 @@ export class PostsController {
     assertSameBarbershop(user, body.barbershopId);
 
     try {
-      const result = await generatePostContent(body);
+      const shop = await prisma.barbershop.findUnique({ where: { id: body.barbershopId }, select: { businessSegment: true, targetAudience: true } });
+      if (!shop) throw new AppError("Estabelecimento não encontrado", 404);
+      if (body.templateKey && !availablePostTemplates(shop, true).some(template => template.key === body.templateKey)) {
+        throw new AppError("Selecione um modelo disponível para a categoria do estabelecimento", 400);
+      }
+      const result = await generatePostContent({ ...body, ...shop });
       return reply.status(200).send({ success: true, data: result });
     } catch (err) {
       if (err instanceof DailyLimitExceededError) {
@@ -473,6 +506,9 @@ export class PostsController {
     const body = createPostSchema.parse(request.body);
 
     assertSameBarbershop(user, body.barbershopId);
+    const selectedTemplate = listPostTemplates(true).find(template => template.key === (body.templateKey ?? 'agenda-aberta'));
+    const resolvedTitle = body.title?.trim() || selectedTemplate?.sampleTitle || 'Conheça nossos serviços';
+    const resolvedCta = body.ctaText?.trim() || (selectedTemplate?.businessCategory === 'advocacia' ? legalDefaultCta(body.templateKey) : defaultCtaText(body.postMode));
 
     assertOwnedPostVideo(body.videoUrl, body.barbershopId);
 
@@ -490,14 +526,14 @@ export class PostsController {
 
     if (parsedScheduledFor) await assertRequiredPostMedia({
       barbershopId: body.barbershopId, templateKey: body.templateKey ?? "agenda-aberta",
-      primaryMediaId: body.primaryMediaId ?? null, secondaryMediaId: body.secondaryMediaId ?? null,
+      primaryMediaId: body.primaryMediaId ?? null, secondaryMediaId: body.secondaryMediaId ?? null, designOptions: body.designOptions,
     });
 
     const art = await persistPostImage(
       body.barbershopId,
       await buildPostImage(body.barbershopId, {
-        title: body.title,
-        ctaText: body.ctaText,
+        title: resolvedTitle,
+        ctaText: resolvedCta,
         postMode: body.postMode,
         templateKey: body.templateKey ?? "agenda-aberta",
         format: body.format ?? "square",
@@ -516,14 +552,14 @@ export class PostsController {
           barbershopId: body.barbershopId,
           authorId: user.id,
           type: FEED_TYPE_MAP[body.type],
-          title: body.title ?? "Vem pra cá hoje!",
+          title: resolvedTitle,
           content: body.content,
           imageUrl: art.imageUrl,
           imageAssetName: art.imageAssetName,
           videoUrl: body.videoUrl ?? null,
           status,
           postMode: POST_MODE_MAP[body.postMode],
-          ctaText: body.ctaText ?? defaultCtaText(body.postMode),
+          ctaText: resolvedCta,
           templateKey: body.templateKey ?? "agenda-aberta",
           format: (body.format ?? "square").toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
           paletteKey: body.paletteKey ?? "brand",
@@ -583,9 +619,11 @@ export class PostsController {
       barbershopId: existing.barbershopId, templateKey: body.templateKey ?? existing.templateKey,
       primaryMediaId: body.primaryMediaId !== undefined ? body.primaryMediaId : existing.primaryMediaId,
       secondaryMediaId: body.secondaryMediaId !== undefined ? body.secondaryMediaId : existing.secondaryMediaId,
+      designOptions: mergeDesignOptions(existing.designOptions, body.designOptions, body.priceSplit),
     });
 
     const visualChanged =
+      body.postMode !== undefined ||
       body.title !== undefined ||
       body.ctaText !== undefined ||
       body.templateKey !== undefined ||
@@ -621,7 +659,7 @@ export class PostsController {
         designOptions:
           body.designOptions !== undefined
             ? body.designOptions ?? undefined
-            : (existing.designOptions as { focalX?: number; focalY?: number; overlay?: number } | undefined) ?? undefined,
+            : (existing.designOptions as { focalX?: number; focalY?: number; overlay?: number; legalPost?: LegalPostData } | undefined) ?? undefined,
         priceSplit: body.priceSplit ?? readPriceSplit(existing.designOptions),
         primaryMediaId:
           body.primaryMediaId !== undefined
@@ -684,7 +722,7 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, status: true, templateKey: true, primaryMediaId: true, secondaryMediaId: true },
+      select: { id: true, barbershopId: true, status: true, templateKey: true, primaryMediaId: true, secondaryMediaId: true, designOptions: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
     assertSameBarbershop(user, existing.barbershopId);
@@ -711,7 +749,7 @@ export class PostsController {
 
     const existing = await prisma.feedPost.findUnique({
       where: { id },
-      select: { id: true, barbershopId: true, status: true, templateKey: true, primaryMediaId: true, secondaryMediaId: true },
+      select: { id: true, barbershopId: true, status: true, templateKey: true, primaryMediaId: true, secondaryMediaId: true, designOptions: true },
     });
     if (!existing) throw new AppError("Post não encontrado", 404);
     assertSameBarbershop(user, existing.barbershopId);
@@ -824,9 +862,10 @@ export class PostsController {
 
     const shop = await prisma.barbershop.findUnique({
       where: { id: existing.barbershopId },
-      select: { evolutionInstanceName: true },
+      select: { evolutionInstanceName: true, businessSegment: true },
     });
 
+    if (isAdvertisingRestricted(shop?.businessSegment)) throw new AppError('Envio de posts em massa indisponível para a categoria deste estabelecimento', 403, undefined, 'ADVERTISING_FEATURE_UNAVAILABLE');
     const eligible = await prisma.salonClient.count({
       where: { barbershopId: existing.barbershopId, whatsapp: { not: "" } },
     });

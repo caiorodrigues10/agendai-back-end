@@ -1,4 +1,5 @@
 /// <reference types="vitest/globals" />
+import { POST_CATEGORY_COLLECTIONS } from './postCategoryCollections';
 
 // Mock Redis before importing the service
 const mockRedisGet = vi.fn();
@@ -72,6 +73,54 @@ describe("postAiService", () => {
   afterEach(() => {
     process.env = { ...originalEnv };
     vi.restoreAllMocks();
+  });
+
+  describe("dependency timeouts", () => {
+    it.each(POST_CATEGORY_COLLECTIONS.filter(collection => collection.category !== 'advocacia'))('usa os temas de $segment no fallback', async collection => {
+      const result = await generatePostContent({ ...baseInput, businessSegment: collection.segment, count: 3 });
+      expect(result.source).toBe('template');
+      expect(result.suggestions.map(item => item.title)).toEqual(collection.titles.slice(0, 3));
+      expect(result.suggestions.every(item => item.title.length <= 40)).toBe(true);
+      const selected = await generatePostContent({ ...baseInput, businessSegment: collection.segment, templateKey: `${collection.category}-colecao-10`, count: 3 });
+      expect(selected.suggestions).toEqual([expect.objectContaining({ title: collection.titles[9] })]);
+    });
+    it('usa o segmento no fallback sem inventar descontos nem serviços de barba para salão', async () => {
+      const result = await generatePostContent({ ...baseInput, businessSegment: 'HAIR_SALON', targetAudience: 'UNISSEX' });
+      expect(result.source).toBe('template');
+      expect(result.suggestions[0].title).toBe('Conheça o salão');
+      expect(JSON.stringify(result)).not.toMatch(/desconto|barba|promoção/i);
+    });
+    it('envia segmento e público reais ao provedor', async () => {
+      process.env.GEMINI_API_KEY = 'test-placeholder';
+      const fetchMock = mockFetch(200, { candidates: [{ content: { parts: [{ text: JSON.stringify([{ title: 'Cuide de você', ctaText: 'Agendar' }]) }] } }] });
+      vi.stubGlobal('fetch', fetchMock);
+      await generatePostContent({ ...baseInput, businessSegment: 'NAIL_STUDIO', targetAudience: 'UNISSEX' });
+      const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+      expect(body.contents[0].parts[0].text).toContain('NAIL_STUDIO');
+      expect(body.contents[0].parts[0].text).toContain('UNISSEX');
+    });
+    it("returns suggestions even when Redis never answers", async () => {
+      mockRedisGet.mockReturnValue(new Promise(() => undefined));
+      const result = await generatePostContent(baseInput);
+      expect(result.source).toBe("template");
+      expect(result.suggestions).toHaveLength(3);
+    });
+
+    it("falls back after a provider aborts and sends an abort signal", async () => {
+      process.env.GEMINI_API_KEY = "test-key";
+      const abort = new AbortController();
+      const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(abort.signal);
+      vi.stubGlobal("fetch", vi.fn().mockImplementation((_url, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("timeout")), { once: true });
+      })));
+      const generation = generatePostContent(baseInput);
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+      expect(timeout).toHaveBeenCalledWith(8_000);
+      abort.abort();
+      const result = await generation;
+      expect(result.source).toBe("template");
+      expect(result.suggestions.length).toBeGreaterThan(0);
+    });
   });
 
   describe("template fallback (no keys configured)", () => {
@@ -294,7 +343,7 @@ describe("postAiService", () => {
       expect(result.suggestions).toEqual(suggestions);
     });
 
-    it("truncates long titles and CTA texts", async () => {
+    it("usa sugestões completas de fallback quando o provedor excede os limites", async () => {
       process.env.GEMINI_API_KEY = "test-key";
       process.env.AI_PROVIDER_ORDER = "gemini";
 
@@ -314,8 +363,57 @@ describe("postAiService", () => {
       }) as any;
 
       const result = await generatePostContent(baseInput);
+      expect(result.source).toBe('template');
+      expect(result.suggestions[0].title).not.toContain('A'.repeat(40));
       expect(result.suggestions[0].title.length).toBeLessThanOrEqual(40);
       expect(result.suggestions[0].ctaText.length).toBeLessThanOrEqual(30);
+    });
+
+    it('descarta textos vazios e sugestões repetidas, preservando as palavras recebidas', async () => {
+      process.env.GEMINI_API_KEY = 'test-key';
+      process.env.AI_PROVIDER_ORDER = 'gemini';
+      const suggestions = [
+        { title: '   ', ctaText: 'Contato' },
+        { title: 'Título sem chamada', ctaText: '\n ' },
+        { title: '  Contrato em mãos?  ', ctaText: ' Anote suas dúvidas ' },
+        { title: 'contrato em mãos?', ctaText: 'Outro CTA' },
+        { title: 'Contato inesperado?', ctaText: 'Confira o canal oficial' },
+      ];
+      vi.stubGlobal('fetch', mockFetch(200, { candidates: [{ content: { parts: [{ text: JSON.stringify(suggestions) }] } }] }));
+      const result = await generatePostContent(baseInput);
+      expect(result.source).toBe('ai');
+      expect(result.suggestions).toEqual([
+        { title: 'Contrato em mãos?', ctaText: 'Anote suas dúvidas' },
+        { title: 'Contato inesperado?', ctaText: 'Confira o canal oficial' },
+      ]);
+    });
+
+    it('oferece cinco alternativas jurídicas distintas com chamadas ligadas ao assunto no fallback', async () => {
+      const result = await generatePostContent({ ...baseInput, businessSegment: 'LAW_FIRM', count: 5 });
+      expect(result.source).toBe('template');
+      expect(result.suggestions).toHaveLength(5);
+      expect(new Set(result.suggestions.map(s => s.title)).size).toBe(5);
+      expect(new Set(result.suggestions.map(s => s.ctaText)).size).toBe(5);
+      expect(JSON.stringify(result)).not.toMatch(/desconto|gratuidade|garantid|Informações e contato/i);
+    });
+
+    it('considera a finalidade do modelo escolhido no prompt e preserva o contexto extra', async () => {
+      process.env.GEMINI_API_KEY = 'test-key';
+      process.env.AI_PROVIDER_ORDER = 'gemini';
+      vi.stubGlobal('fetch', mockFetch(200, { candidates: [{ content: { parts: [{ text: JSON.stringify([{ title: 'Horário especial', ctaText: 'Confirme seu horário' }]) }] } }] }));
+      const extra = 'A'.repeat(500);
+      await generatePostContent({ ...baseInput, businessSegment: 'LAW_FIRM', templateKey: 'advocacia-comunicado', extra });
+      const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+      const prompt = body.contents[0].parts[0].text;
+      expect(prompt).toContain('Modelo escolhido: Aviso com data');
+      expect(prompt).toContain('Data e horário informados');
+      expect(prompt).toContain(extra);
+    });
+
+    it('mantém o fallback na finalidade selecionada, sem inventar dados do aviso', async () => {
+      const result = await generatePostContent({ ...baseInput, businessSegment: 'LAW_FIRM', templateKey: 'advocacia-comunicado' });
+      expect(result).toMatchObject({ source: 'template', suggestions: [{ title: 'Horário especial', ctaText: 'Confira a agenda' }] });
+      expect(JSON.stringify(result)).not.toMatch(/\b23\b|NOV|13h|18h/);
     });
   });
 
@@ -357,4 +455,15 @@ describe("postAiService", () => {
       expect(mockRedisSet).not.toHaveBeenCalled();
     });
   });
+  it('usa linguagem jurídica neutra no fallback mesmo quando o tipo legado é haircut e o tom é promocional', async () => {
+    const result = await generatePostContent({ ...baseInput, businessSegment: 'LAW_FIRM', targetAudience: 'UNISSEX' });
+    expect(result.source).toBe('template');
+    expect(result.suggestions).toHaveLength(3);
+    for (const suggestion of result.suggestions) {
+      expect(suggestion.ctaText.trim()).toBeTruthy();
+      expect(suggestion.ctaText).not.toMatch(/promoção|desconto|garantido|Informações e contato/i);
+      expect(suggestion.title).not.toMatch(/corte|barba|promoção|desconto|garantido/i);
+    }
+  });
+
 });

@@ -19,7 +19,7 @@ export type TemplateField = {
 export const PRICE_SPLIT_MANIFEST = {
   key: "price-split",
   name: "Tabela de valores · Foto + painel",
-  description: "Foto à esquerda, painel escuro com linhas em pílula e preços à direita.",
+  description: "Serviços em linhas separadas com preços à direita e espaço para foto.",
   category: "tabela-de-precos",
   photoMode: "optional" as TemplatePhotoMode,
   sizes: {
@@ -34,8 +34,9 @@ export const PRICE_SPLIT_MANIFEST = {
     { key: "whatsapp", label: "WhatsApp", type: "phone", placeholder: "(11) 99999-9999" },
     { key: "instagram", label: "Instagram", type: "insta", placeholder: "@seuperfil" },
   ] as TemplateField[],
-  // Segmentos com ilustração de fallback pronta (stock). Demais usam neutro.
-  segments: ["BARBERSHOP", "HAIR_SALON", "BEAUTY_STUDIO", "NAIL_STUDIO", "LASH_BROW_STUDIO", "AESTHETICS", "SPA"],
+  // Segmentos com fotografia de fallback adequada. Demais usam composição
+  // tipográfica neutra e aceitam uma fotografia enviada pelo responsável.
+  segments: ["BARBERSHOP", "HAIR_SALON", "BEAUTY_STUDIO"],
   /**
    * Regra de saída da arte (decisão registrada em docs/agents/BUSINESS_RULES.md):
    * foto presente (upload ou stock do segmento) → JPEG q90 4:4:4; só tipografia →

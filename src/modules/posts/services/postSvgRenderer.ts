@@ -29,10 +29,23 @@ export function resolvePostFontFile(): string | null {
  */
 export function renderSvgToPngSync(svg: string): Buffer {
   const fontFile = resolvePostFontFile();
+  const legalFonts = svg.includes('data-business-category="advocacia"') || svg.includes('data-post-composition=')
+    ? ['CormorantGaramond.ttf', 'CormorantGaramond-Italic.ttf', 'Inter-Regular.ttf', 'Inter-Bold.ttf'].flatMap(file => {
+      const here = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+      const candidates = [
+        path.join(here, '../templates/assets/fonts', file),
+        path.join(here, '../../../modules/posts/templates/assets/fonts', file),
+        path.join(process.cwd(), 'src/modules/posts/templates/assets/fonts', file),
+        path.join(process.cwd(), 'dist/modules/posts/templates/assets/fonts', file),
+      ];
+      const found = candidates.find(candidate => fs.existsSync(candidate));
+      return found ? [found] : [];
+    })
+    : [];
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: 1080 },
     font: {
-      fontFiles: fontFile ? [fontFile] : [],
+      fontFiles: [...(fontFile ? [fontFile] : []), ...legalFonts],
       loadSystemFonts: true,
       defaultFontFamily: FONT_FAMILY,
     },

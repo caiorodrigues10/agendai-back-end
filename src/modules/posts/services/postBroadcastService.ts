@@ -1,3 +1,4 @@
+import { isAdvertisingRestricted } from "@/shared/segments/advertising";
 import { prisma } from "@/libs/prismaClient";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { normalizeWhatsAppPhone } from "@/shared/services/evolutionApiService";
@@ -53,10 +54,10 @@ export async function broadcastPostToClients(
   try {
     const barbershop = await prisma.barbershop.findUnique({
       where: { id: barbershopId },
-      select: { evolutionInstanceName: true },
+      select: { evolutionInstanceName: true, businessSegment: true },
     });
 
-    if (!barbershop) return 0;
+    if (!barbershop || isAdvertisingRestricted(barbershop.businessSegment)) return 0;
 
     if (!barbershop.evolutionInstanceName?.trim()) {
       logger.warn({ postId, barbershopId }, "Broadcast skipped — salão sem WhatsApp conectado");

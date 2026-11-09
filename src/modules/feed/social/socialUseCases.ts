@@ -9,7 +9,7 @@ export function toPublicPost(post: PublicPostRow) {
     title: post.title ?? undefined, content: post.content, imageUrl: post.imageUrl ?? undefined,
     videoUrl: post.videoUrl ?? undefined, likes: post.likes, createdAt: post.createdAt.getTime(),
     publishedAt: post.publishedAt?.getTime(), status: "published", format: post.format.toLowerCase(),
-    postMode: post.postMode.toLowerCase(), ctaText: post.ctaText,
+    postMode: post.postMode.toLowerCase(), ctaText: post.ctaText, templateKey: post.templateKey ?? undefined,
     authorName: post.author?.name ?? "Equipe", shopName: post.barbershop.name,
     shopLogoUrl: post.barbershop.logoUrl ?? undefined, commentsCount: post._count.comments,
   };

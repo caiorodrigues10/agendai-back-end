@@ -34,13 +34,17 @@ describe("buildPostSvg", () => {
     expect(svg).toContain("Agenda Já");
   });
 
-  it("quebra título longo em duas linhas", () => {
+  it("quebra um título longo preservando todas as palavras", () => {
+    const title = "Corte e barba com desconto especial hoje";
     const svg = buildPostSvg({
       ...minimalInput,
-      title: "Corte e barba com desconto especial hoje",
+      title,
     });
-    expect(svg).toContain("Corte e barba com");
-    expect(svg).toContain("desconto especial hoje");
+    const headline = svg.match(/<g data-post-role="headline"[^>]*>(.*?)<\/g>/s)![1];
+    const rows = [...headline.matchAll(/<text[^>]*>(.*?)<\/text>/g)].map(match => match[1]);
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.join(' ')).toBe(title);
+    expect(rows.join(' ')).not.toContain('...');
   });
 
   it("escapa & do nome do salão para XML", () => {

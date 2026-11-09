@@ -1,6 +1,7 @@
 /**
  * Dados de exemplo do Modelo #1 — melhor caso e pior caso.
- * Pior caso: nome longo, 8+ itens, sem foto, sem logo, sem Instagram.
+ * Pior caso válido na API: nome longo, 8 itens, sem foto, sem logo ou contato.
+ * Formatos sem espaço suficiente devem orientar a escolher outro formato.
  */
 import type { PriceSplitData } from "./template";
 
@@ -37,7 +38,5 @@ export const SAMPLE_WORST: PriceSplitData = {
     { name: "Buço e sobrancelha", price: 45 },
     { name: "Henna de sobrancelha", price: 70 },
     { name: "Peeling químico facial", price: 250 },
-    { name: "Microagulhamento", price: 320 },
-    { name: "Consultoria de estilo", price: null }, // sob consulta
   ],
 };

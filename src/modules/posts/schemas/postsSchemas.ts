@@ -21,10 +21,24 @@ export const postModeSchema = z.enum(["queue", "appointments", "both"]);
 export const postTypeSchema = z.enum(["haircut", "beard", "announcement"]);
 export const postFormatSchema = z.enum(["square", "portrait", "story"]);
 export const templateKeySchema = z.string().regex(/^[a-z0-9-]{3,64}$/);
+export const legalPostSchema = z.object({
+  professionalName: z.string().trim().max(90).default(''),
+  registration: z.string().trim().max(40).default(''),
+  areas: z.array(z.object({ title: z.string().trim().max(50), description: z.string().trim().max(140).default('') })).max(4).default([]),
+  eyebrow: z.string().trim().max(40).optional(),
+  summary: z.string().trim().max(160).optional(),
+  highlight: z.string().trim().max(60).optional(),
+  contact: z.string().trim().max(40).optional(),
+  address: z.string().trim().max(100).optional(),
+  website: z.string().trim().max(80).optional(),
+  contactLayout: z.enum(['essential', 'complete']).optional(),
+});
+
 export const designOptionsSchema = z.object({
   focalX: z.number().min(0).max(100).optional(),
   focalY: z.number().min(0).max(100).optional(),
   overlay: z.number().min(0).max(100).optional(),
+  legalPost: legalPostSchema.optional(),
 }).optional();
 
 /** Item da lista de preços do modelo `price-split` (nome + preço flexível). */
@@ -67,14 +81,17 @@ export const previewPostQuerySchema = z.object({
   barbershopId: z.string().uuid(),
   postMode: postModeSchema.default("both"),
   type: postTypeSchema.default("announcement"),
-  title: z.string().max(80).optional(),
-  ctaText: z.string().max(40).optional(),
+  title: z.string().max(200).optional(),
+  ctaText: z.string().max(120).optional(),
   templateKey: templateKeySchema.default("agenda-aberta"),
   format: postFormatSchema.default("square"),
   primaryMediaId: z.string().uuid().optional().nullable(),
   secondaryMediaId: z.string().uuid().optional().nullable(),
   paletteKey: paletteKeySchema.default("brand"),
-  designOptions: designOptionsSchema,
+  designOptions: z.preprocess(value => {
+    if (typeof value !== 'string') return value;
+    try { return JSON.parse(value); } catch { return value; }
+  }, designOptionsSchema),
   priceSplit: priceSplitQuerySchema,
 });
 
@@ -141,6 +158,7 @@ export const saveConfigBodySchema = z.object({
 export const generatePostSchema = z.object({
   barbershopId: z.string().uuid(),
   type: postTypeSchema,
+  templateKey: templateKeySchema.optional(),
   postMode: postModeSchema.default("both"),
   tone: z.enum(["promocional", "informativo", "divertido"]).optional(),
   extra: z.string().max(500).optional(),

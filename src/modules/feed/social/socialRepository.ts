@@ -4,7 +4,7 @@ import { prisma } from "@/libs/prismaClient";
 export const publicPostSelect = {
   id: true, barbershopId: true, authorId: true, type: true, title: true,
   content: true, imageUrl: true, videoUrl: true, likes: true, createdAt: true,
-  publishedAt: true, format: true, postMode: true, ctaText: true,
+  publishedAt: true, format: true, postMode: true, ctaText: true, templateKey: true,
   author: { select: { name: true } },
   barbershop: { select: { name: true, logoUrl: true } },
   _count: { select: { comments: true } },

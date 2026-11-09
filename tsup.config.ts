@@ -5,6 +5,7 @@ export default defineConfig({
     "src/**/*.ts",
     "!src/**/*.spec.ts",
     "!src/**/*.test.ts",
+    "!src/**/*.fixture.ts",
     "!src/tests/**",
     "!src/@types/**",
   ],
@@ -30,7 +31,7 @@ export default defineConfig({
     };
   },
   async onSuccess() {
-    const { copyFileSync, mkdirSync, existsSync, readdirSync, cpSync } = await import("fs");
+    const { copyFileSync, mkdirSync, existsSync, readdirSync } = await import("fs");
     const { join } = await import("path");
     const src = join("src", "modules", "posts", "fonts", "OpenSans-Bold.ttf");
     const destDir = join("dist", "modules", "posts", "fonts");
@@ -51,9 +52,18 @@ export default defineConfig({
     // resolvem por estes caminhos em dist/modules/posts/templates/assets.
     const templateAssets = join("src", "modules", "posts", "templates", "assets");
     if (existsSync(templateAssets)) {
-      cpSync(templateAssets, join("dist", "modules", "posts", "templates", "assets"), {
-        recursive: true,
-      });
+      // Copy regular assets individually: recursive cpSync failed during the
+      // Windows build before completing the font/stock directory.
+      const copyAssets = (source: string, destination: string) => {
+        mkdirSync(destination, { recursive: true });
+        for (const entry of readdirSync(source, { withFileTypes: true })) {
+          const from = join(source, entry.name);
+          const to = join(destination, entry.name);
+          if (entry.isDirectory()) copyAssets(from, to);
+          else if (entry.isFile()) copyFileSync(from, to);
+        }
+      };
+      copyAssets(templateAssets, join("dist", "modules", "posts", "templates", "assets"));
     }
   },
 });

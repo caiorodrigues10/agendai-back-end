@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { SocialUseCases } from "./socialUseCases";
+import { SocialUseCases, toPublicPost } from "./socialUseCases";
 import { SocialRepository, activeStoryWhere, publishedPostWhere } from "./socialRepository";
 import { commentSchema, commentQuerySchema } from "./socialSchemas";
 
@@ -31,6 +31,11 @@ beforeEach(() => {
 });
 
 describe("social published content and verified comments", () => {
+  it("exposes only the template key needed to distinguish art copy from appointment actions", () => {
+    const response = toPublicPost({ ...post, templateKey: "advocacia-consumidor" } as never);
+    expect(response.templateKey).toBe("advocacia-consumidor");
+    expect(response).not.toHaveProperty("designOptions");
+  });
   it("returns videos, original format and comment count without exposing personal data", async () => {
     const response = await useCases.getPost("salon", "post");
     expect(response).toMatchObject({ videoUrl: post.videoUrl, format: "portrait", commentsCount: 1, shopName: "Studio" });
