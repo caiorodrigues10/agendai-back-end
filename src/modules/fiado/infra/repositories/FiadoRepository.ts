@@ -1,7 +1,12 @@
 import { prisma } from "@/libs/prismaClient";
 import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
+import { toSkipTake } from "@/shared/utils/pagination";
 import { IFiadoRepository } from "../../repositories/IFiadoRepository";
+import {
+  buildFiadoListWhere,
+  buildFiadoOrderBy,
+} from "../../repositories/fiadoListWhere";
 import {
   ICreateFiadoDTO,
   ICreateFiadoPaymentDTO,
@@ -58,37 +63,17 @@ export class FiadoRepository implements IFiadoRepository {
   async list(
     query: IFiadoListQuery & { barbershopId: string }
   ): Promise<{ data: IFiadoResponseDTO[]; total: number }> {
-    const skip = (query.page - 1) * query.limit;
+    const { skip, take } = toSkipTake(query.page, query.limit);
 
-    const where: any = { barbershopId: query.barbershopId };
-
-    if (query.status) where.status = query.status;
-
-    if (query.from || query.to) {
-      where.createdAt = {
-        ...(query.from && { gte: query.from }),
-        ...(query.to && { lte: query.to }),
-      };
-    }
-
-    if (query.overdue === true) {
-      where.dueDate = { lt: new Date() };
-      if (!query.status) where.status = { in: ["PENDING", "PARTIAL"] };
-    }
-
-    if (query.search) {
-      where.OR = [
-        { customerName: { contains: query.search, mode: "insensitive" } },
-        { whatsapp: { contains: query.search } },
-      ];
-    }
+    const where = buildFiadoListWhere(query.barbershopId, query);
+    const orderBy = buildFiadoOrderBy(query.sort);
 
     const [records, total] = await Promise.all([
       prisma.fiado.findMany({
         where,
         skip,
-        take: query.limit,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take,
+        orderBy,
         include: { payments: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
       }),
       prisma.fiado.count({ where }),

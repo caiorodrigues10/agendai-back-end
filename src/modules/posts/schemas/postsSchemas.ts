@@ -84,7 +84,8 @@ export const previewPostQuerySchema = z.object({
   title: z.string().max(200).optional(),
   ctaText: z.string().max(120).optional(),
   templateKey: templateKeySchema.default("agenda-aberta"),
-  format: postFormatSchema.default("square"),
+  /** Sem format, o controller aplica o default por modelo (price-split → 4:5). */
+  format: postFormatSchema.optional(),
   primaryMediaId: z.string().uuid().optional().nullable(),
   secondaryMediaId: z.string().uuid().optional().nullable(),
   paletteKey: paletteKeySchema.default("brand"),

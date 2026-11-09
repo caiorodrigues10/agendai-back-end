@@ -14,7 +14,8 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Candidate, ExtractedRow } from "../types";
+import type { Candidate } from "../types";
+import { distribuirColunas } from "./colunas";
 
 const execFileAsync = promisify(execFile);
 
@@ -42,40 +43,6 @@ interface VisionRow {
   celulas: VisionCell[];
 }
 
-/**
- * Distribui as células da linha nas 3 colunas por posição. Usa a posição
- * relativa à largura da página: nome à esquerda, telefone no meio, valor à
- * direita.
- */
-function cellsToRow(cells: VisionCell[], largura: number): ExtractedRow {
-  let nome: string[] = [];
-  let telefone = "";
-  let valor = "";
-
-  for (const cell of cells) {
-    const x = (cell.bbox.x0 + cell.bbox.x1) / 2 / largura;
-    const texto = cell.text.trim();
-    if (!texto) continue;
-    if (/R\$/i.test(texto) || /^\d[\d.,]*,\d{2}$/.test(texto)) {
-      valor = texto;
-    } else if (/^[\d().\-\s]{8,}$/.test(texto) && /^\d/.test(texto.replace(/[()\s.-]/g, ""))) {
-      telefone = texto;
-    } else if (x > 0.6) {
-      valor = valor || texto;
-    } else if (x > 0.35) {
-      telefone = telefone || texto;
-    } else {
-      nome.push(texto);
-    }
-  }
-
-  return {
-    nome: nome.join(" ").replace(/\s+/g, " ").trim() || undefined,
-    telefone: telefone || undefined,
-    valor: valor || undefined,
-  };
-}
-
 export const macosVision: Candidate = {
   id: "C-macos-vision",
   label: "Vision (macOS nativo)",
@@ -99,7 +66,7 @@ export const macosVision: Candidate = {
       const largura = todas.length ? Math.max(...todas) : 1;
 
       const rows = payload.rows
-        .map((r) => cellsToRow(r.celulas, largura))
+        .map((r) => distribuirColunas(r.celulas, largura))
         .filter((r) => r.nome || r.telefone || r.valor);
 
       return {

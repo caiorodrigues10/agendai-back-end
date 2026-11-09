@@ -1,6 +1,7 @@
 import { BRAND_NAME } from '@/config/brand';
 import { randomBytes } from 'crypto'
 import { prisma } from '@/libs/prismaClient'
+import { rlsTransaction } from '@/libs/prismaExtensions'
 import {
 	REFERRAL_CODE_LENGTH,
 	REFERRAL_REWARD_DAYS,
@@ -117,12 +118,12 @@ export async function attachReferralOnRegister(input: {
 	})
 	if (already) return
 
-	await prisma.$transaction([
-		prisma.barbershop.update({
+	await rlsTransaction(async (tx) => {
+		await tx.barbershop.update({
 			where: { id: input.refereeBarbershopId },
 			data: { referredByCodeId: code.id },
-		}),
-		prisma.referral.create({
+		})
+		await tx.referral.create({
 			data: {
 				referralCodeId: code.id,
 				referrerUserId: code.ownerUserId,
@@ -133,8 +134,8 @@ export async function attachReferralOnRegister(input: {
 				status: 'PENDING',
 				rewardDays: REFERRAL_REWARD_DAYS,
 			},
-		}),
-	])
+		})
+	})
 
 	await enqueueEmail({
 		kind: 'referral_applied',

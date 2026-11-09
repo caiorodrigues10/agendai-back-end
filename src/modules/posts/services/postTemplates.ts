@@ -8,11 +8,25 @@ export { TEMPLATE_VERSION } from './postTemplateVersion';
 
 /**
  * Rollout do modelo "Tabela de valores · Foto + painel" (price-split).
- * Flag lida em runtime (mesmo padrão de POST_IMAGE_ALLOW_LOOPBACK): sem `1`
+ * Flag lida em runtime (mesmo padrão das flags de ambiente do serviço): sem `1`
  * o catálogo volta ao v2 legado e o modelo nem aparece no editor.
  */
 export function priceSplitEnabled(): boolean {
   return process.env.POST_PRICE_SPLIT === "1";
+}
+
+/**
+ * Formato padrão de um post — fonte única (espelho do editor no frontend,
+ * que lê `defaultFormat` do catálogo em `GET /api/posts/templates`).
+ * `price-split` nasce em 4:5 (portrait) para prévia e arte final saírem no
+ * mesmo formato; os demais modelos seguem 1:1. Um `format` explícito vence.
+ */
+export function defaultPostFormat(
+  templateKey: string | undefined,
+): "square" | "portrait" | "story" {
+  return templateKey === PRICE_SPLIT_MANIFEST.key
+    ? PRICE_SPLIT_MANIFEST.defaultFormat
+    : "square";
 }
 
 export type PostTemplateGroup = "agenda" | "ofertas" | "resultados" | "equipe" | "depoimentos" | "editorial" | "advocacia";
@@ -168,6 +182,7 @@ export function listPostTemplates(includeDisabled = false) {
     ...(sampleTitle ? { sampleTitle } : {}),
     ...(stockImageKey ? { stockImageKey } : {}),
     formats: ["square", "portrait", "story"],
+    defaultFormat: defaultPostFormat(key),
     previewUrl: `/api/posts/templates/${key}/preview`,
     templateVersion: TEMPLATE_VERSION,
   }));
@@ -188,6 +203,7 @@ function priceSplitTemplate() {
     photoMode: PRICE_SPLIT_MANIFEST.photoMode,
     priceMode: "list" as "single" | "list",
     formats: ["square", "portrait", "story"],
+    defaultFormat: PRICE_SPLIT_MANIFEST.defaultFormat,
     previewUrl: `/api/posts/templates/${key}/preview`,
     templateVersion: TEMPLATE_VERSION,
   };

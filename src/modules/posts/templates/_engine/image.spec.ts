@@ -74,8 +74,12 @@ describe("assertAllowedUrl — allowlist", () => {
     );
     expect(() => assertAllowedUrl("http://localhost/a.jpg")).toThrow(/loopback liberado só fora de produção/);
 
-    vi.stubEnv("POST_IMAGE_ALLOW_LOOPBACK", "1"); // flag explícita de teste
-    expect(() => assertAllowedUrl("http://127.0.0.1:3000/a.jpg")).not.toThrow();
+    // Regra dura: nenhuma flag (nem a antiga POST_IMAGE_ALLOW_LOOPBACK)
+    // reabre loopback em produção.
+    vi.stubEnv("POST_IMAGE_ALLOW_LOOPBACK", "1");
+    expect(() => assertAllowedUrl("http://127.0.0.1:3000/a.jpg")).toThrow(
+      /loopback liberado só fora de produção/
+    );
   });
 
   it("em production o fetch de loopback é recusado (sem tocar a rede)", async () => {

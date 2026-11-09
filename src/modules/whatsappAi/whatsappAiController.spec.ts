@@ -1,10 +1,31 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ enqueue: vi.fn() }));
+const mocks = vi.hoisted(() => ({ enqueue: vi.fn(), platformSettings: vi.fn() }));
 
 vi.mock("@/shared/infra/queue/whatsappAiQueue", () => ({
   enqueueWhatsAppAiMessage: mocks.enqueue,
 }));
+
+// A configuração global do WhatsApp vive no banco. Sem mock, o webhook lia o
+// Prisma de verdade e caía no "modo seguro" (IA desligada) — a mensagem era
+// ignorada e a fila nunca era chamada.
+vi.mock("@/shared/services/platformWhatsAppSettings", () => ({
+  getPlatformWhatsAppSettings: mocks.platformSettings,
+  invalidatePlatformWhatsAppSettingsCache: vi.fn(),
+  updatePlatformWhatsAppSettings: vi.fn(),
+}));
+
+function platformSettings(overrides: Record<string, unknown> = {}) {
+  return {
+    aiGloballyEnabled: true,
+    ownerBotGloballyEnabled: true,
+    outboundPaused: false,
+    reason: null,
+    updatedBy: null,
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
 
 import { WhatsAppAiController } from "./whatsappAiController";
 import type { WhatsAppAiService } from "./whatsappAiService";
@@ -192,6 +213,7 @@ describe("atendente de IA — webhook da Evolution", () => {
     vi.clearAllMocks();
     process.env.EVOLUTION_WEBHOOK_SECRET = "segredo-de-teste-com-tamanho-suficiente";
     mocks.enqueue.mockResolvedValue(undefined);
+    mocks.platformSettings.mockResolvedValue(platformSettings());
   });
 
   afterEach(() => {
@@ -254,6 +276,24 @@ describe("atendente de IA — webhook da Evolution", () => {
       })
     );
     expect(sent).toHaveLength(1);
+  });
+
+  it("ignora a mensagem quando o atendente de IA está desligado globalmente", async () => {
+    mocks.platformSettings.mockResolvedValue(platformSettings({ aiGloballyEnabled: false }));
+    const controller = buildController();
+    const { sent, reply } = replyCollector();
+
+    await controller.handleEvolutionWebhook(
+      buildRequest({
+        headers: { "x-webhook-secret": process.env.EVOLUTION_WEBHOOK_SECRET! },
+        body: payload,
+      }),
+      reply
+    );
+
+    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].data).toMatchObject({ ignored: "atendente de IA desligado globalmente" });
   });
 
   it("ignora payload sem mensagem de texto", async () => {

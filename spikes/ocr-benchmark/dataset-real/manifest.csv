@@ -1,0 +1,12 @@
+arquivo,tipo,tipo_documento,largura_px,altura_px,sintetica,origem,casos_especiais
+cadastro-01.png,print,cadastro,962,184,sim,fictícia,duplicata-cliente
+cadastro-02.jpg,foto,cadastro,886,672,sim,fictícia,duplicata-cliente
+cadastro-03.png,planilha,cadastro,1077,170,sim,fictícia,parcelas-mesmo-processo
+cadastro-04.jpg,foto,cadastro,886,672,sim,fictícia,parcelas-mesmo-processo
+cadastro-05.png,planilha,cadastro,992,170,sim,fictícia,valor-ambiguo
+cadastro-06.png,print,cadastro,892,184,sim,fictícia,processo-sem-cliente
+cadastro-07.png,planilha,cadastro,1077,230,sim,fictícia,duplicata-cliente;parcelas-mesmo-processo;varias-linhas
+caderno-01.png,caderno,caderno,910,636,sim,fictícia,varias-linhas
+contrato-01.png,contrato,contrato,760,520,sim,fictícia,
+export-01.png,export,export,1521,202,sim,export-roundtrip,export-roundtrip
+recibo-01.png,recibo,recibo,760,520,sim,fictícia,processo-ausente

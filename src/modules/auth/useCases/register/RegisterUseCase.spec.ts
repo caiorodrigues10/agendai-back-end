@@ -1,5 +1,17 @@
 /// <reference types="vitest/globals" />
 
+// --- Mock do logger (objeto compartilhado via vi.hoisted para acessar logger.warn nos testes) ---
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
+vi.mock("@/shared/utils/logger", () => ({
+  getModuleLogger: () => mockLogger,
+}));
+
 // --- Mock prisma ---
 const mockCreate = vi.fn();
 const mockFindUnique = vi.fn();
@@ -58,17 +70,14 @@ vi.mock("@/shared/utils/cpfUtils", () => ({
   normalizeCnpj: (v: string) => v.replace(/\D/g, ""),
 }));
 
-vi.mock("@/shared/utils/logger", () => ({
-  getModuleLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
+vi.mock("@/shared/services/cpfNameVerification/cpfNameVerification", () => ({
+  cpfNameVerificationMode: vi.fn(() => "off"),
 }));
 
 import { RegisterUseCase, IRegisterDTO } from "./RegisterUseCase";
 import { ensureReferralCode } from "@/modules/referrals/services/referralService";
+import { cpfNameVerificationMode } from "@/shared/services/cpfNameVerification/cpfNameVerification";
+import { maskCpfForLogs, maskNameForLogs } from "@/shared/utils/logPrivacy";
 
 const BASE_INPUT: IRegisterDTO = {
   ownerName: "João Silva",
@@ -134,7 +143,10 @@ describe("RegisterUseCase — schedule", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useCase = new RegisterUseCase({ hash: vi.fn().mockResolvedValue("hashed") } as any);
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      { verify: vi.fn().mockResolvedValue({ status: "unavailable" }) } as any,
+    );
   });
 
   it("creates 7 schedule rows with provided schedule", async () => {
@@ -213,7 +225,10 @@ describe("RegisterUseCase — indicação", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useCase = new RegisterUseCase({ hash: vi.fn().mockResolvedValue("hashed") } as any);
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      { verify: vi.fn().mockResolvedValue({ status: "unavailable" }) } as any,
+    );
   });
 
   it("gera código de indicação nos segmentos normais", async () => {
@@ -238,7 +253,10 @@ describe("RegisterUseCase — unicidade de CPF", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useCase = new RegisterUseCase({ hash: vi.fn().mockResolvedValue("hashed") } as any);
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      { verify: vi.fn().mockResolvedValue({ status: "unavailable" }) } as any,
+    );
   });
 
   it("rejeita CPF já cadastrado mesmo vindo com máscara (409)", async () => {
@@ -287,5 +305,79 @@ describe("RegisterUseCase — unicidade de CPF", () => {
 
     expect(err.message).toBe("CPF já cadastrado");
     expect(err.statusCode).toBe(409);
+  });
+});
+
+describe("RegisterUseCase — verificação CPF × nome", () => {
+  let useCase: RegisterUseCase;
+  const verifier = { verify: vi.fn() } as any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("off");
+    verifier.verify.mockResolvedValue({ status: "unavailable" });
+    useCase = new RegisterUseCase(
+      { hash: vi.fn().mockResolvedValue("hashed") } as any,
+      verifier,
+    );
+  });
+
+  it("modo off: verificador não é chamado", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("off");
+    mockTransactionSuccess();
+
+    await useCase.execute(BASE_INPUT);
+
+    expect(verifier.verify).not.toHaveBeenCalled();
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("modo warn + mismatch: cadastra, logger.warn recebe apenas CPF/nome mascarados", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("warn");
+    verifier.verify.mockResolvedValue({ status: "mismatch" });
+    mockTransactionSuccess();
+
+    const result = await useCase.execute({ ...BASE_INPUT });
+
+    expect(result).toBeDefined(); // cadastra (fail-open em warn)
+    expect(verifier.verify).toHaveBeenCalledTimes(1);
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+
+    // JSON.stringify de TODOS os args de logger.warn não contém CPF formatado
+    // nem casa com padrão de CPF.
+    const warnJson = JSON.stringify(mockLogger.warn.mock.calls);
+    const cpfPattern = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/;
+    expect(warnJson).not.toContain("453.178.297-09"); // CPF formatado completo
+    expect(warnJson).not.toMatch(cpfPattern); // nenhum padrão de CPF cru
+    // A máscara "453.***.**-09" não casa com a regex de CPF.
+    expect(maskCpfForLogs("45317829709")).not.toMatch(cpfPattern);
+    expect(warnJson).not.toContain("João Silva");
+    // E contém as máscaras corretas.
+    expect(warnJson).toContain(maskCpfForLogs("45317829709"));
+    expect(warnJson).toContain(maskNameForLogs("João Silva"));
+  });
+
+  it("modo enforce + mismatch: rejeita com 400, mensagem sem CPF nem nome", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("enforce");
+    verifier.verify.mockResolvedValue({ status: "mismatch" });
+    mockTransactionSuccess();
+
+    const err: any = await useCase.execute({ ...BASE_INPUT }).catch((e) => e);
+
+    expect(err.statusCode).toBe(400);
+    expect(err.message).not.toContain("45317829709");
+    expect(err.message).not.toContain("João Silva");
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("modo enforce + unavailable: cadastra (fail-open, decisão de produto)", async () => {
+    vi.mocked(cpfNameVerificationMode).mockReturnValue("enforce");
+    verifier.verify.mockResolvedValue({ status: "unavailable" });
+    mockTransactionSuccess();
+
+    const result = await useCase.execute(BASE_INPUT);
+
+    expect(result).toBeDefined();
+    expect(verifier.verify).toHaveBeenCalledTimes(1);
   });
 });

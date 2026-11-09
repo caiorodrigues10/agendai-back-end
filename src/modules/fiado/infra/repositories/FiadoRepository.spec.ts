@@ -18,6 +18,7 @@ vi.mock("@/libs/prismaClient", async () => {
   };
 });
 
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { FiadoRepository } from "./FiadoRepository";
 
 describe("FiadoRepository.list", () => {
@@ -50,13 +51,109 @@ describe("FiadoRepository.list", () => {
   });
 
   it("mantém o mesmo where entre findMany e count com filtro de status", async () => {
-    await repo.list({ page: 1, limit: 5, barbershopId: "shop-1", status: "PENDING" });
+    await repo.list({ page: 1, limit: 5, barbershopId: "shop-1", status: ["PENDING"] });
 
     const listWhere = (findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
     const countWhere = (count.mock.calls[0][0] as { where: Record<string, unknown> }).where;
 
-    expect(listWhere).toEqual({ barbershopId: "shop-1", status: "PENDING" });
+    expect(listWhere).toEqual({
+      barbershopId: "shop-1",
+      AND: [{ status: { in: ["PENDING"] } }],
+    });
     expect(countWhere).toEqual(listWhere);
+  });
+
+  it("sem filtros: where só com o barbershopId do contexto", async () => {
+    await repo.list({ page: 1, limit: 20, barbershopId: "shop-1" });
+
+    const listWhere = (findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
+    expect(listWhere).toEqual({ barbershopId: "shop-1" });
+  });
+
+  it("filtros combinados: cada filtro vira uma cláusula em AND", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      status: ["PENDING", "PARTIAL"],
+      clientId: "client-1",
+      search: "Ana",
+      from: "2026-10-05",
+      to: "2026-10-07",
+      dueFrom: "2026-11-01",
+      dueTo: "2026-11-30",
+    });
+
+    const listWhere = (findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
+    expect(listWhere).toEqual({
+      barbershopId: "shop-1",
+      AND: [
+        { status: { in: ["PENDING", "PARTIAL"] } },
+        { clientId: "client-1" },
+        {
+          createdAt: {
+            gte: civilDayBounds("2026-10-05").gte,
+            lt: civilDayBounds("2026-10-07").lt,
+          },
+        },
+        {
+          dueDate: {
+            gte: civilDayBounds("2026-11-01").gte,
+            lt: civilDayBounds("2026-11-30").lt,
+          },
+        },
+        {
+          OR: [
+            { customerName: { contains: "Ana", mode: "insensitive" } },
+            { whatsapp: { contains: "Ana" } },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("overdue: exige status em aberto e dueDate anterior ao momento", async () => {
+    await repo.list({ page: 1, limit: 20, barbershopId: "shop-1", overdue: true });
+
+    const listWhere = (findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
+    const and = (listWhere.AND as Array<Record<string, unknown>>) ?? [];
+
+    expect(and).toHaveLength(2);
+    expect(and[0]).toEqual({ dueDate: { lt: expect.any(Date) } });
+    expect(and[1]).toEqual({ status: { in: ["PENDING", "PARTIAL"] } });
+  });
+
+  it("sort por dueDate: nulls last e desempate por id", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      sort: { field: "dueDate", dir: "asc" },
+    });
+
+    const orderBy = (findMany.mock.calls[0][0] as {
+      orderBy: Array<Record<string, unknown>>;
+    }).orderBy;
+
+    expect(orderBy).toEqual([
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { id: "asc" },
+    ]);
+  });
+
+  it("sort por amount mapeia para originalAmount", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      sort: { field: "amount", dir: "desc" },
+    });
+
+    const orderBy = (findMany.mock.calls[0][0] as {
+      orderBy: Array<Record<string, unknown>>;
+    }).orderBy;
+
+    expect(orderBy).toEqual([{ originalAmount: "desc" }, { id: "desc" }]);
   });
 });
 

@@ -186,8 +186,18 @@ describe("BarbershopFinancialController.summary", () => {
     const [fiadoCall, inventoryCall] = queryRaw.mock.calls;
     expect(rawText(fiadoCall[0])).toContain("status IN ('PENDING', 'PARTIAL')");
     expect(rawText(inventoryCall[0])).toContain('FROM products');
+    expect(rawText(inventoryCall[0])).toContain('COUNT(*) FILTER (WHERE');
     expect(fiadoCall.slice(1)).toEqual([expect.any(Date), expect.any(Date), "shop-1"]);
-    expect(inventoryCall.slice(1)).toEqual(["shop-1"]);
+
+    // A definição de estoque baixo entra como fragmento SQL aninhado (salão,
+    // trackStock, minStock > 0, stockQty <= minStock).
+    const [fragmento, barbershopParam] = inventoryCall.slice(1) as [
+      { strings: string[]; values: unknown[] },
+      string,
+    ];
+    expect(barbershopParam).toBe("shop-1");
+    expect(rawText(fragmento)).toContain('"stockQty" <= "minStock"');
+    expect(fragmento.values).toEqual(["shop-1", true, 0]);
   });
 
   it("aplica a janela from/to em expenses e packages", async () => {

@@ -27,8 +27,7 @@ export interface XlsxParseResult {
   sheetNames: string[];
 }
 
-/** Converte o valor de uma célula do exceljs em texto plano. */
-export function cellToText(value: ExcelJS.CellValue): string {
+/** Converte o valor de uma célula do exceljs em texto plano. */export function cellToText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return "";
 
   if (typeof value === "object" && !(value instanceof Date)) {
@@ -87,6 +86,19 @@ export async function parseXlsx(
 }
 
 /**
+ * Copia o Buffer para um ArrayBuffer próprio.
+ *
+ * O `Buffer` do Node é uma `Uint8Array` sobre a memória externa: passar o
+ * objeto direto para o exceljs faria o TypeScript exigir uma conversão que
+ * mentiria sobre a posse da memória. A cópia resolve sem cast.
+ */
+function toArrayBuffer(buffer: Buffer): ArrayBuffer {
+  const copy = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(copy).set(buffer);
+  return copy;
+}
+
+/**
  * Lê **todas** as abas do workbook.
  *
  * A importação multi-aba precisa do cabeçalho e das linhas de cada aba: o
@@ -96,7 +108,7 @@ export async function parseXlsx(
 export async function parseXlsxSheets(buffer: Buffer): Promise<XlsxSheetResult[]> {
   const workbook = new ExcelJS.Workbook();
   try {
-    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+    await workbook.xlsx.load(toArrayBuffer(buffer));
   } catch {
     throw new AppError("Não foi possível ler a planilha enviada.", 400);
   }

@@ -63,6 +63,9 @@ export const equipmentListQuerySchema = z.object({
     .optional(),
   condition: z.enum(["new", "good", "worn", "broken", "in_maintenance"]).optional(),
   search: z.string().max(150).optional(),
+  /** Paginação opcional: quando ausente, retorna todos (comportamento atual). */
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 // ─── Movements ───────────────────────────────────────────────
@@ -89,6 +92,9 @@ export const movementListQuerySchema = z.object({
   type: z.enum(["in", "out", "maintenance", "loss", "adjustment"]).optional(),
   dateFrom: z.string().datetime().optional(),
   dateTo: z.string().datetime().optional(),
+  /** Paginação opcional: quando ausente, retorna todos (comportamento atual). */
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 // ─── Needs ───────────────────────────────────────────────────
@@ -129,6 +135,9 @@ export const updateNeedSchema = z.object({
 export const needListQuerySchema = z.object({
   status: z.enum(["requested", "approved", "ordered", "received", "rejected"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  /** Paginação opcional: quando ausente, retorna todos (comportamento atual). */
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 // ─── Dashboard ───────────────────────────────────────────────

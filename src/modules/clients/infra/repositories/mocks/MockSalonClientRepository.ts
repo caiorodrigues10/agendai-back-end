@@ -4,6 +4,7 @@ import {
   IUpdateSalonClientDTO,
   ISalonClientListQuery,
   ISalonClientResponseDTO,
+  ISalonClientPackageSummaryDTO,
 } from "@/modules/clients/dtos/ISalonClientDTO";
 import { AppError } from "@/shared/errors/AppError";
 import {
@@ -11,9 +12,28 @@ import {
   salonClientDisplayName,
   salonClientPublicWhatsapp,
 } from "@/modules/clients/utils/ensureSalonClient";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
+import { inactiveThreshold } from "@/modules/clients/repositories/salonClientListWhere";
+import { isPackageActive } from "@/modules/clients/repositories/clientPackageActive";
+
+/**
+ * Cliente do mock. Além do DTO público, carrega os dados que os filtros
+ * novos da listagem precisam (`lastVisitAt` e os fiados vinculados) sem
+ * alterar o contrato exposto pela API.
+ */
+/** Pacote do mock: o `barbershopId` é opcional (pacotes sem salão são do próprio cliente). */
+export type MockClientPackage = ISalonClientPackageSummaryDTO & {
+  barbershopId?: string;
+};
+
+export type MockSalonClient = Omit<ISalonClientResponseDTO, "packages"> & {
+  packages?: MockClientPackage[];
+  lastVisitAt?: Date | null;
+  openFiados?: { status: string; barbershopId: string }[];
+};
 
 export class MockSalonClientRepository implements ISalonClientRepository {
-  public clients: ISalonClientResponseDTO[] = [];
+  public clients: MockSalonClient[] = [];
   private seq = 1;
 
   async create(data: ICreateSalonClientDTO): Promise<ISalonClientResponseDTO> {
@@ -97,6 +117,65 @@ export class MockSalonClientRepository implements ISalonClientRepository {
           (digits && c.whatsapp.includes(digits))
       );
     }
+    if (query.createdFrom) {
+      const from = civilDayBounds(query.createdFrom, query.timeZone).gte;
+      results = results.filter((c) => c.createdAt >= from);
+    }
+    if (query.createdTo) {
+      const to = civilDayBounds(query.createdTo, query.timeZone).lt;
+      results = results.filter((c) => c.createdAt < to);
+    }
+    if (query.inactiveDays !== undefined) {
+      const threshold = inactiveThreshold(query.inactiveDays);
+      results = results.filter(
+        (c) =>
+          (c.lastVisitAt != null && c.lastVisitAt < threshold) ||
+          (c.lastVisitAt == null && c.createdAt < threshold)
+      );
+    }
+    if (query.hasOpenFiado !== undefined) {
+      const hasOpen = (c: MockSalonClient) =>
+        (c.openFiados ?? []).some(
+          (f) =>
+            f.barbershopId === c.barbershopId &&
+            (f.status === "PENDING" || f.status === "PARTIAL")
+        );
+      results = results.filter((c) =>
+        query.hasOpenFiado ? hasOpen(c) : !hasOpen(c)
+      );
+    }
+    if (query.hasActivePackage !== undefined) {
+      const hasActive = (c: MockSalonClient) =>
+        (c.packages ?? []).some(
+          (p) =>
+            (p.barbershopId === undefined || p.barbershopId === c.barbershopId) &&
+            isPackageActive(p)
+        );
+      results = results.filter((c) =>
+        query.hasActivePackage ? hasActive(c) : !hasActive(c)
+      );
+    }
+
+    const sort = query.sort;
+    if (sort) {
+      const dir = sort.dir === "desc" ? -1 : 1;
+      results = [...results].sort((a, b) => {
+        if (sort.field === "createdAt") {
+          return (a.createdAt.getTime() - b.createdAt.getTime()) * dir;
+        }
+        if (sort.field === "lastVisitAt") {
+          // nulo sempre por último, nas duas direções (igual ao `nulls: "last"`)
+          const av = a.lastVisitAt?.getTime() ?? null;
+          const bv = b.lastVisitAt?.getTime() ?? null;
+          if (av === null && bv === null) return 0;
+          if (av === null) return 1;
+          if (bv === null) return -1;
+          return (av - bv) * dir;
+        }
+        return a.name.localeCompare(b.name) * dir;
+      });
+    }
+
     const total = results.length;
     const start = (query.page - 1) * query.limit;
     return {

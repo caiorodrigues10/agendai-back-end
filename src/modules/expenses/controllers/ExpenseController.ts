@@ -15,6 +15,9 @@ import {
   GetExpenseSummaryUseCase,
 } from "../useCases/expenseUseCases";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
+import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 
 export class ExpenseController {
   async create(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -43,27 +46,20 @@ export class ExpenseController {
     const user = request.user!;
     const query = listExpensesQuerySchema.parse(request.query);
 
-    const barbershopId =
-      user.role === "MASTER_ADMIN"
-        ? (request.query as any).barbershopId ?? ""
-        : user.barbershopId ?? "";
-
-    if (!barbershopId) {
-      throw new AppError("barbershopId é obrigatório", 400);
-    }
+    const barbershopId = resolveBarbershopId(
+      user,
+      (request.query as { barbershopId?: string }).barbershopId ?? null,
+    );
+    // O dia civil do filtro de `referenceDate` é o do salão.
+    const timeZone = await getShopTimezone(barbershopId);
 
     const useCase = container.resolve(ListExpensesUseCase);
-    const result = await useCase.execute({ ...query, barbershopId }, user);
+    const result = await useCase.execute({ ...query, barbershopId, timeZone }, user);
 
     reply.send({
       success: true,
       data: result.data,
-      meta: {
-        total: result.total,
-        page: query.page,
-        limit: query.limit,
-        totalPages: Math.ceil(result.total / query.limit),
-      },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 

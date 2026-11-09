@@ -1,4 +1,5 @@
 import { IFiadoRepository } from "@/modules/fiado/repositories/IFiadoRepository";
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import {
   ICreateFiadoDTO,
   ICreateFiadoPaymentDTO,
@@ -48,16 +49,40 @@ export class MockFiadoRepository implements IFiadoRepository {
   async list(
     query: IFiadoListQuery & { barbershopId: string }
   ): Promise<{ data: IFiadoResponseDTO[]; total: number }> {
+    const now = new Date();
     let results = this.fiados.filter(
       (f) => f.barbershopId === query.barbershopId
     );
 
-    if (query.status) {
-      results = results.filter((f) => f.status === query.status);
+    if (query.status && query.status.length > 0) {
+      results = results.filter((f) => query.status!.includes(f.status));
+    }
+
+    if (query.clientId) {
+      results = results.filter((f) => f.clientId === query.clientId);
+    }
+
+    if (query.from || query.to) {
+      const gte = query.from ? civilDayBounds(query.from, query.timeZone).gte : null;
+      const lt = query.to ? civilDayBounds(query.to, query.timeZone).lt : null;
+      results = results.filter(
+        (f) =>
+          (!gte || f.createdAt >= gte) && (!lt || f.createdAt < lt)
+      );
+    }
+
+    if (query.dueFrom || query.dueTo) {
+      const gte = query.dueFrom ? civilDayBounds(query.dueFrom, query.timeZone).gte : null;
+      const lt = query.dueTo ? civilDayBounds(query.dueTo, query.timeZone).lt : null;
+      results = results.filter(
+        (f) =>
+          f.dueDate !== null &&
+          (!gte || f.dueDate >= gte) &&
+          (!lt || f.dueDate < lt)
+      );
     }
 
     if (query.overdue === true) {
-      const now = new Date();
       results = results.filter(
         (f) =>
           f.dueDate &&
@@ -75,11 +100,40 @@ export class MockFiadoRepository implements IFiadoRepository {
       );
     }
 
+    results = this.sortResults(results, query.sort?.field, query.sort?.dir ?? "desc");
+
     const total = results.length;
     const start = (query.page - 1) * query.limit;
     const data = results.slice(start, start + query.limit);
 
     return { data, total };
+  }
+
+  /** Espelha o `orderBy` do repositório real (incluindo `nulls: "last"`). */
+  private sortResults(
+    results: IFiadoResponseDTO[],
+    field: string | undefined,
+    dir: "asc" | "desc",
+  ): IFiadoResponseDTO[] {
+    return [...results].sort((a, b) => {
+      let cmp = 0;
+
+      if (field === "dueDate") {
+        if (a.dueDate === null && b.dueDate === null) cmp = 0;
+        else if (a.dueDate === null) return 1;
+        else if (b.dueDate === null) return -1;
+        else cmp = a.dueDate.getTime() - b.dueDate.getTime();
+      } else if (field === "amount") {
+        cmp = a.originalAmount - b.originalAmount;
+      } else {
+        cmp = a.createdAt.getTime() - b.createdAt.getTime();
+      }
+
+      if (cmp !== 0) return dir === "asc" ? cmp : -cmp;
+      return dir === "asc"
+        ? a.id.localeCompare(b.id)
+        : b.id.localeCompare(a.id);
+    });
   }
 
   async update(id: string, data: IUpdateFiadoDTO): Promise<IFiadoResponseDTO> {

@@ -16,7 +16,7 @@ import { anonymizeName, anonymizePhone } from "../../utils/cellSafety";
 
 /** ── Produtos (catálogo) ──────────────────────────────────────────────────── */
 
-const PRODUCT_COLUMNS: ColumnSpec[] = [
+export const PRODUCT_COLUMNS: ColumnSpec[] = [
   { header: "Nome do produto", type: "text", width: 26 },
   { header: "Categoria", type: "text", width: 20 },
   { header: "Código (SKU)", type: "text", width: 16 },
@@ -374,7 +374,7 @@ export const salesSheet: SheetBuilder = {
 
 /** ── Pacotes (catálogo) ───────────────────────────────────────────────────── */
 
-const PACKAGE_COLUMNS: ColumnSpec[] = [
+export const PACKAGE_COLUMNS: ColumnSpec[] = [
   { header: "Nome do pacote", type: "text", width: 26 },
   { header: "Serviço", type: "text", width: 26 },
   { header: "Sessões", type: "int", width: 10 },
@@ -420,7 +420,7 @@ export const packagesSheet: SheetBuilder = {
 
 /** ── Pacotes dos clientes ─────────────────────────────────────────────────── */
 
-const CLIENT_PACKAGE_COLUMNS: ColumnSpec[] = [
+export const CLIENT_PACKAGE_COLUMNS: ColumnSpec[] = [
   { header: "Cliente", type: "text", width: 28 },
   { header: "WhatsApp", type: "text", width: 16 },
   { header: "Pacote", type: "text", width: 24 },
@@ -542,7 +542,7 @@ export const recurringPackagesSheet: SheetBuilder = {
 
 /** ── Fiado ────────────────────────────────────────────────────────────────── */
 
-const FIADO_COLUMNS: ColumnSpec[] = [
+export const FIADO_COLUMNS: ColumnSpec[] = [
   { header: "Cliente", type: "text", width: 28 },
   { header: "WhatsApp", type: "text", width: 16 },
   { header: "Descrição", type: "text", width: 34 },

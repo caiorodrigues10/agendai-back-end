@@ -1,4 +1,5 @@
 import { formatBRL } from "./money";
+import { isLowStock } from "@/modules/products/utils/lowStockRule";
 import { findByName, numberedList, periodOrDefault, suggestionsLine } from "./helpers";
 import type { OwnerBotCommand } from "./types";
 
@@ -32,11 +33,15 @@ export const inventoryCommands: OwnerBotCommand[] = [
 
       const match = findByName(products, entities.subject ?? entities.serviceName, (item) => item.name);
       if (match) {
-        const stock = match.item.stockQuantity ?? 0;
-        const min = match.item.minimumStock;
+        const stock = match.item.stockQty ?? 0;
+        const low = isLowStock({
+          trackStock: match.item.trackStock === true,
+          minStock: match.item.minStock ?? 0,
+          stockQty: stock,
+        });
         return {
           text: `${match.item.name}: ${stock} em estoque (${formatBRL(match.item.salePrice)} cada)${
-            min !== null && min !== undefined && stock <= min ? " — estoque baixo!" : ""
+            low ? " — estoque baixo!" : ""
           }`,
           suggestions: ["estoque baixo", "produtos mais vendidos"],
         };
@@ -44,7 +49,7 @@ export const inventoryCommands: OwnerBotCommand[] = [
 
       const lines = products.slice(0, 10).map(
         (product, index) =>
-          `${index + 1}. ${product.name} — ${product.stockQuantity ?? 0} un. (${formatBRL(
+          `${index + 1}. ${product.name} — ${product.stockQty ?? 0} un. (${formatBRL(
             product.salePrice
           )})`
       );
@@ -71,18 +76,16 @@ export const inventoryCommands: OwnerBotCommand[] = [
     description: "Itens acabando",
     examples: ["estoque baixo", "o que está acabando"],
     async run(ctx) {
-      const alerts = await ctx.actions.stockAlerts(ctx.actor.barbershopId);
-      if (!alerts.length) {
+      const lowStock = await ctx.actions.lowStockProducts(ctx.actor.barbershopId);
+      if (!lowStock.length) {
         return {
           text: "Nenhum item com estoque baixo. 👍",
           suggestions: ["estoque", "faturamento do mês"],
         };
       }
-      const lines = alerts.slice(0, 10).map(
-        (alert, index) =>
-          `${index + 1}. ${alert.name} — ${alert.stockQuantity ?? 0} un. (mínimo ${
-            alert.minimumStock ?? 0
-          })`
+      const lines = lowStock.slice(0, 10).map(
+        (product, index) =>
+          `${index + 1}. ${product.name} — ${product.stockQty} un. (mínimo ${product.minStock})`
       );
       return {
         text: `Itens para repor:\n${lines.join("\n")}`,

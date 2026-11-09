@@ -111,7 +111,10 @@ function carregarCandidatos(): { arquivos: Arquivo[]; candidatos: CandidateRepor
     }
   }
 
-  const ordem = (id: string) => "ABCDEF".indexOf(id[0]);
+  const ordem = (id: string) => {
+    const i = "ABCDEFGH".indexOf(id[0]);
+    return i === -1 ? 99 : i;
+  };
   const candidatos = [...porId.values()].sort((a, b) => ordem(a.id) - ordem(b.id));
   const imagens = Math.max(...arquivos.map((a) => a.imagens));
   return { arquivos, candidatos, imagens };
@@ -171,6 +174,7 @@ const SIMPLICIDADE: Record<string, { nota: number; motivo: string }> = {
   "D-": { nota: 5, motivo: "API + prompt + parse + retry." },
   "E-": { nota: 4, motivo: "OCR local + API + parse + retry (duas etapas)." },
   "F*": { nota: 4, motivo: "D + gate (mais código, mesmo runtime de rede)." },
+  "G-": { nota: 5, motivo: "PaddleOCR local em CPU + ponte Python; modelo carregado uma vez por processo, sem custo por imagem, mas runtime Python no container." },
 };
 
 const LICENCA: Record<string, { nota: number; motivo: string }> = {
@@ -180,6 +184,7 @@ const LICENCA: Record<string, { nota: number; motivo: string }> = {
   "D-": { nota: 4, motivo: "API de modelo; licença do provedor não auditada." },
   "E-": { nota: 4, motivo: "API de modelo; licença do provedor não auditada." },
   "F*": { nota: 4, motivo: "API de modelo; licença do provedor não auditada." },
+  "G-": { nota: 10, motivo: "PaddleOCR e PaddlePaddle: Apache-2.0, processamento local, sem envio de imagem a terceiros." },
 };
 
 const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v));
@@ -280,7 +285,12 @@ function main(): void {
   add("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
 
   for (const c of candidatos) {
-    const deployavel = c.id.startsWith("C-") ? "**não** (macOS)" : "sim";
+    const deployavel =
+      c.id.startsWith("C-")
+        ? "**não** (macOS — Vision/pyobjc)"
+        : c.id.startsWith("G-")
+          ? "sim (Python no container: venv ~981 MB + modelos ~133 MB)"
+          : "sim";
     add(
       `| ${c.id} | ${exatos(c.totais.telefone)} | ${falso(c.totais.telefone)} | ${exatos(c.totais.valor)} | ` +
         `${falso(c.totais.valor)} | ${exatos(c.totais.nome)} | ` +
@@ -290,6 +300,14 @@ function main(): void {
     );
   }
 
+  add(
+    "- **Deployável / custo (G):** PaddleOCR é Apache-2.0 e roda local, mas precisa de runtime Python no container. " +
+      "Medido com `/usr/bin/time -l` no lote de 66 imagens (1 execução): venv ~981 MB (paddlepaddle + paddleocr + deps) " +
+      "e modelos ~133 MB (PP-OCRv6 médio det+rec, português/latino); pico de RAM ~1.2 GB. Custo de tempo: " +
+      "carga do modelo ~2,1 s (uma vez por processo Python) + inferência em lote ~5,0 s/imagem; como o runner " +
+      "reabre um processo Python por imagem, o `tempoMedioMs` medido em `run.ts` fica em ~7,9 s/imagem " +
+      "(contra ~0,35 s do B, que carrega o worker do Tesseract ~0,5 s e infere ~0,34 s/imagem com ~204 MiB de RAM)."
+  );
   add("");
   add(
     "> `F*` é uma **ablação**: pega as mesmas extrações do D e aplica o gate de produção, sem chamar o " +
@@ -530,6 +548,30 @@ function main(): void {
       `- **O gate não captura erro plausível — medido, não suposto.** Aplicado às mesmas extrações do D, o gate ` +
         `descartou **${bf.linhas.revisao - bench("D-").linhas.revisao}** linha(s) e manteve os ` +
         `**${bf.linhas.falsoConfiante}** falsos confiáveis: eles normalizam e passariam pela validação.`
+    );
+  }
+  const g = porId(candidatos, "G-");
+  const bb = porId(candidatos, "B-");
+  if (g && bb) {
+    const bgPiso = agrega(g, dentroDoPiso);
+    const bbPiso = agrega(bb, dentroDoPiso);
+    add(
+      `- **PaddleOCR (G) vs B — critério central é falso confiante, não acerto médio.** Dataset bruto (1 execução, ` +
+        `858 células de telefone+valor): G ${exatos(g.totais.telefone)} de telefone (FC ${g.totais.telefone.falsoConfiante}) ` +
+        `e ${exatos(g.totais.valor)} de valor (FC ${g.totais.valor.falsoConfiante}), ` +
+        `${g.totais.telefone.falsoConfiante + g.totais.valor.falsoConfiante} falso(s) confiante(s) de 858; ` +
+        `B ${exatos(bb.totais.telefone)} de telefone (FC ${bb.totais.telefone.falsoConfiante}) e ${exatos(bb.totais.valor)} de ` +
+        `valor (FC ${bb.totais.valor.falsoConfiante}), ${bb.totais.telefone.falsoConfiante + bb.totais.valor.falsoConfiante} ` +
+        `falso(s) confiante(s) de 858. Acima do piso: G ${exatos(bgPiso.colunas.telefone)} tel / ${exatos(bgPiso.colunas.valor)} val ` +
+        `(FC ${bgPiso.colunas.telefone.falsoConfiante + bgPiso.colunas.valor.falsoConfiante}) contra B ` +
+        `${exatos(bbPiso.colunas.telefone)} tel / ${exatos(bbPiso.colunas.valor)} val ` +
+        `(FC ${bbPiso.colunas.telefone.falsoConfiante + bbPiso.colunas.valor.falsoConfiante}). ` +
+        `O G lê melhor o **nome** (${exatos(g.totais.nome)} vs ${exatos(bb.totais.nome)} bruto), mas o B lê melhor ` +
+        `telefone/valor acima do piso (B: 0 FC de tel+valor; G: ${bgPiso.colunas.telefone.falsoConfiante + bgPiso.colunas.valor.falsoConfiante} FC). ` +
+        `Tempo (medido em lote, 66 imagens): G carrega o modelo ~2,1 s + infere ~5,0 s/imagem; B carrega o worker ~0,5 s + ` +
+        `infere ~0,34 s/imagem. No run.ts cada imagem reabre um processo Python, daí G ~7,9 s/imagem vs B ~0,35 s/imagem. ` +
+        `Não se declara que o G "é melhor": supera B em nome e acerto bruto de telefone/valor, mas perde no falso confiante ` +
+        `e no tempo.`
     );
   }
   add(
@@ -797,7 +839,17 @@ function main(): void {
   );
   add(
     "- O dataset é sintético: layout, fonte e cores fixos. Números absolutos não transferem para fotos reais; " +
-      "a comparação relativa e o conceito de falso confiante transferem."
+      "a comparação relativa e o conceito de falso confiante transferem. **Validado só em prints sintéticos " +
+      "(não cobre manuscrito, foto de celular nem PDF escaneado).**"
+  );
+  add(
+    "- `H` (PP-Structure / TableRecognition do PaddleOCR) **não foi implementado**: é um pipeline separado e " +
+      "pesado de leitura estrutural de tabela (não apenas OCR de células), exigiria download de modelo dedicado " +
+      "e, em CPU, facilmente excederia o orçamento de ~15 s/imagem. Fica para avaliação posterior apenas se " +
+      "justificado por imagem real."
+  );
+  add(
+    "- A confiança do PaddleOCR (G) não foi calibrada; não há limiar de revisão definido para ela."
   );
   add("- O crédito do NVIDIA NIM usado no teste não foi tarifado: **o custo por imagem não foi medido**.");
   add(

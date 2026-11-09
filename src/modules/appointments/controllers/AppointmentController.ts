@@ -2,6 +2,8 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { ZodError } from "zod";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
 import { appErrorFromZod } from "@/shared/utils/zodValidation";
 import {
   createAppointmentSchema,
@@ -52,12 +54,10 @@ export class AppointmentController {
     const user = request.user!;
     const query = listAppointmentsQuerySchema.parse(request.query);
 
-    const barbershopId =
-      user.role === "MASTER_ADMIN"
-        ? ((request.query as any).barbershopId ?? "")
-        : user.barbershopId ?? "";
-
-    if (!barbershopId) throw new AppError("barbershopId é obrigatório", 400);
+    const barbershopId = resolveBarbershopId(
+      user,
+      (request.query as { barbershopId?: string }).barbershopId ?? null,
+    );
 
     const useCase = container.resolve(ListAppointmentsUseCase);
     const result = await useCase.execute(barbershopId, query, user);
@@ -65,12 +65,7 @@ export class AppointmentController {
     reply.send({
       success: true,
       data: result.data,
-      meta: {
-        total: result.total,
-        page: query.page,
-        limit: query.limit,
-        totalPages: Math.ceil(result.total / query.limit),
-      },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 

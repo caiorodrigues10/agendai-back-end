@@ -32,6 +32,8 @@ const {
         create: vi.fn().mockResolvedValue({ id: "client-1" }),
       },
       service: { findMany: vi.fn().mockResolvedValue([]) },
+      importRowResult: { createMany: rowResultCreateMany },
+      importCreatedEntity: { createMany: createdEntityCreateMany },
     },
   };
 });

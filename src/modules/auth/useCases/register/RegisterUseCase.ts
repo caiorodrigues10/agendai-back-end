@@ -8,6 +8,9 @@ import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashPr
 import { AppError } from "@/shared/errors/AppError";
 import { assertCpfNotBlocked } from "@/shared/services/blockedEntityService";
 import { normalizeCpf, isValidCpf } from "@/shared/utils/cpfUtils";
+import { ICpfNameVerifier } from "@/shared/services/cpfNameVerification/ICpfNameVerifier";
+import { cpfNameVerificationMode } from "@/shared/services/cpfNameVerification/cpfNameVerification";
+import { maskCpfForLogs, maskNameForLogs } from "@/shared/utils/logPrivacy";
 import { mapUniqueConstraintError } from "@/shared/utils/prismaErrors";
 import { checkCnpjAccess } from "@/modules/subscriptions/utils/checkBarbershopAccess";
 import { SUBSCRIPTION_MESSAGES } from "@/shared/constants/subscriptionMessages";
@@ -60,7 +63,9 @@ export interface IRegisterDTO {
 export class RegisterUseCase {
   constructor(
     @inject("HashProvider")
-    private hashProvider: IHashProvider
+    private hashProvider: IHashProvider,
+    @inject("CpfNameVerifier")
+    private cpfNameVerifier: ICpfNameVerifier,
   ) {}
 
   async execute(data: IRegisterDTO, reply?: FastifyReply, context?: SessionContext) {
@@ -88,6 +93,28 @@ export class RegisterUseCase {
     }
 
     await assertCpfNotBlocked(normalizedCpf);
+
+    // Verificação de correspondência CPF × nome (feature flag CPF_NAME_VERIFICATION).
+    // Modo off: não chama. warn: loga aviso em mismatch, não bloqueia.
+    // enforce: bloqueia o cadastro em mismatch. CPF e nome são logados mascarados.
+    if (cpfNameVerificationMode() !== "off") {
+      const verification = await this.cpfNameVerifier.verify({
+        cpf: normalizedCpf,
+        name: data.ownerName,
+      });
+      if (verification.status === "mismatch") {
+        if (cpfNameVerificationMode() === "enforce") {
+          throw new AppError("CPF e nome do titular não conferem", 400);
+        }
+        logger.warn(
+          {
+            cpf: maskCpfForLogs(normalizedCpf),
+            name: maskNameForLogs(data.ownerName),
+          },
+          "CPF e nome do titular não conferem (modo warn: cadastro não bloqueado)",
+        );
+      }
+    }
 
     const normalizedCnpj = data.cnpj?.replace(/\D/g, "") || undefined;
     if (normalizedCnpj) {

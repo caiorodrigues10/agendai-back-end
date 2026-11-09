@@ -2,6 +2,8 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { ListServicesUseCase } from "./ListServicesUseCase";
 import { AppError } from "@/shared/errors/AppError";
+import { listServicesQuerySchema } from "../../schemas/serviceSchemas";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 
 export class ListServicesController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -18,8 +20,23 @@ export class ListServicesController {
         user.barbershopId === barbershopId ||
         (user as { barbershopId?: string }).barbershopId === barbershopId);
 
+    // Filtros e ordenação são opcionais; o salão NÃO é filtro (vem do
+    // contexto resolvido acima).
+    const query = listServicesQuerySchema.parse(request.query);
+
     const useCase = container.resolve(ListServicesUseCase);
-    const list = await useCase.execute(barbershopId, { includeInternal: isStaffOfShop });
-    reply.send({ success: true, data: list });
+    const result = await useCase.executePaginated(
+      barbershopId,
+      query,
+      { includeInternal: isStaffOfShop },
+    );
+
+    // `data` continua sendo o array de serviços (o front e a página pública
+    // dependem disso); a paginação vem no `meta`.
+    reply.send({
+      success: true,
+      data: result.data,
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
+    });
   }
 }

@@ -26,7 +26,7 @@ import { MAX_ROWS_PER_SHEET } from "../../dataExport.constants";
 
 /** ── Agendamentos ─────────────────────────────────────────────────────────── */
 
-const APPOINTMENT_COLUMNS: ColumnSpec[] = [
+export const APPOINTMENT_COLUMNS: ColumnSpec[] = [
   // Reimportáveis (mesmos rótulos aceitos pelo assistente de importação).
   { header: "Data", type: "date", width: 12 },
   { header: "Hora", type: "time", width: 8 },
@@ -143,7 +143,7 @@ export const appointmentsSheet: SheetBuilder = {
 
 /** ── Clientes ─────────────────────────────────────────────────────────────── */
 
-const CLIENT_COLUMNS: ColumnSpec[] = [
+export const CLIENT_COLUMNS: ColumnSpec[] = [
   // Reimportáveis.
   { header: "Nome", type: "text", width: 28 },
   { header: "WhatsApp", type: "text", width: 16 },
@@ -259,7 +259,7 @@ export const clientsSheet: SheetBuilder = {
 
 /** ── Serviços ─────────────────────────────────────────────────────────────── */
 
-const SERVICE_COLUMNS: ColumnSpec[] = [
+export const SERVICE_COLUMNS: ColumnSpec[] = [
   // Reimportáveis.
   { header: "Nome do serviço", type: "text", width: 28 },
   { header: "Preço", type: "currency", width: 13 },

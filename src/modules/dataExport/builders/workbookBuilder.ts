@@ -289,6 +289,11 @@ export async function buildExportFile(opts: BuildExportOptions): Promise<BuildEx
     extension,
   );
 
+  // A pasta de temporários precisa existir antes de abrir o arquivo: sem ela o
+  // stream do ExcelJS recebe ENOENT, é destruído sem 'finish' e o
+  // `workbook.commit()` espera esse evento para sempre (hang do worker).
+  await mkdir(exportTempDirectory(), { recursive: true, mode: 0o700 });
+
   if (opts.format === "CSV_ZIP") {
     await buildCsvZip(opts, ctx, sheets, filePath);
   } else if (opts.format === "PDF") {
@@ -310,6 +315,12 @@ export async function buildExportFile(opts: BuildExportOptions): Promise<BuildEx
   return { filePath, fileName, fileSizeBytes: info.size, warnings: ctx.warnings };
 }
 
+/** Stream de arquivo do ExcelJS (não exportado nos tipos públicos). */
+type ExportFileStream = {
+  on: (event: string, listener: (...args: never[]) => void) => unknown;
+  writableFinished?: boolean;
+};
+
 /** Gera o .xlsx em streaming. */
 async function buildXlsx(
   opts: BuildExportOptions,
@@ -321,6 +332,19 @@ async function buildXlsx(
     filename: filePath,
     useStyles: true,
     useSharedStrings: true,
+  });
+
+  // Se o stream de arquivo morrer (ENOSPC, EMFILE, permissão), o ExcelJS nunca
+  // emite 'finish' e o `commit()` ficaria pendurado para sempre: aqui o erro
+  // vira rejeição imediata em vez de travar o worker de exportação.
+  const fileStream = (workbook as unknown as { stream: ExportFileStream }).stream;
+  const streamFailure = new Promise<never>((_, reject) => {
+    fileStream.on("error", (error: never) => reject(error));
+    fileStream.on("close", () => {
+      if (!fileStream.writableFinished) {
+        reject(new Error(`O arquivo da exportação foi fechado antes de concluir: ${filePath}`));
+      }
+    });
   });
 
   let sheetsDone = 0;
@@ -343,7 +367,7 @@ async function buildXlsx(
     });
   }
 
-  await workbook.commit();
+  await Promise.race([workbook.commit(), streamFailure]);
 }
 
 /** Gera um .zip com um CSV por aba (escrita direta, sem xlsx intermediário). */

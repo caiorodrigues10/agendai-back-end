@@ -182,3 +182,16 @@ export const mappingSchema = z.union([
 ]);
 
 export const confirmImportSchema = z.object({}).passthrough();
+
+/**
+ * Revisão de uma célula lida por imagem.
+ *
+ * `valor` corrige o que foi lido; `aceitar` diz que o valor está certo como
+ * está. Os dois resolvem a pendência daquela célula.
+ */
+export const ocrReviewSchema = z.object({
+  linha: z.number().int().positive(),
+  coluna: z.number().int().nonnegative(),
+  valor: z.string().max(500).optional(),
+  aceitar: z.boolean().optional(),
+});

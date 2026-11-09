@@ -10,9 +10,19 @@
  *     quando a opção está desligada.
  *   • Honorários nunca entram no caixa nem no financeiro: não há coluna de
  *     pagamento, lançamento ou recebimento.
- *   • Período: ambas as abas respeitam o intervalo `from`/`to` informado pelo
- *     dono — casos filtram por `openedAt`, honorários por `createdAt`. Quando o
- *     período é "Tudo" (sem from/to), não há filtro de data.
+ *   • Período: a aba Processos NÃO filtra por período — exporta todos os
+ *     processos do escritório (backup completo), independentemente da data de
+ *     abertura. Honorários de êxito filtram por vencimento (`dueDate`) dentro
+ *     do período escolhido, com fallback para `createdAt` quando o honorário
+ *     não tem vencimento. Quando o período é "Tudo" (sem from/to), não há
+ *     filtro de data.
+ *   • Anonimização: `cases` e `caseFees` PODEM ser exportados com `anonymize`
+ *     ligado. Na aba Processos, todos os campos pessoais saem mascarados —
+ *     nome e WhatsApp do cliente, número do processo, apelido do caso, parte
+ *     adversária, título e advogado responsável. Na aba Honorários de êxito,
+ *     número do processo e apelido saem mascarados e as Observações saem
+ *     vazias (nota interna do escritório). Valores, datas, situação,
+ *     prioridade e área de atuação permanecem legíveis.
  */
 import { prisma } from "@/libs/prismaClient";
 import {
@@ -53,7 +63,7 @@ const FEE_STATUS_LABELS: Record<string, string> = {
 
 /** ── Processos (cases) ──────────────────────────────────────────────────── */
 
-const CASES_COLUMNS: ColumnSpec[] = [
+export const CASES_COLUMNS: ColumnSpec[] = [
   { header: "Apelido do caso", type: "text", width: 26 },
   { header: "Número do processo", type: "text", width: 22 },
   { header: "Cliente", type: "text", width: 24 },
@@ -111,28 +121,37 @@ export const casesSheet: SheetBuilder = {
     });
 
     for (const item of cases) {
-      const clientName = ctx.options.anonymize
-        ? anonymizeName(item.client?.name ?? null)
-        : safeText(item.client?.name ?? null);
+      // Com anonymize, TODOS os campos pessoais da aba Processos são mascarados:
+      // nome e WhatsApp do cliente, número do processo, apelido do caso, parte
+      // adversária, título e advogado responsável. Valores e datas permanecem.
+      const mask = (value: string | null | undefined): string =>
+        ctx.options.anonymize ? (anonymizeName(value) ?? "") : (safeText(value) ?? "");
+
+      const clientName = mask(item.client?.name ?? null);
       const clientWhatsapp = ctx.options.anonymize
-        ? anonymizePhone(item.client?.whatsapp ?? null)
-        : safeText(item.client?.whatsapp ?? null);
+        ? (anonymizePhone(item.client?.whatsapp ?? null) ?? "")
+        : (safeText(item.client?.whatsapp ?? null) ?? "");
+      const caseNickname = mask(item.nickname ?? null);
+      const caseNumber = mask(item.caseNumber ?? null);
+      const caseTitle = mask(item.title ?? null);
+      const opponent = mask(item.opponent ?? null);
+      const responsibleLawyer = mask(item.responsibleStaff?.name ?? null);
 
       addRow(sheet, CASES_COLUMNS, [
-        item.nickname,
-        item.caseNumber ?? "",
-        clientName ?? "",
-        clientWhatsapp ?? "",
+        caseNickname,
+        caseNumber,
+        clientName,
+        clientWhatsapp,
         item.practiceArea ?? "",
         CASE_STATUS_LABELS[item.status] ?? item.status,
         CASE_PRIORITY_LABELS[item.priority] ?? item.priority,
-        item.title ?? "",
+        caseTitle,
         item.courtName ?? "",
-        item.opponent ?? "",
+        opponent,
         item.claimedAmount ?? null,
         item.awardedAmount ?? null,
         item.openedAt,
-        item.responsibleStaff?.name ?? "",
+        responsibleLawyer,
         item.shareWithClient,
         item.id,
       ]);
@@ -142,7 +161,7 @@ export const casesSheet: SheetBuilder = {
 
 /** ── Honorários de êxito (caseFees) ─────────────────────────────────────── */
 
-const CASE_FEES_COLUMNS: ColumnSpec[] = [
+export const CASE_FEES_COLUMNS: ColumnSpec[] = [
   { header: "Número do processo", type: "text", width: 22 },
   { header: "Apelido do caso", type: "text", width: 26 },
   { header: "Percentual (%)", type: "decimal", width: 14 },
@@ -199,11 +218,23 @@ export const caseFeesSheet: SheetBuilder = {
     });
 
     for (const item of fees) {
-      const caseNumber = showCaseData ? (item.case?.caseNumber ?? "") : "";
-      const caseName = showCaseData ? (item.case?.nickname ?? "") : "";
-      // Sem includeCase,Observações não sai (sigilo: não expõe nota interna
-      // do honorário sem o contexto do processo).
-      const notes = showCaseData ? (item.notes ?? "") : "";
+      // Com anonymize, número do processo e apelido saem mascarados (mesma
+      // regra da aba Processos). Sem includeCase, saem vazios.
+      const caseNumber = showCaseData
+        ? ctx.options.anonymize
+          ? (anonymizeName(item.case?.caseNumber ?? null) ?? "")
+          : (safeText(item.case?.caseNumber ?? null) ?? "")
+        : "";
+      const caseName = showCaseData
+        ? ctx.options.anonymize
+          ? (anonymizeName(item.case?.nickname ?? null) ?? "")
+          : (safeText(item.case?.nickname ?? null) ?? "")
+        : "";
+      // Sem includeCase, Observações não sai (sigilo: não expõe nota interna
+      // do honorário sem o contexto do processo). Com anonymize, Observações
+      // sai vazia mesmo com includeCase ligado: a nota interna do escritório
+      // não é mascarável campo a campo.
+      const notes = showCaseData && !ctx.options.anonymize ? (safeText(item.notes) ?? "") : "";
 
       addRow(sheet, CASE_FEES_COLUMNS, [
         caseNumber,

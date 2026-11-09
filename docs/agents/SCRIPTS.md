@@ -50,12 +50,16 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `db:push` | `prisma db push` | **altera banco** | Postgres | Push sem migration (dev) |
 | `db:push:prod` | `node -e "… process.exit(1)"` | bloqueio | — | **Bloqueado** de propósito |
 | `docs:check` | `node scripts/check-docs.mjs` | leitura | Node | Valida inventários documentais + lista de módulos vs disco |
+| `ocr:tessdata` | `node scripts/fetch-ocr-tessdata.mjs` | escrita (arquivo local) + **rede** | rede (build/preparação) | Baixa o traineddata do Tesseract (`eng`, `por`) para `OCR_TESSDATA_PATH` (padrão `.tesseract-cache`). **Roda no build, nunca em runtime.** `--lang=eng`, `--cache-dir=…`, `--base-url=file://…` (origem local para build offline) |
+| `ocr:bench` | `tsx scripts/ocr-preprocess-bench.ts` | leitura (cache em `tmpdir`) | traineddata local | Benchmark do pré-processamento do OCR com Tesseract real: acerto exato, acerto normalizado, falso confiante e confiança média por campo e por variante (dataset sintético degradado, **nenhuma foto real**). `--config=linha-de-base\|step:<etapa>\|final\|todas:<etapa,...>`, `--ablacao` (decisão de adoção por etapa), `--tabelas --final=<config>` (comparativo) |
+| `ocr:custo` | `tsx scripts/ocr-custo-bench.ts` | leitura | traineddata local | Custo do OCR: tempo por imagem e RAM de pico, com e sem pré-processamento, incluindo o idle de 60 s do worker. `--modo=sem-preprocess\|com-preprocess`, `--largura=<px>`, `--altura=<px>` (medir com `/usr/bin/time -l`) |
 | `verify:delivery` | `node scripts/verify-delivery.mjs` | leitura | `npm install` | Encadeia docs, typecheck, unit e security (sem produção) |
 | `whatsappai:check` | `node scripts/check-whatsapp-ai-config.mjs` | leitura | env (`.env`) | Confere env do atendente de IA no WhatsApp (instância própria, segredo do webhook, Redis/DB) e imprime a URL de webhook a configurar na Evolution. Aceita `--env=<arquivo>` |
 
 ## Observações críticas
 
 - **Não existe script `lint`** neste `package.json`. Não recomendar `npm run lint` no backend.
+- **`spikes/**` está fora do vitest** (`vitest.config.mts` → `exclude`). O spike `spikes/ocr-benchmark` roda com runner próprio (`node:test` via `tsx`, script `test` do `package.json` do spike). Se alguém remover o exclude, a suíte volta a falhar com "No test suite found in file" nos `.test.ts` do spike.
 - Prisma no código: **6.4.0** (`@prisma/client`, `prisma`). Não documentar como 7.x.
 - Produção: preferir `prisma migrate deploy` (`start:prod` / `prisma:migrate:prod`). `db:push` não é caminho de produção.
 - Migrations: ver também `docs/RUNBOOK_MIGRATIONS.md`.

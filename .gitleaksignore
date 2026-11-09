@@ -1,20 +1,21 @@
-# Gitleaksignore — RASCUNHO, NÃO APLICADO
+# Gitleaksignore — APLICADO
 #
-# Este arquivo NÃO é lido pelo gitleaks: o scanner só procura `.gitleaksignore`
-# na raiz do repositório (flag `-i`, default "."). Ele fica aqui como rascunho
-# para ser movido para a raiz DEPOIS da rotação dos segredos.
+# Este arquivo é lido pelo gitleaks: o scanner procura `.gitleaksignore` na raiz
+# do repositório (flag `-i`, default "."). Movido para cá em 2026-11-06.
 #
-# Para aplicar (após rotacionar — ver a tabela abaixo):
-#   git mv docs/security/gitleaksignore.draft .gitleaksignore
-#   git commit -m "ci(secrets): ignora fingerprints historicos ja rotacionados"
+# ⚠️ ATENÇÃO — A ROTAÇÃO DOS SEGREDOS DA SEÇÃO A CONTINUA PENDENTE.
+# Este arquivo apenas silencia findings já conhecidos do histórico; ele NÃO
+# invalida credenciais. Antes de usar qualquer um dos valores abaixo em
+# produção, rotacione no provedor (ZAPI / Evolution API / Asaas) e atualize a
+# tabela de status.
 #
 # Formato: uma linha por fingerprint, exatamente como o gitleaks imprime em
-# `Fingerprint:` (comsha completo : arquivo : regra : linha).
+# `Fingerprint:` (commit completo : arquivo : regra : linha).
 # Validado com zricethezav/gitleaks:v8.24.3 (mesma imagem do CI).
 #
 # ---------------------------------------------------------------------------
-# A) Credenciais HISTÓRICAS reais em .env — exigem ROTAÇÃO no provedor antes
-#    de qualquer ignore. Nenhum valor está descrito aqui, só o nome da env.
+# A) Credenciais HISTÓRICAS reais em .env — ROTAÇÃO no provedor PENDENTE.
+#    Nenhum valor está descrito aqui, só o nome da env.
 # ---------------------------------------------------------------------------
 # commit                arquivo  env                  provedor      acao
 # 90b2a7ba4075ee0e...   .env:15  ZAPI_INSTANCE_ID     ZAPI          rotacionar

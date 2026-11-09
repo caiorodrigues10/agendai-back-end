@@ -7,7 +7,7 @@
  * abas — cada aba tem a sua própria contagem de linhas.
  */
 import { prisma } from "@/libs/prismaClient";
-import type { ImportEntityType, ImportRowStatus } from "@prisma/client";
+import type { ImportEntityType, ImportRowStatus, Prisma } from "@prisma/client";
 
 export interface ImportRowResultData {
   batchId: string;
@@ -22,9 +22,15 @@ export interface ImportRowResultData {
 }
 
 export class ImportRowResultRepository {
-  async createMany(rows: ImportRowResultData[]) {
+  /**
+   * `tx` mantém a escrita na mesma conexão da transação que processou a linha:
+   * sem ele o `prisma` global abriria outra conexão do pool (fora da
+   * transação e sem o GUC de RLS), quebrando a atomicidade do lote.
+   */
+  async createMany(rows: ImportRowResultData[], tx?: Prisma.TransactionClient) {
     if (!rows.length) return { count: 0 };
-    return prisma.importRowResult.createMany({
+    const client = tx ?? prisma;
+    return client.importRowResult.createMany({
       data: rows.map((row) => ({
         batchId: row.batchId,
         barbershopId: row.barbershopId,
@@ -52,7 +58,12 @@ export class ImportRowResultRepository {
   ) {
     return prisma.importRowResult.updateMany({
       where: { batchId, sheetName, rowNumber },
-      data: data as never,
+      data: {
+        status: data.status,
+        ...(data.entityType !== undefined ? { entityType: data.entityType } : {}),
+        ...(data.entityId !== undefined ? { entityId: data.entityId } : {}),
+        ...(data.errorMessage !== undefined ? { errorMessage: data.errorMessage } : {}),
+      },
     });
   }
 

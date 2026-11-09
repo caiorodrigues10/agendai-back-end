@@ -1,4 +1,5 @@
 import { prisma } from "@/libs/prismaClient";
+import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
 import {
   decryptNotificationPayload,
@@ -296,8 +297,8 @@ export async function recordTerminalNotificationFailure(
 ): Promise<void> {
   const safe = sanitizeNotificationError(error);
   const purgeAfter = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  await prisma.$transaction([
-    prisma.notificationDelivery.update({
+  await rlsTransaction(async (tx) => {
+    await tx.notificationDelivery.update({
       where: { id: deliveryId },
       data: {
         status: "FAILED",
@@ -305,12 +306,12 @@ export async function recordTerminalNotificationFailure(
         errorMessage: safe.message,
         failedAt: new Date(),
       },
-    }),
-    prisma.notificationOutbox.update({
+    });
+    await tx.notificationOutbox.update({
       where: { deliveryId },
       data: { purgeAfter },
-    }),
-  ]);
+    });
+  });
 }
 
 export function encryptedPayloadFromRecord(record: any): EncryptedNotificationPayload {

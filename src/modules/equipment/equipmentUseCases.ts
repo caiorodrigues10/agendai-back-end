@@ -23,6 +23,26 @@ type MovementQuery = z.infer<typeof movementListQuerySchema>;
 type NeedQuery = z.infer<typeof needListQuerySchema>;
 type DashboardQuery = z.infer<typeof dashboardQuerySchema>;
 
+/** Defaults aplicados quando só um dos parâmetros de paginação é informado. */
+export const EQUIPMENT_DEFAULT_PAGE = 1;
+export const EQUIPMENT_DEFAULT_LIMIT = 20;
+
+/**
+ * Normaliza a paginação opcional das listagens de equipamento.
+ * - Sem `page` e sem `limit` → undefined (modo legado: traz tudo).
+ * - Com apenas um deles → completa o outro com o default.
+ */
+export function resolveEquipmentPagination(query: {
+  page?: number;
+  limit?: number;
+}): { page: number; limit: number } | undefined {
+  if (query.page === undefined && query.limit === undefined) return undefined;
+  return {
+    page: query.page ?? EQUIPMENT_DEFAULT_PAGE,
+    limit: query.limit ?? EQUIPMENT_DEFAULT_LIMIT,
+  };
+}
+
 export class EquipmentUseCases {
   private repo = new EquipmentRepository();
 
@@ -34,7 +54,7 @@ export class EquipmentUseCases {
       isActive: query.isActive,
       condition: query.condition,
       search: query.search,
-    });
+    }, resolveEquipmentPagination(query));
   }
 
   async getEquipment(id: string, barbershopId: string) {
@@ -114,7 +134,7 @@ export class EquipmentUseCases {
       type: query.type,
       dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
       dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
-    });
+    }, resolveEquipmentPagination(query));
   }
 
   async createMovement(barbershopId: string, data: CreateMovementInput, staffId?: string) {
@@ -169,7 +189,7 @@ export class EquipmentUseCases {
     return this.repo.listNeeds(barbershopId, {
       status: query.status,
       priority: query.priority,
-    });
+    }, resolveEquipmentPagination(query));
   }
 
   async createNeed(barbershopId: string, data: CreateNeedInput) {
@@ -186,7 +206,7 @@ export class EquipmentUseCases {
   // ─── Dashboard ───────────────────────────────────────────
 
   async getDashboard(barbershopId: string, query: DashboardQuery) {
-    const [summary, lowStockItems, pendingNeedsList, recentNeeds] = await Promise.all([
+    const [summary, lowStockItems, pendingNeeds, recentNeeds] = await Promise.all([
       this.repo.countByBarbershop(barbershopId),
       this.repo.getLowStockItems(barbershopId),
       this.repo.listNeeds(barbershopId, { status: "requested" }),
@@ -196,8 +216,8 @@ export class EquipmentUseCases {
     return {
       ...summary,
       lowStockItems,
-      pendingNeedsList: pendingNeedsList.slice(0, 10),
-      recentNeeds: recentNeeds.slice(0, 5),
+      pendingNeedsList: pendingNeeds.items.slice(0, 10),
+      recentNeeds: recentNeeds.items.slice(0, 5),
     };
   }
 
@@ -207,7 +227,7 @@ export class EquipmentUseCases {
     if (equip.minQuantity > 0 && equip.quantityAvailable < equip.minQuantity) {
       // Check if there's already an open REQUESTED need for this equipment
       const existing = await this.repo.listNeeds(equip.barbershopId, { status: "requested" });
-      const alreadyHasNeed = existing.some((n: { equipmentId: string | null }) => n.equipmentId === equip.id);
+      const alreadyHasNeed = existing.items.some((n: { equipmentId: string | null }) => n.equipmentId === equip.id);
       if (!alreadyHasNeed) {
         await this.repo.createNeed({
           barbershopId: equip.barbershopId,

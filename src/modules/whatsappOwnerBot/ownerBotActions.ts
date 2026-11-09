@@ -355,7 +355,14 @@ export interface OwnerBotActions {
   closeout(barbershopId: string, date: Date): Promise<Record<string, unknown>>;
   listExpenses(
     barbershopId: string,
-    query: { from?: Date; to?: Date; search?: string; paid?: boolean; limit?: number }
+    query: {
+      from?: string;
+      to?: string;
+      search?: string;
+      paid?: boolean;
+      limit?: number;
+      timeZone?: string;
+    }
   ): Promise<IExpenseResponseDTO[]>;
   expenseSummary(
     barbershopId: string,
@@ -521,8 +528,9 @@ export interface OwnerBotActions {
       id: string;
       name: string;
       salePrice: number;
-      stockQuantity?: number;
-      minimumStock?: number | null;
+      stockQty?: number;
+      minStock?: number | null;
+      trackStock?: boolean;
       active?: boolean;
     }>
   >;
@@ -533,6 +541,10 @@ export interface OwnerBotActions {
   ): Promise<Record<string, unknown>>;
   stockAlerts(barbershopId: string): Promise<
     Array<{ id: string; name: string; stockQuantity?: number; minimumStock?: number | null }>
+  >;
+  /** Produtos em estoque baixo (definição única de `products`). */
+  lowStockProducts(barbershopId: string): Promise<
+    Array<{ id: string; name: string; stockQty: number; minStock: number }>
   >;
 
   // ─── auditing, preferências e campanhas ───────────────────────────────────
@@ -980,6 +992,7 @@ export function createOwnerBotActions(): OwnerBotActions {
           to: query.to,
           search: query.search,
           paid: query.paid,
+          timeZone: query.timeZone,
         },
         { role: "OWNER", barbershopId }
       );
@@ -1197,6 +1210,15 @@ export function createOwnerBotActions(): OwnerBotActions {
         to
       )) as Record<string, unknown>;
       return reports;
+    },
+
+    async lowStockProducts(barbershopId) {
+      const useCase = container.resolve(ProductCatalogUseCase);
+      return (await useCase.lowStockProducts(barbershopId, {
+        id: "owner-bot",
+        role: "OWNER",
+        barbershopId,
+      })) as Array<{ id: string; name: string; stockQty: number; minStock: number }>;
     },
 
     async stockAlerts(barbershopId) {

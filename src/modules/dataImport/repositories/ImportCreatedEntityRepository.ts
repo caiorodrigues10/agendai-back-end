@@ -10,7 +10,7 @@
  *     o horário do dia, o preço do produto): o desfazer restaura o valor.
  */
 import { prisma } from "@/libs/prismaClient";
-import type { ImportEntityType } from "@prisma/client";
+import type { ImportEntityType, Prisma } from "@prisma/client";
 
 export interface ImportCreatedEntityData {
   entityType: ImportEntityType;
@@ -20,19 +20,26 @@ export interface ImportCreatedEntityData {
 }
 
 export class ImportCreatedEntityRepository {
+  /**
+   * `tx` mantém a escrita na mesma conexão da transação que processou a linha:
+   * sem ele o `prisma` global abriria outra conexão do pool (fora da
+   * transação e sem o GUC de RLS), quebrando a atomicidade do lote.
+   */
   async createMany(
     batchId: string,
     barbershopId: string,
     entities: ImportCreatedEntityData[],
+    tx?: Prisma.TransactionClient,
   ) {
     if (!entities.length) return { count: 0 };
-    return prisma.importCreatedEntity.createMany({
+    const client = tx ?? prisma;
+    return client.importCreatedEntity.createMany({
       data: entities.map((entity) => ({
         batchId,
         barbershopId,
         entityType: entity.entityType,
         entityId: entity.entityId,
-        previousState: (entity.previousState ?? null) as never,
+        previousState: (entity.previousState ?? null) as Prisma.InputJsonValue,
       })),
       skipDuplicates: true,
     });

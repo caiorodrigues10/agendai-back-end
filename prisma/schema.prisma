@@ -994,6 +994,10 @@ model CommissionEntry {
   professionalId String   @db.Uuid
   percentage     Float    @db.Real
   amount         Float    @db.Real
+  /// Data/hora do LANÇAMENTO da comissão (timestamp, não data).
+  /// O filtro de período (`from`/`to`) da listagem de comissões opera sobre
+  /// ESTE campo — não sobre a data do serviço/agendamento — convertido para o
+  /// dia civil do fuso do salão (`civilDayBounds`).
   createdAt      DateTime @default(now())
   appointmentId  String?  @db.Uuid
 
@@ -1875,7 +1879,7 @@ model PostMedia {
   objectName     String     @db.Text
   mimeType       String     @db.VarChar(80)
   size           Int
-  inGallery      Boolean    @default(false)
+  inGallery      Boolean    @default(true)
   createdAt      DateTime   @default(now())
   barbershop     Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
   uploadedBy     User?      @relation("PostMediaUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)

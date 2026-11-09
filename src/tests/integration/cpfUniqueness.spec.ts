@@ -35,10 +35,13 @@ function validCpf(seed: number): string {
   return base + d1 + d2;
 }
 
-const useCase = new RegisterUseCase({
-  hash: async (v: string) => `hashed:${v}`,
-  compare: async () => true,
-} as never);
+const useCase = new RegisterUseCase(
+  {
+    hash: async (v: string) => `hashed:${v}`,
+    compare: async () => true,
+  } as never,
+  { verify: async () => ({ status: "unavailable" } as const) } as never,
+);
 
 function registerInput(cpf: string, tag: string) {
   return {

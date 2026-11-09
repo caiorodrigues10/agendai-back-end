@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppTx } from "@/libs/prismaClient";
 import { importAppointmentRow } from "./appointmentImporter";
 import type { ImportRowContext } from "./importRowContext";
+import { txDeTeste } from "./testUtils";
 
 const {
   serviceFindFirst,
@@ -25,13 +26,14 @@ const {
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: {} }));
 
-const tx = {
+const txMock = {
   service: { findFirst: serviceFindFirst },
   salonClient: { findFirst: salonClientFindFirst, create: salonClientCreate },
   user: { findMany: userFindMany },
   appointment: { findFirst: appointmentFindFirst, create: appointmentCreate },
   clientCase: { findFirst: clientCaseFindFirst, create: clientCaseCreate },
-} as unknown as AppTx;
+};
+const tx = txDeTeste(txMock);
 
 const SHOP = "shop-1";
 

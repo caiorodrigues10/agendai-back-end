@@ -15,6 +15,14 @@ import {
   salonClientPublicWhatsapp,
   upsertSalonClientRecord,
 } from "../../utils/ensureSalonClient";
+import {
+  buildSalonClientListWhere,
+  buildSalonClientOrderBy,
+} from "../../repositories/salonClientListWhere";
+import {
+  activePackageWhere,
+  isPackageActive,
+} from "../../repositories/clientPackageActive";
 
 type ClientListRecord = Prisma.SalonClientGetPayload<{
   include: {
@@ -87,9 +95,13 @@ function mapDetail(record: ClientDetailRecord): ISalonClientResponseDTO {
       clientPackageId: a.clientPackageId,
     })
   );
-  const remainingSessions = packages
-    .filter((p) => p.status === "ACTIVE")
-    .reduce((sum, p) => sum + p.remainingSessions, 0);
+  const activePackages = record.packages.filter(
+    (p) => p.barbershopId === record.barbershopId && isPackageActive(p)
+  );
+  const remainingSessions = activePackages.reduce(
+    (sum, p) => sum + p.remainingSessions,
+    0
+  );
 
   return {
     id: record.id,
@@ -104,18 +116,25 @@ function mapDetail(record: ClientDetailRecord): ISalonClientResponseDTO {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     remainingSessions,
-    activePackageCount: packages.filter((p) => p.status === "ACTIVE").length,
+    activePackageCount: activePackages.length,
     packages,
     appointments,
   };
 }
 
-const listInclude = {
+/**
+ * Pacotes considerados na contagem da listagem: ativos (ACTIVE, com sessão
+ * restante e não vencido) e do mesmo salão em contexto. A regra é a mesma do
+ * filtro `hasActivePackage` — ver `repositories/clientPackageActive.ts`.
+ *
+ * É função (e não constante) porque `expiresAt` é avaliado a cada consulta.
+ */
+const listInclude = (barbershopId: string) => ({
   packages: {
-    where: { status: "ACTIVE" as const },
+    where: activePackageWhere(barbershopId),
     select: { remainingSessions: true },
   },
-};
+});
 
 const detailInclude = {
   packages: {
@@ -204,24 +223,15 @@ export class SalonClientRepository implements ISalonClientRepository {
     query: ISalonClientListQuery & { barbershopId: string }
   ): Promise<{ data: ISalonClientResponseDTO[]; total: number }> {
     const skip = (query.page - 1) * query.limit;
-    const where: Prisma.SalonClientWhereInput = {
-      barbershopId: query.barbershopId,
-    };
-    if (query.search) {
-      const digits = query.search.replace(/\D/g, "");
-      where.OR = [
-        { name: { contains: query.search, mode: "insensitive" } },
-        ...(digits ? [{ whatsapp: { contains: digits } }] : []),
-      ];
-    }
+    const where = buildSalonClientListWhere(query, query.barbershopId);
 
     const [records, total] = await Promise.all([
       prisma.salonClient.findMany({
         where,
         skip,
         take: query.limit,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
-        include: listInclude,
+        orderBy: buildSalonClientOrderBy(query.sort),
+        include: listInclude(query.barbershopId),
       }),
       prisma.salonClient.count({ where }),
     ]);

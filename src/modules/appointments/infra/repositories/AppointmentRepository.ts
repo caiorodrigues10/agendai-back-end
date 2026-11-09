@@ -1,5 +1,10 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/libs/prismaClient'
+import { utcDayBounds } from '@/shared/utils/dateUtils'
+import {
+	buildAppointmentListWhere,
+	buildAppointmentOrderBy,
+} from '../../repositories/appointmentListWhere'
 import { IAppointmentRepository } from '../../repositories/IAppointmentRepository'
 import {
 	ICreateAppointmentDTO,
@@ -66,15 +71,6 @@ const include = {
 	productReservations: true,
 } as const
 
-/** Limites UTC do dia civil. `new Date("YYYY-MM-DD")` + `setDate` no fuso local desloca o intervalo e some o agendamento. */
-function utcDayBounds(isoDate: string): { gte: Date; lt: Date } {
-	const [year, month, day] = isoDate.split("-").map(Number);
-	return {
-		gte: new Date(Date.UTC(year, month - 1, day)),
-		lt: new Date(Date.UTC(year, month - 1, day + 1)),
-	};
-}
-
 /** YYYY-MM-DD no fuso America/Sao_Paulo (mesmo padrão de comparação de date do módulo). */
 function todayInSaoPaulo(): string {
 	return new Intl.DateTimeFormat('en-CA', {
@@ -127,34 +123,14 @@ export class AppointmentRepository implements IAppointmentRepository {
 	): Promise<{ data: IAppointmentResponseDTO[]; total: number }> {
 		const skip = (query.page - 1) * query.limit
 
-		const where: Prisma.AppointmentWhereInput = { barbershopId }
-
-		if (query.date) {
-			const { gte, lt } = utcDayBounds(query.date)
-			where.date = { gte, lt }
-		} else if (query.from || query.to) {
-			// Intervalo civil (mesma convenção de datas UTC do filtro por dia);
-			// o frontend pagina o período visível do painel por aqui.
-			where.date = {
-				...(query.from ? { gte: utcDayBounds(query.from).gte } : {}),
-				...(query.to ? { lt: utcDayBounds(query.to).lt } : {}),
-			}
-		}
-		if (query.status) where.status = query.status
-		if (query.staffId) where.staffId = query.staffId
-		if (query.search) {
-			where.OR = [
-				{ customerName: { contains: query.search, mode: 'insensitive' } },
-				{ whatsapp: { contains: query.search } },
-			]
-		}
+		const where = buildAppointmentListWhere(barbershopId, query)
 
 		const [records, total] = await Promise.all([
 			prisma.appointment.findMany({
 				where,
 				skip,
 				take: query.limit,
-				orderBy: [{ date: 'asc' }, { time: 'asc' }, { id: 'asc' }],
+				orderBy: buildAppointmentOrderBy(query.sort),
 				include,
 			}),
 			prisma.appointment.count({ where }),

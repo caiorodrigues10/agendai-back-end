@@ -37,7 +37,7 @@ import {
 } from "../services/postImageStorageService";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { whatsAppNotConnectedError } from "@/modules/barbershops/utils/shopEvolutionInstance";
-import { availablePostTemplates, listPostTemplates } from "../services/postTemplates";
+import { availablePostTemplates, defaultPostFormat, listPostTemplates } from "../services/postTemplates";
 import { loadPostStockImage } from "../services/postStockImages";
 import { assertOwnedPostVideo } from "../services/postVideoOwnership";
 import { POST_PALETTES, listPostPalettes } from "../services/postPalettes";
@@ -210,7 +210,14 @@ async function loadExternalImageUrl(url: string): Promise<string | null> {
   }
 }
 
+function assertPostTemplateKey(templateKey: string): void {
+  if (!listPostTemplates().some(template => template.key === templateKey)) {
+    throw new AppError("Modelo de post não encontrado", 400);
+  }
+}
+
 async function assertRequiredPostMedia(post: { barbershopId: string; templateKey: string; primaryMediaId: string | null; secondaryMediaId: string | null; designOptions?: unknown }) {
+  assertPostTemplateKey(post.templateKey);
   const shop = await prisma.barbershop.findUnique({ where: { id: post.barbershopId }, select: { businessSegment: true, targetAudience: true } });
   if (!shop) throw new AppError("Estabelecimento não encontrado", 404);
   const template = availablePostTemplates(shop, true).find(item => item.key === post.templateKey);
@@ -381,6 +388,9 @@ async function buildPostImage(
     renderPreview?: boolean;
   }
 ) {
+  const templateKey = opts.templateKey ?? "agenda-aberta";
+  assertPostTemplateKey(templateKey);
+  const format = opts.format ?? defaultPostFormat(templateKey);
   const { barbershop, services, schedule } = await loadPostContext(barbershopId);
   const template = availablePostTemplates(barbershop, true).find(item => item.key === (opts.templateKey ?? "agenda-aberta"));
   if (!template) throw new AppError("Selecione um modelo disponível para a categoria do estabelecimento", 400);
@@ -395,8 +405,8 @@ async function buildPostImage(
     barbershop.logoUrl ? loadExternalImageUrl(barbershop.logoUrl) : Promise.resolve(null),
   ]);
   // price-split: motor de camadas (pool v2), não o fluxo SVG legado.
-  if (opts.templateKey === "price-split") {
-    return buildPriceSplitImage(barbershopId, opts, { barbershop, services, schedule }, primaryImageUrl, logoDataUrl);
+  if (templateKey === "price-split") {
+    return buildPriceSplitImage(barbershopId, { ...opts, format }, { barbershop, services, schedule }, primaryImageUrl, logoDataUrl);
   }
   const stockImageUrl = primaryImageUrl ? null : loadPostStockImage(template.businessCategory ? template.stockImageKey : template.stockImageKey ? profile.stock : undefined);
   const illustrativeBackground = Boolean(stockImageUrl && template?.stockImageKey?.startsWith("promo-"));
@@ -408,8 +418,8 @@ async function buildPostImage(
     postMode: opts.postMode,
     ctaText,
     title,
-    templateKey: opts.templateKey,
-    format: opts.format,
+    templateKey,
+    format,
     paletteKey: opts.paletteKey,
     designOptions: opts.designOptions ?? (legal && opts.renderPreview ? { legalPost: {
       professionalName: barbershop.name, registration: 'Sua inscrição na OAB',
@@ -452,6 +462,7 @@ export class PostsController {
   async preview(request: FastifyRequest, reply: FastifyReply) {
     const query = previewPostQuerySchema.parse(request.query);
     assertSameBarbershop(request.user!, query.barbershopId);
+    assertPostTemplateKey(query.templateKey);
     const imageUrl = await buildPostImage(query.barbershopId, {
       postMode: query.postMode,
       title: query.title,
@@ -506,6 +517,7 @@ export class PostsController {
     const body = createPostSchema.parse(request.body);
 
     assertSameBarbershop(user, body.barbershopId);
+    assertPostTemplateKey(body.templateKey ?? "agenda-aberta");
     const selectedTemplate = listPostTemplates(true).find(template => template.key === (body.templateKey ?? 'agenda-aberta'));
     const resolvedTitle = body.title?.trim() || selectedTemplate?.sampleTitle || 'Conheça nossos serviços';
     const resolvedCta = body.ctaText?.trim() || (selectedTemplate?.businessCategory === 'advocacia' ? legalDefaultCta(body.templateKey) : defaultCtaText(body.postMode));
@@ -536,7 +548,7 @@ export class PostsController {
         ctaText: resolvedCta,
         postMode: body.postMode,
         templateKey: body.templateKey ?? "agenda-aberta",
-        format: body.format ?? "square",
+        format: body.format,
         paletteKey: body.paletteKey ?? "brand",
         designOptions: body.designOptions ?? undefined,
         primaryMediaId: body.primaryMediaId,
@@ -561,7 +573,7 @@ export class PostsController {
           postMode: POST_MODE_MAP[body.postMode],
           ctaText: resolvedCta,
           templateKey: body.templateKey ?? "agenda-aberta",
-          format: (body.format ?? "square").toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
+          format: (body.format ?? defaultPostFormat(body.templateKey)).toUpperCase() as "SQUARE" | "PORTRAIT" | "STORY",
           paletteKey: body.paletteKey ?? "brand",
           designOptions: mergeDesignOptions(undefined, body.designOptions, body.priceSplit),
           primaryMediaId: body.primaryMediaId ?? null,
@@ -612,6 +624,7 @@ export class PostsController {
     if (!existing) throw new AppError("Post não encontrado", 404);
 
     assertSameBarbershop(user, existing.barbershopId);
+    assertPostTemplateKey(body.templateKey ?? existing.templateKey);
 
     assertOwnedPostVideo(body.videoUrl, existing.barbershopId);
 

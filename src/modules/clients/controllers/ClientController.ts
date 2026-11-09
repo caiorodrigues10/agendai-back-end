@@ -1,6 +1,9 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { container } from "tsyringe";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
+import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 import {
   CreateSalonClientUseCase,
   DeleteSalonClientUseCase,
@@ -44,27 +47,20 @@ export class ClientController {
     const user = request.user!;
     const query = listClientsQuerySchema.parse(request.query);
 
-    const barbershopId =
-      user.role === "MASTER_ADMIN"
-        ? ((request.query as { barbershopId?: string }).barbershopId ?? "")
-        : user.barbershopId ?? "";
-
-    if (!barbershopId) {
-      throw new AppError("barbershopId é obrigatório", 400);
-    }
+    const barbershopId = resolveBarbershopId(
+      request.user!,
+      (request.query as { barbershopId?: string }).barbershopId ?? null,
+    );
+    // O dia civil do filtro de criação é o do salão (`Barbershop.timezone`).
+    const timeZone = await getShopTimezone(barbershopId);
 
     const useCase = container.resolve(ListSalonClientsUseCase);
-    const result = await useCase.execute({ ...query, barbershopId }, user);
+    const result = await useCase.execute({ ...query, barbershopId, timeZone }, user);
 
     reply.send({
       success: true,
       data: result.data,
-      meta: {
-        total: result.total,
-        page: query.page,
-        limit: query.limit,
-        totalPages: Math.ceil(result.total / query.limit) || 1,
-      },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 

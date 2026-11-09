@@ -41,9 +41,9 @@ const PNG_MAGIC = "89504e470d0a1a0a";
 function heavySvg(rects: number): string {
   let body = "";
   for (let i = 0; i < rects; i++) {
-    body += `<rect x="${i % 1080}" y="${(i * 7) % 1000}" width="40" height="30" fill="#10a"/>`;
+    body += `<rect x="${i % 1080}" y="${(i * 7) % 1000}" width="40" height="30" fill="#10a" filter="url(#b)"/>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><rect width="1080" height="1080" fill="#0B0F19"/>${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><defs><filter id="b"><feGaussianBlur stdDeviation="1"/></filter></defs><rect width="1080" height="1080" fill="#0B0F19"/>${body}</svg>`;
 }
 
 async function expectAppError(
@@ -102,7 +102,7 @@ describe("postRenderPool", () => {
 
   it("timeout por render vira AppError e o worker preso é substituído", async () => {
     process.env.POST_RENDER_TIMEOUT_MS = "1000";
-    const err = await expectAppError(renderSvgToPng(heavySvg(300_000)), "POST_RENDER_TIMEOUT");
+    const err = await expectAppError(renderSvgToPng(heavySvg(30_000)), "POST_RENDER_TIMEOUT");
     expect(err.statusCode).toBe(503);
 
     // O worker preso é destruído no timeout e o pool recria a thread sob

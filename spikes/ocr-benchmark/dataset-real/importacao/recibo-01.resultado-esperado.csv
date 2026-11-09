@@ -1,0 +1,2 @@
+arquivo,linha,status,campo,mensagem,avisos,parcelas_efetivas,verificacao_banco
+recibo-01,1,FAILED,caseNumber,Número do processo ou apelido do caso é obrigatório.,,1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline

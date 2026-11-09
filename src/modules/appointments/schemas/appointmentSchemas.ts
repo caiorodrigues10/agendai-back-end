@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isValidDate, isNotPast, isWithinHorizon, isBusinessHour } from '@/shared/utils/dateUtils'
+import { paginationQuerySchema as basePaginationQuerySchema, sortSchema } from '@/shared/utils/pagination'
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/
 
@@ -74,22 +75,74 @@ export const slotsQuerySchema = availabilityQuerySchema.extend({
 	serviceId: z.string().uuid('serviceId inválido'),
 })
 
-export const listAppointmentsQuerySchema = z.object({
-	page: z.coerce.number().int().min(1).default(1),
-	limit: z.coerce.number().int().min(1).max(100).default(20),
-	date: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/)
-		.optional(),
-	/** Intervalo civil (YYYY-MM-DD). `date` tem precedência quando presente. */
-	from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-	to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-	status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED', 'CHECKED_IN', 'NO_SHOW']).optional(),
-	staffId: z.string().uuid().optional(),
-	search: z.string().max(100).optional(),
+/** Valores aceitos no filtro de status (enum `AppointmentStatus` do schema.prisma). */
+export const APPOINTMENT_STATUS_VALUES = [
+  'CONFIRMED',
+  'CANCELLED',
+  'COMPLETED',
+  'CHECKED_IN',
+  'NO_SHOW',
+] as const
+
+/** Máximo de status aceitos em uma mesma listagem. */
+export const MAX_APPOINTMENT_STATUS_FILTER = 5
+
+/**
+ * Filtro de status que aceita **um** valor (como antes) ou uma lista
+ * separada por vírgula: `status=CONFIRMED,COMPLETED`.
+ *
+ * Lista vazia (`status=` ou `status=,,`) e valor fora do enum são 400.
+ */
+const appointmentStatusListSchema = z
+  .string()
+  .transform((value, ctx) => {
+    const parts = value
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+
+    if (parts.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Lista de status vazia',
+        path: ['status'],
+      })
+      return z.NEVER
+    }
+    return parts
+  })
+  .pipe(
+    z
+      .array(z.enum(APPOINTMENT_STATUS_VALUES))
+      .max(
+        MAX_APPOINTMENT_STATUS_FILTER,
+        `No máximo ${MAX_APPOINTMENT_STATUS_FILTER} status por listagem`,
+      ),
+  )
+  .optional()
+
+export const listAppointmentsQuerySchema = basePaginationQuerySchema({
+  defaultLimit: 20,
+  maxLimit: 100,
+}).extend({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  /** Intervalo civil (YYYY-MM-DD). `date` tem precedência quando presente. */
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  /** Um status ou uma lista (`CONFIRMED,COMPLETED`). */
+  status: appointmentStatusListSchema,
+  staffId: z.string().uuid().optional(),
+  /** Serviço do agendamento. */
+  serviceId: z.string().uuid().optional(),
+  search: z.string().max(100).optional(),
+  /** Ordenação por data (asc/desc); horário acompanha na mesma direção. */
+  sort: sortSchema(['date']),
 }).refine((v) => !(v.from && v.to && v.from > v.to), {
-	message: '`from` não pode ser depois de `to`',
-	path: ['from'],
+  message: '`from` não pode ser depois de `to`',
+  path: ['from'],
 });
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>

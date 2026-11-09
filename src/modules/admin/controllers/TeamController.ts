@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { container } from "tsyringe";
 import { InviteTeamMemberUseCase } from "../useCases/team/InviteTeamMemberUseCase";
 import { ListTeamUseCase } from "../useCases/team/ListTeamUseCase";
 import { DeactivateMemberUseCase } from "../useCases/team/DeactivateMemberUseCase";
@@ -7,19 +8,26 @@ import { ResendInvitationUseCase } from "../useCases/team/ResendInvitationUseCas
 import { RevokeInvitationUseCase } from "../useCases/team/RevokeInvitationUseCase";
 import { AcceptInvitationUseCase } from "../useCases/team/AcceptInvitationUseCase";
 import { inviteTeamMemberSchema, updateMemberStatusSchema, acceptInvitationSchema } from "../schemas/internalSchemas";
+import { adminTeamQuerySchema } from "../schemas/adminTeamSchemas";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 import { prisma } from "@/libs/prismaClient";
 
 export class TeamController {
   async list(request: FastifyRequest, reply: FastifyReply) {
-    const query = request.query as any;
-    const useCase = new ListTeamUseCase();
-    const result = await useCase.execute({
-      page: query.page,
-      limit: query.limit,
-      search: query.search,
-      status: query.status,
+    // Filtros, paginação (default 25) e ordenação — validados por schema.
+    const query = adminTeamQuerySchema.parse(request.query);
+
+    const useCase = container.resolve(ListTeamUseCase);
+    const result = await useCase.execute(query);
+
+    // Formato preservado: o front do master lê `users`, `invitations` e `meta`
+    // na raiz da resposta.
+    return reply.send({
+      success: true,
+      users: result.users,
+      invitations: result.invitations,
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
-    return reply.send({ success: true, ...result });
   }
 
   async invite(request: FastifyRequest, reply: FastifyReply) {

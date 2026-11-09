@@ -32,9 +32,10 @@ const {
 import { importFiadoRow } from "./fiadoImporter";
 import type { ImportRowContext } from "./importRowContext";
 import type { ImportFieldKey } from "../dataImport.types";
+import { txDeTeste } from "./testUtils";
 
 const SHOP = "shop-1";
-const tx = txMock as unknown as AppTx;
+const tx = txDeTeste(txMock);
 
 function contexto(
   headers: string[],

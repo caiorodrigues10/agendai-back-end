@@ -26,6 +26,7 @@ vi.mock("@/libs/prismaClient", async () => {
   };
 });
 
+import { civilDayBounds } from "@/shared/utils/dateUtils";
 import { ExpenseRepository } from "./ExpenseRepository";
 
 type RawCall = { strings: string[]; values: unknown[] };
@@ -58,16 +59,103 @@ describe("ExpenseRepository.list", () => {
   });
 
   it("aplica a janela de referenceDate no findMany e no count", async () => {
-    const from = new Date("2026-09-01T00:00:00.000Z");
-    const to = new Date("2026-09-30T23:59:59.999Z");
-
-    await repo.list({ page: 1, limit: 10, barbershopId: "shop-1", from, to });
+    await repo.list({
+      page: 1,
+      limit: 10,
+      barbershopId: "shop-1",
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
 
     const listWhere = (findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
     const countWhere = (count.mock.calls[0][0] as { where: Record<string, unknown> }).where;
 
-    expect(listWhere.referenceDate).toEqual({ gte: from, lte: to });
-    expect(countWhere.referenceDate).toEqual({ gte: from, lte: to });
+    const window = {
+      gte: civilDayBounds("2026-09-01").gte,
+      lt: civilDayBounds("2026-09-30").lt,
+    };
+    expect(listWhere).toEqual({
+      barbershopId: "shop-1",
+      AND: [{ referenceDate: window }],
+    });
+    expect(countWhere).toEqual(listWhere);
+  });
+
+  it("filtros combinados: cada filtro vira uma cláusula em AND", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      categoryId: "cat-1",
+      type: "FIXED",
+      recurrence: "MONTHLY",
+      paymentMethod: "pix",
+      payment: ["overdue"],
+      search: "Aluguel",
+    });
+
+    const listWhere = (findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
+    expect(listWhere).toEqual({
+      barbershopId: "shop-1",
+      AND: [
+        { categoryId: "cat-1" },
+        { type: "FIXED" },
+        { recurrence: "MONTHLY" },
+        { paymentMethod: { equals: "pix", mode: "insensitive" } },
+        { paidAt: null },
+        { dueDate: { lt: expect.any(Date) } },
+        {
+          OR: [
+            { title: { contains: "Aluguel", mode: "insensitive" } },
+            { supplierName: { contains: "Aluguel", mode: "insensitive" } },
+            { notes: { contains: "Aluguel", mode: "insensitive" } },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("payment=paid: paidAt não nulo", async () => {
+    await repo.list({ page: 1, limit: 20, barbershopId: "shop-1", payment: ["paid"] });
+
+    const listWhere = (findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
+    expect(listWhere).toEqual({
+      barbershopId: "shop-1",
+      AND: [{ paidAt: { not: null } }],
+    });
+  });
+
+  it("sort por dueDate: nulls last e desempate por id", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      sort: { field: "dueDate", dir: "asc" },
+    });
+
+    const orderBy = (findMany.mock.calls[0][0] as {
+      orderBy: Array<Record<string, unknown>>;
+    }).orderBy;
+
+    expect(orderBy).toEqual([
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { id: "asc" },
+    ]);
+  });
+
+  it("sort por amount: coluna amount", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      sort: { field: "amount", dir: "desc" },
+    });
+
+    const orderBy = (findMany.mock.calls[0][0] as {
+      orderBy: Array<Record<string, unknown>>;
+    }).orderBy;
+
+    expect(orderBy).toEqual([{ amount: "desc" }, { id: "desc" }]);
   });
 });
 

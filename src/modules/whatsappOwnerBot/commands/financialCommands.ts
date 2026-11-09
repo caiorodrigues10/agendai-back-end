@@ -2,6 +2,7 @@ import { maskPhone } from "../messages";
 import { formatBRL, formatBRLShort, formatPercent } from "./money";
 import { ownerBotToday } from "./periods";
 import { findByName, numberedList, periodOrDefault, suggestionsLine } from "./helpers";
+import { shopDateKey } from "@/modules/financial/ledger/shopTime";
 import type { OwnerBotCommand, OwnerBotEntities, OwnerBotPeriod } from "./types";
 
 /**
@@ -173,9 +174,13 @@ export const financialCommands: OwnerBotCommand[] = [
       const period = periodOrDefault(entities, ctx, "month");
       const [expenses, summary] = await Promise.all([
         ctx.actions.listExpenses(ctx.actor.barbershopId, {
-          from: period.from,
-          to: period.to,
+          // A listagem filtra por dia civil (YYYY-MM-DD) em `referenceDate`;
+          // o período do bot é calculado no fuso do salão.
+          from: shopDateKey(period.from, ctx.timezone),
+          to: shopDateKey(period.to, ctx.timezone),
           limit: 8,
+          // O dia civil do filtro é o do salão (fuso do bot).
+          timeZone: ctx.timezone,
         }),
         ctx.actions.expenseSummary(ctx.actor.barbershopId, period.from, period.to),
       ]);

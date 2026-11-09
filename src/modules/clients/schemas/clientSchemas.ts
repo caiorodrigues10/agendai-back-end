@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  paginationQuerySchema as basePaginationQuerySchema,
+  searchTermSchema,
+  dateOnlySchema,
+  booleanQuerySchema,
+  sortSchema,
+} from "@/shared/utils/pagination";
 
 const phoneBR = z
   .string()
@@ -25,12 +32,32 @@ export const updateClientSchema = z.object({
   marketingOptInSource: z.string().max(80).optional().nullable(),
 });
 
-export const listClientsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  // max generoso: busca longa não pode derrubar a listagem inteira com 400
-  search: z.string().max(300).optional(),
-});
+/** Campos que a listagem de clientes aceita ordenar. */
+export const CLIENT_SORT_FIELDS = ["name", "lastVisitAt", "createdAt"] as const;
+
+export const listClientsQuerySchema = basePaginationQuerySchema({
+  defaultLimit: 20,
+  maxLimit: 100,
+})
+  .extend({
+    // max generoso: busca longa não pode derrubar a listagem inteira com 400
+    // busca vazia (ou só espaços) vira undefined = "sem filtro"
+    search: searchTermSchema({ max: 300 }),
+    /** Intervalo civil de criação (YYYY-MM-DD), convertido para os limites do dia civil do salão. */
+    createdFrom: dateOnlySchema.optional(),
+    createdTo: dateOnlySchema.optional(),
+    /** Sem visita há N dias: `lastVisitAt` antigo ou, se nunca visitou, `createdAt` antigo. */
+    inactiveDays: z.coerce.number().int().min(1).max(3650).optional(),
+    /** Clientes com (ou sem) fiado em aberto — vínculo por `Fiado.clientId`. */
+    hasOpenFiado: booleanQuerySchema.optional(),
+    /** Clientes com (ou sem) pacote ativo — `ClientPackage.status = ACTIVE`. */
+    hasActivePackage: booleanQuerySchema.optional(),
+    sort: sortSchema(CLIENT_SORT_FIELDS),
+  })
+  .refine((v) => !(v.createdFrom && v.createdTo && v.createdFrom > v.createdTo), {
+    message: "`createdFrom` não pode ser depois de `createdTo`",
+    path: ["createdFrom"],
+  });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;

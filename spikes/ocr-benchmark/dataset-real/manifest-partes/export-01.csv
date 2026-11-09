@@ -1,0 +1,2 @@
+arquivo,tipo,tipo_documento,largura_px,altura_px,sintetica,origem,casos_especiais
+export-01.png,export,export,1521,202,sim,export-roundtrip,export-roundtrip

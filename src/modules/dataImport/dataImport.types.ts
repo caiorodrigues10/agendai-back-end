@@ -5,6 +5,9 @@
  * prévia → confirmação → conclusão). Este arquivo guarda apenas os contratos
  * compartilhados entre rotas, use cases, parsers e worker.
  */
+import type { OcrCelulaRevisar } from "./ocr/ocrReview";
+
+export type { OcrCelulaRevisar };
 
 /** O que o lote cria. */
 export type ImportTargetType =
@@ -46,19 +49,18 @@ export type ImportFileFormat =
  */
 export type ImportBatchTargetType = ImportTargetType | "MIXED";
 
-/** Situação do lote. Espelha o enum `ImportBatchStatus` do Prisma. */
-export type ImportBatchStatus =
-  | "UPLOADED"
-  | "MAPPING"
-  | "VALIDATING"
-  | "AWAITING_CONFIRMATION"
-  | "PROCESSING"
-  | "COMPLETED"
-  | "COMPLETED_WITH_ERRORS"
-  | "FAILED"
-  | "CANCELLED"
-  | "UNDONE"
-  | "EXPIRED";
+/**
+ * Situação do lote.
+ *
+ * Reexporta o enum `ImportBatchStatus` do Prisma (`prisma/schema.prisma`) —
+ * a lista de valores é a do banco, sem cópia local: um status que exista só
+ * em TypeScript chegaria ao Postgres e derrubaria a gravação do lote.
+ *
+ * A revisão das células lidas por OCR **não** é um status do lote: ela vive
+ * por célula (ver `ocr/ocrReview.ts`) e o lote percorre os mesmos status de
+ * uma planilha (UPLOADED → MAPPING → VALIDATING → AWAITING_CONFIRMATION).
+ */
+export type { ImportBatchStatus } from "@prisma/client";
 
 /** Tipo de entidade criada pelo lote. Espelha o enum `ImportEntityType`. */
 export type ImportEntityType =
@@ -341,6 +343,16 @@ export interface RowValidationResult {
   detected?: Partial<Record<ImportFieldKey, number>>;
   /** Avisos que não impedem a importação (ex.: pausa de almoço não suportada). */
   warnings?: string[];
+  /**
+   * A linha tem célula lida por imagem que o dono precisa conferir.
+   *
+   * Vem do gate `gateOcrLinha` (ver `ocr/ocrReview.ts`): campo crítico com
+   * confiança baixa, valor que passa no normalizador mas pode ser falso
+   * confiante, ou número de processo com formato de CNJ impossível.
+   */
+  revisar?: boolean;
+  /** Células marcadas da linha, com o valor, a confiança e o motivo. */
+  celulasRevisar?: OcrCelulaRevisar[];
 }
 
 /** Resumo do dry-run exibido na etapa de prévia. */

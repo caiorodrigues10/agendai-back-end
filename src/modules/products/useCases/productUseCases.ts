@@ -27,6 +27,8 @@ import {
 } from "../utils/productCodeUtils";
 import { summarizeRetailLines } from "../utils/retailSummary";
 import { buildProductAttention } from "../utils/productAttention";
+import { lowStockSql, lowStockWhere } from "../repositories/lowStockWhere";
+import { isLowStock } from "../utils/lowStockRule";
 import { resolveUnitFields } from "../utils/productStockUnit";
 import {
   getShopToday,
@@ -191,12 +193,10 @@ export class ProductCatalogUseCase {
 
     if (query.lowStock === "true") {
       const skip = (query.page - 1) * query.limit;
-      const lowStockClauses: Prisma.Sql[] = [
-        Prisma.sql`"barbershopId" = ${barbershopId}::uuid`,
-        Prisma.sql`"trackStock" = true`,
-        Prisma.sql`"minStock" > 0`,
-        Prisma.sql`"stockQty" <= "minStock"`,
-      ];
+      // Definição única de "estoque baixo" (mesma da `lowStockWhere`):
+      // salão + trackStock + minStock > 0 + stockQty <= minStock. Os filtros
+      // da query (active, categoria, tipo, busca) entram depois, como antes.
+      const lowStockClauses: Prisma.Sql[] = [lowStockSql(barbershopId)];
       if (query.active) lowStockClauses.push(Prisma.sql`active = ${query.active === "true"}`);
       if (query.categoryId) lowStockClauses.push(Prisma.sql`"categoryId" = ${query.categoryId}::uuid`);
       const typeFilter = productTypeWhere(query);
@@ -286,12 +286,29 @@ export class ProductCatalogUseCase {
         imageUrl: true,
         salePrice: true,
         stockQty: true,
+        minStock: true,
         trackStock: true,
         unitLabel: true,
         category: { select: { id: true, name: true, color: true } },
       },
       orderBy: [{ name: "asc" }],
       take: 20,
+    });
+  }
+
+  /**
+   * Produtos em **estoque baixo** pela definição única (`lowStockWhere`),
+   * contando só o que está **ativo** (decisão do chamador).
+   *
+   * Usado pelo assistente do dono (WhatsApp) no comando "estoque baixo".
+   */
+  async lowStockProducts(barbershopId: string, user: ProductActor, limit = 20) {
+    await assertProductPermission(user, barbershopId, ["PRODUCTS_VIEW", "PRODUCTS_MANAGE", "INVENTORY_MANAGE"]);
+    return prisma.product.findMany({
+      where: { ...lowStockWhere(barbershopId), active: true },
+      select: { id: true, name: true, stockQty: true, minStock: true },
+      orderBy: [{ stockQty: "asc" }, { name: "asc" }],
+      take: Math.min(Math.max(limit, 1), 50),
     });
   }
 
@@ -690,7 +707,7 @@ export class ProductCatalogUseCase {
     });
     const byProduct = [...byProductMap.values()].map((row) => ({ ...row, margin: row.revenue - row.cost }));
     const attention = buildProductAttention({ products, byProduct, from, to });
-    const lowStock = products.filter((p: { minStock: number; stockQty: number }) => p.minStock > 0 && p.stockQty <= p.minStock);
+    const lowStock = products.filter((p: { minStock: number; stockQty: number; trackStock: boolean }) => isLowStock(p));
     const inventoryValue = products.reduce((sum: number, p: { stockQty: number; averageCost: number }) => sum + p.stockQty * p.averageCost, 0);
     const byStaffRaw = await prisma.retailSale.groupBy({
       by: ["soldById"],

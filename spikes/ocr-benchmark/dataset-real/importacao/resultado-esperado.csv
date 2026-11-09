@@ -1,0 +1,17 @@
+arquivo,linha,status,campo,mensagem,avisos,parcelas_efetivas,verificacao_banco
+cadastro-01,1,VALID,,,"Situação ""atrasado"" não reconhecida; usando ""Pendente"". | Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-02,1,VALID,,,"Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-03,1,VALID,,,"Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-04,1,VALID,,,"Situação ""atrasado"" não reconhecida; usando ""Pendente"". | Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-05,1,VALID,,,"Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-06,1,VALID,,,"Situação ""atrasado"" não reconhecida; usando ""Pendente"". | Parcelas ""4"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-07,1,VALID,,,"Situação ""atrasado"" não reconhecida; usando ""Pendente"". | Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-07,2,VALID,,,"Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+cadastro-07,3,VALID,,,"Situação ""atrasado"" não reconhecida; usando ""Pendente"". | Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+caderno-01,1,VALID,,,"Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+caderno-01,2,VALID,,,"Parcelas ""5"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+contrato-01,1,VALID,,,"Parcelas ""3"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+export-01,1,VALID,,,"Parcelas ""2"" não são aceitas na importação; o honorário entra com 1 parcela.",1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+export-01,2,VALID,,,,1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+export-01,3,VALID,,,,1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline
+recibo-01,1,FAILED,caseNumber,Número do processo ou apelido do caso é obrigatório.,,1,processo precisa existir no sistema (caseSuccessFee/ClientCase) — checagem de banco não roda offline

@@ -33,20 +33,8 @@ jobs:
     name: Backend and migration integrity
     needs: secrets
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: agendai
-          POSTGRES_PASSWORD: agendai123
-          POSTGRES_DB: agendai
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U agendai"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -67,6 +55,7 @@ jobs:
       JWT_REFRESH_EXPIRES_IN: 7d
       ASAAS_WEBHOOK_TOKEN: ci-test-webhook-token-that-is-at-least-32-chars
       ALLOW_TEST_REDIS: "1"
+      DB_POOL_MAX: "20"
 
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +63,29 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+      # O Postgres sobe como passo (e não como `service`) porque `services` não
+      # aceita `command`: o disco do runner é lento (checkpoint de ~99s em
+      # 2026-11-06) e a extensão de RLS abre uma transação por query — cada
+      # commit com `synchronous_commit=on` espera o fsync do WAL e o export do
+      # dataExport estourava o timeout do teste. Banco do CI é descartável:
+      # fsync desligado e checkpoint raro.
+      - name: Sobe o Postgres (sem fsync)
+        run: |
+          docker run -d --name agendai-pg \
+            -e POSTGRES_USER=agendai \
+            -e POSTGRES_PASSWORD=agendai123 \
+            -e POSTGRES_DB=agendai \
+            -p 5432:5432 \
+            postgres:16-alpine \
+            postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off \
+              -c checkpoint_timeout=30min -c max_wal_size=2GB
+          for attempt in $(seq 1 60); do
+            if docker exec agendai-pg pg_isready -U agendai >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec agendai-pg pg_isready -U agendai
       - run: npm ci
       - run: npm run docs:check
       - run: npx prisma generate
@@ -89,4 +101,13 @@ jobs:
           --exit-code
       - run: npm run typecheck
       - run: npm run test:security
-      - run: npx vitest run
+      # Unitários: sem a pasta de integração (mesma convenção de `npm test`).
+      - run: npm run test:unit
+      # Integração: banco real compartilhado → serial (maxWorkers=1, sem paralelismo
+      # de arquivos). Em paralelo os testes brigam pelo mesmo Postgres/Redis e os
+      # timeouts de 30s do dataExport + o smoke de /health ficam flaky.
+      # O timeout de teste sobe para 60s: o Postgres do runner é lento
+      # (checkpoint de ~100s observado em 2026-11-06) e o default de 30s matava
+      # transações legítimas com P2028 "Transaction already closed".
+      - name: Integration tests (serial)
+        run: npx vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=60000 src/tests/integration

@@ -35,11 +35,11 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 
 ## Galeria do perfil (aba Fotos)
 
-- A galeria é alimentada **exclusivamente** pela sub-aba "Fotos do perfil" (dentro da tela "Posts" do painel do dono): `POST /posts/media/:barbershopId` com `inGallery=true`. O upload do editor de posts grava `inGallery=false` e **não** publica no perfil.
+- **Upload sempre grava `inGallery: true`** (o campo multipart `inGallery` é ignorado): toda foto enviada pelo painel entra na galeria pública do perfil (aba "Fotos").
 - Limite de `GALLERY_MAX_PHOTOS = 30` (`PostMediaController`): a verificação roda **antes** do envio ao Cloudinary → **400** "Sua galeria já tem 30 fotos. Remova uma foto para enviar outra." (nada é enviado ao storage, sem arquivo órfão).
 - `GET /posts/media?barbershopId=…&inGallery=true` lista a galeria respeitando o tenant (`ensureTenant` → 403 para outro salão); a rota pública `GET /social/:salonId/gallery` devolve `inGallery: true` em `createdAt DESC` (`take: 30`).
-- Excluir foto de galeria funciona normalmente: o bloqueio 409 ("remova a imagem dos rascunhos ou posts agendados") só vale para foto usada em rascunho/post agendado — foto de galeria nunca é usada em post.
-- Sem backfill: fotos já existentes mantêm o `inGallery` atual (default da coluna: `false`).
+- Excluir foto de galeria funciona normalmente: o bloqueio 409 ("remova a imagem dos rascunhos ou posts agendados") só vale para foto **fora** da galeria (`inGallery=false`) em uso por rascunho/post agendado — foto de galeria é excluída normalmente (o registro some e ela sai da galeria do perfil).
+- Coluna `post_media.inGallery` com **default `true`** (migration `20261027000000_post_media_gallery_default`) + backfill que promove as fotos **mais recentes** de cada salão até completar 30, **sem rebaixar** foto já publicada e **sem ultrapassar** o limite.
 
 ## Posts do feed — agendamento fora da UI
 
@@ -98,6 +98,13 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - Desliga: campanhas/mensagens em massa do assistente, pedido de avaliação e nota/reputação públicas, NPS, indicações (o código nem é gerado no cadastro), fidelidade (nasce inativa) e preços públicos no perfil/agenda.
 - Não desliga: a consulta interna do dono ("quem não vem há X dias") — é lista para o dono, não disparo ao cliente; agenda, clientes, honorários e financeiro continuam.
 - APIs: middleware `advertisingGuard` (403 `ADVERTISING_FEATURE_UNAVAILABLE`) em referrals e loyalty; NPS nega em `assertShopEligible`; `reviewInvitationService` não cria convite, não expõe resumo público e recusa envio de link antigo; `notificationDeliveryService` marca `ADVERTISING_RESTRICTED` nas notificações promocionais.
+## Posts (formato da arte)
+
+- **Formato padrão por modelo:** `price-split` → `portrait` (4:5); todos os demais → `square` (1:1). Fonte única no back: `defaultPostFormat()` em `modules/posts/services/postTemplates.ts`, que lê `PRICE_SPLIT_MANIFEST.defaultFormat` (manifesto do modelo).
+- O catálogo `GET /api/posts/templates` devolve `defaultFormat` em cada modelo — **é o que o frontend lê** (o fallback local do editor vale só enquanto a lista não carrega/erro de rede). Front e back precisam ficar iguais: mudar a regra = mudar o manifesto/`defaultPostFormat` **e** o fallback do editor no mesmo PR, com o teste do catálogo (`postEditorialTemplates.spec.ts`) verificando os dois lados.
+- `format` explícito sempre vence o default: `previewPostQuerySchema.format` é opcional (sem valor, a prévia usa o default do modelo) e o `create` persiste `body.format ?? defaultPostFormat(templateKey)`. O default é aplicado em um único ponto de render (`buildPostImage`), que alimenta prévia, preview de template, create e update.
+- Prévia e arte final precisam sair no mesmo formato — por isso o `price-split` nasce 4:5 e não 1:1.
+- `PATCH /api/posts/media/:id` (toggle) continua na API, mas o front não usa mais (não há escolha de galeria na UI).
 
 ## Fila / agenda / híbrido
 
@@ -201,7 +208,18 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 
 - Cada `ImportBatch` tem `source` (`WEB` por padrão, `WHATSAPP_OWNER_BOT` quando o dono envia o arquivo pelo assistente no WhatsApp). O assistente baixa a mídia via Evolution, valida tipo/tamanho pelo conteúdo (`validateImportFile`) e cria o lote; a revisão/mapeamento/confirmação/desfazer continuam no painel.
 - Ações auditadas: `DATA_IMPORT_UPLOAD`, `DATA_IMPORT_CONFIRM`, `DATA_IMPORT_CANCEL`, `DATA_IMPORT_UNDO` (AuditLog, com `barbershopId`).
-- Imagens ainda não são convertidas em planilha automaticamente (sem OCR) — o assistente orienta o envio da planilha.
+- A importação por imagem (OCR) existe **no painel** (wizard de importação), com feature flag `OCR_IMPORT_ENABLED`; o bot do dono no WhatsApp **não** aceita imagem — ele orienta o envio da planilha.
+
+## Importação por imagem (OCR)
+
+- Feature flag `OCR_IMPORT_ENABLED` (padrão **off**). Com a flag off, o upload de imagem é recusado **antes de qualquer acesso ao banco**, com o código `OCR_DISABLED` e a mensagem "A importação por imagem está desativada…".
+- O OCR é **local** (Tesseract.js) e sem rede: o `traineddata` tem de estar em `OCR_TESSDATA_PATH` (`<caminho>/por.traineddata` e `<caminho>/eng.traineddata`). Sem os arquivos, o upload é recusado com `OCR_TRAINEDDATA_MISSING` (503) — nunca há tentativa de download.
+- A imagem vira uma tabela com cabeçalhos **genéricos** ("Coluna 1", "Coluna 2"…): o **destino** (clientes, serviços, agenda…) e o **mapeamento** coluna → campo são escolhidos pelo dono, no mesmo fluxo da planilha. O destino gravado no lote antes da escolha é só o valor inicial (`CLIENTS`), igual ao das planilhas.
+- Piso de resolução: a régua é a largura da **região da tabela** (`REPORT.md` linha 80: 693 px para telefone, 924 px para valor), medida na escala da imagem **original** (o redimensionamento para OCR não pode baixar a régua). Abaixo de 693 px a imagem é recusada (`OCR_IMAGE_LOW_RESOLUTION`); entre 693 e 924 px a validação avisa que os valores podem estar errados.
+- Confiança por célula: guardada num arquivo lateral ao lado do CSV do lote (sem coluna nova no banco, sem migration). O gate `gateOcrLinha` vira `revisar` da linha no dry-run, usando o mapeamento escolhido pelo dono.
+- O botão confirmar fica travado enquanto houver célula pendente: o dono **corrige** o valor ou **aceita** explicitamente cada célula (`PATCH /imports/:batchId/review`), e a validação roda de novo. O backend recusa a confirmação com `OCR_REVIEW_PENDING` (409) se sobrar pendência.
+- Erros com código próprio (nunca "erro interno"): `OCR_DISABLED`, `OCR_QUEUE_FULL` (429), `OCR_IMAGE_TOO_LARGE` (413), `OCR_IMAGE_FORMAT_INVALID` (400), `OCR_IMAGE_LOW_RESOLUTION` (400), `OCR_TRAINEDDATA_MISSING` (503), `OCR_NO_TABLE` (400), `OCR_REVIEW_PENDING` (409).
+- `CASE_FEES` por imagem: `caseNumber` (CNJ) e `percent` são obrigatórios — sem as duas colunas na foto o mapa é recusado. O CNJ lido de foto é frágil: a célula vai para revisão quando a confiança é baixa e quando o número não parece CNJ.
 
 ## Importação de processos (`CASES`)
 
@@ -241,8 +259,23 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - **Sigilo (`caseFees`)**: a aba `Honorários de êxito` entra para escritórios jurídicos mesmo sem `includeCase`, mas as colunas que identificam o processo (número e apelido) saem vazias quando `includeCase` está desligado. As observações internas do honorário também saem vazias sem `includeCase`.
 - **Período**:
   - **Processos**: não filtra por período. Exporta todos os processos do escritório (backup completo), independentemente da data de abertura.
-  - **Honorários de êxito**: filtra por vencimento (`dueDate`) dentro do período escolhido. Quando o período é "Tudo", exporta todos os honorários.
+  - **Honorários de êxito**: filtra por vencimento (`dueDate`) dentro do período escolhido, com fallback para `createdAt` quando o honorário não tem vencimento. Quando o período é "Tudo", exporta todos os honorários.
   - Honorários nunca entram no caixa nem no financeiro: não há coluna de pagamento, lançamento ou recebimento.
+- **Anonimização na aba Processos (`cases`)**: a aba `Processos` **pode** ser exportada com `anonymize` ligado — a anonimização não é bloqueio, é mascaramento. Com `anonymize=true` **e** `includeCase=true`, saem mascarados **todos** os campos pessoais da aba:
+  - nome e WhatsApp do cliente;
+  - número do processo;
+  - apelido do caso (`nickname`);
+  - parte adversária (`opponent`);
+  - título do processo (`title`);
+  - advogado responsável (`responsibleStaff.name`).
+
+  Permanecem legíveis: valores (`claimedAmount`, `awardedAmount`), datas, situação, prioridade, área de atuação e órgão julgador. A exigência de `includeCase=true` para a aba `Processos` continua valendo com `anonymize` ligado — o que muda é apenas o conteúdo das células, não o gate.
+- **Anonimização na aba Honorários de êxito (`caseFees`)**: a aba também **pode** ser exportada com `anonymize` ligado. Com `anonymize=true` **e** `includeCase=true`:
+  - número do processo sai **mascarado** (não vazio, não cru);
+  - apelido do caso (`nickname`) sai **mascarado**;
+  - **Observações saem vazias** — a nota interna do escritório não é mascarável campo a campo, então é omitida por inteiro.
+
+  Sem `includeCase` (e com ou sem `anonymize`), número, apelido e Observações já saíam vazios. Valores (`percent`, `baseAmount`, `amount`), situação, vencimento, parcelas e data de criação permanecem legíveis.
 - **Campos de valor** (`claimedAmount`, `awardedAmount`, `percent`, `baseAmount`, `amount`) são dados do processo, não do faturamento.
 
 ## Notificações

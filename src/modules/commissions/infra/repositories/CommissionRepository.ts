@@ -2,11 +2,16 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/libs/prismaClient";
 import { ICommissionRepository } from "../../repositories/ICommissionRepository";
 import {
+  buildCommissionListWhere,
+  buildCommissionOrderBy,
+} from "../../repositories/commissionListWhere";
+import {
   ICommissionEntryDTO,
   ICommissionSummary,
   IListCommissionsQuery,
 } from "../../dtos/ICommissionDTO";
 import { commissionAmount } from "@/modules/financial/ledger/commissionMath";
+import { toSkipTake } from "@/shared/utils/pagination";
 
 const include = {
   service: { select: { name: true, price: true } },
@@ -33,14 +38,6 @@ function mapEntry(entry: CommissionWithRelations): ICommissionEntryDTO {
     percentage: entry.percentage,
     amount: entry.amount,
     createdAt: entry.createdAt,
-  };
-}
-
-function dateFilter(query: { from?: string; to?: string }): Prisma.DateTimeFilter | undefined {
-  if (!query.from && !query.to) return undefined;
-  return {
-    ...(query.from ? { gte: new Date(`${query.from}T00:00:00.000Z`) } : {}),
-    ...(query.to ? { lt: new Date(`${query.to}T00:00:00.000Z`) } : {}),
   };
 }
 
@@ -71,21 +68,19 @@ export class CommissionRepository implements ICommissionRepository {
   }
 
   async list(barbershopId: string, query: IListCommissionsQuery) {
-    const where: Prisma.CommissionEntryWhereInput = {
-      barbershopId,
-      ...(query.professionalId ? { professionalId: query.professionalId } : {}),
-      ...(query.origin === "QUEUE" ? { queueItemId: { not: null } } : {}),
-      ...(query.origin === "APPOINTMENT" ? { appointmentId: { not: null } } : {}),
-      ...(dateFilter(query) ? { createdAt: dateFilter(query) } : {}),
-    };
+    const where = buildCommissionListWhere(barbershopId, query);
+    const orderBy = buildCommissionOrderBy(query.sort);
+    const { skip, take } = toSkipTake(query.page, query.limit);
+
     const [records, total] = await Promise.all([
       prisma.commissionEntry.findMany({
         where,
         include,
-        orderBy: { createdAt: "desc" },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        orderBy,
+        skip,
+        take,
       }),
+      // `total` é o tamanho de TODO o conjunto filtrado, não da página.
       prisma.commissionEntry.count({ where }),
     ]);
     return { data: records.map(mapEntry), total };
@@ -95,13 +90,9 @@ export class CommissionRepository implements ICommissionRepository {
     barbershopId: string,
     query: Omit<IListCommissionsQuery, "page" | "limit">,
   ): Promise<ICommissionSummary> {
-    const where: Prisma.CommissionEntryWhereInput = {
-      barbershopId,
-      ...(query.professionalId ? { professionalId: query.professionalId } : {}),
-      ...(query.origin === "QUEUE" ? { queueItemId: { not: null } } : {}),
-      ...(query.origin === "APPOINTMENT" ? { appointmentId: { not: null } } : {}),
-      ...(dateFilter(query) ? { createdAt: dateFilter(query) } : {}),
-    };
+    // Mesmo `where` da listagem, sem paginação: as somas cobrem todo o
+    // conjunto filtrado (não apenas uma página).
+    const where = buildCommissionListWhere(barbershopId, query);
     const entries = await prisma.commissionEntry.findMany({ where, include });
     const byProfessional = new Map<string, ICommissionSummary["byProfessional"][number]>();
     for (const entry of entries) {

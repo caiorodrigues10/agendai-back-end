@@ -1,7 +1,10 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { container } from "tsyringe";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
-import { staffUpdateUserSchema } from "../schemas/userSchemas";
+import { staffUpdateUserSchema, listTeamQuerySchema } from "../schemas/userSchemas";
+import { ListTeamUseCase } from "../useCases/listTeam/ListTeamUseCase";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 
 const publicSelect = {
   id: true,
@@ -51,15 +54,22 @@ export class StaffUserController {
   }
 
   async list(request: FastifyRequest, reply: FastifyReply) {
+    const user = request.user!;
+    // O salão vem do contexto (sessão do OWNER ou ?barbershopId= do
+    // MASTER_ADMIN); nenhum filtro da query consegue trocar o salão.
     const barbershopId = this.resolveBarbershopId(request);
+    const query = listTeamQuerySchema.parse(request.query);
 
-    const users = await prisma.user.findMany({
-      where: { barbershopId },
-      select: publicSelect,
-      orderBy: { createdAt: "asc" },
+    const useCase = container.resolve(ListTeamUseCase);
+    const result = await useCase.execute(barbershopId, query, user);
+
+    // `data` continua sendo o array de membros (o front depende disso) e a
+    // paginação vem no `meta`.
+    return reply.status(200).send({
+      success: true,
+      data: result.data,
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
-
-    return reply.status(200).send({ success: true, data: users });
   }
 
   async update(request: FastifyRequest, reply: FastifyReply) {

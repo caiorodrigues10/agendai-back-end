@@ -58,4 +58,76 @@ describe("SalonClientRepository.list", () => {
       { id: "asc" },
     ]);
   });
+
+  it("página além do total: devolve lista vazia e preserva o total real", async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(42);
+
+    const result = await repo.list({ page: 99, limit: 20, barbershopId: "shop-1" });
+
+    const args = findMany.mock.calls[0][0] as { skip: number; take: number };
+    expect(args.skip).toBe((99 - 1) * 20);
+    expect(args.take).toBe(20);
+    expect(result.data).toEqual([]);
+    expect(result.total).toBe(42);
+  });
+
+  it("barbershopId do contexto é o único que chega ao where, junto com os filtros", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      search: "ana",
+      hasOpenFiado: true,
+    });
+
+    const args = findMany.mock.calls[0][0] as { where: Record<string, unknown> };
+    expect(args.where.barbershopId).toBe("shop-1");
+    expect(args.where).toMatchObject({
+      barbershopId: "shop-1",
+      AND: [
+        { OR: [{ name: { contains: "ana", mode: "insensitive" } }] },
+        { fiados: { some: { barbershopId: "shop-1", status: { in: ["PENDING", "PARTIAL"] } } } },
+      ],
+    });
+  });
+
+  it("count recebe o mesmo where do findMany", async () => {
+    await repo.list({
+      page: 1,
+      limit: 20,
+      barbershopId: "shop-1",
+      hasActivePackage: true,
+    });
+
+    const findManyArgs = findMany.mock.calls[0][0] as { where: unknown };
+    const countArgs = count.mock.calls[0][0] as { where: unknown };
+    expect(countArgs.where).toEqual(findManyArgs.where);
+  });
+
+  it("a contagem de pacotes ativos usa a mesma regra do filtro (salão, status, sessões e validade)", async () => {
+    await repo.list({ page: 1, limit: 20, barbershopId: "shop-1" });
+
+    const args = findMany.mock.calls[0][0] as {
+      include: {
+        packages: {
+          where: {
+            barbershopId: string;
+            status: string;
+            remainingSessions: { gt: number };
+            OR: Array<Record<string, unknown>>;
+          };
+        };
+      };
+    };
+
+    const where = args.include.packages.where;
+    expect(where.barbershopId).toBe("shop-1");
+    expect(where.status).toBe("ACTIVE");
+    expect(where.remainingSessions).toEqual({ gt: 0 });
+    expect(where.OR).toEqual([
+      { expiresAt: null },
+      { expiresAt: { gt: expect.any(Date) } },
+    ]);
+  });
 });

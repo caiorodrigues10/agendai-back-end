@@ -19,6 +19,7 @@ import type { Candidate, ExtractionResult } from "./types";
 import { tesseractTexto } from "./candidates/a-tesseract-texto";
 import { tesseractLayout } from "./candidates/b-tesseract-layout";
 import { macosVision } from "./candidates/c-macos-vision";
+import { paddleOcr } from "./candidates/g-paddleocr";
 import { llmVisao } from "./candidates/d-llm-visao";
 import { ocrMaisLlm } from "./candidates/e-ocr-mais-llm";
 import { llmVisaoComGate } from "./candidates/f-llm-visao-gate";
@@ -39,6 +40,7 @@ const TODOS: Candidate[] = [
   tesseractTexto,
   tesseractLayout,
   macosVision,
+  paddleOcr,
   llmVisao,
   ocrMaisLlm,
   llmVisaoComGate,

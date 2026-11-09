@@ -1,9 +1,14 @@
+import type { SortInput } from "@/shared/utils/pagination";
+
 // Status possíveis de um fiado — progride conforme pagamentos são registrados
 export type FiadoStatus =
   | "PENDING"   // devendo tudo, não pagou nada ainda
   | "PARTIAL"   // pagou parte, ainda tem saldo devedor
   | "PAID"      // quitado completamente
   | "FORGIVEN"; // dívida perdoada/cancelada pelo barbeiro
+
+// Ordenação da listagem de fiados: createdAt | dueDate | amount (`:asc`/`:desc`)
+export type FiadoSortField = "createdAt" | "dueDate" | "amount";
 
 // ─── DTOs de entrada ──────────────────────────────────────────────────────────
 
@@ -85,11 +90,17 @@ export interface IFiadoResponseDTO {
 export interface IFiadoListQuery {
   page: number;              // página atual (começa em 1)
   limit: number;             // itens por página (máx 100)
-  status?: FiadoStatus;      // filtrar por status específico
+  status?: FiadoStatus[];    // filtrar por um ou mais status (1 a 4)
+  clientId?: string;         // filtrar por cliente do CRM (uuid)
   search?: string;           // busca por nome do cliente ou whatsapp
-  overdue?: boolean;         // true = mostrar apenas os vencidos
-  from?: Date;               // data de criação mínima
-  to?: Date;                 // data de criação máxima
+  overdue?: boolean;         // true = mostrar apenas os vencidos em aberto
+  from?: string;             // YYYY-MM-DD — data de criação mínima (`createdAt`)
+  to?: string;               // YYYY-MM-DD — data de criação máxima (`createdAt`)
+  dueFrom?: string;          // YYYY-MM-DD — vencimento mínimo (`dueDate`)
+  dueTo?: string;            // YYYY-MM-DD — vencimento máximo (`dueDate`)
+  sort?: SortInput;           // ordenação por createdAt | dueDate | amount
+  /** Fuso do salão — o dia civil de `createdAt`/`dueDate` é o do salão. */
+  timeZone?: string;
 }
 
 // ─── Resumo financeiro ────────────────────────────────────────────────────────

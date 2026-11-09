@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
 import {
   createEquipmentSchema,
   updateEquipmentSchema,
@@ -27,8 +28,16 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const items = await this.useCases.listEquipment(resolvedBarbershopId, query);
-    reply.send({ success: true, data: items });
+    const result = await this.useCases.listEquipment(resolvedBarbershopId, query);
+    if (result.paginated) {
+      reply.send({
+        success: true,
+        data: result.items,
+        meta: buildPaginationMeta(result.total, result.page, result.limit),
+      });
+    } else {
+      reply.send({ success: true, data: result.items });
+    }
   }
 
   async getEquipment(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -97,8 +106,16 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const items = await this.useCases.listMovements(resolvedBarbershopId, query);
-    reply.send({ success: true, data: items });
+    const result = await this.useCases.listMovements(resolvedBarbershopId, query);
+    if (result.paginated) {
+      reply.send({
+        success: true,
+        data: result.items,
+        meta: buildPaginationMeta(result.total, result.page, result.limit),
+      });
+    } else {
+      reply.send({ success: true, data: result.items });
+    }
   }
 
   async createMovement(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -131,8 +148,16 @@ export class EquipmentController {
       user.role === "MASTER_ADMIN" ? barbershopId : user.barbershopId ?? barbershopId;
     if (!resolvedBarbershopId) throw new AppError("barbershopId is required", 400);
 
-    const items = await this.useCases.listNeeds(resolvedBarbershopId, query);
-    reply.send({ success: true, data: items });
+    const result = await this.useCases.listNeeds(resolvedBarbershopId, query);
+    if (result.paginated) {
+      reply.send({
+        success: true,
+        data: result.items,
+        meta: buildPaginationMeta(result.total, result.page, result.limit),
+      });
+    } else {
+      reply.send({ success: true, data: result.items });
+    }
   }
 
   async createNeed(request: FastifyRequest, reply: FastifyReply): Promise<void> {

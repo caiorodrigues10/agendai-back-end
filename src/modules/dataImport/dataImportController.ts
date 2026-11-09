@@ -4,8 +4,10 @@
  * Só valida a entrada (Zod) e resolve o salão — a regra mora nos use cases.
  */
 import { FastifyRequest, FastifyReply } from "fastify";
+import type { MultipartFile } from "@fastify/multipart";
 import { AppError } from "@/shared/errors/AppError";
 import { DataImportUseCases } from "./dataImportUseCases";
+import { MAX_IMPORT_FILE_SIZE_BYTES } from "./dataImport.constants";
 import { buildImportTemplate } from "./importTemplate";
 import { undoImportBatch } from "./importUndo";
 import { enqueueDataImportBatch } from "@/shared/infra/queue/dataImportQueue";
@@ -16,6 +18,7 @@ import {
   confirmImportSchema,
   importBatchParamsSchema,
   mappingSchema,
+  ocrReviewSchema,
   targetQuerySchema,
 } from "./dataImportSchema";
 
@@ -27,8 +30,8 @@ export class DataImportController {
     const { barbershopId } = request.params as { barbershopId: string };
     const user = request.user!;
 
-    const data = await (request as any).file({
-      limits: { files: 1, fields: 5, fileSize: 10 * 1024 * 1024 },
+    const data: MultipartFile | undefined = await request.file({
+      limits: { files: 1, fields: 5, fileSize: MAX_IMPORT_FILE_SIZE_BYTES },
     });
 
     if (!data) {
@@ -38,10 +41,13 @@ export class DataImportController {
     let buffer: Buffer;
     try {
       buffer = await data.toBuffer();
-    } catch (err: any) {
-      const message = String(err?.message ?? "");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       if (message.includes("FST_REQ_FILE_TOO_LARGE") || message.includes("limit")) {
-        throw new AppError("O arquivo passa de 10 MB. Envie um arquivo menor.", 413);
+        throw new AppError(
+          `O arquivo passa de ${Math.round(MAX_IMPORT_FILE_SIZE_BYTES / (1024 * 1024))} MB. Envie um arquivo menor.`,
+          413,
+        );
       }
       throw new AppError("Não foi possível ler o arquivo enviado.", 400);
     }
@@ -144,6 +150,28 @@ export class DataImportController {
     const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
 
     const result = await this.useCases.validate({ barbershopId, batchId });
+
+    reply.send({ success: true, data: result });
+  }
+
+  /**
+   * Etapa 4bis — revisão de uma célula lida por imagem.
+   *
+   * O dono corrige o valor (ou aceita o que foi lido) e a validação roda de
+   * novo: a resposta é a prévia já atualizada.
+   */
+  async review(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const { barbershopId, batchId } = importBatchParamsSchema.parse(request.params);
+    const body = ocrReviewSchema.parse(request.body);
+
+    const result = await this.useCases.applyOcrReview({
+      barbershopId,
+      batchId,
+      linha: body.linha,
+      coluna: body.coluna,
+      ...(body.valor !== undefined ? { valor: body.valor } : {}),
+      ...(body.aceitar !== undefined ? { aceitar: body.aceitar } : {}),
+    });
 
     reply.send({ success: true, data: result });
   }

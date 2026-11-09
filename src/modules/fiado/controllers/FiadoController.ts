@@ -18,6 +18,9 @@ import {
   chargeFiadoSchema,
 } from "../schemas/fiadoSchemas";
 import { AppError } from "@/shared/errors/AppError";
+import { buildPaginationMeta } from "@/shared/utils/pagination";
+import { resolveBarbershopId } from "@/shared/utils/barbershopScope";
+import { getShopTimezone } from "@/modules/financial/ledger/shopTime";
 
 export class FiadoController {
   async charge(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -69,27 +72,20 @@ export class FiadoController {
     const user = request.user!;
     const query = listFiadoQuerySchema.parse(request.query);
 
-    const barbershopId =
-      user.role === "MASTER_ADMIN"
-        ? ((request.query as any).barbershopId ?? "")
-        : user.barbershopId ?? "";
-
-    if (!barbershopId) {
-      throw new AppError("barbershopId é obrigatório", 400);
-    }
+    const barbershopId = resolveBarbershopId(
+      user,
+      (request.query as { barbershopId?: string }).barbershopId ?? null,
+    );
+    // O dia civil dos filtros de criação/vencimento é o do salão.
+    const timeZone = await getShopTimezone(barbershopId);
 
     const useCase = container.resolve(ListFiadosUseCase);
-    const result = await useCase.execute({ ...query, barbershopId }, user);
+    const result = await useCase.execute({ ...query, barbershopId, timeZone }, user);
 
     reply.send({
       success: true,
       data: result.data,
-      meta: {
-        total: result.total,
-        page: query.page,
-        limit: query.limit,
-        totalPages: Math.ceil(result.total / query.limit),
-      },
+      meta: buildPaginationMeta(result.total, query.page, query.limit),
     });
   }
 

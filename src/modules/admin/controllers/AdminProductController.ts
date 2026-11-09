@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { rlsTransaction } from "@/libs/prismaExtensions";
+import { lowStockConditionsSql } from "@/modules/products/repositories/lowStockWhere";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -54,7 +55,7 @@ export class AdminProductController {
       productsTotal,
       productsActive,
       categoriesTotal,
-      trackedProducts,
+      lowStockByShop,
       outOfStock,
       topProducts,
       sales30d,
@@ -65,10 +66,18 @@ export class AdminProductController {
       prisma.product.count(),
       prisma.product.count({ where: { active: true } }),
       prisma.productCategory.count(),
-      prisma.product.findMany({
-        where: { active: true, trackStock: true, minStock: { gt: 0 } },
-        select: { stockQty: true, minStock: true },
-      }),
+      // Estoque baixo: contagem no banco, agrupada por salão (sem carregar
+      // produtos). A definição é a de `products` (trackStock + minStock > 0 +
+      // stockQty <= minStock); `stockQty > 0` é mantido porque os produtos
+      // zerados já são contados no cartão "Estoque zerado" (outOfStock).
+      prisma.$queryRaw<Array<{ barbershopId: string; count: number }>>`
+        SELECT "barbershopId"::text AS "barbershopId", COUNT(*)::int AS count
+        FROM products
+        WHERE ${lowStockConditionsSql()}
+          AND "active" = true
+          AND "stockQty" > 0
+        GROUP BY "barbershopId"
+      `,
       prisma.product.count({
         where: { active: true, trackStock: true, stockQty: { lte: 0 } },
       }),
@@ -83,10 +92,7 @@ export class AdminProductController {
       }),
     ]);
 
-    const lowStock = trackedProducts.filter(
-      (product: { stockQty: number; minStock: number }) =>
-        product.stockQty > 0 && product.stockQty <= product.minStock,
-    ).length;
+    const lowStock = lowStockByShop.reduce((sum, row) => sum + row.count, 0);
 
     const categoryIds = categoryRows
       .map((row: { categoryId: string | null }) => row.categoryId)

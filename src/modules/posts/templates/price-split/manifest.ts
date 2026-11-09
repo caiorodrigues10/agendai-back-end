@@ -22,6 +22,12 @@ export const PRICE_SPLIT_MANIFEST = {
   description: "Serviços em linhas separadas com preços à direita e espaço para foto.",
   category: "tabela-de-precos",
   photoMode: "optional" as TemplatePhotoMode,
+  /**
+   * Formato padrão da arte deste modelo (4:5). O catálogo expõe o campo em
+   * `GET /api/posts/templates` e o frontend lê daí — regra e paridade
+   * registradas em `docs/agents/BUSINESS_RULES.md`.
+   */
+  defaultFormat: "portrait",
   sizes: {
     "feed-4x5": { w: 1080, h: 1350 },
     square: { w: 1080, h: 1080 },

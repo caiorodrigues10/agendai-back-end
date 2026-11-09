@@ -42,8 +42,12 @@ describe("HTTP routes smoke (inject)", () => {
         storage: { status: string; provider: string; primary_available: boolean; fallback_available: boolean };
       };
     };
-    expect(body.status).toBe("ok");
+    // `status` agregado depende do storage: sem GCS/Cloudinary no ambiente
+    // (CI/dev) o storage fica "degraded" e o agregado também. O que não pode
+    // faltar são as dependências essenciais: Postgres e Redis.
+    expect(["ok", "degraded"]).toContain(body.status);
     expect(body.checks.postgres).toBe("healthy");
+    expect(body.checks.redis).toBe("healthy");
     expect(body.checks.storage).toBeDefined();
     expect(["healthy", "degraded"]).toContain(body.checks.storage.status);
     expect(["gcs", "cloudinary", "none"]).toContain(body.checks.storage.provider);

@@ -6,6 +6,7 @@ import {
   parseFeeStatus,
 } from "./caseFeeImporter";
 import type { ImportRowContext } from "./importRowContext";
+import { txDeTeste } from "./testUtils";
 
 const { salonClientFindFirst, salonClientCreate, clientCaseFindFirst, caseSuccessFeeCreate } =
   vi.hoisted(() => ({
@@ -17,11 +18,12 @@ const { salonClientFindFirst, salonClientCreate, clientCaseFindFirst, caseSucces
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: {} }));
 
-const tx = {
+const txMock = {
   salonClient: { findFirst: salonClientFindFirst, create: salonClientCreate },
   clientCase: { findFirst: clientCaseFindFirst },
   caseSuccessFee: { create: caseSuccessFeeCreate },
-} as unknown as AppTx;
+};
+const tx = txDeTeste(txMock);
 
 const SHOP = "shop-1";
 
