@@ -75,6 +75,7 @@ vi.mock("@/shared/services/geocodeCity", () => ({
 
 import { RegisterGoogleUseCase, IRegisterGoogleDTO } from "./RegisterGoogleUseCase";
 import { enqueueEmail } from "@/shared/infra/queue";
+import { validateEmail } from "@/shared/services/emailValidationService";
 
 const BASE_INPUT: IRegisterGoogleDTO = {
   idToken: "valid-google-token",
@@ -253,5 +254,64 @@ describe("RegisterGoogleUseCase", () => {
 
     expect(err.message).toBe("CPF já cadastrado");
     expect(err.statusCode).toBe(409);
+  });
+
+  it("rejeita e-mail de domínio descartável (validateEmail)", async () => {
+    vi.mocked(validateEmail).mockResolvedValueOnce({ valid: false } as any);
+
+    const err: any = await useCase.execute(BASE_INPUT).catch((e) => e);
+
+    expect(err.message).toBe("E-mail inválido");
+    expect(err.statusCode).toBe(400);
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("grava o e-mail do token em minúsculas mesmo com payload em maiúsculas", async () => {
+    mockGooglePayload({ email: "JOAO@Test.COM" });
+
+    await useCase.execute(BASE_INPUT);
+
+    const created = mockTxUserCreate.mock.calls[0][0].data;
+    expect(created.email).toBe("joao@test.com");
+  });
+
+  it("corrida: P2002 (email) no create vira 409, não 500", async () => {
+    mockFindFirst.mockResolvedValue(null);
+    mockTxUserCreate.mockRejectedValueOnce({ code: "P2002", meta: { target: ["email"] } });
+
+    const err: any = await useCase.execute(BASE_INPUT).catch((e) => e);
+
+    expect(err.message).toBe("E-mail já cadastrado");
+    expect(err.statusCode).toBe(409);
+  });
+
+  it("corrida: P2002 (googleSub) no create vira 409, não 500", async () => {
+    mockFindFirst.mockResolvedValue(null);
+    mockTxUserCreate.mockRejectedValueOnce({ code: "P2002", meta: { target: ["googleSub"] } });
+
+    const err: any = await useCase.execute(BASE_INPUT).catch((e) => e);
+
+    expect(err.message).toBe("Esta conta Google já está cadastrada");
+    expect(err.statusCode).toBe(409);
+  });
+
+  it("payload sem e-mail ou sem verificação é recusado antes de qualquer escrita", async () => {
+    mockGooglePayload({ email: undefined });
+    mockFindFirst.mockResolvedValue(null);
+
+    const err: any = await useCase.execute(BASE_INPUT).catch((e) => e);
+
+    expect(err.message).toBe("E-mail não verificado pelo Google");
+    expect(err.statusCode).toBe(401);
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("email_verified=false é recusado com 401", async () => {
+    mockGooglePayload({ email_verified: false });
+
+    const err: any = await useCase.execute(BASE_INPUT).catch((e) => e);
+
+    expect(err.statusCode).toBe(401);
+    expect(mockTransaction).not.toHaveBeenCalled();
   });
 });
