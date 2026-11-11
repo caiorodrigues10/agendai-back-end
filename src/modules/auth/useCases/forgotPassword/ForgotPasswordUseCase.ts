@@ -4,6 +4,7 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { enqueueEmail } from "@/shared/infra/queue";
+import { logAccess } from "@/shared/services/accessLogService";
 
 const logger = getModuleLogger("forgot-password");
 const TOKEN_EXPIRY_HOURS = 1;
@@ -24,6 +25,14 @@ export class ForgotPasswordUseCase {
     const user = await prisma.user.findFirst({
       where: { email: { equals: normalizedEmail, mode: "insensitive" } },
     });
+
+    await logAccess({
+      email: normalizedEmail,
+      action: "FORGOT_PASSWORD_REQUESTED",
+      ipAddress: ip,
+      success: true,
+    });
+
     if (!user || !user.active) {
       return { message: "Se o e-mail existir, você receberá um link de redefinição." };
     }

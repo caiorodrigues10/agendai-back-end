@@ -31,6 +31,12 @@ vi.mock("@/shared/infra/queue/redisConnection", () => ({
   getApiRedisConnection: () => ({ incr: mockIncr, expire: mockExpire }),
 }));
 
+const mockLogAccess = vi.fn();
+
+vi.mock("@/shared/services/accessLogService", () => ({
+  logAccess: (...a: unknown[]) => mockLogAccess(...a),
+}));
+
 import { ForgotPasswordUseCase } from "./ForgotPasswordUseCase";
 
 describe("ForgotPasswordUseCase — Redis indisponível (B4/P0-13: fail-closed)", () => {
@@ -52,7 +58,7 @@ describe("ForgotPasswordUseCase — Redis indisponível (B4/P0-13: fail-closed)"
     expect(mockEnqueueEmail).not.toHaveBeenCalled();
   });
 
-  it("consulta o usuário e emite token quando o Redis está saudável", async () => {
+  it("consulta o usuário, audita o pedido e emite token quando o Redis está saudável", async () => {
     mockIncr.mockResolvedValue(1);
     mockExpire.mockResolvedValue(true);
     mockFindFirst.mockResolvedValue({ id: "u1", email: "user@test.com", active: true });
@@ -67,5 +73,13 @@ describe("ForgotPasswordUseCase — Redis indisponível (B4/P0-13: fail-closed)"
     });
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(mockEnqueueEmail).toHaveBeenCalledTimes(1);
+    expect(mockLogAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "user@test.com",
+        action: "FORGOT_PASSWORD_REQUESTED",
+        ipAddress: "1.2.3.4",
+        success: true,
+      })
+    );
   });
 });
