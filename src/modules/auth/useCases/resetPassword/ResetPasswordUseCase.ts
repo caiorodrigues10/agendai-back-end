@@ -1,4 +1,5 @@
 import { inject, injectable } from "tsyringe";
+import { createHash } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
 import { rlsTransaction } from "@/libs/prismaExtensions";
 import { AppError } from "@/shared/errors/AppError";
@@ -16,8 +17,10 @@ export class ResetPasswordUseCase {
   ) {}
 
   async execute(token: string, newPassword: string) {
+    // O banco guarda o SHA-256; o token chega em plaintext pelo link do e-mail.
+    const tokenHash = createHash("sha256").update(token).digest("hex");
     const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { token },
+      where: { token: tokenHash },
     });
 
     if (!resetToken) {

@@ -1,5 +1,5 @@
 import { injectable } from "tsyringe";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { getModuleLogger } from "@/shared/utils/logger";
@@ -13,13 +13,14 @@ const RATE_LIMIT_WINDOW = 3600;
 @injectable()
 export class ForgotPasswordUseCase {
   async execute(email: string, ip: string) {
-    const rateKey = `forgotpwd:rate:${email}`;
+    // Normaliza ANTES da chave: "A@x.com" e "a@x.com" precisam compartilhar o contador.
+    const normalizedEmail = email.trim().toLowerCase();
+    const rateKey = `forgotpwd:rate:${normalizedEmail}`;
     const count = await this.getRateLimit(rateKey);
     if (count > RATE_LIMIT_MAX) {
       throw new AppError("Muitas solicitações. Tente novamente em 1 hora.", 429);
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
     const user = await prisma.user.findFirst({
       where: { email: { equals: normalizedEmail, mode: "insensitive" } },
     });
@@ -33,10 +34,14 @@ export class ForgotPasswordUseCase {
     });
 
     const token = randomBytes(32).toString("hex");
+    // Só o SHA-256 vai para o banco: um vazamento de `password_reset_tokens`
+    // não pode permitir redefinir senha. O plaintext segue apenas no job da fila
+    // (transiente) para montar o link enviado por e-mail.
+    const tokenHash = createHash("sha256").update(token).digest("hex");
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
     const resetRequest = await prisma.passwordResetToken.create({
-      data: { email: user.email, token, expiresAt },
+      data: { email: user.email, token: tokenHash, expiresAt },
     });
 
     this.sendResetEmail(user.email, token, resetRequest.id).catch((err) => {
