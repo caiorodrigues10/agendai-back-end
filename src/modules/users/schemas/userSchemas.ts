@@ -7,6 +7,10 @@ import {
   searchTermSchema,
   sortSchema,
 } from "@/shared/utils/pagination";
+import {
+  buildNewPasswordSchema,
+  NEW_PASSWORD_MAX_LENGTH,
+} from "@/modules/auth/schemas/passwordPolicy";
 
 const cpfSchema = z
   .string()
@@ -25,10 +29,7 @@ export const createUserSchema = z.object({
     .min(3, "Nome deve ter no mínimo 3 caracteres")
     .max(200, "Nome muito longo"),
   email: z.string().email("E-mail inválido").max(100, "E-mail muito longo"),
-  password: z
-    .string()
-    .min(6, "Senha deve ter no mínimo 6 caracteres")
-    .max(100, "Senha muito longa"),
+  password: buildNewPasswordSchema(NEW_PASSWORD_MAX_LENGTH),
   role: z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]).optional(),
   barbershopId: z.string().uuid("ID de salão inválido").optional(),
   cpf: cpfSchema.optional()
@@ -65,7 +66,7 @@ export const updateUserSchema = z
   .object({
     name: z.string().min(3).max(200).optional(),
     email: z.string().email().max(100).optional(),
-    password: z.string().min(6).max(100).optional(),
+    password: buildNewPasswordSchema(NEW_PASSWORD_MAX_LENGTH).optional(),
     role: z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]).optional(),
     barbershopId: z.string().uuid().optional(),
     cpf: cpfSchema.optional()

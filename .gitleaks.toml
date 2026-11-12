@@ -27,10 +27,12 @@ Nenhum destes valores autentica em serviço algum:
 - emailPreferenceService.spec.ts   -> EMAIL_UNSUBSCRIBE_SECRET fake
 - .github/workflows/ci.yml         -> JWT_SECRET/JWT_REFRESH_SECRET do job `secrets` (ambiente de teste do Actions)
 - forgotResetPassword.integration.spec.ts -> senhas/tokens sintéticos do fluxo de redefinição (nenhum acesso a serviço real)
+- legacyPasswordLogin.integration.spec.ts -> senha legada sintética de 6 caracteres (prova de retrocompatibilidade do login)
 """
 paths = [
   '''src/tests/setup\.ts$''',
   '''src/modules/email/services/emailPreferenceService\.spec\.ts$''',
   '''src/tests/integration/forgotResetPassword\.integration\.spec\.ts$''',
+  '''src/tests/integration/legacyPasswordLogin\.integration\.spec\.ts$''',
   '''\.github/workflows/ci\.yml$''',
 ]

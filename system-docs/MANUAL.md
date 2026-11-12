@@ -94,7 +94,8 @@ Cliente Prisma: `src/libs/prismaClient.ts` usa pool do `pg` + `PrismaPg` adapter
 Regras específicas de domínio (Users):
 - Apenas `ADMIN` não possui `barbershopId` vinculado.
 - `OWNER` e `EMPLOYEE` devem possuir `barbershopId` obrigatório.
-- A validação é aplicada via Zod em `createUserSchema`/`updateUserSchema` e reforçada no `CreateUserUseCase`.
+- A validação é aplicada via Zod em `createUserSchema`/`updateUserSchema` (o `CreateUserUseCase` não valida a senha).
+- Senha **nova** segue a política única (`src/modules/auth/schemas/passwordPolicy.ts`): mínimo 8 caracteres, com pelo menos 1 letra e 1 número — vale para cadastro, troca, convite, admin e internal. O **login** não usa essa política: contas antigas (inclusive com 6 caracteres) continuam entrando.
 
 ## Autenticação e Autorização
 
@@ -194,12 +195,12 @@ beforeEach(() => {
 
 describe("CreateUserUseCase", () => {
   it("cria usuário e hash da senha", async () => {
-    const user = await useCase.execute({ name: "John", email: "john@example.com", password: "123456" });
+    const user = await useCase.execute({ name: "John", email: "john@example.com", password: "Senha123" });
     expect(user.id).toBeDefined();
   });
 
   it("não permite e-mail duplicado", async () => {
-    await useCase.execute({ name: "John", email: "john@example.com", password: "123456" });
+    await useCase.execute({ name: "John", email: "john@example.com", password: "Senha123" });
     await expect(
       useCase.execute({ name: "Jane", email: "john@example.com", password: "abcdef" })
     ).rejects.toBeInstanceOf(AppError);
@@ -252,7 +253,7 @@ describe("Users (integração HTTP)", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/users",
-      payload: { name: "John", email: "john@example.com", password: "123456" }
+      payload: { name: "John", email: "john@example.com", password: "Senha123" }
     });
     expect(res.statusCode).toBe(201);
     const body = res.json();

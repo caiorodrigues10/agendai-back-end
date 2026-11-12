@@ -38,7 +38,7 @@ export async function usersRoutes(app: FastifyInstance) {
         properties: {
           name: { type: "string", minLength: 3, maxLength: 200 },
           email: { type: "string", format: "email", maxLength: 100 },
-          password: { type: "string", minLength: 6, maxLength: 100 },
+          password: { type: "string", minLength: 8, maxLength: 100 },
           role: {
             type: "string",
             enum: ["MASTER_ADMIN", "OWNER", "EMPLOYEE"],

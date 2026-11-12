@@ -4,11 +4,16 @@ import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { IHashProvider } from "@/shared/container/providers/HashProvider/IHashProvider";
 import { z } from "zod";
+import {
+  buildNewPasswordSchema,
+  NEW_PASSWORD_MAX_LENGTH,
+} from "@/modules/auth/schemas/passwordPolicy";
 
-const profileSchema = z.object({
+/** Perfil do usuário: e-mail e troca de senha (a senha nova segue a política). */
+export const profileSchema = z.object({
   email: z.string().email().max(100).optional(),
   currentPassword: z.string().min(1).optional(),
-  newPassword: z.string().min(6).max(100).optional(),
+  newPassword: buildNewPasswordSchema(NEW_PASSWORD_MAX_LENGTH).optional(),
 }).refine(data => !data.newPassword || data.currentPassword, {
   message: "A senha atual é obrigatória para trocar a senha",
   path: ["currentPassword"],

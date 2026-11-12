@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BusinessSegment, TargetAudience } from "@prisma/client";
 import { segmentAudienceError, segmentOtherError } from "@/shared/segments";
+import { buildNewPasswordSchema } from "@/modules/auth/schemas/passwordPolicy";
 
 const userRoleEnum = z.enum(["MASTER_ADMIN", "OWNER", "EMPLOYEE"]);
 
@@ -32,7 +33,7 @@ export const adminListSubscriptionsQuerySchema = searchQuerySchema.extend({
 export const adminCreateUserSchema = z.object({
   name: z.string().min(1).max(200),
   email: z.string().email(),
-  password: z.string().min(6),
+  password: buildNewPasswordSchema(),
   role: userRoleEnum,
   barbershopId: z.string().uuid().nullable().optional(),
   active: z.boolean().optional().default(true),

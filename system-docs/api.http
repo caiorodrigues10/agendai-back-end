@@ -112,7 +112,7 @@ Content-Type: {{json}}
 {
   "name": "Owner 1",
   "email": "owner1@example.com",
-  "password": "123456",
+  "password": "Senha123",
   "role": "OWNER",
   "barbershopId": "{{createBarbershop.response.body.$.data.id}}"
 }

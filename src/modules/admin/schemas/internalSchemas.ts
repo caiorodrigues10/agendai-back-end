@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { buildNewPasswordSchema } from "@/modules/auth/schemas/passwordPolicy";
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -21,7 +22,7 @@ export const updateMemberStatusSchema = z.object({
 export const acceptInvitationSchema = z.object({
   token: z.string().min(32),
   name: z.string().min(1).max(200),
-  password: z.string().min(6),
+  password: buildNewPasswordSchema(),
 }).strict();
 
 export const invitationQuerySchema = z.object({
