@@ -40,6 +40,8 @@ vi.mock("@/shared/infra/queue", async (importOriginal) => {
 });
 
 const RUN = Date.now();
+/** Senha sintética de teste — valor fixo, sem acesso a nenhum serviço. */
+const SENHA_DE_TESTE = "SenhaAntiga123";
 const createdUserIds: string[] = [];
 const createdEmails: string[] = [];
 let app: FastifyInstance;
@@ -63,7 +65,7 @@ async function createUser(opts: {
   active?: boolean;
   deletedAt?: Date | null;
 }): Promise<{ id: string; email: string }> {
-  const hash = await bcrypt.hash(opts.password ?? "SenhaAntiga123", 4);
+  const hash = await bcrypt.hash(opts.password ?? SENHA_DE_TESTE, 4);
   const user = await prisma.user.create({
     data: {
       name: "Usuário de Teste",
@@ -238,8 +240,7 @@ describe("A. caminho feliz (a)", () => {
 
   it("reset com token válido troca a senha, gasta o token e enfileira password_changed", async () => {
     const email = fakeEmail("reset-ok");
-    const oldPassword = "SenhaAntiga123";
-    await createUser({ email, password: oldPassword });
+    await createUser({ email, password: SENHA_DE_TESTE });
 
     const { token, id } = await requestToken(email);
 
@@ -251,7 +252,7 @@ describe("A. caminho feliz (a)", () => {
     });
 
     // Login antigo falha, novo funciona.
-    expect((await login(email, oldPassword)).statusCode).toBe(401);
+    expect((await login(email, SENHA_DE_TESTE)).statusCode).toBe(401);
     const newLogin = await login(email, "NovaSenha456");
     expect(newLogin.statusCode).toBe(200);
 
@@ -432,9 +433,9 @@ describe("D. pedir um novo link invalida o anterior (e)", () => {
 describe("E. sessões e refresh tokens após o reset (f)", () => {
   it("refresh token e sessão ANTIGOS são revogados após o reset", async () => {
     const email = fakeEmail("sessions");
-    const user = await createUser({ email, password: "SenhaAntiga123" });
+    const user = await createUser({ email, password: SENHA_DE_TESTE });
 
-    const loginRes = await login(email, "SenhaAntiga123");
+    const loginRes = await login(email, SENHA_DE_TESTE);
     expect(loginRes.statusCode).toBe(200);
     const refreshCookie = loginRes.cookies.find((c) => c.name === "refresh_token");
     expect(refreshCookie?.value).toBeTruthy();
@@ -467,7 +468,7 @@ describe("E. sessões e refresh tokens após o reset (f)", () => {
 describe("F. lockout/brute force após o reset (g)", () => {
   it("usuário bloqueado (423) que redefine a senha SAI do lockout", async () => {
     const email = fakeEmail("lockout");
-    const user = await createUser({ email, password: "SenhaAntiga123" });
+    const user = await createUser({ email, password: SENHA_DE_TESTE });
 
     // Dev thresholds (NODE_ENV != production): 10 falhas → lock de 5s.
     // O counter é por (email, IP) — bruteForceProtection.ts:96.
