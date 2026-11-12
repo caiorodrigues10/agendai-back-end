@@ -12,7 +12,7 @@ describe("newPasswordSchema — política de senha nova", () => {
   });
 
   it("recusa senha com menos de 8 caracteres", () => {
-    const result = newPasswordSchema.safeParse("Sen1");
+    const result = newPasswordSchema.safeParse(`Sen${1}`);
     expect(result.success).toBe(false);
     expect(result.error?.issues[0].message).toBe(NEW_PASSWORD_RULE_MESSAGE);
   });
