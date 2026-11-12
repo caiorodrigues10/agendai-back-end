@@ -15,4 +15,7 @@ version: 2
 secret:
   ignored_paths:
     - src/modules/auth/schemas/passwordPolicy.spec.ts
+    - src/modules/auth/schemas/unifiedPasswordPolicy.spec.ts
+    - src/modules/users/controllers/ProfileController.spec.ts
     - src/tests/integration/forgotResetPassword.integration.spec.ts
+    - src/tests/integration/legacyPasswordLogin.integration.spec.ts
