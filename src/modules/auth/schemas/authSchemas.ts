@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BusinessSegment, TargetAudience } from "@prisma/client";
 import { isValidCpf, normalizeCpf, isValidCnpj, normalizeCnpj } from "@/shared/utils/cpfUtils";
 import { segmentAudienceError, segmentOtherError } from "@/shared/segments";
+import { newPasswordSchema } from "./passwordPolicy";
 
 const phoneBR = z
   .string()
@@ -35,7 +36,7 @@ export const googleLoginSchema = z.object({
 const registerBaseSchema = z.object({
   ownerName: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
   email: z.string().email(),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  password: newPasswordSchema,
   cpf: z
     .string()
     .min(11, "CPF inválido")
@@ -121,18 +122,13 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(32, "Token inválido"),
-  newPassword: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  newPassword: newPasswordSchema,
 }).strict();
 
 /** Convite de dono de salão (assistente do master) — uso único. */
 export const acceptOwnerInviteSchema = z.object({
   token: z.string().min(32, "Token inválido"),
-  newPassword: z
-    .string()
-    .min(6, "Senha deve ter no mínimo 6 caracteres")
-    .refine((v) => /[a-zA-Z]/.test(v) && /\d/.test(v), {
-      message: "Senha deve conter letras e números",
-    }),
+  newPassword: newPasswordSchema,
 }).strict();
 
 export const switchAccountSchema = z.object({
