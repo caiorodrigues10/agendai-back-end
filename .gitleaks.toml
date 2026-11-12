@@ -26,9 +26,11 @@ Nenhum destes valores autentica em serviço algum:
 - src/tests/setup.ts               -> JWT_SECRET, JWT_REFRESH_SECRET, ASAAS_WEBHOOK_TOKEN fake (o código exige >=32 chars)
 - emailPreferenceService.spec.ts   -> EMAIL_UNSUBSCRIBE_SECRET fake
 - .github/workflows/ci.yml         -> JWT_SECRET/JWT_REFRESH_SECRET do job `secrets` (ambiente de teste do Actions)
+- forgotResetPassword.integration.spec.ts -> senhas/tokens sintéticos do fluxo de redefinição (nenhum acesso a serviço real)
 """
 paths = [
   '''src/tests/setup\.ts$''',
   '''src/modules/email/services/emailPreferenceService\.spec\.ts$''',
+  '''src/tests/integration/forgotResetPassword\.integration\.spec\.ts$''',
   '''\.github/workflows/ci\.yml$''',
 ]

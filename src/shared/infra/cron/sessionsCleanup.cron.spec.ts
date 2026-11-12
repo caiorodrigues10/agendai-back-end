@@ -15,6 +15,7 @@ vi.mock("@/shared/infra/redis/cronLock", () => ({
 
 const prismaMock = vi.hoisted(() => ({
   userSession: { findMany: vi.fn(), deleteMany: vi.fn() },
+  passwordResetToken: { deleteMany: vi.fn() },
 }));
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
@@ -31,7 +32,10 @@ function lastScheduledTask(): () => Promise<void> {
 }
 
 describe("scheduleSessionsCleanup", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
+  });
 
   it("agenda diariamente às 03:40 com timezone America/Sao_Paulo", () => {
     scheduleSessionsCleanup(log);
@@ -70,6 +74,33 @@ describe("scheduleSessionsCleanup", () => {
     expect(log.info).toHaveBeenCalledWith(
       { removed: 1001 },
       "[SessionsCleanup] Old user sessions removed",
+    );
+  });
+
+  it("remove password_reset_tokens expirados/usados há mais de 1 dia", async () => {
+    scheduleSessionsCleanup(log);
+
+    prismaMock.userSession.findMany.mockResolvedValue([]);
+    prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 7 });
+
+    await lastScheduledTask()();
+
+    expect(prismaMock.passwordResetToken.deleteMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { expiresAt: { lt: expect.any(Date) } },
+          { usedAt: { lt: expect.any(Date) } },
+        ],
+      },
+    });
+    // cutoff = now - 1 dia
+    const cutoff: Date = prismaMock.passwordResetToken.deleteMany.mock.calls[0][0].where.OR[0]
+      .expiresAt.lt;
+    const expectedCutoff = Date.now() - 86_400_000;
+    expect(Math.abs(cutoff.getTime() - expectedCutoff)).toBeLessThan(5_000);
+    expect(log.info).toHaveBeenCalledWith(
+      { removed: 7 },
+      "[SessionsCleanup] Old password reset tokens removed",
     );
   });
 
