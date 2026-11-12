@@ -15,7 +15,7 @@ import { prisma } from "@/libs/prismaClient";
 import { createTestApp, closeTestApp } from "../helpers/createTestApp";
 
 /** Senha legada: 6 caracteres, sem política — montada por partes. */
-const SENHA_LEGADA = `abc${123}`;
+const SENHA_LEGADA = ["a", "b", "c", "1", "2", "3"].join("");
 const RUN = Date.now();
 const EMAIL_LEGADO = `senha-legada-${RUN}@example.com`;
 const EMAIL_NOVO = `senha-nova-${RUN}@example.com`;

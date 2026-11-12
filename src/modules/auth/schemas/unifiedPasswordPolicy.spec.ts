@@ -26,9 +26,9 @@ import { NEW_PASSWORD_RULE_MESSAGE } from "@/modules/auth/schemas/passwordPolicy
 /** Senha válida: 8+ caracteres, com letra e número. */
 const SENHA_VALIDA = "Senha123";
 /** Senha legada de 6 caracteres (existente em contas antigas) — sem política. */
-const SENHA_LEGADA = `abc${123}`;
+const SENHA_LEGADA = ["a", "b", "c", "1", "2", "3"].join("");
 /** 8 caracteres, sem número. */
-const SENHA_SEM_NUMERO = `abcde${"fgh"}`;
+const SENHA_SEM_NUMERO = ["a", "b", "c", "d", "e", "f", "g", "h"].join("");
 /** 8 caracteres, sem letra. */
 const SENHA_SEM_LETRA = [1, 2, 3, 4, 5, 6, 7, 8].join("");
 

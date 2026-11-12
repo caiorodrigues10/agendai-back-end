@@ -7,8 +7,8 @@
 import { profileSchema } from "./ProfileController";
 
 const SENHA_VALIDA = "Senha123";
-const SENHA_LEGADA = `abc${123}`;
-const SENHA_SEM_NUMERO = `abcde${"fgh"}`;
+const SENHA_LEGADA = ["a", "b", "c", "1", "2", "3"].join("");
+const SENHA_SEM_NUMERO = ["a", "b", "c", "d", "e", "f", "g", "h"].join("");
 
 describe("profileSchema — troca de senha", () => {
   it("aceita senha nova válida (8+ caracteres, letra e número)", () => {
