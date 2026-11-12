@@ -1,13 +1,18 @@
 # Configuração do GitGuardian — agendai-back-end
 #
-# Motivo: o check "GitGuardian Security Checks" do CI falhou com 1 achado de
+# Motivo: o check "GitGuardian Security Checks" do CI falhou com achado de
 # "Generic Password" em `src/modules/auth/schemas/passwordPolicy.spec.ts`.
 # Os valores são senhas SINTÉTICAS usadas nos testes da política de senha
 # (ex.: "Senha123", "Sen1") — nenhuma autentica em serviço algum.
 #
 # Este ignore é POR CAMINHO e cobre apenas arquivos de teste. Nenhuma
 # credencial real deve ser adicionada a esses arquivos.
+#
+# Formato v2 (ver `ggshield config migrate`).
 
-paths-ignore:
-  - "src/modules/auth/schemas/passwordPolicy.spec.ts"
-  - "src/tests/integration/forgotResetPassword.integration.spec.ts"
+version: 2
+
+secret:
+  ignored_paths:
+    - src/modules/auth/schemas/passwordPolicy.spec.ts
+    - src/tests/integration/forgotResetPassword.integration.spec.ts
