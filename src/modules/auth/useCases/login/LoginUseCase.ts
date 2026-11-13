@@ -32,6 +32,7 @@ interface UserWithEmailPassword {
   barbershopId: string | null;
   cpf: string | null;
   active: boolean;
+  deletedAt: Date | null;
   password: string | null;
   termsVersion: string | null;
   emailVerified: boolean | null;
