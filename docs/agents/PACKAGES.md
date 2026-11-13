@@ -80,6 +80,7 @@
 | `@types/pdfkit` | `^0.17.7` | Tipos | Tipagens pdfkit | tsc |
 | `@types/pg` | `^8.18.0` | Tipos | Tipagens pg | tsc |
 | `@types/ws` | `^8.18.1` | Tipos | Tipagens WS | tsc |
+| `dependency-cruiser` | `^18.7.2` | Arquitetura | Regras de dependência entre módulos (Clean Architecture) | npm run architecture:check / .dependency-cruiser.cjs |
 | `dotenv-cli` | `^11.0.0` | Testes | Env em scripts de teste | test:integration* |
 | `prisma` | `6.4.0` | Persistência | CLI Prisma 6.4.0 | migrate/generate |
 | `tsup` | `^8.3.5` | Build | Bundler produção | npm run build |

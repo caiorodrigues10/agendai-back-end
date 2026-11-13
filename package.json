@@ -45,7 +45,8 @@
     "ocr:bench": "tsx scripts/ocr-preprocess-bench.ts",
     "ocr:custo": "tsx scripts/ocr-custo-bench.ts",
     "verify:delivery": "node scripts/verify-delivery.mjs",
-    "whatsappai:check": "node scripts/check-whatsapp-ai-config.mjs"
+    "whatsappai:check": "node scripts/check-whatsapp-ai-config.mjs",
+    "architecture:check": "dependency-cruiser src"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
@@ -116,6 +117,7 @@
     "@types/pdfkit": "^0.17.7",
     "@types/pg": "^8.18.0",
     "@types/ws": "^8.18.1",
+    "dependency-cruiser": "^18.7.2",
     "dotenv-cli": "^11.0.0",
     "prisma": "6.4.0",
     "tsup": "^8.3.5",

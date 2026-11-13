@@ -100,6 +100,9 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
       - run: npm run typecheck
+      # Regras de arquitetura (dependency-cruiser). Hoje só warn (exit 0) —
+      # vira gate bloqueante depois das fases 1–3 zerarem as violações.
+      - run: npm run architecture:check
       - run: npm run test:security
       # Unitários: sem a pasta de integração (mesma convenção de `npm test`).
       - run: npm run test:unit

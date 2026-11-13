@@ -51,6 +51,7 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `ocr:custo` | `tsx scripts/ocr-custo-bench.ts` | leitura | traineddata local | Custo do OCR: tempo por imagem e RAM de pico, com e sem pré-processamento, incluindo o idle de 60 s do worker. `--modo=sem-preprocess\|com-preprocess`, `--largura=<px>`, `--altura=<px>` (medir com `/usr/bin/time -l`) |
 | `verify:delivery` | `node scripts/verify-delivery.mjs` | leitura | `npm install` | Encadeia docs, typecheck, unit e security (sem produção) |
 | `whatsappai:check` | `node scripts/check-whatsapp-ai-config.mjs` | leitura | env (`.env`) | Confere env do atendente de IA no WhatsApp (instância própria, segredo do webhook, Redis/DB) e imprime a URL de webhook a configurar na Evolution. Aceita `--env=<arquivo>` |
+| `architecture:check` | `dependency-cruiser src` | leitura | `npm install` | Regras de arquitetura (Clean Architecture / dívida warn). Hoje **warn** (exit 0); vira gate bloqueante após as fases 1–3 zerarem as violações |
 
 ## Observações críticas
 
