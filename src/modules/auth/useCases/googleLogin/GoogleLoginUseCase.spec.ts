@@ -296,9 +296,11 @@ describe("GoogleLoginUseCase", () => {
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
-  // KNOWN GAP: nenhum dos dois login (senha ou Google) filtra deletedAt —
-  // soft delete só vale se a app também derrubar `active`.
-  it("KNOWN GAP: usuário com deletedAt preenchido continua logando", async () => {
+  // Corrigido (item 3): soft delete corta os DOIS logins. findByEmail filtra
+  // `deletedAt` no repositório e o use case também barra explicitamente — um
+  // usuário apagado responde como conta inexistente (404), sem revelar que
+  // existiu.
+  it("usuário com deletedAt preenchido é recusado com 404", async () => {
     mockVerifyIdToken.mockResolvedValue({
       getPayload: () => ({ email: "caio@test.com", email_verified: true, sub: "sub-1" }),
     });
@@ -309,9 +311,13 @@ describe("GoogleLoginUseCase", () => {
       deletedAt: new Date(),
     });
 
-    const result = await useCase.execute("token");
-
-    expect(result).toHaveProperty("accessToken");
+    await expect(useCase.execute("token")).rejects.toThrow(
+      expect.objectContaining({
+        statusCode: 404,
+        code: "GOOGLE_ACCOUNT_NOT_FOUND",
+      })
+    );
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
   // ─── restrições de acesso e sessão ────────────────────────────────────────

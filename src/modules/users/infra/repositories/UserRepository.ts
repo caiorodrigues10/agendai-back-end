@@ -64,9 +64,23 @@ export class UserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string): Promise<IUserResponseDTO | null> {
+    return this.findUserByEmail(email, { includeDeleted: false });
+  }
+
+  async findByEmailIncludingDeleted(email: string): Promise<IUserResponseDTO | null> {
+    return this.findUserByEmail(email, { includeDeleted: true });
+  }
+
+  private async findUserByEmail(
+    email: string,
+    opts: { includeDeleted: boolean },
+  ): Promise<IUserResponseDTO | null> {
     const normalized = email.trim().toLowerCase();
     return prisma.user.findFirst({
-      where: { email: { equals: normalized, mode: "insensitive" } },
+      where: {
+        email: { equals: normalized, mode: "insensitive" },
+        ...(opts.includeDeleted ? {} : { deletedAt: null }),
+      },
       select: { ...publicSelect, password: true, googleSub: true, emailVerified: true }
     });
   }

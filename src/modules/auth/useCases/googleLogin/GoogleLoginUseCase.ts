@@ -48,7 +48,11 @@ export class GoogleLoginUseCase {
 
     const user = await this.userRepository.findByEmail(payload.email);
 
-    if (!user || !user.active) {
+    // Soft delete corta aqui (mesmo que `active` ainda esteja true): usuário
+    // removido responde como conta inexistente — sem revelar que existiu.
+    // findByEmail já filtra `deletedAt` no repositório; a checagem aqui é a
+    // barreira explícita do login.
+    if (!user || !user.active || user.deletedAt) {
       // 4o argumento = `code` (AppError(message, statusCode, errors?, code?)).
       // No 3o (errors) o handler app.ts devolvia `errors` e o branch do front
       // `err.code === 'GOOGLE_ACCOUNT_NOT_FOUND'` nunca disparava.
