@@ -56,12 +56,25 @@ export class GoogleLoginUseCase {
       );
     }
 
+    // Identidade primeiro: com googleSub já gravado, só o MESMO sub do Google
+    // abre a conta. Um token válido de OUTRA conta Google com o mesmo e-mail
+    // verificado é recusado com um 401 genérico (mensagem idêntica à de
+    // credenciais erradas — sem revelar o motivo). O código viaja em `code`
+    // como sinal interno: o controller troca por um log próprio e o remove
+    // antes de devolver a resposta ao cliente.
+    if (user.googleSub && user.googleSub !== payload.sub) {
+      throw new AppError("Credenciais inválidas", 401, undefined, "GOOGLE_SUB_MISMATCH");
+    }
+
     if (user.barbershopId) {
       await checkBarbershopAccess(user.barbershopId, user.cpf ?? undefined);
     }
 
     const needsUpdate: Record<string, unknown> = {};
 
+    // Vinculação só acontece no primeiro login — e o payload acima já exige
+    // email_verified === true (linha 45), então um e-mail não verificado pelo
+    // Google nunca grava googleSub.
     if (!user.googleSub && payload.sub) {
       needsUpdate.googleSub = payload.sub;
     }

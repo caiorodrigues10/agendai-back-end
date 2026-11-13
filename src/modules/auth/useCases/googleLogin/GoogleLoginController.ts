@@ -26,14 +26,22 @@ export class GoogleLoginController {
       });
       return reply.status(200).send(result);
     } catch (err) {
+      // GOOGLE_SUB_MISMATCH é sinal interno do use case: registra um AccessLog
+      // com código próprio (action própria) e sai daqui SEM o code — o cliente
+      // recebe um 401 genérico, indistinguível de credencial errada. O
+      // request.log acima mantém o detalhe no servidor.
+      const isSubMismatch = err instanceof AppError && err.code === "GOOGLE_SUB_MISMATCH";
       logAccess({
-        action: "LOGIN_FAILED",
+        action: isSubMismatch ? "GOOGLE_SUB_MISMATCH" : "LOGIN_FAILED",
         ipAddress: request.ip,
         userAgent: request.headers["user-agent"],
         success: false,
       });
       request.log.error({ err }, "Google login failed");
-      if (err instanceof AppError) throw err;
+      if (err instanceof AppError) {
+        if (isSubMismatch) throw new AppError(err.message, err.statusCode);
+        throw err;
+      }
       throw new AppError("Falha ao autenticar com Google", 500);
     }
   }
