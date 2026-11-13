@@ -41,6 +41,16 @@ vi.mock("@/modules/subscriptions/utils/checkBarbershopAccess", () => ({
   checkBarbershopAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Lockout por conta (item 5): o serviço real fala com Redis — sem este mock
+// o checkLock falharia em fail-open e todo teste cairia em 423.
+const lockMocks = vi.hoisted(() => ({
+  checkLock: vi.fn(),
+  recordFailure: vi.fn(),
+  resetAttempts: vi.fn(),
+}));
+
+vi.mock("@/shared/services/bruteForceProtection", () => lockMocks);
+
 const mockFindByEmail = vi.fn();
 
 const mockUser = {
@@ -63,6 +73,10 @@ describe("GoogleLoginUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.GOOGLE_CLIENT_ID = "test-client-id";
+    // Padrão sem lockout: nenhum bloqueio, nenhuma falha registrada.
+    lockMocks.checkLock.mockResolvedValue({ locked: false });
+    lockMocks.recordFailure.mockResolvedValue({ locked: false, retryAfterSeconds: 0 });
+    lockMocks.resetAttempts.mockResolvedValue(undefined);
     useCase = new GoogleLoginUseCase({ findByEmail: mockFindByEmail } as any);
   });
 
@@ -407,5 +421,97 @@ describe("GoogleLoginUseCase", () => {
     } finally {
       process.env.NODE_ENV = previous;
     }
+  });
+
+  // ─── lockout por conta (item 5) ───────────────────────────────────────────
+
+  describe("lockout por conta", () => {
+    const ctx = { ip: "198.51.100.7", userAgent: "vitest" };
+
+    it("conta bloqueada → 423 antes de consultar o usuário", async () => {
+      lockMocks.checkLock.mockResolvedValue({ locked: true, retryAfterSeconds: 300 });
+
+      await expect(useCase.execute("token", undefined, ctx)).rejects.toThrow(
+        expect.objectContaining({
+          statusCode: 423,
+          message: "Conta bloqueada por múltiplas tentativas. Tente novamente em 300 segundos.",
+        })
+      );
+      expect(mockFindByEmail).not.toHaveBeenCalled();
+      expect(lockMocks.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it("checkLock é consultado com a conta (e-mail) e o IP do contexto", async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: "caio@test.com", email_verified: true, sub: "sub-1" }),
+      });
+      mockFindByEmail.mockResolvedValue({ ...mockUser, emailVerified: true, googleSub: "sub-1" });
+
+      await useCase.execute("token", undefined, ctx);
+
+      expect(lockMocks.checkLock).toHaveBeenCalledWith("caio@test.com", "198.51.100.7");
+    });
+
+    it("404 (conta inexistente) conta como tentativa e bloqueia na décima falha", async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: "caio@test.com", email_verified: true, sub: "sub-1" }),
+      });
+      mockFindByEmail.mockResolvedValue(null);
+      lockMocks.recordFailure.mockResolvedValue({ locked: true, retryAfterSeconds: 60 });
+
+      // A falha que cruza o degrau vira 423 (igual ao LoginController), não 404.
+      await expect(useCase.execute("token", undefined, ctx)).rejects.toThrow(
+        expect.objectContaining({
+          statusCode: 423,
+          message: "Conta bloqueada por múltiplas tentativas. Tente novamente em 60 segundos.",
+        })
+      );
+      expect(lockMocks.recordFailure).toHaveBeenCalledWith("caio@test.com", "198.51.100.7");
+    });
+
+    it("sub divergente (401) também conta como tentativa", async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: "caio@test.com", email_verified: true, sub: "outro" }),
+      });
+      mockFindByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: true,
+        googleSub: "original",
+      });
+
+      await expect(useCase.execute("token", undefined, ctx)).rejects.toThrow(
+        expect.objectContaining({ statusCode: 401, code: "GOOGLE_SUB_MISMATCH" })
+      );
+      expect(lockMocks.recordFailure).toHaveBeenCalledWith("caio@test.com", "198.51.100.7");
+      expect(lockMocks.resetAttempts).not.toHaveBeenCalled();
+    });
+
+    it("402 de assinatura NÃO conta como tentativa", async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: "caio@test.com", email_verified: true, sub: "sub-1" }),
+      });
+      mockFindByEmail.mockResolvedValue({ ...mockUser, emailVerified: true, googleSub: "sub-1" });
+      vi.mocked(checkBarbershopAccess).mockRejectedValueOnce(
+        new AppError("Assinatura expirada", 402)
+      );
+
+      await expect(useCase.execute("token", undefined, ctx)).rejects.toThrow(
+        expect.objectContaining({ statusCode: 402 })
+      );
+      expect(lockMocks.recordFailure).not.toHaveBeenCalled();
+      expect(lockMocks.resetAttempts).not.toHaveBeenCalled();
+    });
+
+    it("login bem-sucedido zera as tentativas", async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: "caio@test.com", email_verified: true, sub: "sub-1" }),
+      });
+      mockFindByEmail.mockResolvedValue({ ...mockUser, emailVerified: true, googleSub: "sub-1" });
+
+      await useCase.execute("token", undefined, ctx);
+
+      expect(lockMocks.resetAttempts).toHaveBeenCalledWith("caio@test.com", "198.51.100.7");
+      expect(lockMocks.recordFailure).not.toHaveBeenCalled();
+    });
   });
 });

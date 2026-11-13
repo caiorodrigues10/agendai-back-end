@@ -13,9 +13,10 @@
  *    lança AppError (400 e-mail já cadastrado, 409 CPF, 401 token…) o
  *    logAccess do caminho de sucesso nunca roda e a falha fica invisível.
  *
- * O lockout (checkLock/recordFailure/resetAttempts) é só de LoginController.ts
- * — ver src/modules/auth/useCases/login/LoginController.ts:18,25,41.
- * GoogleLoginController.ts não importa bruteForceProtection (grep comprova).
+ * Lockout por conta (item 5): o use case aplica checkLock/recordFailure/
+ * resetAttempts (mesmo mecanismo do LoginController) e o controller repassa o
+ * 423 sem gravar AccessLog — igual ao login por senha, em que o bloqueio não
+ * é uma tentativa nova.
  */
 import type { FastifyReply, FastifyRequest } from "fastify";
 
@@ -125,6 +126,24 @@ describe("GoogleLoginController (auditoria)", () => {
     expect(logAccessMock).toHaveBeenCalledWith(
       expect.objectContaining({ action: "GOOGLE_SUB_MISMATCH", success: false })
     );
+  });
+
+  // Item 5: conta bloqueada (423) não grava AccessLog — o bloqueio não é uma
+  // tentativa nova (mesmo comportamento do LoginController.ts).
+  it("conta bloqueada (423) não grava AccessLog", async () => {
+    executeMock.mockRejectedValue(
+      new AppError(
+        "Conta bloqueada por múltiplas tentativas. Tente novamente em 60 segundos.",
+        423
+      )
+    );
+    const reply = makeReply();
+
+    await expect(new GoogleLoginController().handle(makeRequest(), reply)).rejects.toThrow(
+      expect.objectContaining({ statusCode: 423 })
+    );
+
+    expect(logAccessMock).not.toHaveBeenCalled();
   });
 
   it("erro não-AppError vira 500 sem vazar o original", async () => {

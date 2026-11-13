@@ -26,6 +26,11 @@ export class GoogleLoginController {
       });
       return reply.status(200).send(result);
     } catch (err) {
+      // Conta bloqueada (423): igual ao LoginController — o bloqueio não é uma
+      // tentativa nova, então não grava AccessLog nem loga como erro.
+      if (err instanceof AppError && err.statusCode === 423) {
+        throw err;
+      }
       // GOOGLE_SUB_MISMATCH é sinal interno do use case: registra um AccessLog
       // com código próprio (action própria) e sai daqui SEM o code — o cliente
       // recebe um 401 genérico, indistinguível de credencial errada. O
