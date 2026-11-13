@@ -49,9 +49,13 @@ export class GoogleLoginUseCase {
     const user = await this.userRepository.findByEmail(payload.email);
 
     if (!user || !user.active) {
+      // 4o argumento = `code` (AppError(message, statusCode, errors?, code?)).
+      // No 3o (errors) o handler app.ts devolvia `errors` e o branch do front
+      // `err.code === 'GOOGLE_ACCOUNT_NOT_FOUND'` nunca disparava.
       throw new AppError(
         "Conta não encontrada. Cadastre-se normalmente com e-mail e senha.",
         404,
+        undefined,
         "GOOGLE_ACCOUNT_NOT_FOUND"
       );
     }

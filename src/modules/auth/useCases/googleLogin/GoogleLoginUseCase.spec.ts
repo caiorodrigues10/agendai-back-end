@@ -214,12 +214,12 @@ describe("GoogleLoginUseCase", () => {
     );
   });
 
-  // KNOWN GAP: o código vai para o 3o parâmetro do AppError (errors) e não para
-  // o 4o (code) — AppError(message, statusCode, errors?, code?). O handler devolve
-  // `errors` e NÃO `code`, então o branch do front
-  // `err.code === 'GOOGLE_ACCOUNT_NOT_FOUND'` (AuthContext.ts:238) nunca dispara.
-  // É o único AppError do repo com a string no lugar errado (varredura em src/).
-  it("KNOWN GAP: GOOGLE_ACCOUNT_NOT_FOUND vai em `errors`, não em `code`", async () => {
+  // Corrigido (item 2): o código vai para o 4o parâmetro do AppError (code) —
+  // AppError(message, statusCode, errors?, code?). O handler app.ts serializa
+  // `code` na resposta, então o branch do front
+  // `err.code === 'GOOGLE_ACCOUNT_NOT_FOUND'` (AuthContext.ts:238) dispara e a
+  // orientação em PT-BR chega ao usuário (antes o código cru aparecia na tela).
+  it("GOOGLE_ACCOUNT_NOT_FOUND vai em `code`, não em `errors`", async () => {
     mockVerifyIdToken.mockResolvedValue({
       getPayload: () => ({ email: "caio@test.com", email_verified: true, sub: "sub-1" }),
     });
@@ -228,8 +228,9 @@ describe("GoogleLoginUseCase", () => {
     await expect(useCase.execute("token")).rejects.toThrow(
       expect.objectContaining({
         statusCode: 404,
-        errors: "GOOGLE_ACCOUNT_NOT_FOUND",
-        code: undefined,
+        message: "Conta não encontrada. Cadastre-se normalmente com e-mail e senha.",
+        code: "GOOGLE_ACCOUNT_NOT_FOUND",
+        errors: undefined,
       })
     );
   });
