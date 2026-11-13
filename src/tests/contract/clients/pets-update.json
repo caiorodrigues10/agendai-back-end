@@ -1,0 +1,21 @@
+{
+  "request": "PATCH /api/clients/:id/pets/:petId",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "clientId": "<uuid>",
+      "name": "Rex",
+      "species": "DOG",
+      "breed": null,
+      "size": "LARGE",
+      "coat": null,
+      "notes": null,
+      "active": true,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "request": "DELETE /api/clients/:id/pets/:petId",
+  "status": 204,
+  "body": null
+}

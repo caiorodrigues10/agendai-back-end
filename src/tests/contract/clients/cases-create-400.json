@@ -1,0 +1,15 @@
+{
+  "request": "POST /api/clients/:id/cases (número inválido)",
+  "status": 400,
+  "body": {
+    "success": false,
+    "message": "Dados inválidos",
+    "errors": [
+      {
+        "field": "caseNumber",
+        "message": "Número de processo inválido (use NNNNNNN-DD.AAAA.J.TR.OOOO)"
+      }
+    ],
+    "correlationId": "<correlationId>"
+  }
+}

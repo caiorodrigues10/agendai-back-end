@@ -1,0 +1,21 @@
+{
+  "request": "POST /api/clients/:id/pets",
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "clientId": "<uuid>",
+      "name": "Rex",
+      "species": "OTHER",
+      "breed": null,
+      "size": null,
+      "coat": null,
+      "notes": null,
+      "active": true,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>"
+    }
+  }
+}

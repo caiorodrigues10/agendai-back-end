@@ -1,0 +1,19 @@
+{
+  "request": "PATCH /api/clients/:id/vehicles/:vehicleId",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "clientId": "<uuid>",
+      "plate": "ABC1D23",
+      "vehicleModel": "Gol",
+      "color": "Branco",
+      "notes": null,
+      "active": true,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>"
+    }
+  }
+}

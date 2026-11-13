@@ -1,0 +1,10 @@
+{
+  "request": "GET /api/clients/:id/cases (salão sem caseManagement)",
+  "status": 403,
+  "body": {
+    "success": false,
+    "code": "SEGMENT_FEATURE_UNAVAILABLE",
+    "message": "Recurso indisponível para o segmento deste estabelecimento",
+    "correlationId": "<correlationId>"
+  }
+}

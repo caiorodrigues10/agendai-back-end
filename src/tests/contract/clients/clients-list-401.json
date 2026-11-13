@@ -1,0 +1,9 @@
+{
+  "request": "GET /api/clients (sem token)",
+  "status": 401,
+  "body": {
+    "success": false,
+    "message": "Token ausente",
+    "correlationId": "<correlationId>"
+  }
+}

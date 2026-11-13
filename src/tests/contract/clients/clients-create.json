@@ -1,0 +1,24 @@
+{
+  "request": "POST /api/clients",
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "name": "MMM Cliente Via API",
+      "whatsapp": "11999990299",
+      "normalizedWhatsapp": "11999990299",
+      "notes": "criado na caracterização",
+      "marketingOptIn": true,
+      "marketingOptInAt": "<datetime>",
+      "marketingOptInSource": null,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>",
+      "remainingSessions": 0,
+      "activePackageCount": 0,
+      "packages": [],
+      "appointments": []
+    }
+  }
+}

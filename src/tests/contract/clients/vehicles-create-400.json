@@ -1,0 +1,15 @@
+{
+  "request": "POST /api/clients/:id/vehicles (placa inválida)",
+  "status": 400,
+  "body": {
+    "success": false,
+    "message": "Dados inválidos",
+    "errors": [
+      {
+        "field": "plate",
+        "message": "Placa inválida (ex.: ABC1234 ou ABC1D23)"
+      }
+    ],
+    "correlationId": "<correlationId>"
+  }
+}

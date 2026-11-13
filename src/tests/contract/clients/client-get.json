@@ -1,0 +1,24 @@
+{
+  "request": "GET /api/clients/:id",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "name": "AAA Cliente Caracterização",
+      "whatsapp": "11999990201",
+      "normalizedWhatsapp": null,
+      "notes": null,
+      "marketingOptIn": false,
+      "marketingOptInAt": null,
+      "marketingOptInSource": null,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>",
+      "remainingSessions": 0,
+      "activePackageCount": 0,
+      "packages": [],
+      "appointments": []
+    }
+  }
+}

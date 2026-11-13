@@ -1,0 +1,9 @@
+{
+  "request": "GET /api/clients/:id (dono de outro salão)",
+  "status": 403,
+  "body": {
+    "success": false,
+    "message": "Acesso negado: você não pertence a este salão",
+    "correlationId": "<correlationId>"
+  }
+}

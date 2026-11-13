@@ -1,0 +1,15 @@
+{
+  "request": "POST /api/clients (nome de 1 caractere)",
+  "status": 400,
+  "body": {
+    "success": false,
+    "message": "Dados inválidos",
+    "errors": [
+      {
+        "field": "name",
+        "message": "Nome obrigatório"
+      }
+    ],
+    "correlationId": "<correlationId>"
+  }
+}

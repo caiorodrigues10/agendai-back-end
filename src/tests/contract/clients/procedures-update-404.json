@@ -1,0 +1,9 @@
+{
+  "request": "PATCH /api/clients/:id/procedures/:recordId (inexistente)",
+  "status": 404,
+  "body": {
+    "success": false,
+    "message": "Registro de procedimento não encontrado",
+    "correlationId": "<correlationId>"
+  }
+}

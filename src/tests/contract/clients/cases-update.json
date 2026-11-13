@@ -1,0 +1,30 @@
+{
+  "request": "PATCH /api/clients/:id/cases/:caseId",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "clientId": "<uuid>",
+      "nickname": "Caso Caracterização",
+      "practiceArea": null,
+      "caseNumber": "0000001-02.2026.8.26.0001",
+      "notes": null,
+      "active": true,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>",
+      "status": "ACTIVE",
+      "priority": "NORMAL",
+      "title": null,
+      "courtName": null,
+      "opponent": "Parte Contrária",
+      "claimedAmount": null,
+      "awardedAmount": null,
+      "responsibleStaffId": null,
+      "openedAt": "<datetime>",
+      "closedAt": null,
+      "shareWithClient": false
+    }
+  }
+}

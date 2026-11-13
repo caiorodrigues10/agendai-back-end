@@ -1,0 +1,30 @@
+{
+  "request": "GET /api/clients?limit=10 (owner do salão B)",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": [
+      {
+        "id": "<uuid>",
+        "barbershopId": "<uuid>",
+        "name": "Cliente Outro Salão",
+        "whatsapp": "11999990203",
+        "normalizedWhatsapp": null,
+        "notes": null,
+        "marketingOptIn": false,
+        "marketingOptInAt": null,
+        "marketingOptInSource": null,
+        "createdAt": "<datetime>",
+        "updatedAt": "<datetime>",
+        "remainingSessions": 0,
+        "activePackageCount": 0
+      }
+    ],
+    "meta": {
+      "total": 1,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 1
+    }
+  }
+}

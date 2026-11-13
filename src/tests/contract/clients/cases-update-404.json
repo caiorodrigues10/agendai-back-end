@@ -1,0 +1,9 @@
+{
+  "request": "PATCH /api/clients/:id/cases/:caseId (inexistente)",
+  "status": 404,
+  "body": {
+    "success": false,
+    "message": "Caso não encontrado",
+    "correlationId": "<correlationId>"
+  }
+}

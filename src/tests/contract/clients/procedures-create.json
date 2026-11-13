@@ -1,0 +1,22 @@
+{
+  "request": "POST /api/clients/:id/procedures",
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "clientId": "<uuid>",
+      "professionalName": "Dra. Ana",
+      "title": "Limpeza de pele",
+      "formula": "Ácido mandélico 10%",
+      "details": "pele sensível",
+      "serviceName": "Estética facial",
+      "queueItemId": null,
+      "appointmentId": null,
+      "occurredAt": "<datetime>",
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>"
+    }
+  }
+}

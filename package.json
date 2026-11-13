@@ -48,7 +48,8 @@
     "whatsappai:check": "node scripts/check-whatsapp-ai-config.mjs",
     "architecture:check": "dependency-cruiser src",
     "audit:portuguese": "node scripts/audit-portuguese-identifiers.mjs",
-    "contract:openapi:update": "NODE_OPTIONS=--max-old-space-size=4096 dotenv -e .env -v DATABASE_URL=postgresql://agendai:agendai123@localhost:5442/agendai_db -v REDIS_URL=redis://localhost:6379 -v ALLOW_TEST_REDIS=1 -v NODE_ENV=test -v UPDATE_OPENAPI_GOLDEN=1 -- vitest run --maxWorkers=1 --no-file-parallelism src/tests/integration/openapiContract.integration.spec.ts"
+    "contract:openapi:update": "NODE_OPTIONS=--max-old-space-size=4096 dotenv -e .env -v DATABASE_URL=postgresql://agendai:agendai123@localhost:5442/agendai_db -v REDIS_URL=redis://localhost:6379 -v ALLOW_TEST_REDIS=1 -v NODE_ENV=test -v UPDATE_OPENAPI_GOLDEN=1 -- vitest run --maxWorkers=1 --no-file-parallelism src/tests/integration/openapiContract.integration.spec.ts",
+    "contract:clients:update": "NODE_OPTIONS=--max-old-space-size=4096 dotenv -e .env -v DATABASE_URL=postgresql://agendai:agendai123@localhost:5442/agendai_db -v REDIS_URL=redis://localhost:6379 -v ALLOW_TEST_REDIS=1 -v NODE_ENV=test -v UPDATE_CLIENTS_SNAPSHOTS=1 -- vitest run --maxWorkers=1 --no-file-parallelism src/tests/integration/clientsCharacterization.integration.spec.ts"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

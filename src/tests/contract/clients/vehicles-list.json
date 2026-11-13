@@ -1,0 +1,21 @@
+{
+  "request": "GET /api/clients/:id/vehicles",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": [
+      {
+        "id": "<uuid>",
+        "barbershopId": "<uuid>",
+        "clientId": "<uuid>",
+        "plate": "ABC1D23",
+        "vehicleModel": "Gol",
+        "color": "Preto",
+        "notes": null,
+        "active": true,
+        "createdAt": "<datetime>",
+        "updatedAt": "<datetime>"
+      }
+    ]
+  }
+}

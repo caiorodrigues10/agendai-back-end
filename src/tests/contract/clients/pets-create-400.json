@@ -1,0 +1,15 @@
+{
+  "request": "POST /api/clients/:id/pets (nome vazio)",
+  "status": 400,
+  "body": {
+    "success": false,
+    "message": "Dados inválidos",
+    "errors": [
+      {
+        "field": "name",
+        "message": "Nome do pet obrigatório"
+      }
+    ],
+    "correlationId": "<correlationId>"
+  }
+}

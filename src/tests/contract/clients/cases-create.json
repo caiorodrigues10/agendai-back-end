@@ -1,0 +1,36 @@
+{
+  "request": "POST /api/clients/:id/cases",
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "clientId": "<uuid>",
+      "nickname": "Caso Caracterização",
+      "practiceArea": null,
+      "caseNumber": "0000001-02.2026.8.26.0001",
+      "notes": null,
+      "active": true,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>",
+      "status": "LEAD",
+      "priority": "NORMAL",
+      "title": null,
+      "courtName": null,
+      "opponent": "Parte Contrária",
+      "claimedAmount": null,
+      "awardedAmount": null,
+      "responsibleStaffId": null,
+      "openedAt": "<datetime>",
+      "closedAt": null,
+      "shareWithClient": false,
+      "warnings": [
+        {
+          "code": "CNJ_CHECK_DIGIT",
+          "message": "O número do processo tem dígito verificador inválido. Confira o número antes de usar."
+        }
+      ]
+    }
+  }
+}

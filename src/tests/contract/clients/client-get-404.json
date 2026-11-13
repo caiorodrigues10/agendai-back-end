@@ -1,0 +1,9 @@
+{
+  "request": "GET /api/clients/:id (inexistente)",
+  "status": 404,
+  "body": {
+    "success": false,
+    "message": "Cliente não encontrado",
+    "correlationId": "<correlationId>"
+  }
+}

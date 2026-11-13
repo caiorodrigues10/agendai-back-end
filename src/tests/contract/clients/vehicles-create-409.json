@@ -1,0 +1,9 @@
+{
+  "request": "POST /api/clients/:id/vehicles (placa repetida)",
+  "status": 409,
+  "body": {
+    "success": false,
+    "message": "Este cliente já tem este veículo cadastrado",
+    "correlationId": "<correlationId>"
+  }
+}

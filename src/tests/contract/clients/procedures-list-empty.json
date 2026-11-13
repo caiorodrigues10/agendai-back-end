@@ -1,0 +1,8 @@
+{
+  "request": "GET /api/clients/:id/procedures (vazio)",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": []
+  }
+}
