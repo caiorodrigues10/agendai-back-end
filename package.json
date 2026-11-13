@@ -46,7 +46,8 @@
     "ocr:custo": "tsx scripts/ocr-custo-bench.ts",
     "verify:delivery": "node scripts/verify-delivery.mjs",
     "whatsappai:check": "node scripts/check-whatsapp-ai-config.mjs",
-    "architecture:check": "dependency-cruiser src"
+    "architecture:check": "dependency-cruiser src",
+    "audit:portuguese": "node scripts/audit-portuguese-identifiers.mjs"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

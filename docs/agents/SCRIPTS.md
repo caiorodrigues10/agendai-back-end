@@ -52,6 +52,7 @@ No checkout irmão `agendai`, executar `npm run contract:check` e `npm run test:
 | `verify:delivery` | `node scripts/verify-delivery.mjs` | leitura | `npm install` | Encadeia docs, typecheck, unit e security (sem produção) |
 | `whatsappai:check` | `node scripts/check-whatsapp-ai-config.mjs` | leitura | env (`.env`) | Confere env do atendente de IA no WhatsApp (instância própria, segredo do webhook, Redis/DB) e imprime a URL de webhook a configurar na Evolution. Aceita `--env=<arquivo>` |
 | `architecture:check` | `dependency-cruiser src` | leitura | `npm install` | Regras de arquitetura (Clean Architecture / dívida warn). Hoje **warn** (exit 0); vira gate bloqueante após as fases 1–3 zerarem as violações |
+| `audit:portuguese` | `node scripts/audit-portuguese-identifiers.mjs` | leitura | `npm install` | Inventário de identificadores/comentários/logs em português (o que vai para inglês nas fases de refactor). `--md` regenera `docs/architecture/portuguese-identifiers.md`, `--json` dump cru. Strings de UI **não** são sinalizadas |
 
 ## Observações críticas
 
