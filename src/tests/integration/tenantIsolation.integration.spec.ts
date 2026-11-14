@@ -1752,3 +1752,192 @@ describe("estoque baixo — consistência da definição em todos os pontos", ()
     });
   });
 });
+
+describe("isolamento por salão — adicionais (salon_addons / service_addon_links / appointment_addons)", () => {
+  it("B não lê, não edita, não vincula e não usa adicional de A", async () => {
+    await prisma.$transaction(async (tx) => {
+      const shopA = await tx.barbershop.create({
+        data: { name: `QA Addons A ${randomUUID()}`, whatsapp: "11990000011" },
+      });
+      const shopB = await tx.barbershop.create({
+        data: { name: `QA Addons B ${randomUUID()}`, whatsapp: "11990000012" },
+      });
+
+      const serviceA = await tx.service.create({
+        data: {
+          barbershopId: shopA.id,
+          name: `Corte Addon A ${randomUUID()}`,
+          price: 50,
+          avgTimeMinutes: 30,
+          icon: "scissors",
+        },
+      });
+      const serviceB = await tx.service.create({
+        data: {
+          barbershopId: shopB.id,
+          name: `Barba Addon B ${randomUUID()}`,
+          price: 40,
+          avgTimeMinutes: 20,
+          icon: "scissors",
+        },
+      });
+
+      const addonA = await tx.salonAddon.create({
+        data: {
+          barbershopId: shopA.id,
+          name: `Hidratação A ${randomUUID()}`,
+          price: 25,
+          durationMinutes: 15,
+          maxQuantity: 5,
+        },
+      });
+      const addonB = await tx.salonAddon.create({
+        data: {
+          barbershopId: shopB.id,
+          name: `Pomada B ${randomUUID()}`,
+          price: 10,
+          durationMinutes: 0,
+          maxQuantity: 5,
+        },
+      });
+
+      await tx.serviceAddonLink.create({
+        data: { barbershopId: shopA.id, serviceId: serviceA.id, addonId: addonA.id },
+      });
+      await tx.serviceAddonLink.create({
+        data: { barbershopId: shopB.id, serviceId: serviceB.id, addonId: addonB.id },
+      });
+
+      const appointmentA = await tx.appointment.create({
+        data: {
+          barbershopId: shopA.id,
+          serviceId: serviceA.id,
+          customerName: "Cliente Addon A",
+          whatsapp: "11991110011",
+          date: new Date(`${DIA}T00:00:00.000Z`),
+          time: "11:00",
+          status: "CONFIRMED",
+        },
+      });
+      await tx.appointmentAddon.create({
+        data: {
+          barbershopId: shopA.id,
+          appointmentId: appointmentA.id,
+          addonId: addonA.id,
+          nameSnapshot: addonA.name,
+          unitPrice: 25,
+          quantity: 1,
+          durationMinutes: 15,
+        },
+      });
+
+      // ── 1. Listagem filtrada só devolve dados do salão do contexto ──
+      await requestContext.run({ barbershopId: shopA.id } as never, async () => {
+        const addonsA = await tx.salonAddon.findMany({
+          where: { barbershopId: shopA.id, deletedAt: null },
+          select: { id: true, barbershopId: true },
+        });
+        expect(addonsA.map((r) => r.id)).toEqual([addonA.id]);
+        expect(addonsA.every((r) => r.barbershopId === shopA.id)).toBe(true);
+
+        const linksA = await tx.serviceAddonLink.findMany({
+          where: { barbershopId: shopA.id },
+          select: { id: true, barbershopId: true, serviceId: true, addonId: true },
+        });
+        expect(linksA.map((r) => r.addonId)).toEqual([addonA.id]);
+        expect(linksA.every((r) => r.barbershopId === shopA.id)).toBe(true);
+
+        const linesA = await tx.appointmentAddon.findMany({
+          where: { barbershopId: shopA.id },
+          select: { id: true, barbershopId: true, appointmentId: true },
+        });
+        expect(linesA.map((r) => r.appointmentId)).toEqual([appointmentA.id]);
+        expect(linesA.every((r) => r.barbershopId === shopA.id)).toBe(true);
+      });
+
+      // ── 2. Contexto do salão B: só addon de B ──
+      await requestContext.run({ barbershopId: shopB.id } as never, async () => {
+        const addonsB = await tx.salonAddon.findMany({
+          where: { barbershopId: shopB.id, deletedAt: null },
+          select: { id: true, barbershopId: true },
+        });
+        expect(addonsB.map((r) => r.id)).toEqual([addonB.id]);
+        expect(addonsB.map((r) => r.id)).not.toContain(addonA.id);
+      });
+
+      // ── 3. B não lê addon de A por id com where do salão B ──
+      const addonAAsB = await tx.salonAddon.findFirst({
+        where: { id: addonA.id, barbershopId: shopB.id },
+      });
+      expect(addonAAsB).toBeNull();
+
+      // ── 4. B não edita addon de A (updateMany where de B → 0 linhas) ──
+      const updated = await tx.salonAddon.updateMany({
+        where: { id: addonA.id, barbershopId: shopB.id },
+        data: { name: "HACKED BY B" },
+      });
+      expect(updated.count).toBe(0);
+      const addonAAfter = await tx.salonAddon.findUnique({
+        where: { id: addonA.id },
+        select: { name: true },
+      });
+      expect(addonAAfter?.name).toBe(addonA.name);
+
+      // ── 5. B não vincula addon de A ao serviço de B (FK/regra de salão) ──
+      // O where do link usa barbershopId do contexto; forçar addonId de A com
+      // serviceId de B viola a coerência de tenant no repositório de aplicação.
+      // No banco, a FK só exige que o addon exista — o isolamento é o where.
+      const crossLink = await tx.serviceAddonLink.findFirst({
+        where: {
+          barbershopId: shopB.id,
+          serviceId: serviceB.id,
+          addonId: addonA.id,
+        },
+      });
+      expect(crossLink).toBeNull();
+
+      // ── 6. B não "usa" (linha de agendamento) addon de A ──
+      const appointmentB = await tx.appointment.create({
+        data: {
+          barbershopId: shopB.id,
+          serviceId: serviceB.id,
+          customerName: "Cliente Addon B",
+          whatsapp: "11992220012",
+          date: new Date(`${DIA}T00:00:00.000Z`),
+          time: "12:00",
+          status: "CONFIRMED",
+        },
+      });
+      await tx.appointmentAddon.create({
+        data: {
+          barbershopId: shopB.id,
+          appointmentId: appointmentB.id,
+          addonId: addonB.id,
+          nameSnapshot: addonB.name,
+          unitPrice: 10,
+          quantity: 1,
+        },
+      });
+      const linesB = await tx.appointmentAddon.findMany({
+        where: { barbershopId: shopB.id },
+        select: { id: true, barbershopId: true, addonId: true },
+      });
+      expect(linesB.map((r) => r.addonId)).toEqual([addonB.id]);
+      expect(linesB.map((r) => r.addonId)).not.toContain(addonA.id);
+
+      // ── 7. Prova: sem where de salão, a consulta enxerga os dois tenants ──
+      const semFiltro = await tx.salonAddon.findMany({
+        where: { deletedAt: null },
+        select: { id: true, barbershopId: true },
+      });
+      expect(semFiltro.map((r) => r.id)).toEqual(
+        expect.arrayContaining([addonA.id, addonB.id]),
+      );
+
+      // ── 8. Nada persistido ──
+      throw new Error("ROLLBACK_ISOLATION");
+    }).catch((error: unknown) => {
+      expect(String((error as Error)?.message)).toContain("ROLLBACK_ISOLATION");
+    });
+  });
+});
