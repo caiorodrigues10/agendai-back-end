@@ -1,0 +1,36 @@
+{
+  "request": "POST /api/appointments (com clientPackageId)",
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "barbershopName": "QA Char Agenda",
+      "serviceId": "<uuid>",
+      "serviceName": "Corte Caracterização",
+      "servicePrice": 50,
+      "staffId": "<uuid>",
+      "staffName": "Dono Caracterização",
+      "customerName": "Cliente Pacote Char",
+      "whatsapp": "11999990301",
+      "date": "<datetime>",
+      "time": "16:00",
+      "status": "CONFIRMED",
+      "source": "APP",
+      "clientId": "<uuid>",
+      "clientPackageId": "<uuid>",
+      "petId": null,
+      "petName": null,
+      "caseId": null,
+      "caseName": null,
+      "practiceArea": null,
+      "modality": "IN_PERSON",
+      "meetingLink": null,
+      "reminderSentAt": null,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>",
+      "reservedProducts": []
+    }
+  }
+}

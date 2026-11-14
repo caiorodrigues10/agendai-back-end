@@ -1,0 +1,34 @@
+{
+  "request": "POST /api/appointments/public",
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "barbershopName": "QA Char Agenda",
+      "serviceId": "<uuid>",
+      "serviceName": "Corte Caracterização",
+      "servicePrice": 50,
+      "staffId": "<uuid>",
+      "staffName": "Dono Caracterização",
+      "customerName": "Cliente Público",
+      "whatsapp": "11999990320",
+      "date": "<datetime>",
+      "time": "14:00",
+      "status": "CONFIRMED",
+      "source": "PUBLIC",
+      "clientId": null,
+      "clientPackageId": null,
+      "petId": null,
+      "petName": null,
+      "modality": "IN_PERSON",
+      "meetingLink": null,
+      "reminderSentAt": null,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>",
+      "reservedProducts": [],
+      "manageToken": "<jwt>"
+    }
+  }
+}

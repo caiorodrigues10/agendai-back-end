@@ -1,0 +1,5 @@
+{
+  "request": "GET /api/appointments/availability?date=<date>",
+  "status": 200,
+  "body": []
+}

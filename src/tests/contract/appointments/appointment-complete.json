@@ -1,0 +1,40 @@
+{
+  "request": "POST /api/appointments/:id/complete (preço 55, pix)",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "id": "<uuid>",
+      "barbershopId": "<uuid>",
+      "barbershopName": "QA Char Agenda",
+      "serviceId": "<uuid>",
+      "serviceName": "Corte Caracterização",
+      "servicePrice": 50,
+      "staffId": "<uuid>",
+      "staffName": "Dono Caracterização",
+      "customerName": "Cliente Agendamento",
+      "whatsapp": "11999990310",
+      "date": "<datetime>",
+      "time": "10:00",
+      "status": "COMPLETED",
+      "source": "APP",
+      "clientId": null,
+      "clientPackageId": null,
+      "petId": null,
+      "petName": null,
+      "caseId": null,
+      "caseName": null,
+      "practiceArea": null,
+      "modality": "IN_PERSON",
+      "meetingLink": null,
+      "reminderSentAt": null,
+      "createdAt": "<datetime>",
+      "updatedAt": "<datetime>",
+      "reservedProducts": [],
+      "finalPrice": 55,
+      "paymentMethod": "pix",
+      "completedAt": "<datetime>",
+      "completedBy": "<uuid>"
+    }
+  }
+}
