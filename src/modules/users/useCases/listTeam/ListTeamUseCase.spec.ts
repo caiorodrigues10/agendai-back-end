@@ -8,6 +8,7 @@ function makeRepo(): IUserRepository {
     create: vi.fn(),
     findById: vi.fn(),
     findByEmail: vi.fn(),
+    findByEmailIncludingDeleted: vi.fn(),
     findByCpf: vi.fn(),
     listActiveByBarbershop: vi.fn(),
     list: vi.fn().mockResolvedValue({ data: [], total: 0 }),

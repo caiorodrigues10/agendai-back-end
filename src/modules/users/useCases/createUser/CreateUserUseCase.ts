@@ -24,8 +24,10 @@ export class CreateUserUseCase {
   ) {}
 
   async execute(data: ICreateUserDTO): Promise<IUserResponseDTO> {
-    // 1. Email duplicado
-    const emailExists = await this.userRepository.findByEmail(data.email);
+    // 1. Email duplicado — inclui usuário com `deletedAt`: o índice único do
+    // banco reserva o e-mail de quem foi removido, então o aviso precisa
+    // enxergar o registro apagado (findByEmail filtra soft delete p/ login).
+    const emailExists = await this.userRepository.findByEmailIncludingDeleted(data.email);
     if (emailExists) throw new AppError("E-mail já cadastrado", 400);
 
     // 2. Regras de role

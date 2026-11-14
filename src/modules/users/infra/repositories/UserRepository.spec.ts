@@ -2,6 +2,7 @@
 
 const findMany = vi.fn();
 const count = vi.fn();
+const findFirst = vi.fn();
 
 vi.mock("@/libs/prismaClient", async () => {
   const { Prisma } = await vi.importActual<typeof import("@prisma/client")>("@prisma/client");
@@ -11,6 +12,7 @@ vi.mock("@/libs/prismaClient", async () => {
       user: {
         findMany: (...args: unknown[]) => findMany(...args),
         count: (...args: unknown[]) => count(...args),
+        findFirst: (...args: unknown[]) => findFirst(...args),
       },
     },
   };
@@ -139,5 +141,34 @@ describe("UserRepository.list", () => {
       where: { AND: unknown[] };
     };
     expect(args.where.AND).toHaveLength(3);
+  });
+});
+
+describe("UserRepository.findByEmail (soft delete)", () => {
+  let repo: UserRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findFirst.mockResolvedValue(null);
+    repo = new UserRepository();
+  });
+
+  it("findByEmail corta usuário com deletedAt preenchido", async () => {
+    await repo.findByEmail("Ana@Shop.com");
+
+    const args = findFirst.mock.calls[0][0] as {
+      where: { email: { equals: string; mode: string }; deletedAt: null };
+    };
+    // Normalização + corte de soft delete entram no WHERE.
+    expect(args.where.email).toEqual({ equals: "ana@shop.com", mode: "insensitive" });
+    expect(args.where.deletedAt).toBeNull();
+  });
+
+  it("findByEmailIncludingDeleted não filtra deletedAt (checagem de duplicidade)", async () => {
+    await repo.findByEmailIncludingDeleted("ana@shop.com");
+
+    const args = findFirst.mock.calls[0][0] as { where: Record<string, unknown> };
+    expect(args.where.email).toEqual({ equals: "ana@shop.com", mode: "insensitive" });
+    expect(args.where).not.toHaveProperty("deletedAt");
   });
 });

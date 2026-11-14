@@ -38,6 +38,12 @@ export class MockUserRepository implements IUserRepository {
 
   async findByEmail(email: string): Promise<IUserResponseDTO | null> {
     const normalized = email.trim().toLowerCase();
+    // Espelha o repositório real: soft delete (`deletedAt`) corta aqui.
+    return this.data.find((u) => u.email.toLowerCase() === normalized && !u.deletedAt) ?? null;
+  }
+
+  async findByEmailIncludingDeleted(email: string): Promise<IUserResponseDTO | null> {
+    const normalized = email.trim().toLowerCase();
     return this.data.find((u) => u.email.toLowerCase() === normalized) ?? null;
   }
 

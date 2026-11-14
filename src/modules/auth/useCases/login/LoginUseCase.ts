@@ -32,6 +32,7 @@ interface UserWithEmailPassword {
   barbershopId: string | null;
   cpf: string | null;
   active: boolean;
+  deletedAt: Date | null;
   password: string | null;
   termsVersion: string | null;
   emailVerified: boolean | null;
@@ -55,8 +56,11 @@ export class LoginUseCase {
     context?: SessionContext,
   ) {
     const user = await this.userRepository.findByEmail(email) as UserWithEmailPassword | null;
-    if (!user || !user.active) {
-      logger.info({ reason: !user ? "not_found" : "inactive" }, "login denied");
+    // `deletedAt` corta mesmo que `active` esteja true (ex.: reativação que não
+    // limpou o soft delete). findByEmail já filtra no repositório; a checagem
+    // aqui é a barreira explícita do login.
+    if (!user || !user.active || user.deletedAt) {
+      logger.info({ reason: !user ? "not_found" : !user.active ? "inactive" : "deleted" }, "login denied");
       throw new AppError("Credenciais inválidas", 401);
     }
 
