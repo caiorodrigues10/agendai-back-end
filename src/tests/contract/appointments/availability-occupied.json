@@ -1,0 +1,11 @@
+{
+  "request": "GET /api/appointments/availability?date=<date>&staffId=<uuid>",
+  "status": 200,
+  "body": [
+    {
+      "time": "10:00",
+      "staffId": "<uuid>",
+      "durationMinutes": 30
+    }
+  ]
+}

@@ -71,6 +71,33 @@ Termos levantados no inventário (`docs/architecture/portuguese-identifiers.md`,
 | guia/dia de caixa | `dailyCloseout` |
 | visita agendada (presença) | `visit` (módulo `visits`) |
 
+## Feature `adicionais` (Fases 1–4 — contrato novo, aditivo)
+
+Termos da feature de adicionais de serviço (decisões da FASE 0). O legado
+`service_addons` / `ServiceAddon` **não muda de nome** nesta feature; as tabelas
+novas usam os nomes abaixo.
+
+| pt-BR (UI / comentários) | inglês (código / tabelas) | observação de contrato |
+|---|---|---|
+| adicional (de serviço) | `addon` | termo genérico em código novo |
+| catálogo de adicionais (por salão) | `salonAddon` (`SalonAddon`) | tabela nova; `availableOnline` define visibilidade no portal |
+| adicional × serviço (vínculo) | `serviceAddonLink` (`ServiceAddonLink`) | tabela nova de junção N:N |
+| adicional no agendamento (linha) | `appointmentAddon` (`AppointmentAddon`) | tabela nova; snapshot de preço unitário |
+| preço do adicional | `price` / `unitPrice` | `Decimal(12,2)` na API/banco; domínio calcula em centavos |
+| preço sobrescrito no atendimento | `priceOverride` | null = preço do catálogo |
+| comissionável | `commissionable` | flag em `SalonAddon` |
+| quantidade máxima (por atendimento) | `maxQuantity` | limite 1–10 por agendamento (decisão #11) |
+| quantidade escolhida | `quantity` | em `AppointmentAddon` |
+| total do atendimento (base + adicionais) | `appointmentTotal` / cálculo em domínio | função pura única; não derivar em UI |
+| pacote com adicional | — | pacote cobra só a base; adicional cobra à parte (receita/comissão separadas) |
+| remover adicional do atendimento | `removeAddon` | MVP: só antes da conclusão (edição pós-criação = fase futura) |
+
+### Fora do MVP (não implementar sem nova ordem)
+
+- Fila (walk-in) com adicional.
+- Bot do dono criando agendamento com adicional.
+- Estoque de adicional (`productId` / `stockQtyPerUse` foram removidos do schema).
+
 ## Catálogo de mensagens
 
 - Back: `src/shared/messages/pt-BR.ts` — exporta um objeto por módulo com

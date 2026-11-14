@@ -1,0 +1,46 @@
+{
+  "request": "POST /api/appointments/public/session",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "appointment": {
+        "id": "<uuid>",
+        "barbershopId": "<uuid>",
+        "serviceId": "<uuid>",
+        "staffId": "<uuid>",
+        "customerName": "Cliente Público",
+        "whatsapp": "11999990320",
+        "date": "<datetime>",
+        "time": "14:00",
+        "status": "CONFIRMED",
+        "reminderSentAt": null,
+        "createdAt": "<datetime>",
+        "updatedAt": "<datetime>",
+        "publicAccessVersion": 1,
+        "source": "PUBLIC",
+        "clientId": null,
+        "clientPackageId": null,
+        "petId": null,
+        "petName": null,
+        "modality": "IN_PERSON",
+        "meetingLink": null,
+        "service": {
+          "name": "Corte Caracterização",
+          "price": 50,
+          "avgTimeMinutes": 30
+        },
+        "staff": {
+          "name": "Dono Caracterização"
+        },
+        "barbershop": {
+          "name": "QA Char Agenda",
+          "address": null,
+          "city": null
+        },
+        "client": null
+      },
+      "sessionToken": "<jwt>"
+    }
+  }
+}

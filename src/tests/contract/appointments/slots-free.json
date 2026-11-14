@@ -1,0 +1,99 @@
+{
+  "request": "GET /api/appointments/slots?date=<date>&serviceId=<uuid>",
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": [
+      {
+        "time": "09:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "09:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "10:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "10:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "11:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "11:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "12:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "12:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "13:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "13:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "14:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "14:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "15:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "15:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "16:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "16:30",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "17:00",
+        "staffId": null,
+        "durationMinutes": 30
+      },
+      {
+        "time": "17:30",
+        "staffId": null,
+        "durationMinutes": 30
+      }
+    ]
+  }
+}
