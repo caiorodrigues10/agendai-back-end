@@ -5,6 +5,7 @@ import { withCronLock } from "@/shared/infra/redis/cronLock";
 
 const EXPIRED_RETENTION_DAYS = 30;
 const REVOKED_RETENTION_DAYS = 90;
+const PASSWORD_TOKEN_RETENTION_DAYS = 1;
 const BATCH_SIZE = 1000;
 const MS_PER_DAY = 86_400_000;
 
@@ -17,6 +18,8 @@ type CronLog = {
  * Limpa histórico de sessões mortas:
  * - expiradas há mais de 30 dias e nunca revogadas;
  * - revogadas há mais de 90 dias (janela maior p/ auditoria).
+ * Também remove `password_reset_tokens` expirados/usados há mais de 1 dia
+ * (o token vale 1 hora; sem isso a tabela cresce sem limite).
  * Só limpeza de histórico — nunca mexe em sessões ativas.
  * Lock Redis + CronRun evitam execução duplicada com réplicas.
  */
