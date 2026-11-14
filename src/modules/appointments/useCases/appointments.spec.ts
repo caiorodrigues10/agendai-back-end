@@ -10,6 +10,7 @@ import {
   UpdateAppointmentUseCase,
   CancelAppointmentUseCase,
   SendAppointmentRemindersUseCase,
+  UNIT_TEST_ATOMIC_DEPS,
 } from "./appointmentUseCases";
 import { AppError } from "@/shared/errors/AppError";
 import * as queueModule from "@/shared/infra/queue";
@@ -42,7 +43,8 @@ describe("Appointments module", () => {
         date: "2026-07-01",
         time: "10:00",
       },
-      owner("shop-1")
+      owner("shop-1"),
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     expect(apt.status).toBe("CONFIRMED");
@@ -66,7 +68,8 @@ describe("Appointments module", () => {
         date: "2026-07-02",
         time: "14:00",
       },
-      ADMIN
+      ADMIN,
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     const found = await get.execute(apt.id, ADMIN);
@@ -86,7 +89,8 @@ describe("Appointments module", () => {
         date: "2026-07-03",
         time: "09:00",
       },
-      ADMIN
+      ADMIN,
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     const updated = await update.execute(
@@ -110,7 +114,8 @@ describe("Appointments module", () => {
         date: "2026-07-03",
         time: "09:00",
       },
-      ADMIN
+      ADMIN,
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     await expect(
@@ -132,7 +137,8 @@ describe("Appointments module", () => {
         date: "2026-07-04",
         time: "11:00",
       },
-      ADMIN
+      ADMIN,
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     await cancel.execute(apt.id, ADMIN);
@@ -158,7 +164,8 @@ describe("Appointments module", () => {
         date: "2026-07-05",
         time: "15:00",
       },
-      ADMIN
+      ADMIN,
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     await expect(get.execute(apt.id, otherOwner)).rejects.toMatchObject({
@@ -179,7 +186,8 @@ describe("Appointments module", () => {
         date: "2026-07-06",
         time: "16:00",
       },
-      ADMIN
+      ADMIN,
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     await cancel.execute(apt.id, ADMIN);
@@ -222,7 +230,8 @@ describe("Appointments module", () => {
           date: todayIso(),
           time: "10:30",
         },
-        ADMIN
+        ADMIN,
+        UNIT_TEST_ATOMIC_DEPS
       );
       // mock: preenche nomes para a mensagem
       const stored = repo.appointments.find((a) => a.id === apt.id)!;
@@ -265,7 +274,8 @@ describe("Appointments module", () => {
           date: todayIso(),
           time: "14:00",
         },
-        ADMIN
+        ADMIN,
+        UNIT_TEST_ATOMIC_DEPS
       );
 
       const useCase = new SendAppointmentRemindersUseCase(
@@ -298,7 +308,8 @@ describe("Appointments module", () => {
           date: "2099-01-01",
           time: "09:00",
         },
-        ADMIN
+        ADMIN,
+        UNIT_TEST_ATOMIC_DEPS
       );
 
       const useCase = new SendAppointmentRemindersUseCase(
@@ -330,7 +341,8 @@ describe("Appointments module", () => {
           date: todayIso(),
           time: "11:00",
         },
-        ADMIN
+        ADMIN,
+        UNIT_TEST_ATOMIC_DEPS
       );
       const aptBad = await create.execute(
         {
@@ -341,7 +353,8 @@ describe("Appointments module", () => {
           date: todayIso(),
           time: "12:00",
         },
-        ADMIN
+        ADMIN,
+        UNIT_TEST_ATOMIC_DEPS
       );
 
       // Para o "Ruim", o envio lança; para o "Bom", envio bem-sucedido.
@@ -388,7 +401,8 @@ describe("Appointments module", () => {
           date: todayIso(),
           time: "15:00",
         },
-        ADMIN
+        ADMIN,
+        UNIT_TEST_ATOMIC_DEPS
       );
       const stored = repo.appointments.find((a) => a.id === apt.id)!;
       stored.barbershopName = "Barbearia Evo";
@@ -433,7 +447,8 @@ describe("Appointments module", () => {
           date: todayIso(),
           time: "16:00",
         },
-        ADMIN
+        ADMIN,
+        UNIT_TEST_ATOMIC_DEPS
       );
       const stored = repo.appointments.find((a) => a.id === apt.id)!;
       stored.barbershopName = "Barbearia Padrão";

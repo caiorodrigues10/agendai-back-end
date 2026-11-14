@@ -18,6 +18,7 @@ import {
 import {
   CreateAppointmentUseCase,
   CancelAppointmentUseCase,
+  UNIT_TEST_ATOMIC_DEPS,
 } from "@/modules/appointments/useCases/appointmentUseCases";
 import { batchSlotsOverlap } from "@/modules/packages/utils/batchSlotOverlap";
 import { AppError } from "@/shared/errors/AppError";
@@ -256,7 +257,8 @@ describe("Pacotes pré-pagos", () => {
         clientPackageId: wallet.id,
         clientId: wallet.clientId,
       },
-      owner("shop-1")
+      owner("shop-1"),
+      UNIT_TEST_ATOMIC_DEPS
     );
 
     expect((await sold.findById(wallet.id))?.remainingSessions).toBe(4);

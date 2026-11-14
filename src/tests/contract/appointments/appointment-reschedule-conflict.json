@@ -1,0 +1,9 @@
+{
+  "request": "PATCH /api/appointments/:id → 10:00 (ocupado)",
+  "status": 409,
+  "body": {
+    "success": false,
+    "message": "Horário indisponível para este profissional",
+    "correlationId": "<correlationId>"
+  }
+}

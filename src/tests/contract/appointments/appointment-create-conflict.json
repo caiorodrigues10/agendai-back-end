@@ -1,0 +1,9 @@
+{
+  "request": "POST /api/appointments (horário ocupado)",
+  "status": 409,
+  "body": {
+    "success": false,
+    "message": "Horário indisponível para este profissional",
+    "correlationId": "<correlationId>"
+  }
+}

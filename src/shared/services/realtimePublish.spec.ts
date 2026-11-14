@@ -8,6 +8,7 @@ import {
   CreateAppointmentUseCase,
   UpdateAppointmentUseCase,
   CancelAppointmentUseCase,
+  UNIT_TEST_ATOMIC_DEPS,
 } from "@/modules/appointments/useCases/appointmentUseCases";
 import { publishRealtime } from "@/shared/services/realtimeService";
 import { getShopOpenState } from "@/modules/barbershops/utils/getShopOpenState";
@@ -112,7 +113,8 @@ describe("publishRealtime nas mutações de fila e agenda", () => {
         date: "2026-07-01",
         time: "10:00",
       },
-      staff
+      staff,
+      UNIT_TEST_ATOMIC_DEPS
     );
     expect(publishRealtime).toHaveBeenCalledWith("shop-1", "appointments:changed");
 

@@ -18,6 +18,7 @@ import {
   buildQueueUpdateMessage,
   CreateAppointmentUseCase,
   SendAppointmentRemindersUseCase,
+  UNIT_TEST_ATOMIC_DEPS,
 } from "@/modules/appointments/useCases/appointmentUseCases";
 import * as queueModule from "@/shared/infra/queue";
 import { AppError } from "@/shared/errors/AppError";
@@ -612,7 +613,7 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
       barbershopId: "shop-1", serviceId: "svc-1",
       customerName: "Solo", whatsapp: "11912345678",
       date: todayIsoSP(), time: "10:00",
-    }, { role: "MASTER_ADMIN" });
+    }, { role: "MASTER_ADMIN" }, UNIT_TEST_ATOMIC_DEPS);
 
     const result = await reminders.execute();
     expect(result).toEqual({ sent: 1, failed: 0, queueMessagesFailed: 0 });
@@ -632,7 +633,7 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
       barbershopId: "shop-1", serviceId: "svc-1",
       customerName: "Cliente", whatsapp: "11912345678",
       date: todayIsoSP(), time: "10:00",
-    }, { role: "MASTER_ADMIN" });
+    }, { role: "MASTER_ADMIN" }, UNIT_TEST_ATOMIC_DEPS);
 
     const q1 = await queueRepo.create({
       barbershopId: "shop-1", serviceId: "svc-1", customerId: "c1",
@@ -669,12 +670,12 @@ describe("SendAppointmentRemindersUseCase + getQueueWaitEstimate", () => {
       barbershopId: "shop-1", serviceId: "svc-1",
       customerName: "Ruim", whatsapp: "11987654321",
       date: todayIsoSP(), time: "12:00",
-    }, { role: "MASTER_ADMIN" });
+    }, { role: "MASTER_ADMIN" }, UNIT_TEST_ATOMIC_DEPS);
     await create.execute({
       barbershopId: "shop-1", serviceId: "svc-1",
       customerName: "Bom", whatsapp: "11912345678",
       date: todayIsoSP(), time: "11:00",
-    }, { role: "MASTER_ADMIN" });
+    }, { role: "MASTER_ADMIN" }, UNIT_TEST_ATOMIC_DEPS);
 
     const result = await reminders.execute();
     expect(result).toEqual({ sent: 1, failed: 1, queueMessagesFailed: 0 });

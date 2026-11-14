@@ -19,7 +19,7 @@
         "updatedAt": "<datetime>",
         "publicAccessVersion": 2,
         "source": "PUBLIC",
-        "clientId": null,
+        "clientId": "<uuid>",
         "clientPackageId": null,
         "petId": null,
         "petName": null,
@@ -38,7 +38,9 @@
           "address": null,
           "city": null
         },
-        "client": null
+        "client": {
+          "name": "Cliente Público"
+        }
       },
       "manageToken": "<jwt>"
     }
