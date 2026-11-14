@@ -59,7 +59,21 @@ export function scheduleSessionsCleanup(log?: CronLog) {
             total += deleted;
           }
 
-          (log ?? console).info({ removed: total }, "[SessionsCleanup] Old user sessions removed");
+          // password_reset_tokens: token vale 1h; limpa expirados/usados há >1 dia.
+          const tokenCutoff = new Date(now - PASSWORD_TOKEN_RETENTION_DAYS * MS_PER_DAY);
+          const tokens = await prisma.passwordResetToken.deleteMany({
+            where: {
+              OR: [
+                { expiresAt: { lt: tokenCutoff } },
+                { usedAt: { lt: tokenCutoff } },
+              ],
+            },
+          });
+
+          (log ?? console).info(
+            { removed: total, tokensRemoved: tokens.count },
+            "[SessionsCleanup] Old user sessions removed",
+          );
         });
       } catch (err) {
         (log ?? console).error(err, "[SessionsCleanup] Failed to clean old sessions");

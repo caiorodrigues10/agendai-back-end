@@ -26,7 +26,7 @@ export class ForgotPasswordUseCase {
       where: { email: { equals: normalizedEmail, mode: "insensitive" } },
     });
 
-    logAccess({
+    await logAccess({
       email: normalizedEmail,
       action: "FORGOT_PASSWORD_REQUESTED",
       ipAddress: ip,

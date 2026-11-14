@@ -75,7 +75,7 @@ export class ResetPasswordUseCase {
     );
     await resetByEmail(updatedUser.email);
 
-    logAccess({
+    await logAccess({
       userId: updatedUser.id,
       email: updatedUser.email,
       action: "PASSWORD_RESET",

@@ -15,6 +15,7 @@ vi.mock("@/shared/infra/redis/cronLock", () => ({
 
 const prismaMock = vi.hoisted(() => ({
   userSession: { findMany: vi.fn(), deleteMany: vi.fn() },
+  passwordResetToken: { deleteMany: vi.fn() },
 }));
 
 vi.mock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
@@ -53,6 +54,7 @@ describe("scheduleSessionsCleanup", () => {
     prismaMock.userSession.deleteMany
       .mockResolvedValueOnce({ count: 1000 })
       .mockResolvedValueOnce({ count: 1 });
+    prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 3 });
 
     await lastScheduledTask()();
 
@@ -67,8 +69,9 @@ describe("scheduleSessionsCleanup", () => {
       { revokedAt: { lt: expect.any(Date) } },
     ]);
     expect(prismaMock.userSession.deleteMany).toHaveBeenCalledTimes(2);
+    expect(prismaMock.passwordResetToken.deleteMany).toHaveBeenCalledTimes(1);
     expect(log.info).toHaveBeenCalledWith(
-      { removed: 1001 },
+      { removed: 1001, tokensRemoved: 3 },
       "[SessionsCleanup] Old user sessions removed",
     );
   });

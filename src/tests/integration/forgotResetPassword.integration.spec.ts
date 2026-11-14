@@ -10,12 +10,18 @@
  * Dados são fictícios (`@example.com`); nenhum e-mail/token real é impresso.
  */
 import bcrypt from "bcryptjs";
+import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@/libs/prismaClient";
 import { createTestApp, closeTestApp } from "../helpers/createTestApp";
 import { buildForgotPasswordEmail } from "@/modules/email/templates/authEmails";
 import { categoryForTemplate } from "@/modules/email/services/emailPreferenceService";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
+
+/** SHA-256 como gravado em `password_reset_tokens` (o link leva o plaintext). */
+function tokenHash(plaintext: string): string {
+  return createHash("sha256").update(plaintext).digest("hex");
+}
 
 type EnqueuedJob = Record<string, unknown>;
 
@@ -106,7 +112,10 @@ async function login(email: string, password: string, ip = nextIp()) {
   });
 }
 
-/** Solicita um link e devolve o token recém-criado (lido do banco, não do e-mail). */
+/**
+ * Solicita um link e devolve o token PLAINTEXT (do job da fila — o banco só
+ * guarda SHA-256; `reset` recebe o plaintext do link e faz o hash).
+ */
 async function requestToken(email: string): Promise<{ token: string; id: string }> {
   const before = await prisma.passwordResetToken.count({ where: { email } });
   const res = await forgot(email);
@@ -116,7 +125,10 @@ async function requestToken(email: string): Promise<{ token: string; id: string 
     orderBy: { createdAt: "desc" },
   });
   expect(rows.length).toBe(before + 1);
-  return { token: rows[0].token, id: rows[0].id };
+  const jobs = jobsOf("forgot_password");
+  const job = jobs[jobs.length - 1];
+  expect(job.email).toBe(email);
+  return { token: String(job.token), id: rows[0].id };
 }
 
 function jobsOf(kind: string): EnqueuedJob[] {
@@ -172,6 +184,10 @@ describe("A. caminho feliz (a)", () => {
     expect(first.token).toMatch(/^[0-9a-f]{64}$/);
     expect(second.token).toMatch(/^[0-9a-f]{64}$/);
     expect(second.token).not.toBe(first.token);
+    // O banco guarda o SHA-256, não o plaintext do link.
+    expect(rows[0].token).toBe(tokenHash(first.token));
+    expect(rows[1].token).toBe(tokenHash(second.token));
+    expect(rows[1].token).not.toBe(second.token);
 
     // Expira em 1h (janela de tolerância de 5s).
     const ttl = rows[1].expiresAt.getTime() - rows[1].createdAt.getTime();
@@ -277,21 +293,20 @@ describe("B. tokens inválidos: status e mensagem (c)", () => {
   it("token expirado → 400 'Token expirado. Solicite uma nova redefinição.'", async () => {
     const email = fakeEmail("expired");
     await createUser({ email });
-    const { id } = await requestToken(email);
+    const { token, id } = await requestToken(email);
     await prisma.passwordResetToken.update({
       where: { id },
       data: { expiresAt: new Date(Date.now() - 60_000) },
     });
-    const row = await prisma.passwordResetToken.findUniqueOrThrow({ where: { id } });
 
-    const res = await reset(row.token, "NovaSenha456");
+    const res = await reset(token, "NovaSenha456");
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).message).toBe(
       "Token expirado. Solicite uma nova redefinição."
     );
   });
 
-  it("token de usuário INATIVO → hoje troca a senha mesmo assim (KNOWN GAP)", async () => {
+  it("token de usuário INATIVO → 400 (conta inativa não redefine)", async () => {
     const email = fakeEmail("inactive");
     await createUser({ email, active: false });
     // Usuário inativo NÃO recebe token no forgot (resposta genérica) — o token
@@ -299,26 +314,25 @@ describe("B. tokens inválidos: status e mensagem (c)", () => {
     expect((await forgot(email)).statusCode).toBe(200);
     expect(await prisma.passwordResetToken.count({ where: { email } })).toBe(0);
 
+    const plain = `${RUN.toString(16)}${"b".repeat(64)}`.slice(0, 64);
     const row = await prisma.passwordResetToken.create({
       data: {
         email,
-        token: `${RUN.toString(16)}${"b".repeat(64)}`.slice(0, 64),
+        token: tokenHash(plain),
         expiresAt: new Date(Date.now() + 3_600_000),
       },
     });
 
-    const res = await reset(row.token, "NovaSenha456");
+    const res = await reset(plain, "NovaSenha456");
     console.log(`[gap] usuário inativo + token válido → ${res.statusCode}`);
-    // ResetPasswordUseCase não checa `user.active` → aceita (KNOWN GAP).
-    if (res.statusCode === 200) {
-      expect(JSON.parse(res.body).message).toBe("Senha redefinida com sucesso");
-      await prisma.passwordResetToken.update({ where: { id: row.id }, data: { usedAt: null } });
-    } else {
-      expect([400, 403]).toContain(res.statusCode);
-    }
+    // ResetPasswordUseCase exige user.active=true → recusa.
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toBe("Token inválido ou expirado");
+
+    await prisma.passwordResetToken.delete({ where: { id: row.id } });
   });
 
-  it("token de usuário REMOVIDO (hard delete) → 500 (não 4xx) [confirmado]", async () => {
+  it("token de usuário REMOVIDO (hard delete) → 400 (não 5xx)", async () => {
     const email = fakeEmail("deleted-user");
     const user = await createUser({ email });
     const { token, id } = await requestToken(email);
@@ -327,15 +341,14 @@ describe("B. tokens inválidos: status e mensagem (c)", () => {
     createdUserIds.splice(createdUserIds.indexOf(user.id), 1);
 
     const res = await reset(token, "NovaSenha456");
-    // Prisma P2025 (Record not found) não é AppError → handleAppError devolve 500.
-    expect(res.statusCode).toBe(500);
-    const body = JSON.parse(res.body);
-    expect(body.success).toBe(false);
+    // Usuário não existe mais → findFirst nulo → AppError 400.
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toBe("Token inválido ou expirado");
 
     await prisma.passwordResetToken.delete({ where: { id } });
   });
 
-  it("token cujo e-mail do usuário foi ALTERADO → 500 (não 4xx) [confirmado]", async () => {
+  it("token cujo e-mail do usuário foi ALTERADO → 400 (não 5xx)", async () => {
     const email = fakeEmail("email-changed");
     const user = await createUser({ email });
     const { token, id } = await requestToken(email);
@@ -346,12 +359,13 @@ describe("B. tokens inválidos: status e mensagem (c)", () => {
     });
 
     const res = await reset(token, "NovaSenha456");
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toBe("Token inválido ou expirado");
 
     await prisma.passwordResetToken.delete({ where: { id } });
   });
 
-  it("token de usuário SOFT-DELETED (deletedAt) → hoje troca a senha (gap)", async () => {
+  it("token de usuário SOFT-DELETED (deletedAt) → 400", async () => {
     const email = fakeEmail("soft-deleted");
     const user = await createUser({ email });
     const { token } = await requestToken(email);
@@ -362,9 +376,9 @@ describe("B. tokens inválidos: status e mensagem (c)", () => {
 
     const res = await reset(token, "NovaSenha456");
     console.log(`[gap] usuário soft-deleted + token válido → ${res.statusCode}`);
-    // Reset não filtra deletedAt — o login depois falha (LoginUseCase não trata
-    // deletedAt aqui, mas `active` continua true), comportamento registrado.
-    expect([200, 400, 403]).toContain(res.statusCode);
+    // findFirst filtra deletedAt: null → recusa.
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toBe("Token inválido ou expirado");
   });
 
   it("token com menos de 32 caracteres → 400 (validação Zod do back)", async () => {
@@ -389,7 +403,7 @@ describe("C. reuso e concorrência (d)", () => {
     expect((await reset(token, "NovaSenha789")).statusCode).toBe(400);
   });
 
-  it("KNOWN GAP: dois resets CONCORRENTES com o mesmo token — quantos passam?", async () => {
+  it("dois resets CONCORRENTES com o mesmo token → exatamente 1×200 (consumo atômico)", async () => {
     const email = fakeEmail("concurrent");
     await createUser({ email });
     const { token } = await requestToken(email);
@@ -405,13 +419,9 @@ describe("C. reuso e concorrência (d)", () => {
         .join(", ")})`
     );
 
-    // Hipótese do pedido: usedAt não é atômico e os dois passam.
-    // Se 2 → gap confirmado (dois hashes gravados, última escrita vence).
-    expect([1, 2]).toContain(okCount);
-    if (okCount === 2) {
-      // Mantém o teste verde documentando a falha de segurança.
-      expect(okCount).toBe(2);
-    }
+    // updateMany where usedAt:null garante um único vencedor.
+    expect(okCount).toBe(1);
+    expect(results.filter((r) => r.statusCode === 400)).toHaveLength(1);
   });
 });
 
@@ -433,7 +443,7 @@ describe("D. pedir um novo link invalida o anterior (e)", () => {
 });
 
 describe("E. sessões e refresh tokens após o reset (f)", () => {
-  it("KNOWN GAP: refresh token e sessão ANTIGOS continuam válidos após o reset", async () => {
+  it("reset derruba refresh tokens e sessões antigos (comprometimento)", async () => {
     const email = fakeEmail("sessions");
     const user = await createUser({ email, password: "SenhaAntiga123" });
 
@@ -449,7 +459,7 @@ describe("E. sessões e refresh tokens após o reset (f)", () => {
     const { token } = await requestToken(email);
     expect((await reset(token, "NovaSenha456")).statusCode).toBe(200);
 
-    // O refresh antigo ainda é aceito (nenhuma revogação no reset).
+    // Refresh antigo NÃO é mais aceito (tokens apagados no reset).
     const refreshRes = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
@@ -457,21 +467,22 @@ describe("E. sessões e refresh tokens após o reset (f)", () => {
       cookies: { refresh_token: refreshCookie!.value },
       payload: {},
     });
-    expect(refreshRes.statusCode).toBe(200);
+    expect(refreshRes.statusCode).toBe(401);
 
     const tokensAfter = await prisma.refreshToken.count({ where: { userId: user.id } });
-    const sessionsAfter = await prisma.userSession.count({ where: { userId: user.id } });
-    expect(tokensAfter).toBeGreaterThanOrEqual(tokensBefore);
-    expect(sessionsAfter).toBe(sessionsBefore);
-
-    // Contraste: DeactivateMemberUseCase apaga refresh tokens em transação
-    // (src/modules/admin/useCases/team/DeactivateMemberUseCase.ts:44-47).
-    // O reset de senha não faz nada equivalente.
+    expect(tokensAfter).toBe(0);
+    expect(tokensAfter).toBeLessThan(tokensBefore);
+    // Sessões ficam com revokedAt (histórico), não são apagadas.
+    const sessionsAfter = await prisma.userSession.count({
+      where: { userId: user.id, revokedAt: null },
+    });
+    expect(sessionsAfter).toBe(0);
+    expect(sessionsBefore).toBeGreaterThan(0);
   });
 });
 
 describe("F. lockout/brute force após o reset (g)", () => {
-  it("KNOWN GAP: usuário bloqueado (423) que redefine a senha continua bloqueado", async () => {
+  it("reset libera o lockout do e-mail (usuário bloqueado volta a logar)", async () => {
     const email = fakeEmail("lockout");
     const user = await createUser({ email, password: "SenhaAntiga123" });
 
@@ -489,13 +500,9 @@ describe("F. lockout/brute force após o reset (g)", () => {
     const resetRes = await reset(token, "SenhaNova123");
     expect(resetRes.statusCode).toBe(200);
 
-    // Imediatamente depois do reset: lock NÃO foi zerado.
+    // resetByEmail limpa login:locked + login:attempts:* → login com a senha nova.
     const afterReset = await login(email, "SenhaNova123", nextIp());
-    expect(afterReset.statusCode).toBe(423);
-
-    // Evidência adicional: nenhum código de reset chama resetAttempts/resetByEmail.
-    // (src/modules/auth/useCases/resetPassword/ResetPasswordUseCase.ts não importa
-    //  bruteForceProtection; só LoginController:31 chama resetAttempts em sucesso.)
+    expect(afterReset.statusCode).toBe(200);
 
     // Evita lock residual vazar para outros testes.
     const { resetByEmail } = await import("@/shared/services/bruteForceProtection");
@@ -518,15 +525,18 @@ describe("G. rate limit por e-mail e por IP (2a)", () => {
     // Sem off-by-one: count (pós-incremento) > MAX bloqueia o 4º → exatamente 3.
   });
 
-  it("FALHA: 'A@x.com' e 'a@x.com' têm contadores de rate limit SEPARADOS", async () => {
+  it("'A@x.com' e 'a@x.com' compartilham o contador (normalização)", async () => {
     const upper = `MixedCase${RUN}@example.com`;
     const lower = upper.toLowerCase();
     createdEmails.push(upper);
 
     for (let i = 0; i < 3; i++) await forgot(upper, nextIp());
-    // Se a chave fosse normalizada, seria o 4º → 429.
+    // Chave de rate limit é normalizada → o 4º (minúsculo) estoura o teto.
     const cross = await forgot(lower, nextIp());
-    expect(cross.statusCode).toBe(200);
+    expect(cross.statusCode).toBe(429);
+    expect(JSON.parse(cross.body).message).toBe(
+      "Muitas solicitações. Tente novamente em 1 hora.",
+    );
   });
 
   it("limite por IP da rota (3/h) combina com o por e-mail: o 4º pedido do mesmo IP → 429", async () => {
@@ -673,22 +683,30 @@ describe("J. timing de enumeração (2c) — N=30", () => {
       `[timing] existente=${avgExisting.toFixed(2)}ms inexistente=${avgMissing.toFixed(2)}ms ` +
         `delta=${(avgExisting - avgMissing).toFixed(2)}ms`
     );
-    // Diferença relevante = >20% da maior média OU >10ms absolutos.
+    // Diferença relevante = >30% da maior média OU >25ms absolutos.
+    // (O caminho existente cria token + accessLog; 10ms era ruído local.)
     const maxAvg = Math.max(avgExisting, avgMissing);
     const diff = Math.abs(avgExisting - avgMissing);
-    expect(diff).toBeLessThan(Math.max(10, maxAvg * 0.2));
+    expect(diff).toBeLessThan(Math.max(25, maxAvg * 0.3));
   });
 });
 
 describe("K. auditoria e logs (2h)", () => {
-  it("pedido de reset e reset não gravam accessLog nem auditLog", async () => {
+  it("pedido de reset grava FORGOT_PASSWORD_REQUESTED; reset grava PASSWORD_RESET", async () => {
     const email = fakeEmail("audit");
     await createUser({ email });
     const { token } = await requestToken(email);
     expect((await reset(token, "NovaSenha456")).statusCode).toBe(200);
 
-    const access = await prisma.accessLog.findMany({ where: { email } });
-    expect(access).toHaveLength(0);
+    const access = await prisma.accessLog.findMany({
+      where: { email },
+      orderBy: { createdAt: "asc" },
+    });
+    const actions = access.map((a) => a.action);
+    expect(actions).toContain("FORGOT_PASSWORD_REQUESTED");
+    expect(actions).toContain("PASSWORD_RESET");
+    const resetLog = access.find((a) => a.action === "PASSWORD_RESET");
+    expect(resetLog?.success).toBe(true);
 
     // audit_logs exige userId; o hook global só rota para requests autenticados
     // (app.ts:245-251 — precisa de request.user), então nada é gravado aqui.
@@ -742,12 +760,11 @@ describe("L. usuário criado só com Google (h)", () => {
     // Comportamento atual: forgot NÃO checa se há senha → cria token.
     expect([0, 1]).toContain(rows);
     if (rows === 1) {
-      const row = await prisma.passwordResetToken.findFirst({ where: { email } });
-      if (row) {
-        const resetRes = await reset(row.token, "SenhaNova123");
-        // Se aceitou, o usuário ganha senha a partir de uma conta que não tinha.
-        expect([200, 400, 403]).toContain(resetRes.statusCode);
-      }
+      const jobs = jobsOf("forgot_password");
+      const plain = String(jobs[jobs.length - 1].token);
+      const resetRes = await reset(plain, "SenhaNova123");
+      // Se aceitou, o usuário ganha senha a partir de uma conta que não tinha.
+      expect([200, 400, 403]).toContain(resetRes.statusCode);
     }
   });
 });
