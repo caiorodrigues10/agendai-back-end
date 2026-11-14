@@ -18,7 +18,7 @@
       "time": "10:00",
       "status": "CONFIRMED",
       "source": "APP",
-      "clientId": null,
+      "clientId": "<uuid>",
       "clientPackageId": null,
       "petId": null,
       "petName": null,

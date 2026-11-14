@@ -3,10 +3,12 @@
  * Testes de CARACTERIZAÇÃO de agendamento SEM adicional (FASE 1, guarda-corpo).
  *
  * Congelam o contrato HTTP atual de:
- *   - create (staff)
+ *   - create (staff) + conflito de create staff → 409 (PT)
+ *   - create público + conflito de create público → 409 (PT)
  *   - slots (livres e com ocupação)
  *   - availability (vazio e com ocupação)
- *   - conflito (remarcação pública para horário ocupado → 409)
+ *   - conflito (remarcação da equipe e remarcação pública para horário
+ *     ocupado → 409)
  *   - conclusão (preço final + ledger/comissão)
  *   - conclusão com pacote (sessão paga: sem receita nova nem comissão)
  *   - remarcação pública (sucesso)
@@ -19,9 +21,9 @@
  *   - `correlationId` → `<correlationId>`
  *   - JWTs públicos   → `<jwt>` (manageToken/sessionToken)
  *
- * Em VITEST, `createAppointmentAtomic` curto-circuita para o repositório
- * (sem `assertAppointmentBookable`) — o caminho de CONFLITO real é a
- * remarcação pública, que sempre valida. Ver comentário no teste de conflito.
+ * Os creates passam pelo caminho REAL (lock advisory + transação +
+ * assertAppointmentBookable) — injeção `deps` em appointmentUseCases, sem
+ * flag de ambiente. Um create para horário ocupado retorna 409 (PT).
  *
  * Regenerar (após mudança intencional e revisada do contrato):
  *   npm run contract:appointments:update
@@ -343,6 +345,53 @@ describe("caracterização — agendamento sem adicional (Postgres real, snapsho
     expect(body[0]?.durationMinutes).toBe(30);
   });
 
+  it("POST /api/appointments para horário ocupado → 409 (PT)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/appointments",
+      headers: authHeader(owner, shopId),
+      payload: {
+        barbershopId: shopId,
+        serviceId,
+        staffId: ownerId,
+        customerName: "Conflito Staff",
+        whatsapp: "11999990311",
+        date,
+        time: TIME_A,
+      },
+    });
+    snap("appointment-create-conflict", "POST /api/appointments (horário ocupado)", res);
+    expect(res.statusCode).toBe(409);
+    const body = JSON.parse(res.body) as { success: boolean; message: string };
+    expect(body.success).toBe(false);
+    expect(body.message).toBe("Horário indisponível para este profissional");
+  });
+
+  it("POST /api/appointments/public para horário ocupado → 409 (PT)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/appointments/public",
+      payload: {
+        barbershopId: shopId,
+        serviceId,
+        staffId: ownerId,
+        customerName: "Conflito Público",
+        whatsapp: "11999990321",
+        date,
+        time: TIME_A,
+      },
+    });
+    snap(
+      "appointment-public-create-conflict",
+      "POST /api/appointments/public (horário ocupado)",
+      res
+    );
+    expect(res.statusCode).toBe(409);
+    const body = JSON.parse(res.body) as { success: boolean; message: string };
+    expect(body.success).toBe(false);
+    expect(body.message).toBe("Horário indisponível para este profissional");
+  });
+
   it("POST /api/appointments/public cria agendamento público com manageToken (201)", async () => {
     const res = await app.inject({
       method: "POST",
@@ -383,8 +432,6 @@ describe("caracterização — agendamento sem adicional (Postgres real, snapsho
   });
 
   it("POST /api/appointments/public/reschedule para horário ocupado → 409 (PT)", async () => {
-    // Em VITEST o create curto-circuita sem assertAppointmentBookable; a
-    // remarcação pública SEMPRE valida — é o caminho de conflito real.
     const res = await app.inject({
       method: "POST",
       url: "/api/appointments/public/reschedule",
@@ -425,6 +472,24 @@ describe("caracterização — agendamento sem adicional (Postgres real, snapsho
     expect(body.data.appointment.status).toBe("CONFIRMED");
     // Versão incrementada → manageToken novo.
     manageToken = body.data.manageToken;
+  });
+
+  it("PATCH /api/appointments/:id (remarcação da equipe) para horário ocupado → 409 (PT)", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/appointments/${publicAppointmentId}`,
+      headers: authHeader(owner, shopId),
+      payload: { date, time: TIME_A },
+    });
+    snap(
+      "appointment-reschedule-conflict",
+      `PATCH /api/appointments/:id → ${TIME_A} (ocupado)`,
+      res
+    );
+    expect(res.statusCode).toBe(409);
+    const body = JSON.parse(res.body) as { success: boolean; message: string };
+    expect(body.success).toBe(false);
+    expect(body.message).toBe("Horário indisponível para este profissional");
   });
 
   it("POST /api/appointments/:id/complete grava preço final, ledger e comissão (200)", async () => {

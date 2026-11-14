@@ -29,6 +29,33 @@ import {
 
 const FORBIDDEN_TRANSITIONS = new Set(["COMPLETED", "CHECKED_IN", "CANCELLED"]);
 
+/** Pontos de injeção do caminho atômico de criação/remarcação. */
+export type AppointmentAtomicDeps = {
+  bookable: (
+    data: ICreateAppointmentDTO,
+    tx: any,
+    options?: { excludeAppointmentId?: string }
+  ) => Promise<{ durationMinutes: number }>;
+  lock: { acquire: (lockId: number) => Promise<() => Promise<void>> };
+  tx: (fn: (tx: any) => Promise<any>) => Promise<any>;
+};
+
+/**
+ * Stubs de unidade (sem Postgres/Redis) — MARCADOR do caminho unitário.
+ * `createAppointmentAtomic` curto-circuita para o repositório injetado e o
+ * débito de pacote roda fora de transação. Em produção os controllers chamam
+ * sem `deps` e sempre executam o caminho real (lock advisory +
+ * $transaction + assertAppointmentBookable). Testes de unidade passam este
+ * objeto como `deps`.
+ */
+export const UNIT_TEST_ATOMIC_DEPS: AppointmentAtomicDeps = {
+  bookable: async () => ({ durationMinutes: 30 }),
+  lock: { acquire: async () => async () => {} },
+  tx: async () => {
+    throw new Error("UNIT_TEST_ATOMIC_DEPS não deve executar transação real");
+  },
+};
+
 type ReservableProductSnapshot = {
   id: string;
   name: string;
@@ -73,6 +100,8 @@ function mapCreatedAppointment(record: {
     imageUrl: string | null;
   }>;
 }): IAppointmentResponseDTO {
+  // Ordem das chaves alinhada ao mapToDTO do AppointmentRepository — as
+  // respostas HTTP (snapshots de caracterização) serializam nessa ordem.
   return {
     id: record.id,
     barbershopId: record.barbershopId,
@@ -88,9 +117,6 @@ function mapCreatedAppointment(record: {
     time: record.time,
     status: record.status as IAppointmentResponseDTO["status"],
     source: (record.source ?? "APP") as IAppointmentResponseDTO["source"],
-    reminderSentAt: record.reminderSentAt ?? null,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
     clientId: record.clientId ?? null,
     clientPackageId: record.clientPackageId ?? null,
     petId: record.petId ?? null,
@@ -100,6 +126,9 @@ function mapCreatedAppointment(record: {
     practiceArea: record.practiceArea ?? null,
     modality: (record.modality ?? 'IN_PERSON') as IAppointmentResponseDTO['modality'],
     meetingLink: record.meetingLink ?? null,
+    reminderSentAt: record.reminderSentAt ?? null,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
     reservedProducts: record.productReservations?.map((item) => ({
       id: item.id,
       productId: item.productId,
@@ -170,7 +199,8 @@ async function createProductReservationsInTx(
 
 async function createAppointmentAtomic(
   data: ICreateAppointmentDTO,
-  fallbackRepo: IAppointmentRepository
+  fallbackRepo: IAppointmentRepository,
+  deps?: AppointmentAtomicDeps
 ): Promise<IAppointmentResponseDTO> {
   // Snapshot do pet (MVP petshop): valida no tenant e grava o nome do
   // banco. Sem petId retorna imediato (não toca no Prisma), então os
@@ -187,20 +217,25 @@ async function createAppointmentAtomic(
   );
   data = { ...data, ...clientCase };
 
-  // Unit tests usam MockAppointmentRepository sem Postgres.
-  if (process.env.VITEST) {
+  // Caminho unitário (deps === UNIT_TEST_ATOMIC_DEPS): sem Postgres — grava
+  // direto no repositório injetado. Produção e integração chamam sem `deps`
+  // e sempre executam o caminho real abaixo.
+  if (deps === UNIT_TEST_ATOMIC_DEPS) {
     const created = await fallbackRepo.create(data);
     publishRealtime(data.barbershopId, "appointments:changed");
     return created;
   }
 
-  const lock = new AdvisoryLock(prisma as any);
+  const lock = deps?.lock ?? new AdvisoryLock(prisma as any);
   const lockId = AdvisoryLock.generateLockId(data.barbershopId, data.date);
   const release = await lock.acquire(lockId);
 
   try {
-    const created = await prisma.$transaction(async (tx: any) => {
-      const { durationMinutes } = await assertAppointmentBookable(data, tx);
+    const bookable = deps?.bookable ?? assertAppointmentBookable;
+    const runTx =
+      deps?.tx ?? ((fn: (tx: any) => Promise<any>) => prisma.$transaction(fn));
+    const created = await runTx(async (tx: any) => {
+      const { durationMinutes } = await bookable(data, tx);
       let resolvedStaffId = data.staffId ?? null;
 
       // A escolha "qualquer profissional" precisa ser materializada antes do
@@ -323,7 +358,8 @@ export class CreateAppointmentUseCase {
 
   async execute(
     data: ICreateAppointmentDTO,
-    requestingUser: { role: string; barbershopId?: string }
+    requestingUser: { role: string; barbershopId?: string },
+    deps?: AppointmentAtomicDeps
   ): Promise<IAppointmentResponseDTO> {
     if (
       requestingUser.role !== "MASTER_ADMIN" &&
@@ -334,7 +370,10 @@ export class CreateAppointmentUseCase {
 
     await assertOperationEnabled(data.barbershopId, 'appointments');
 
-    if (data.clientPackageId && process.env.VITEST && this.packages) {
+    // Débito de pacote FORA da transação só no caminho unitário (stub):
+    // sem Postgres não existe tx. Em produção o débito acontece dentro de
+    // createAppointmentAtomic via debitClientPackageInTx.
+    if (data.clientPackageId && deps === UNIT_TEST_ATOMIC_DEPS && this.packages) {
       const pkg = await this.packages.findById(data.clientPackageId);
       if (!pkg) throw new AppError("Pacote do cliente não encontrado", 404);
       if (pkg.serviceId !== data.serviceId) {
@@ -344,7 +383,7 @@ export class CreateAppointmentUseCase {
       data = { ...data, clientId: data.clientId ?? pkg.clientId };
     }
 
-    return createAppointmentAtomic(data, this.repo);
+    return createAppointmentAtomic(data, this.repo, deps);
   }
 }
 
@@ -356,7 +395,10 @@ export class CreatePublicAppointmentUseCase {
     private repo: IAppointmentRepository
   ) {}
 
-  async execute(data: ICreateAppointmentDTO): Promise<IAppointmentResponseDTO> {
+  async execute(
+    data: ICreateAppointmentDTO,
+    deps?: AppointmentAtomicDeps
+  ): Promise<IAppointmentResponseDTO> {
     if (!data.barbershopId) {
       throw new AppError("barbershopId é obrigatório", 400);
     }
@@ -366,7 +408,8 @@ export class CreatePublicAppointmentUseCase {
     const { clientPackageId: _ignored, clientId: _ignoredClient, ...publicData } = data;
     return createAppointmentAtomic(
       { ...publicData, barbershopId: data.barbershopId, source: "PUBLIC" },
-      this.repo
+      this.repo,
+      deps
     );
   }
 }
@@ -435,7 +478,8 @@ export class UpdateAppointmentUseCase {
   async execute(
     id: string,
     data: IUpdateAppointmentDTO,
-    requestingUser: { role: string; barbershopId?: string }
+    requestingUser: { role: string; barbershopId?: string },
+    deps?: AppointmentAtomicDeps
   ): Promise<IAppointmentResponseDTO> {
     const appointment = await this.repo.findById(id);
     if (!appointment) throw new AppError("Agendamento não encontrado", 404);
@@ -471,8 +515,15 @@ export class UpdateAppointmentUseCase {
     }
 
     const isReschedule = updateData.date || updateData.time || updateData.staffId;
-    if (isReschedule && !process.env.VITEST) {
-      const lock = new AdvisoryLock(prisma as any);
+    // Remarcação: lock advisory + transação + assertAppointmentBookable.
+    // O stub de unidade (UNIT_TEST_ATOMIC_DEPS) pula para o repositório —
+    // testes de unidade não remarca; produção/chamadores sem `deps` executam
+    // o caminho real.
+    if (isReschedule && deps !== UNIT_TEST_ATOMIC_DEPS) {
+      const lock = deps?.lock ?? new AdvisoryLock(prisma as any);
+      const bookable = deps?.bookable ?? assertAppointmentBookable;
+      const runTx =
+        deps?.tx ?? ((fn: (tx: any) => Promise<any>) => prisma.$transaction(fn));
       const lockDateSource = updateData.date ?? appointment.date;
       const lockDate =
         lockDateSource instanceof Date
@@ -481,8 +532,8 @@ export class UpdateAppointmentUseCase {
       const lockId = AdvisoryLock.generateLockId(appointment.barbershopId, lockDate);
       const release = await lock.acquire(lockId);
       try {
-        await prisma.$transaction(async (tx: any) => {
-          await assertAppointmentBookable(
+        await runTx(async (tx: any) => {
+          await bookable(
             {
               barbershopId: appointment.barbershopId,
               serviceId: appointment.serviceId,
@@ -547,6 +598,9 @@ export class GetAvailabilityUseCase {
       const { countEligibleStaff } = await import(
         "../utils/assertAppointmentBookable"
       );
+      // DÍVIDA (fora do escopo de fix/appointments-test-bookable): sob
+      // VITEST o eligibility é fixado em 1 — os testes de unidade não têm
+      // Postgres para countEligibleStaff. Não remover sem antes cobrir.
       const eligible = process.env.VITEST
         ? 1
         : await countEligibleStaff(barbershopId);
@@ -663,6 +717,10 @@ export class CancelAppointmentUseCase {
       Boolean(appointment.clientPackageId) &&
       appointment.status === "CONFIRMED";
 
+    // DÍVIDA (fora do escopo de fix/appointments-test-bookable): sob VITEST
+    // o cancelamento APAGA a linha (repo.delete) em vez de gravar
+    // status=CANCELLED — os unitários com MockAppointmentRepository dependem
+    // desse comportamento. Não remover sem antes cobrir.
     if (process.env.VITEST) {
       await this.repo.delete(id);
       if (shouldRestore && appointment.clientPackageId && this.packages) {
