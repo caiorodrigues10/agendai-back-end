@@ -70,6 +70,7 @@ import { adminInternalRoutes } from './adminInternal.routes'
 import { supportRoutes } from '@/modules/support/support.routes'
 import { npsRoutes } from '@/modules/nps/routes/nps.routes'
 import { ownerBotRoutes } from '@/modules/whatsappOwnerBot/ownerBot.routes'
+import { addonCatalogRoutes } from '@/modules/addons/presentation/addonCatalogRoutes'
 
 export async function apiRoutes(app: FastifyInstance) {
 	// CORS só neste escopo (/api) — ver corsOptions.ts.
@@ -144,4 +145,5 @@ export async function apiRoutes(app: FastifyInstance) {
 	await supportRoutes(app)
 	await npsRoutes(app)
 	await ownerBotRoutes(app)
+	await addonCatalogRoutes(app)
 }

@@ -31,11 +31,11 @@ agendai-back-end/
 
 ## Módulos (`src/modules/`)
 
-Há **60** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
+Há **62** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
 
-`admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cases`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `dataImport`, `dataExport`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `monitoring`, `notifications`, `nps`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `productReservations`, `products`, `profit`, `purchasing`, `quality`, `queue`, `recurringPackages`, `referrals`, `reputation`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `support`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`, `whatsappOwnerBot`.
+`addons`, `admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cases`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `dataImport`, `dataExport`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `monitoring`, `notifications`, `nps`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `productReservations`, `products`, `profit`, `purchasing`, `quality`, `queue`, `recurringPackages`, `referrals`, `reputation`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `support`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`, `whatsappOwnerBot`.
 
-Módulos que escaparam a varredura A1–A11 e agora entram na matriz de STATUS: **pricing**, **catalog** (avançado), **purchasing** (receive → estoque), **corporate** (admin com `setRlsContext`), **dataImport** (assistente de importação de planilhas — dono-only, `setRlsContext`, fila própria `data-import`).
+Módulos que escaparam a varredura A1–A11 e agora entram na matriz de STATUS: **pricing**, **catalog** (avançado), **purchasing** (receive → estoque), **corporate** (admin com `setRlsContext`), **dataImport** (assistente de importação de planilhas — dono-only, `setRlsContext`, fila própria `data-import`), **addons** (catálogo de adicionais, Clean Architecture domain/application/infrastructure/presentation — feature `adicionais` FASE 2).
 
 ## Rotas HTTP (`shared/infra/http/routes/`)
 

@@ -173,3 +173,15 @@ container.registerSingleton<WhatsAppAiRepository>('WhatsAppAiRepository', WhatsA
 container.registerSingleton<WhatsAppAiService>('WhatsAppAiService', WhatsAppAiService)
 
 container.registerSingleton<ICpfNameVerifier>('CpfNameVerifier', NoopCpfNameVerifier)
+
+import {
+	AddonCatalogUseCases,
+	SALON_ADDON_REPOSITORY,
+	SERVICE_ADDON_LINK_REPOSITORY,
+} from '@/modules/addons/application/addonCatalogUseCases'
+import { PrismaSalonAddonRepository } from '@/modules/addons/infrastructure/prismaSalonAddonRepository'
+import { PrismaServiceAddonLinkRepository } from '@/modules/addons/infrastructure/prismaServiceAddonLinkRepository'
+
+container.registerSingleton(SALON_ADDON_REPOSITORY, PrismaSalonAddonRepository)
+container.registerSingleton(SERVICE_ADDON_LINK_REPOSITORY, PrismaServiceAddonLinkRepository)
+container.registerSingleton(AddonCatalogUseCases)
