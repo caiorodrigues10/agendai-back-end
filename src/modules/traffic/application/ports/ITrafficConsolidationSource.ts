@@ -1,8 +1,9 @@
-import type { TrafficArea } from "../../domain/trafficAreas";
+import type { TrafficAggregateArea } from "../../domain/trafficAreas";
 
 /** Totais de uma área no dia civil consolidado. */
 export interface TrafficAreaSnapshot {
-  area: TrafficArea;
+  /** Área local ou a linha agregada `all` do site inteiro. */
+  area: TrafficAggregateArea;
   visits: number;
   visitors: number;
   sessions: number;
@@ -11,7 +12,8 @@ export interface TrafficAreaSnapshot {
 /** Totais de uma hora civil (0–23) e área. */
 export interface TrafficHourSnapshot {
   hour: number;
-  area: TrafficArea;
+  /** Área local ou a linha agregada `all` do site inteiro. */
+  area: TrafficAggregateArea;
   visits: number;
   visitors: number;
 }

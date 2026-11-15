@@ -1,6 +1,6 @@
 import { injectable } from "tsyringe";
 import { prisma, Prisma } from "@/libs/prismaClient";
-import type { TrafficArea } from "../domain/trafficAreas";
+import type { TrafficAggregateArea } from "../domain/trafficAreas";
 import { civilDayStartInstant, civilDayToDate } from "../domain/periodWindows";
 import type {
   ITrafficReportRepository,
@@ -24,7 +24,7 @@ export class PrismaTrafficReportRepository implements ITrafficReportRepository {
   async findDaily(
     fromDay: string,
     toDay: string,
-    area?: TrafficArea,
+    area?: TrafficAggregateArea,
   ): Promise<TrafficDailyRow[]> {
     const rows = await prisma.siteTrafficDaily.findMany({
       where: {
@@ -35,7 +35,7 @@ export class PrismaTrafficReportRepository implements ITrafficReportRepository {
     });
     return rows.map((row) => ({
       day: row.day.toISOString().slice(0, 10),
-      area: row.area as TrafficArea,
+      area: row.area as TrafficAggregateArea,
       visits: row.visits,
       visitors: row.visitors,
       sessions: row.sessions,
@@ -43,7 +43,10 @@ export class PrismaTrafficReportRepository implements ITrafficReportRepository {
     }));
   }
 
-  async findHourly(dayKeys: string[], area?: TrafficArea): Promise<TrafficHourlyRow[]> {
+  async findHourly(
+    dayKeys: string[],
+    area?: TrafficAggregateArea,
+  ): Promise<TrafficHourlyRow[]> {
     if (dayKeys.length === 0) return [];
     const rows = await prisma.siteTrafficHourly.findMany({
       where: {
@@ -55,7 +58,7 @@ export class PrismaTrafficReportRepository implements ITrafficReportRepository {
     return rows.map((row) => ({
       day: row.day.toISOString().slice(0, 10),
       hour: row.hour,
-      area: row.area as TrafficArea,
+      area: row.area as TrafficAggregateArea,
       visits: row.visits,
       visitors: row.visitors,
     }));
@@ -161,9 +164,16 @@ export class PrismaTrafficReportRepository implements ITrafficReportRepository {
     }));
   }
 
-  async sumLostUpdates(fromDay: string, toDay: string): Promise<number> {
+  async sumLostUpdates(
+    fromDay: string,
+    toDay: string,
+    area?: TrafficAggregateArea,
+  ): Promise<number> {
     const aggregated = await prisma.siteTrafficDaily.aggregate({
-      where: { day: { gte: civilDayToDate(fromDay), lte: civilDayToDate(toDay) } },
+      where: {
+        day: { gte: civilDayToDate(fromDay), lte: civilDayToDate(toDay) },
+        ...(area ? { area } : {}),
+      },
       _sum: { lostUpdates: true },
     });
     return aggregated._sum.lostUpdates ?? 0;

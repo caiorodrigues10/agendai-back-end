@@ -32,6 +32,8 @@ describe("regras de privacidade e exclusão do beacon", () => {
     expect(isPrefetch({ "sec-purpose": "prefetch" })).toBe(true);
     expect(isPrefetch({ purpose: "prefetch;prerender" })).toBe(true);
     expect(isPrefetch({ "x-purpose": "prefetch" })).toBe(true);
+    expect(isPrefetch({ "sec-purpose": "prerender" })).toBe(true);
+    expect(isPrefetch({ purpose: "prerender" })).toBe(true);
     expect(isPrefetch({ "sec-purpose": "analytics" })).toBe(false);
   });
 

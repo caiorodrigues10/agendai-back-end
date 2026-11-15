@@ -209,6 +209,58 @@ describe("persistência de tráfego — Postgres + Redis", () => {
     expect(hourly).toMatchObject({ visits: 6, visitors: 1 });
   });
 
+  it("persiste a linha agregada all e mantém a perda escopada por área", async () => {
+    const redis = getApiRedisConnection();
+    const day = new Date(`${TEST_DAY}T00:00:00.000Z`);
+    await prisma.siteTrafficDaily.deleteMany({ where: { day } });
+    await prisma.siteTrafficHourly.deleteMany({ where: { day } });
+    await prisma.siteTrafficOriginDaily.deleteMany({ where: { day } });
+
+    for (const area of ["public_site", "all"] as const) {
+      await redis.set(trafficKeys.visitsKey(TEST_DAY, area), "2");
+      await redis.pfadd(trafficKeys.visitorsKey(TEST_DAY, area), "same-visitor");
+      await redis.set(trafficKeys.sessionCountKey(TEST_DAY, area), "1");
+    }
+
+    const source = new RedisTrafficConsolidationSource();
+    const repository = new PrismaTrafficConsolidationRepository();
+    const snapshot = await source.readDay(TEST_DAY);
+    expect(snapshot.areas.find((row) => row.area === "all")).toMatchObject({
+      visits: 2,
+      visitors: 1,
+      sessions: 1,
+    });
+
+    await repository.persistDay(snapshot);
+    const persisted = await prisma.siteTrafficDaily.findUnique({
+      where: { day_area: { day, area: "all" } },
+    });
+    expect(persisted).toMatchObject({
+      visits: 2,
+      visitors: 1,
+      sessions: 1,
+      lostUpdates: 0,
+    });
+
+    await prisma.siteTrafficDaily.update({
+      where: { day_area: { day, area: "public_site" } },
+      data: { lostUpdates: 2 },
+    });
+    await prisma.siteTrafficDaily.update({
+      where: { day_area: { day, area: "all" } },
+      data: { lostUpdates: 1 },
+    });
+
+    const reportRepository = new PrismaTrafficReportRepository();
+    expect(await reportRepository.findDaily(TEST_DAY, TEST_DAY, "all")).toEqual([
+      expect.objectContaining({ area: "all", visits: 2 }),
+    ]);
+    expect(await reportRepository.sumLostUpdates(TEST_DAY, TEST_DAY, "all")).toBe(1);
+    expect(
+      await reportRepository.sumLostUpdates(TEST_DAY, TEST_DAY, "public_site"),
+    ).toBe(2);
+  });
+
   it("deduplica atividade por usuário/dia e conta usuários distintos no período", async () => {
     const userA = await prisma.user.create({
       data: {

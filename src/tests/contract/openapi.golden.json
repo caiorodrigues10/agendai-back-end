@@ -10949,9 +10949,27 @@
     },
     "/api/ping": {
       "post": {
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "maxLength": 8192,
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "Default Response"
+          "204": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Beacon recebido; nenhum conteúdo é retornado."
           }
         }
       }

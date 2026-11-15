@@ -10,6 +10,7 @@ import {
 import {
   TRAFFIC_AREA_LABELS,
   TRAFFIC_AREAS,
+  type TrafficAggregateArea,
   type TrafficArea,
 } from "../../domain/trafficAreas";
 import { getRedisUnavailableDrops } from "../../lossCounters";
@@ -23,8 +24,8 @@ export const TRAFFIC_REPORT_REPOSITORY = "TrafficReportRepository";
 
 export interface TrafficReportQuery {
   period: TrafficPeriod;
-  /** `all` aggregates every area; otherwise a single area filter. */
-  area: "all" | TrafficArea;
+  /** `all` uses the dedicated site-wide aggregate row. */
+  area: TrafficAggregateArea;
   /** Optional role filter for "new users" signups. */
   userRole?: string;
 }
@@ -121,6 +122,25 @@ function sumDaily(rows: TrafficDailyRow[]): {
   );
 }
 
+/**
+ * Select the rows that feed the report totals.
+ *
+ * The repository is called with the requested area so production reads the
+ * dedicated `all` row for a site-wide report. The unfiltered result is kept
+ * only for the three-area breakdown. Missing aggregate data stays missing:
+ * summing local distinct visitors/sessions would count a visitor twice after
+ * moving between areas.
+ */
+function selectAreaRows<T extends { area: TrafficAggregateArea }>(
+  filteredRows: T[],
+  allRows: T[],
+  area: TrafficAggregateArea,
+): T[] {
+  const exact = filteredRows.filter((row) => row.area === area);
+  if (exact.length > 0) return exact;
+  return allRows.filter((row) => row.area === area);
+}
+
 const LOSS_NOTES_PT_BR = [
   "A consolidação usa GREATEST(valor_persistido, valor_redis): se o Redis reiniciar e um contador voltar a zero, o valor do banco é preservado e o evento é somado em lostUpdates.",
   "redisUnavailableDrops conta descartes por indisponibilidade do Redis desde o último restart desta instância (perda aceita e monitorada).",
@@ -144,36 +164,50 @@ export class GetTrafficReportUseCase {
 
     const window = buildPeriodWindow(query.period, now, { firstRecordedDay: firstTrafficDay });
     const { fromDay, toDay, prevFromDay, prevToDay, buckets, granularity } = window;
-    const areaFilter = query.area === "all" ? undefined : query.area;
+    const areaFilter = query.area;
     const prevRange = prevFromDay && prevToDay ? { fromDay: prevFromDay, toDay: prevToDay } : null;
 
     const [
-      dailyRows,
-      hourlyRows,
+      dailyRowsFiltered,
+      dailyRowsAll,
+      hourlyRowsFiltered,
+      hourlyRowsAll,
       signupShops,
       signupUsers,
       loggedInUsers,
       origins,
       lostUpdates,
-      prevDailyRows,
+      prevDailyRowsFiltered,
+      prevDailyRowsAll,
       prevSignupShops,
       prevSignupUsers,
       prevLoggedInUsers,
     ] = await Promise.all([
       this.repo.findDaily(fromDay, toDay, areaFilter),
+      // The unfiltered rows are only the three-area breakdown; totals use
+      // the dedicated aggregate row when area=all.
+      this.repo.findDaily(fromDay, toDay),
       granularity === "hour" ? this.repo.findHourly([fromDay], areaFilter) : [],
+      granularity === "hour" ? this.repo.findHourly([fromDay]) : [],
       this.repo.countNewShopsByDay(fromDay, toDay),
       this.repo.countNewUsersByDay(fromDay, toDay, query.userRole),
       this.repo.countDistinctActiveUsers(fromDay, toDay),
       this.repo.findOrigins(fromDay, toDay, 10),
-      this.repo.sumLostUpdates(fromDay, toDay),
+      this.repo.sumLostUpdates(fromDay, toDay, areaFilter),
       prevRange ? this.repo.findDaily(prevRange.fromDay, prevRange.toDay, areaFilter) : [],
+      prevRange ? this.repo.findDaily(prevRange.fromDay, prevRange.toDay) : [],
       prevRange ? this.repo.countNewShopsByDay(prevRange.fromDay, prevRange.toDay) : [],
       prevRange
         ? this.repo.countNewUsersByDay(prevRange.fromDay, prevRange.toDay, query.userRole)
         : [],
       prevRange ? this.repo.countDistinctActiveUsers(prevRange.fromDay, prevRange.toDay) : 0,
     ]);
+
+    const dailyRows = selectAreaRows(dailyRowsFiltered, dailyRowsAll, areaFilter);
+    const hourlyRows = selectAreaRows(hourlyRowsFiltered, hourlyRowsAll, areaFilter);
+    const prevDailyRows = prevRange
+      ? selectAreaRows(prevDailyRowsFiltered, prevDailyRowsAll, areaFilter)
+      : [];
 
     const totals = this.buildTotals({
       dailyRows,
@@ -203,7 +237,7 @@ export class GetTrafficReportUseCase {
     });
 
     const areas = TRAFFIC_AREAS.map((area) => {
-      const summed = sumDaily(dailyRows.filter((row) => row.area === area));
+      const summed = sumDaily(dailyRowsAll.filter((row) => row.area === area));
       return {
         area,
         label: TRAFFIC_AREA_LABELS[area],

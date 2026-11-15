@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { ephemeralHash, visitorHash } from "./visitorIdentity";
+import { rateLimitHash, visitorHash } from "./visitorIdentity";
 
 describe("identidade efêmera de visitante", () => {
   it("produz o mesmo HMAC para a mesma entrada e não expõe o IP", () => {
@@ -17,12 +17,12 @@ describe("identidade efêmera de visitante", () => {
     );
   });
 
-  it("usa um hash local distinto para a cota por IP", () => {
-    const hash = ephemeralHash("process-salt", "203.0.113.10");
+  it("usa um hash distinto e estável entre réplicas para a cota por IP", () => {
+    const hash = rateLimitHash("shared-daily-salt", "203.0.113.10");
 
     expect(hash).toHaveLength(64);
     expect(hash).not.toContain("203.0.113.10");
-    expect(hash).toBe(ephemeralHash("process-salt", "203.0.113.10"));
-    expect(hash).not.toBe(ephemeralHash("other-process-salt", "203.0.113.10"));
+    expect(hash).toBe(rateLimitHash("shared-daily-salt", "203.0.113.10"));
+    expect(hash).not.toBe(rateLimitHash("other-daily-salt", "203.0.113.10"));
   });
 });

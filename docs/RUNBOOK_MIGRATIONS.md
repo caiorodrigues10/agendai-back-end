@@ -185,8 +185,8 @@ novo > maior prefixo da pasta). Nada trava — é higiene de histórico.
 
 A migration é **aditiva** e cria quatro tabelas de plataforma:
 
-- `site_traffic_daily` — dia civil (`America/Sao_Paulo`) × área;
-- `site_traffic_hourly` — hora civil × área;
+- `site_traffic_daily` — dia civil (`America/Sao_Paulo`) × área; a linha `all` é o agregado global do site (visitantes/sessões distintos entre áreas);
+- `site_traffic_hourly` — hora civil × área (inclui `all` para a série global);
 - `site_traffic_origin_daily` — dia civil × **host** de origem;
 - `user_activity_daily` — dia civil × `userId` (chave primária composta, sem `barbershopId`).
 
@@ -194,11 +194,25 @@ O backfill de `user_activity_daily` lê no máximo seis meses de `access_logs`, 
 
 As quatro tabelas não usam RLS porque são agregados globais sem tenant. Como defesa em profundidade, a migration executa `REVOKE ALL ... FROM PUBLIC` e revoga os papéis `anon`/`authenticated` quando existem. Um papel PostgreSQL `NOSUPERUSER NOBYPASSRLS` não recebe acesso automático; a validação está no teste de integração de privilégios.
 
+**Papel de runtime:** o `REVOKE` não concede acesso ao papel usado pela API. Prefira que a migration e a API usem o mesmo papel PostgreSQL. Se o deploy usa papéis separados, o papel da API precisa de privilégios explícitos nas quatro tabelas (e `USAGE` no schema); conceda-os depois da migration, como owner/administrador:
+
+```sql
+GRANT USAGE ON SCHEMA public TO <api_role>;
+GRANT SELECT, INSERT, UPDATE ON TABLE
+  public.site_traffic_daily,
+  public.site_traffic_hourly,
+  public.site_traffic_origin_daily,
+  public.user_activity_daily
+TO <api_role>;
+```
+
+Não conceda `DELETE`, `TRUNCATE` ou acesso a `PUBLIC`; o relatório e a consolidação só precisam de leitura, `INSERT` e `UPDATE`. Substitua `<api_role>` pelo identificador real, execute uma vez no banco alvo e valide com `has_table_privilege` antes de ativar a API.
+
 **Ordem segura de deploy:**
 
 1. Manter `TRAFFIC_BEACON_ENABLED=false` e `RUN_MIGRATIONS=false` no serviço normal.
-2. Aplicar a migration por uma única instância/job (`RUN_MIGRATIONS=true`) ou por `npx prisma migrate deploy` com `DATABASE_URL` e `DIRECT_URL` no mesmo alvo **e no mesmo papel PostgreSQL usado pela API**. Se o job de migration usar outro papel, conceda explicitamente a esse papel apenas `SELECT/INSERT/UPDATE` nas quatro tabelas de tráfego; o `REVOKE` de `PUBLIC` não concede acesso ao runtime por si só.
-3. Confirmar `prisma migrate status`, diff vazio e as quatro tabelas com privilégio apenas do papel da API.
+2. Aplicar a migration por uma única instância/job (`RUN_MIGRATIONS=true`) ou por `npx prisma migrate deploy` com `DATABASE_URL` e `DIRECT_URL` no mesmo alvo **e, de preferência, no mesmo papel PostgreSQL usado pela API**. Se o job de migration usar outro papel, o papel da API precisa dos `GRANT` explícitos documentados acima; o `REVOKE` de `PUBLIC` não concede acesso ao runtime por si só.
+3. Confirmar `prisma migrate status`, diff vazio e as quatro tabelas com privilégio apenas do papel da API (incluindo o `GRANT` explícito quando os papéis são separados).
 4. Garantir Redis acessível e o processo `scheduler`/cron ativo.
 5. Validar `TRUST_PROXY` com dois `X-Forwarded-For` distintos atrás do mesmo proxy.
 6. Só então ativar `TRAFFIC_BEACON_ENABLED=true` (ainda sem beacon no frontend, se o PR de frontend não existir).
@@ -214,12 +228,17 @@ As chaves são efêmeras e documentadas em `src/modules/traffic/infra/trafficKey
 | `traffic:vh:{day}:{hour}:{area}` / `traffic:hh:*` | visitas/visitantes por hora | 4 dias |
 | `traffic:sc:{day}:{area}` | sessões do dia | 7 dias |
 | `traffic:sm:{day}:{area}:{hmac}` | marcador de sessão (30 min) | 30 min |
-| `traffic:salt:{day}` | salt HMAC diário | 48 h |
+| `traffic:salt:{day}` | salt HMAC diário da identidade de visitante | 48 h |
+| `traffic:rl-salt:{day}` | salt HMAC diário compartilhado da cota por IP | 48 h |
 | `traffic:or:{day}` / `traffic:o:{day}:{host}` | hosts de origem | 4 dias |
 | `traffic:ua:{day}:{userId}` | dedupe de atividade | 24 h |
-| `traffic:rl:{minute}:{hmac}` | cota por IP | 2 min |
+| `traffic:rl:{minute}:{hmac}` | cota por IP (mesma quota entre réplicas) | 2 min |
 
-O cron `scheduleTrafficConsolidation` roda às `minute=5` de cada hora, com lock distribuído, e consolida o **dia civil anterior**. A persistência usa `GREATEST(valor_persistido, valor_redis)`: se o Redis reiniciar e um contador voltar a zero, o banco não regride e a primeira regressão observada no dia incrementa `site_traffic_daily.lostUpdates`. O relatório também expõe `loss.redisUnavailableDrops`, contador local da instância para requests descartados por Redis indisponível.
+O cron `scheduleTrafficConsolidation` roda às `minute=5` de cada hora, com lock distribuído, e consolida o **dia civil anterior e o dia civil corrente parcial**. Assim o relatório `period=day` já mostra os hits do dia em andamento; a consolidação repetida continua segura. A linha `all` é persistida separadamente das três linhas locais: em `area=all`, visitantes e sessões vêm da linha global (uma pessoa que naviga entre áreas não é contada duas vezes), enquanto o breakdown por área usa as linhas locais.
+
+A persistência usa `GREATEST(valor_persistido, valor_redis)`: se o Redis reiniciar e um contador voltar a zero, o banco não regride e a primeira regressão observada no dia incrementa `site_traffic_daily.lostUpdates`. `loss.counterRegressions` é escopado à linha consultada (`all` ou área local), para não somar a mesma regressão das linhas local e global. O relatório também expõe `loss.redisUnavailableDrops`, contador local da instância para requests descartados por Redis indisponível.
+
+O limite diário de hosts de origem é aplicado por script Lua atômico: até 200 hosts novos por dia são registrados; depois do limite, apenas hosts já registrados continuam contando. A cota por IP usa um salt diário compartilhado no Redis, portanto todas as réplicas da API aplicam a mesma quota para o mesmo IP resolvido por `TRUST_PROXY`.
 
 **Diagnóstico de reset/perda:**
 
@@ -227,6 +246,8 @@ O cron `scheduleTrafficConsolidation` roda às `minute=5` de cada hora, com lock
 - `loss.redisUnavailableDrops > 0`: a instância atual descartou hits porque o Redis estava indisponível;
 - conferir TTL/chaves `traffic:*` e saúde do Redis antes de reprocessar;
 - reexecutar a consolidação é seguro/idempotente por causa do `GREATEST`.
+
+O serializer de requisições do Fastify reduz `POST /api/ping` ao método HTTP: URL, host, IP e porta do beacon não entram no log nativo. O contrato OpenAPI declara `204` e `text/plain`; qualquer body inválido ou content type inesperado ainda responde `204`, sem criar contador.
 
 ### Rollback operacional
 

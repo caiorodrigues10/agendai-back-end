@@ -1,6 +1,9 @@
 import { injectable } from "tsyringe";
 import { getApiRedisConnection } from "@/shared/infra/queue/redisConnection";
-import { TRAFFIC_AREAS, type TrafficArea } from "../domain/trafficAreas";
+import {
+  TRAFFIC_AGGREGATE_AREAS,
+  type TrafficAggregateArea,
+} from "../domain/trafficAreas";
 import type {
   ITrafficConsolidationSource,
   TrafficAreaSnapshot,
@@ -29,7 +32,7 @@ export class RedisTrafficConsolidationSource implements ITrafficConsolidationSou
     const client = getApiRedisConnection();
 
     const areas = await Promise.all(
-      TRAFFIC_AREAS.map(async (area): Promise<TrafficAreaSnapshot> => {
+      TRAFFIC_AGGREGATE_AREAS.map(async (area): Promise<TrafficAreaSnapshot> => {
         const [visits, visitors, sessions] = await Promise.all([
           client.get(keys.visitsKey(dayKey, area)),
           client.pfcount(keys.visitorsKey(dayKey, area)),
@@ -46,7 +49,7 @@ export class RedisTrafficConsolidationSource implements ITrafficConsolidationSou
 
     const hours: TrafficHourSnapshot[] = [];
     const hourPipeline = client.pipeline();
-    for (const area of TRAFFIC_AREAS) {
+    for (const area of TRAFFIC_AGGREGATE_AREAS) {
       for (let hour = 0; hour < 24; hour += 1) {
         hourPipeline.get(keys.hourlyVisitsKey(dayKey, hour, area));
         hourPipeline.pfcount(keys.hourlyVisitorsKey(dayKey, hour, area));
@@ -54,7 +57,7 @@ export class RedisTrafficConsolidationSource implements ITrafficConsolidationSou
     }
     const hourResults = await hourPipeline.exec();
     let resultIndex = 0;
-    for (const area of TRAFFIC_AREAS) {
+    for (const area of TRAFFIC_AGGREGATE_AREAS) {
       for (let hour = 0; hour < 24; hour += 1) {
         const visitCount = nonNegativeInteger(pipelineValue(hourResults?.[resultIndex]));
         const visitorCount = nonNegativeInteger(
@@ -90,4 +93,4 @@ export class RedisTrafficConsolidationSource implements ITrafficConsolidationSou
   }
 }
 
-export type { TrafficArea };
+export type { TrafficAggregateArea };

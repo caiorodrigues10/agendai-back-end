@@ -1,5 +1,21 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifySchema } from "fastify";
 import { TrafficBeaconController } from "../presentation/TrafficBeaconController";
+
+const TRAFFIC_BEACON_SCHEMA = {
+  // `consumes` and the response `content` are consumed by @fastify/swagger;
+  // the explicit string body keeps text/plain a CORS-simple request.
+  consumes: ["text/plain"],
+  body: { type: "string", maxLength: 8192 },
+  response: {
+    204: {
+      description: "Beacon recebido; nenhum conteúdo é retornado.",
+      type: "string",
+      content: {
+        "text/plain": { schema: { type: "string" } },
+      },
+    },
+  },
+} as unknown as FastifySchema;
 
 /**
  * Anonymous page-view beacon — `POST /api/ping`.
@@ -20,6 +36,7 @@ export async function trafficBeaconRoutes(app: FastifyInstance): Promise<void> {
     {
       // Never let a body/parse failure escape as an error page.
       errorHandler: (_error, _request, reply) => reply.status(204).send(),
+      schema: TRAFFIC_BEACON_SCHEMA,
     },
     controller.handle.bind(controller),
   );

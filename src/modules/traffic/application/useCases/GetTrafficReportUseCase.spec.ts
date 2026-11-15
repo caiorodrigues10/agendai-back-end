@@ -35,6 +35,14 @@ describe("GetTrafficReportUseCase", () => {
         sessions: 6,
         lostUpdates: 0,
       },
+      {
+        day: "2026-11-15",
+        area: "all",
+        visits: 10,
+        visitors: 7,
+        sessions: 6,
+        lostUpdates: 0,
+      },
     ];
     vi.mocked(repo.findDaily).mockResolvedValue(daily);
 
@@ -83,5 +91,96 @@ describe("GetTrafficReportUseCase", () => {
     );
 
     expect(payload.totals.loggedInUsers).toBe(1);
+  });
+
+  it("usa a linha agregada all para totais e mantém o breakdown por área", async () => {
+    const repo = repositoryMock();
+    const localRows: TrafficDailyRow[] = [
+      {
+        day: "2026-11-15",
+        area: "public_site",
+        visits: 2,
+        visitors: 2,
+        sessions: 2,
+        lostUpdates: 0,
+      },
+      {
+        day: "2026-11-15",
+        area: "salon_public",
+        visits: 1,
+        visitors: 1,
+        sessions: 1,
+        lostUpdates: 0,
+      },
+    ];
+    const aggregateRows: TrafficDailyRow[] = [
+      {
+        day: "2026-11-15",
+        area: "all",
+        visits: 3,
+        visitors: 1,
+        sessions: 1,
+        lostUpdates: 0,
+      },
+    ];
+    vi.mocked(repo.findDaily).mockImplementation(async (_from, _to, area) =>
+      area === "all" ? aggregateRows : localRows,
+    );
+
+    const useCase = new GetTrafficReportUseCase(repo);
+    const payload = await useCase.execute(
+      { period: "day", area: "all" },
+      new Date("2026-11-15T12:00:00.000Z"),
+    );
+
+    expect(payload.totals).toMatchObject({
+      visits: 3,
+      visitors: 1,
+      sessions: 1,
+    });
+    expect(payload.areas).toEqual([
+      {
+        area: "public_site",
+        label: "Site público/landing",
+        visits: 2,
+        visitors: 2,
+        sessions: 2,
+      },
+      {
+        area: "salon_public",
+        label: "Páginas públicas de salão",
+        visits: 1,
+        visitors: 1,
+        sessions: 1,
+      },
+    ]);
+    expect(repo.findDaily).toHaveBeenCalledWith("2026-11-15", "2026-11-15", "all");
+    expect(repo.sumLostUpdates).toHaveBeenCalledWith(
+      "2026-11-15",
+      "2026-11-15",
+      "all",
+    );
+  });
+
+  it("propaga o filtro de papel para o período anterior", async () => {
+    const repo = repositoryMock();
+    vi.mocked(repo.countNewUsersByDay).mockResolvedValue([]);
+
+    const useCase = new GetTrafficReportUseCase(repo);
+    await useCase.execute(
+      { period: "day", area: "all", userRole: "OWNER" },
+      new Date("2026-11-15T12:00:00.000Z"),
+    );
+
+    expect(repo.countNewUsersByDay).toHaveBeenCalledWith(
+      "2026-11-15",
+      "2026-11-15",
+      "OWNER",
+    );
+    expect(repo.countNewUsersByDay).toHaveBeenCalledWith(
+      "2026-11-14",
+      "2026-11-14",
+      "OWNER",
+    );
   });
 });

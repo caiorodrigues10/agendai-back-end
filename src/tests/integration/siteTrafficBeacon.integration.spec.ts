@@ -17,6 +17,7 @@ import { prisma } from "@/libs/prismaClient";
 import { getApiRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { spDayKey } from "@/modules/traffic/domain/periodWindows";
 import { RedisTrafficCounter } from "@/modules/traffic/infra/redisTrafficCounter";
+import { consolidateTrafficDays } from "@/modules/traffic/infra/trafficConsolidation.cron";
 import * as trafficKeys from "@/modules/traffic/infra/trafficKeys";
 import { startPostgresHarness, type PostgresHarness } from "../helpers/postgres";
 import { createTestApp, closeTestApp } from "../helpers/createTestApp";
@@ -68,18 +69,22 @@ describe("beacon de tráfego e relatório master — HTTP real", () => {
   async function cleanupRedisDay(): Promise<void> {
     const redis = getApiRedisConnection();
     const day = spDayKey(new Date());
-    let cursor = "0";
-    do {
-      const [next, found] = await redis.scan(
-        cursor,
-        "MATCH",
-        `traffic:*:${day}*`,
-        "COUNT",
-        200,
-      );
-      cursor = next;
-      if (found.length > 0) await redis.del(...found);
-    } while (cursor !== "0");
+    const patterns = [`traffic:*:${day}*`, "traffic:rl:*"];
+    for (const pattern of patterns) {
+      let cursor = "0";
+      do {
+        const [next, found] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 200);
+        cursor = next;
+        if (found.length > 0) await redis.del(...found);
+      } while (cursor !== "0");
+    }
+  }
+
+  async function clearPersistedTrafficDay(): Promise<void> {
+    const day = new Date(`${spDayKey(new Date())}T00:00:00.000Z`);
+    await prisma.siteTrafficHourly.deleteMany({ where: { day } });
+    await prisma.siteTrafficOriginDaily.deleteMany({ where: { day } });
+    await prisma.siteTrafficDaily.deleteMany({ where: { day } });
   }
 
   async function beacon(options: {
@@ -122,6 +127,11 @@ describe("beacon de tráfego e relatório master — HTTP real", () => {
     const swaggerPaths = Object.keys(app.swagger().paths ?? {});
     expect(swaggerPaths).toContain("/api/ping");
     expect("/api/ping").not.toMatch(/analytics|track|collect|hit/i);
+    const pingOperation = (app.swagger().paths?.["/api/ping"] as any)?.post;
+    expect(pingOperation?.responses?.["204"]).toBeDefined();
+    expect(pingOperation?.responses?.["200"]).toBeUndefined();
+    expect(pingOperation?.requestBody?.content?.["text/plain"]).toBeDefined();
+    expect(pingOperation?.responses?.["204"]?.content?.["text/plain"]).toBeDefined();
 
     const valid = await beacon();
     expect(valid.statusCode).toBe(204);
@@ -156,12 +166,14 @@ describe("beacon de tráfego e relatório master — HTTP real", () => {
     const responses = await Promise.all([
       beacon({ headers: { dnt: "1" } }),
       beacon({ headers: { "sec-gpc": "1" } }),
+      beacon({ headers: { "sec-purpose": "prerender" } }),
       beacon({ userAgent: "Googlebot/2.1" }),
       beacon({ body: "p=%2Fmaster%2Ftraffic" }),
       beacon({ origin: "https://evil.example.com" }),
     ]);
 
     expect(responses.map((response) => response.statusCode)).toEqual([
+      204,
       204,
       204,
       204,
@@ -210,6 +222,32 @@ describe("beacon de tráfego e relatório master — HTTP real", () => {
     }
   });
 
+  it("deduplica visitante e sessão globais quando ele muda de área", async () => {
+    const options = {
+      remoteAddress: "10.0.0.45",
+      headers: { "x-forwarded-for": "203.0.113.45" },
+    };
+
+    await beacon({ ...options, body: "p=%2F" });
+    await beacon({ ...options, body: "p=%2Fapp%2Fagenda" });
+
+    expect(await counterState("public_site")).toEqual({
+      visits: 1,
+      visitors: 1,
+      sessions: 1,
+    });
+    expect(await counterState("logged_area")).toEqual({
+      visits: 1,
+      visitors: 1,
+      sessions: 1,
+    });
+    expect(await counterState("all")).toEqual({
+      visits: 2,
+      visitors: 1,
+      sessions: 1,
+    });
+  });
+
   it("usa X-Forwarded-For com TRUST_PROXY=1 para separar dois clientes do mesmo proxy", async () => {
     const proxy = "10.0.0.50";
     const first = await beacon({
@@ -240,6 +278,17 @@ describe("beacon de tráfego e relatório master — HTTP real", () => {
     expect(first.statusCode).toBe(204);
     expect(second.statusCode).toBe(204);
     expect(await counterState()).toEqual({ visits: 1, visitors: 1, sessions: 1 });
+  });
+
+  it("compartilha a cota por IP entre instâncias da API", async () => {
+    process.env.TRAFFIC_RATE_LIMIT_MAX = "1";
+    const firstReplica = new RedisTrafficCounter();
+    const secondReplica = new RedisTrafficCounter();
+    const ip = "203.0.113.31";
+
+    expect(await firstReplica.consumeRateLimit(ip)).toBe(true);
+    expect(await secondReplica.consumeRateLimit(ip)).toBe(false);
+    expect(await firstReplica.consumeRateLimit("203.0.113.32")).toBe(true);
   });
 
   it("mantém a contagem de origens já registradas quando o limite diário é atingido", async () => {
@@ -281,6 +330,82 @@ describe("beacon de tráfego e relatório master — HTTP real", () => {
 
     expect(await redis.get(trafficKeys.originKey(day, newOrigin))).toBeNull();
     expect(await redis.scard(registryKey)).toBe(trafficKeys.MAX_ORIGINS_PER_DAY);
+  });
+
+  it("aplica o limite de origens atomicamente sob concorrência", async () => {
+    const redis = getApiRedisConnection();
+    const day = spDayKey(new Date());
+    const registryKey = trafficKeys.originRegistryKey(day);
+    const existingOrigin = "existing-concurrent.example.test";
+    const registeredHosts = Array.from(
+      { length: trafficKeys.MAX_ORIGINS_PER_DAY - 1 },
+      (_, index) => `concurrent-origin-${index}.example.test`,
+    );
+    registeredHosts[0] = existingOrigin;
+    await redis.sadd(registryKey, ...registeredHosts);
+    await redis.expire(registryKey, trafficKeys.COUNT_TTL_SECONDS);
+
+    const candidates = Array.from(
+      { length: 24 },
+      (_, index) => `new-concurrent-origin-${index}.example.test`,
+    );
+    const counter = new RedisTrafficCounter();
+    await Promise.all([
+      counter.recordVisit({
+        area: "public_site",
+        ip: "203.0.113.70",
+        userAgent: USER_AGENT,
+        dayKey: day,
+        hour: 12,
+        originHost: existingOrigin,
+      }),
+      ...candidates.map((originHost, index) =>
+        counter.recordVisit({
+          area: "public_site",
+          ip: `203.0.113.${100 + index}`,
+          userAgent: USER_AGENT,
+          dayKey: day,
+          hour: 12,
+          originHost,
+        }),
+      ),
+    ]);
+
+    expect(await redis.scard(registryKey)).toBe(trafficKeys.MAX_ORIGINS_PER_DAY);
+    expect(Number(await redis.get(trafficKeys.originKey(day, existingOrigin)))).toBe(1);
+    const candidateCounts = await redis.mget(
+      ...candidates.map((origin) => trafficKeys.originKey(day, origin)),
+    );
+    expect(candidateCounts.filter((value) => Number(value ?? 0) > 0)).toHaveLength(1);
+  });
+
+  it("consolida e mostra o dia civil corrente no relatório period=day", async () => {
+    await clearPersistedTrafficDay();
+    const beaconResponse = await beacon({
+      remoteAddress: "10.0.0.80",
+      headers: { "x-forwarded-for": "203.0.113.80" },
+    });
+    expect(beaconResponse.statusCode).toBe(204);
+
+    await consolidateTrafficDays(new Date());
+
+    const admin = await createAdmin(["internal:traffic:read"]);
+    const reportResponse = await app.inject({
+      method: "GET",
+      url: "/api/admin/traffic?period=day&area=all",
+      headers: { authorization: `Bearer ${tokenFor(admin.id, "MASTER_ADMIN")}` },
+    });
+    expect(reportResponse.statusCode).toBe(200);
+    const payload = reportResponse.json().data;
+    expect(payload.totals.visits).toBeGreaterThanOrEqual(1);
+    expect(payload.series.some((point: { visits: number }) => point.visits >= 1)).toBe(true);
+
+    const day = new Date(`${spDayKey(new Date())}T00:00:00.000Z`);
+    const aggregate = await prisma.siteTrafficDaily.findUnique({
+      where: { day_area: { day, area: "all" } },
+    });
+    expect(aggregate?.visits).toBeGreaterThanOrEqual(1);
+    await clearPersistedTrafficDay();
   });
 
   it("exige MASTER_ADMIN e internal:traffic:read, mantendo acesso default dos admins", async () => {

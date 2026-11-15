@@ -2152,7 +2152,9 @@ model AccessLog {
 }
 
 /// Anonymous site-traffic aggregate per civil day (America/Sao_Paulo) × area.
-/// Platform scope: no barbershopId, no RLS — see docs/RLS-INVENTARIO.md.
+/// The `all` row is the site-wide aggregate used by area=all; the other rows
+/// are the three local display areas. Platform scope: no barbershopId, no RLS
+/// — see docs/RLS-INVENTARIO.md.
 /// `lostUpdates` counts detected Redis counter regressions (e.g. a Redis
 /// restart zeroing a counter); consolidation keeps GREATEST(persisted, redis)
 /// and records the event here instead of undercounting.
@@ -2169,7 +2171,8 @@ model SiteTrafficDaily {
 }
 
 /// Hour bucket inside a civil day × area (visits/visitors only — sessions are
-/// deduplicated per day, see `sess:count:{day}:{area}` in Redis).
+/// deduplicated per day, see `sess:count:{day}:{area}` in Redis). The `all`
+/// area is the site-wide aggregate; the other areas are local breakdowns.
 model SiteTrafficHourly {
   day      DateTime @db.Date
   hour     Int

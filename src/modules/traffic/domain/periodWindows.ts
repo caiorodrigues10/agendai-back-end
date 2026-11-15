@@ -397,7 +397,12 @@ export function bucketStartForHour(hourKey: string, buckets: ReportBucket[]): st
   const dayKey = hourKey.slice(0, 10);
   const hour = Number(hourKey.slice(11, 13));
   for (const bucket of buckets) {
-    if (dayKey < bucket.start || dayKey > bucket.end) continue;
+    // Hour buckets use an ISO-like key (`YYYY-MM-DDTHH`), while the row
+    // carries only the civil day. Compare the day portion first; comparing
+    // `"YYYY-MM-DD"` directly with `"YYYY-MM-DDTHH"` lexicographically makes
+    // every current-day row fall outside its own bucket.
+    const bucketDay = bucket.start.slice(0, 10);
+    if (dayKey < bucketDay || dayKey > bucket.end) continue;
     if (bucket.start.includes("T")) {
       const bucketHour = Number(bucket.start.slice(11, 13));
       if (hour === bucketHour) return bucket.start;

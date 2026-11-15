@@ -69,6 +69,8 @@ export function isBotUserAgent(userAgent: string | undefined | null): boolean {
 /**
  * True when the browser signals a prefetch/prerender (Sec-Purpose or the
  * legacy Purpose/X-Purpose headers). Those are not real user navigations.
+ * `prerender` is checked independently because some browsers send it without
+ * the `prefetch` token.
  */
 export function isPrefetch(headers: Record<string, unknown>): boolean {
   const values = [
@@ -78,7 +80,8 @@ export function isPrefetch(headers: Record<string, unknown>): boolean {
   ];
   return values.some((value) => {
     if (typeof value !== "string") return false;
-    return value.toLowerCase().includes("prefetch");
+    const normalized = value.toLowerCase();
+    return normalized.includes("prefetch") || normalized.includes("prerender");
   });
 }
 

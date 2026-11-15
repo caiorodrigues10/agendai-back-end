@@ -1,9 +1,10 @@
-import type { TrafficArea } from "../../domain/trafficAreas";
+import type { TrafficAggregateArea } from "../../domain/trafficAreas";
 
 /** Daily aggregate row (civil day in America/Sao_Paulo). */
 export interface TrafficDailyRow {
   day: string;
-  area: TrafficArea;
+  /** Área local ou a linha agregada `all` do site inteiro. */
+  area: TrafficAggregateArea;
   visits: number;
   visitors: number;
   sessions: number;
@@ -14,7 +15,8 @@ export interface TrafficDailyRow {
 export interface TrafficHourlyRow {
   day: string;
   hour: number;
-  area: TrafficArea;
+  /** Área local ou a linha agregada `all` do site inteiro. */
+  area: TrafficAggregateArea;
   visits: number;
   visitors: number;
 }
@@ -41,8 +43,15 @@ export interface UserSignupDayRow extends SignupDayRow {
  * adapter. The application layer never imports the Prisma runtime.
  */
 export interface ITrafficReportRepository {
-  findDaily(fromDay: string, toDay: string, area?: TrafficArea): Promise<TrafficDailyRow[]>;
-  findHourly(dayKeys: string[], area?: TrafficArea): Promise<TrafficHourlyRow[]>;
+  findDaily(
+    fromDay: string,
+    toDay: string,
+    area?: TrafficAggregateArea,
+  ): Promise<TrafficDailyRow[]>;
+  findHourly(
+    dayKeys: string[],
+    area?: TrafficAggregateArea,
+  ): Promise<TrafficHourlyRow[]>;
   findOrigins(fromDay: string, toDay: string, limit: number): Promise<TrafficOriginRow[]>;
   /** Distinct users with recorded activity inside the day range. */
   countDistinctActiveUsers(fromDay: string, toDay: string): Promise<number>;
@@ -54,6 +63,14 @@ export interface ITrafficReportRepository {
   countNewShopsByDay(fromDay: string, toDay: string): Promise<SignupDayRow[]>;
   /** Users created per civil day (incl. soft-deleted), optional role filter. */
   countNewUsersByDay(fromDay: string, toDay: string, role?: string): Promise<UserSignupDayRow[]>;
-  /** Sum of persisted counter regressions (site_traffic_daily.lostUpdates). */
-  sumLostUpdates(fromDay: string, toDay: string): Promise<number>;
+  /**
+   * Sum of persisted counter regressions (site_traffic_daily.lostUpdates).
+   * When an area is supplied, only that row is counted — the aggregate `all`
+   * row and the three local rows must not be added together.
+   */
+  sumLostUpdates(
+    fromDay: string,
+    toDay: string,
+    area?: TrafficAggregateArea,
+  ): Promise<number>;
 }

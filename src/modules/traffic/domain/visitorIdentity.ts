@@ -19,10 +19,12 @@ export function visitorHash(salt: string, ip: string, userAgent: string): string
 }
 
 /**
- * Hash de uso exclusivamente local para a cota por IP. O salt vive apenas no
- * processo: mesmo depois de um restart, o valor do bucket não pode ser ligado
- * ao IP original nem sobreviver no Redis.
+ * Hash privacy-preserving for the per-IP bucket.
+ *
+ * The salt is shared through Redis for the current civil day, so every API
+ * replica applies the same quota to one IP. It is separate from the visitor
+ * salt to avoid correlating the two Redis keys.
  */
-export function ephemeralHash(salt: string, ip: string): string {
+export function rateLimitHash(salt: string, ip: string): string {
   return createHmac("sha256", salt).update(ip.trim()).digest("hex");
 }

@@ -28,6 +28,7 @@ import { formatZodIssues, isZodError } from "@/shared/utils/zodValidation";
 import { isPrismaInvalidUuidError } from "@/shared/utils/prismaErrors";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { trafficBeaconRoutes } from "@/modules/traffic/routes/trafficBeacon.routes";
+import { trafficRequestSerializer } from "./trafficRequestLogger";
 
 const logger = getModuleLogger("http-app");
 
@@ -106,7 +107,14 @@ export async function buildApp() {
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test). Fora disso, o nível
     // segue o LOG_LEVEL já documentado no .env.example (default: info).
-    logger: process.env.NODE_ENV !== "test" ? { level: process.env.LOG_LEVEL || "info" } : false,
+    logger:
+      process.env.NODE_ENV !== "test"
+        ? {
+            level: process.env.LOG_LEVEL || "info",
+            // The beacon must not expose request metadata in Fastify logs.
+            serializers: { req: trafficRequestSerializer },
+          }
+        : false,
     // Fastify 5 removeu `number` do tipo de trustProxy e passou a ignorar
     // (fail-closed) valores numéricos. Convertemos a contagem de saltos para a
     // forma função equivalente: confia nos N saltos da cadeia (hop 0 = peer

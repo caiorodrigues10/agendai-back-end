@@ -18,6 +18,8 @@ export const SESSION_COUNT_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const SESSION_MARK_TTL_SECONDS = 30 * 60;
 /** Daily HMAC salt — rotated per civil day, kept 48h (LGPD ceiling). */
 export const SALT_TTL_SECONDS = 48 * 60 * 60;
+/** Shared daily salt for the per-IP bucket (one quota across API replicas). */
+export const RATE_LIMIT_SALT_TTL_SECONDS = 48 * 60 * 60;
 /** Rate-limit bucket: one per minute, kept 2 minutes for cleanup. */
 export const RATE_BUCKET_TTL_SECONDS = 120;
 /** User-activity dedupe marker: one per user per civil day. */
@@ -27,6 +29,10 @@ export const MAX_ORIGINS_PER_DAY = 200;
 
 export function saltKey(dayKey: string): string {
   return `traffic:salt:${dayKey}`;
+}
+
+export function rateLimitSaltKey(dayKey: string): string {
+  return `traffic:rl-salt:${dayKey}`;
 }
 
 export function visitsKey(dayKey: string, area: string): string {

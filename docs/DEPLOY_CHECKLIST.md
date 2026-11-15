@@ -205,9 +205,10 @@ Regras de rollback:
 - [ ] PR1 com CI verde, incluindo `typecheck`, suíte unitária, integração,
       `prisma validate`, `migrate status`, diff de drift e contrato OpenAPI.
 - [ ] Migration `20261115120000_site_traffic_tracking` revisada: é aditiva,
-      cria `site_traffic_daily`, `site_traffic_hourly`,
-      `site_traffic_origin_daily` e `user_activity_daily`, executa o backfill
-      de até seis meses e revoga `ALL` de `PUBLIC`/papéis anônimos.
+      cria `site_traffic_daily` (incluindo a linha agregada `all`),
+      `site_traffic_hourly`, `site_traffic_origin_daily` e
+      `user_activity_daily`, executa o backfill de até seis meses e revoga
+      `ALL` de `PUBLIC`/papéis anônimos.
 - [ ] `internal:traffic:read` aplicada aos perfis internos existentes; perfil
       legado sem lista explícita e `internal:all` continuam com acesso default.
 - [ ] Redis acessível pelo processo API e pelo processo `scheduler`.
@@ -222,7 +223,7 @@ Regras de rollback:
 |---|---|---|
 | `TRAFFIC_BEACON_ENABLED` | `false` | Kill switch. Com `false`, `POST /api/ping` responde **204 sem contar**; somente o literal `true` habilita a coleta. |
 | `TRAFFIC_IGNORE_HOSTS` | vazio | Hosts extras nunca contados, separados por vírgula (ex.: staging/demo). |
-| `TRAFFIC_RATE_LIMIT_MAX` | `120` | Cota por IP resolvido/minuto; excesso é descartado silenciosamente, sem 429. |
+| `TRAFFIC_RATE_LIMIT_MAX` | `120` | Cota por IP resolvido/minuto, compartilhada entre réplicas via salt Redis diário; excesso é descartado silenciosamente, sem 429. |
 | `TRUST_PROXY` | hops ou CIDRs reais do proxy | Obrigatório atrás de proxy. **Nunca `true`**. Define qual `X-Forwarded-For` é confiável e separa visitors/rate limit. |
 | `REDIS_URL` | segredo do ambiente | Usado no request path e na consolidação; testar conectividade antes de ativar. |
 | `PROCESS_ROLE` | `api` / `scheduler` | API recebe requests; scheduler recebe o cron de consolidação. `RUN_MIGRATIONS=false` no serviço normal. |
@@ -233,17 +234,23 @@ Regras de rollback:
       `RUN_MIGRATIONS=false`.
 - [ ] Aplicar a migration por uma única instância/job:
       `npx prisma migrate deploy` com `DATABASE_URL` e `DIRECT_URL` no mesmo
-      alvo **e no mesmo papel PostgreSQL da API**. Se usar um papel separado,
-      conceder explicitamente `SELECT/INSERT/UPDATE` nas quatro tabelas de
-      tráfego. Depois executar `npx prisma migrate status` e o
+      alvo **e, de preferência, no mesmo papel PostgreSQL da API**. Se usar um
+      papel separado, conceder ao **papel da API** (não ao job de migration)
+      `USAGE` no schema e `SELECT/INSERT/UPDATE` nas quatro tabelas, conforme
+      o bloco `GRANT` do [RUNBOOK_MIGRATIONS.md](RUNBOOK_MIGRATIONS.md).
+      Depois executar `npx prisma migrate status` e o
       `prisma migrate diff --from-url … --to-schema-datamodel --exit-code`
       do [RUNBOOK_MIGRATIONS.md](RUNBOOK_MIGRATIONS.md); drift deve sair vazio.
 - [ ] Confirmar no log de boot que o cron de tráfego foi agendado no processo
-      `scheduler` e que o Redis está acessível.
+      `scheduler` e que o Redis está acessível. O tick horário deve consolidar
+      o dia anterior e o dia corrente parcial; o relatório `period=day` precisa
+      mostrar o dia corrente.
 - [ ] Confirmar a prova automatizada de `TRUST_PROXY` em
       `src/tests/integration/siteTrafficBeacon.integration.spec.ts`: com
       `TRUST_PROXY=1`, dois `X-Forwarded-For` distintos no mesmo proxy geram
-      **dois** visitors; o endereço do proxy não vira a identidade.
+      **dois** visitors; o endereço do proxy não vira a identidade. A mesma
+      suíte prova que a cota por IP é compartilhada entre instâncias e que o
+      limite de 200 hosts de origem é atômico sob concorrência.
 - [ ] Em staging isolado, fazer o smoke abaixo com User-Agent de navegador
       (bots/headless são descartados), `Origin` presente e igual à origem
       permitida. As duas respostas devem ser `204`:
@@ -265,14 +272,19 @@ Regras de rollback:
 
   DAY=$(TZ=America/Sao_Paulo date +%F)
   redis-cli PFCOUNT "traffic:h:${DAY}:public_site"   # esperado >= 2 em staging isolado
+  redis-cli PFCOUNT "traffic:h:${DAY}:all"            # agregado global; esperado >= 2
   ```
 
-- [ ] Verificar o relatório `GET /api/admin/traffic?period=day` com um
+- [ ] Verificar o relatório `GET /api/admin/traffic?period=day&area=all` com um
       `MASTER_ADMIN` que tenha `internal:traffic:read`; um usuário sem a
-      permissão deve receber `403`. O export CSV usa a mesma autorização.
+      permissão deve receber `403`. O dia corrente deve aparecer na série e os
+      totais `all` devem usar a linha agregada (não a soma das áreas locais).
+      O export CSV usa a mesma autorização.
 - [ ] Confirmar no relatório `loss.counterRegressions` e
       `loss.redisUnavailableDrops`; qualquer valor diferente de zero exige
-      investigação antes de ampliar o tráfego.
+      investigação antes de ampliar o tráfego. O contador de regressões é
+      escopado à linha `all`/área consultada, para não contar a mesma perda
+      duas vezes.
 - [ ] Só depois dos testes acima, definir `TRAFFIC_BEACON_ENABLED=true` e
       reiniciar as instâncias API. Manter `RUN_MIGRATIONS=false` nelas.
 
@@ -280,8 +292,10 @@ Regras de rollback:
 
 - [ ] O PR do frontend envia `POST /api/ping` com `Content-Type: text/plain`,
       sem token, cookie, payload identificável, query string ou ID de rota.
-- [ ] Confirmar que DNT/GPC, bots/headless, prefetch, origem não permitida e
-      hosts ignorados continuam descartados; a resposta permanece `204`.
+- [ ] Confirmar que DNT/GPC, bots/headless, prefetch/prerender (inclusive
+      `Purpose: prerender` isolado), origem não permitida e hosts ignorados
+      continuam descartados; a resposta permanece `204`. O contrato OpenAPI
+      declara `204` com `text/plain`.
 - [ ] Monitorar erros 5xx, disponibilidade do Redis e o relatório de perda nas
       primeiras horas. Não ativar o frontend com a API em modo desligado sem
       registrar a decisão.

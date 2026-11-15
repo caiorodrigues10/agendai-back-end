@@ -13,11 +13,41 @@ import {
 const logger = getModuleLogger("cron:traffic-consolidation");
 
 /**
- * Consolida o dia civil anterior.
+ * Consolida o dia civil anterior e o dia civil corrente (parcial).
  *
- * Rodar de hora em hora permite recuperar o dia se o Redis estiver indisponível
- * em uma janela. O lock distribuído impede duplicidade entre réplicas; a
- * persistência usa GREATEST, portanto repetir a consolidação é seguro.
+ * Rodar de hora em hora permite recuperar o dia anterior se o Redis estiver
+ * indisponível em uma janela e mantém o dia corrente visível no relatório.
+ * O lock distribuído impede duplicidade entre réplicas; a persistência usa
+ * GREATEST, portanto repetir a consolidação é seguro.
+ */
+export async function consolidateTrafficDays(now: Date = new Date()): Promise<string[]> {
+  const today = spDayKey(now);
+  const dayKeys = [addDays(today, -1), today];
+  const useCase = container.resolve(ConsolidateTrafficUseCase);
+  const consolidated: string[] = [];
+  let firstError: unknown;
+
+  for (const dayKey of dayKeys) {
+    try {
+      const result = await useCase.execute(dayKey);
+      consolidated.push(result.day);
+      logger.info({ ...result }, "Tráfego civil consolidado");
+    } catch (error) {
+      // Tenta os dois dias mesmo quando um deles falha; o próximo tick
+      // recupera o dia ausente sem esconder a falha do cron.
+      firstError ??= error;
+    }
+  }
+
+  if (firstError) throw firstError;
+  return consolidated;
+}
+
+/**
+ * Consolida somente o dia civil anterior.
+ *
+ * Mantido como operação unitária para jobs/reprocessamento pontual; o cron
+ * periódico usa `consolidateTrafficDays` para incluir também o dia parcial.
  */
 export async function consolidatePreviousTrafficDay(now: Date = new Date()): Promise<string> {
   const dayKey = addDays(spDayKey(now), -1);
@@ -27,7 +57,7 @@ export async function consolidatePreviousTrafficDay(now: Date = new Date()): Pro
   return result.day;
 }
 
-/** Agenda a consolidação horária do dia anterior. */
+/** Agenda a consolidação horária do dia anterior e do dia corrente parcial. */
 export function scheduleTrafficConsolidation(log?: {
   info: (obj: unknown, msg?: string) => void;
   error: (err: unknown, msg?: string) => void;
@@ -43,7 +73,7 @@ export function scheduleTrafficConsolidation(log?: {
             getRedisConnection(),
             { jobName: "traffic-consolidation", scheduledKey: spSlotKey(60, now) },
             async () => {
-              await consolidatePreviousTrafficDay(now);
+              await consolidateTrafficDays(now);
             },
           );
         } catch (err) {

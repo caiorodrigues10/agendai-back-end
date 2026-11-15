@@ -11,6 +11,20 @@ export const TRAFFIC_AREAS = ["public_site", "salon_public", "logged_area"] as c
 
 export type TrafficArea = (typeof TRAFFIC_AREAS)[number];
 
+/**
+ * Aggregate row used when the report asks for `area=all`.
+ *
+ * It is stored separately from the three display areas so a visitor who moves
+ * between areas is counted once in the site-wide distinct visitors/sessions.
+ */
+export const TRAFFIC_TOTAL_AREA = "all" as const;
+export const TRAFFIC_AGGREGATE_AREAS = [
+  ...TRAFFIC_AREAS,
+  TRAFFIC_TOTAL_AREA,
+] as const;
+
+export type TrafficAggregateArea = (typeof TRAFFIC_AGGREGATE_AREAS)[number];
+
 /** pt-BR labels for the master-admin report (single catalog for screens). */
 export const TRAFFIC_AREA_LABELS: Record<TrafficArea, string> = {
   public_site: "Site público/landing",
