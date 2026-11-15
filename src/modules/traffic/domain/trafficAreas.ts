@@ -53,6 +53,12 @@ const SALON_PUBLIC_PREFIXES = [
   "/agendamento/gerenciar",
 ];
 
+/**
+ * Privacy-safe literal routes. The front sends `:token` as a placeholder and
+ * never the real token, so only this exact path is accepted.
+ */
+const SALON_PUBLIC_EXACT_PATHS = ["/agendamento/:token"];
+
 function matchesPrefix(path: string, prefix: string): boolean {
   if (prefix.endsWith("/")) return path.startsWith(prefix);
   return path === prefix || path.startsWith(`${prefix}/`);
@@ -72,6 +78,9 @@ export function classifyTrafficArea(rawPath: string): TrafficArea | null {
   }
   for (const prefix of LOGGED_PREFIXES) {
     if (matchesPrefix(path, prefix)) return "logged_area";
+  }
+  for (const exactPath of SALON_PUBLIC_EXACT_PATHS) {
+    if (path === exactPath) return "salon_public";
   }
   for (const prefix of SALON_PUBLIC_PREFIXES) {
     if (matchesPrefix(path, prefix)) return "salon_public";

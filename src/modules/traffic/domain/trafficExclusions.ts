@@ -108,8 +108,12 @@ export function isOriginAllowed(
   allowedOrigins: readonly string[],
 ): boolean {
   if (!origin || origin === "null") return false;
+  const normalizedOrigin = origin.trim();
+  // An Origin header is an absolute HTTP(S) origin. A bare hostname is only
+  // valid for the beacon's referrer payload and must never pass here.
+  if (!hostFromUrl(normalizedOrigin)) return false;
   if (allowedOrigins.length === 0) return false;
-  return allowedOrigins.includes(origin.trim());
+  return allowedOrigins.includes(normalizedOrigin);
 }
 
 /**
@@ -143,9 +147,9 @@ export const DEFAULT_IGNORED_HOSTS: readonly string[] = [
 ];
 
 /**
- * Extract the hostname from a URL string (document.referrer). Returns null
- * for empty/relative/unparseable values — the path and query are dropped by
- * construction, only the host ever leaves this function.
+ * Extract the hostname from an absolute HTTP(S) URL. Returns null for
+ * empty/relative/bare-hostname/unparseable values — the path and query are
+ * dropped by construction, only the host ever leaves this function.
  */
 export function hostFromUrl(rawUrl: string | undefined | null): string | null {
   if (!rawUrl) return null;
@@ -158,6 +162,39 @@ export function hostFromUrl(rawUrl: string | undefined | null): string | null {
   } catch {
     return null;
   }
+}
+
+const HOSTNAME_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+
+function isBareHostname(value: string): boolean {
+  const candidate = value.endsWith(".") ? value.slice(0, -1) : value;
+  if (candidate === "" || candidate.length > 253) return false;
+  return candidate.split(".").every(
+    (label) =>
+      label.length > 0 &&
+      label.length <= 63 &&
+      HOSTNAME_LABEL_PATTERN.test(label),
+  );
+}
+
+/**
+ * Parse the beacon referrer into the only value allowed to leave this
+ * function: its hostname. The front sends a bare hostname, while absolute
+ * HTTP(S) URLs remain supported for compatibility. Paths, queries,
+ * credentials, ports and malformed values are rejected or dropped by
+ * construction.
+ */
+export function referrerHostFromValue(
+  rawValue: string | undefined | null,
+): string | null {
+  if (!rawValue) return null;
+  const trimmed = rawValue.trim();
+  if (trimmed === "") return null;
+
+  const absoluteHost = hostFromUrl(trimmed);
+  if (absoluteHost) return absoluteHost;
+  if (!isBareHostname(trimmed)) return null;
+  return trimmed.toLowerCase();
 }
 
 /**

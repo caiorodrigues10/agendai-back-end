@@ -145,6 +145,11 @@ function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }
 
+function endOfMonth(dayKey: string): string {
+  const monthStart = startOfMonth(dayKey);
+  return `${monthStart.slice(0, 7)}-${pad2(daysInMonth(monthStart))}`;
+}
+
 function dayBucket(dayKey: string, today: string, fromDay: string, toDay: string): ReportBucket {
   const [y, m, d] = dayKey.split("-").map(Number);
   return {
@@ -259,15 +264,23 @@ function buildBuckets(
 export interface BuildWindowOptions {
   /** First civil day with recorded traffic (required for `all`). */
   firstRecordedDay?: string | null;
+  /**
+   * Validated civil-day anchor. For `day`, it is the selected day itself;
+   * for `month`, any day in the selected month is normalized to its first
+   * day. Other periods ignore it.
+   */
+  referenceDay?: string;
 }
 
 /**
  * Build the report window for a period at `now`.
  *
- * - `day`     → today, per hour (24 buckets), previous window = yesterday.
+ * - `day`     → selected civil day (today by default), per hour (24
+ *               buckets), previous window = the preceding day.
  * - `week`    → last 7 civil days, per day, previous = the 7 days before.
- * - `month`   → current calendar month up to today, per day, previous =
- *               previous calendar month up to the same day-of-month.
+ * - `month`   → selected calendar month (current by default), per day. A
+ *               completed month compares with the full preceding month; the
+ *               current month compares through the same day-of-month.
  * - `3m`/`6m` → rolling 3/6 months, per ISO week (Mon–Sun), previous =
  *               equal-length window right before.
  * - `year`    → last 12 months, per calendar month, previous = the 12 months
@@ -284,17 +297,17 @@ export function buildPeriodWindow(
 
   switch (period) {
     case "day": {
-      const fromDay = today;
-      const prevFrom = addDays(today, -1);
+      const fromDay = options.referenceDay ?? today;
+      const prevFrom = addDays(fromDay, -1);
       return {
         key: period,
         label,
         granularity: "hour",
         fromDay,
-        toDay: today,
+        toDay: fromDay,
         prevFromDay: prevFrom,
         prevToDay: prevFrom,
-        buckets: buildBuckets("hour", fromDay, today, today, now),
+        buckets: buildBuckets("hour", fromDay, fromDay, today, now),
       };
     }
     case "week": {
@@ -313,20 +326,24 @@ export function buildPeriodWindow(
       };
     }
     case "month": {
-      const fromDay = startOfMonth(today);
+      const fromDay = startOfMonth(options.referenceDay ?? today);
+      const isCurrentMonth = fromDay.slice(0, 7) === today.slice(0, 7);
+      const toDay = isCurrentMonth ? today : endOfMonth(fromDay);
       const dayOfMonth = Number(today.slice(8, 10));
       const prevMonthStart = startOfMonth(addDays(fromDay, -1));
       const prevMonthLength = daysInMonth(prevMonthStart);
-      const prevToDay = addDays(prevMonthStart, Math.min(dayOfMonth, prevMonthLength) - 1);
+      const prevToDay = isCurrentMonth
+        ? addDays(prevMonthStart, Math.min(dayOfMonth, prevMonthLength) - 1)
+        : endOfMonth(prevMonthStart);
       return {
         key: period,
         label,
         granularity: "day",
         fromDay,
-        toDay: today,
+        toDay,
         prevFromDay: prevMonthStart,
         prevToDay,
-        buckets: buildBuckets("day", fromDay, today, today, now),
+        buckets: buildBuckets("day", fromDay, toDay, today, now),
       };
     }
     case "3m":

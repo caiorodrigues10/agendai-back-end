@@ -17,6 +17,13 @@ describe("classificação das áreas de tráfego", () => {
     expect(classifyTrafficArea("/minha-conta")).toBe("logged_area");
   });
 
+  it("aceita somente o literal privado /agendamento/:token como página pública de salão", () => {
+    expect(classifyTrafficArea("/agendamento/:token")).toBe("salon_public");
+    expect(classifyTrafficArea("/agendamento/gerenciar")).toBe("salon_public");
+    expect(classifyTrafficArea("/agendamento/other")).toBe("public_site");
+    expect(classifyTrafficArea("/agendamento/:token/extra")).toBe("public_site");
+  });
+
   it("remove query e fragmento antes de classificar", () => {
     expect(normalizeTrafficPath("/app/agenda?token=secret#section")).toBe("/app/agenda");
     expect(classifyTrafficArea("/master/traffic?manageToken=secret")).toBeNull();

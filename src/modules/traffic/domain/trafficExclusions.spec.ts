@@ -8,6 +8,7 @@ import {
   isPrefetch,
   isPrivacyOptOut,
   normalizeOriginHost,
+  referrerHostFromValue,
 } from "./trafficExclusions";
 
 describe("regras de privacidade e exclusão do beacon", () => {
@@ -46,6 +47,12 @@ describe("regras de privacidade e exclusão do beacon", () => {
     expect(isOriginAllowed("https://app.example.com", [])).toBe(false);
   });
 
+  it("mantém Origin estrito e rejeita um hostname sem esquema", () => {
+    expect(isOriginAllowed("app.example.com", ["https://app.example.com"])).toBe(false);
+    expect(isOriginAllowed("app.example.com", ["app.example.com"])).toBe(false);
+    expect(hostFromUrl("app.example.com")).toBeNull();
+  });
+
   it("ignora hosts locais/test e hosts extras sem registrar o path", () => {
     expect(isIgnoredHost("localhost", DEFAULT_IGNORED_HOSTS)).toBe(true);
     expect(isIgnoredHost("api.localhost", DEFAULT_IGNORED_HOSTS)).toBe(true);
@@ -61,5 +68,21 @@ describe("regras de privacidade e exclusão do beacon", () => {
     expect(normalizeOriginHost("  EXAMPLE.COM  ")).toBe("example.com");
     expect(normalizeOriginHost("")).toBeNull();
     expect(normalizeOriginHost("x".repeat(300))).toHaveLength(255);
+  });
+
+  it("aceita referrer por hostname ou URL absoluta sem vazar path e query", () => {
+    const fromUrl = referrerHostFromValue(
+      "https://example.com/path?token=super-secret",
+    );
+    const fromHostname = referrerHostFromValue("example.com");
+
+    expect(fromUrl).toBe("example.com");
+    expect(fromHostname).toBe(fromUrl);
+    expect(referrerHostFromValue("EXAMPLE.COM")).toBe("example.com");
+    expect(referrerHostFromValue("/relative/path")).toBeNull();
+    expect(referrerHostFromValue("example.com/path")).toBeNull();
+    expect(referrerHostFromValue("example.com?token=super-secret")).toBeNull();
+    expect(referrerHostFromValue("not a hostname")).toBeNull();
+    expect(referrerHostFromValue("javascript:alert(1)")).toBeNull();
   });
 });

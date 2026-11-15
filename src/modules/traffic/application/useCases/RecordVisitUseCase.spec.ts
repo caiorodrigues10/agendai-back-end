@@ -81,6 +81,18 @@ describe("RecordVisitUseCase", () => {
     expect(counter.consumeRateLimit).not.toHaveBeenCalled();
   });
 
+  it("descarta Origin sem esquema mesmo se ele estiver na allowlist", async () => {
+    const result = await useCase.execute(
+      request({
+        origin: "app.example.com",
+        allowedOrigins: ["app.example.com"],
+      }),
+    );
+
+    expect(result).toEqual({ counted: false, reason: "excluded" });
+    expect(counter.consumeRateLimit).not.toHaveBeenCalled();
+  });
+
   it("descarta silently o excedente da cota por IP", async () => {
     vi.mocked(counter.consumeRateLimit).mockResolvedValue(false);
 
@@ -113,6 +125,18 @@ describe("RecordVisitUseCase", () => {
     });
     expect(JSON.stringify(recorded)).not.toContain("super-secret");
     expect(JSON.stringify(recorded)).not.toContain("also-secret");
+  });
+
+  it("aceita o hostname de referrer enviado pelo front", async () => {
+    const result = await useCase.execute(
+      request({ referrer: "www.example.com" }),
+      new Date("2026-11-15T12:00:00.000Z"),
+    );
+
+    expect(result).toEqual({ counted: true, area: "public_site" });
+    expect(vi.mocked(counter.recordVisit).mock.calls[0]![0].originHost).toBe(
+      "www.example.com",
+    );
   });
 
   it("converte falha do Redis em descarte aceito e aumenta a métrica de perda", async () => {

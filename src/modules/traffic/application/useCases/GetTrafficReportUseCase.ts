@@ -28,6 +28,12 @@ export interface TrafficReportQuery {
   area: TrafficAggregateArea;
   /** Optional role filter for "new users" signups. */
   userRole?: string;
+  /**
+   * Validated civil-day anchor selected by the query schema. For `day`, it
+   * is the selected day; for `month`, it is the first day of the selected
+   * calendar month.
+   */
+  referenceDay?: string;
 }
 
 export interface SeriesPoint {
@@ -162,7 +168,10 @@ export class GetTrafficReportUseCase {
       this.repo.getFirstActivityDay(),
     ]);
 
-    const window = buildPeriodWindow(query.period, now, { firstRecordedDay: firstTrafficDay });
+    const window = buildPeriodWindow(query.period, now, {
+      firstRecordedDay: firstTrafficDay,
+      referenceDay: query.referenceDay,
+    });
     const { fromDay, toDay, prevFromDay, prevToDay, buckets, granularity } = window;
     const areaFilter = query.area;
     const prevRange = prevFromDay && prevToDay ? { fromDay: prevFromDay, toDay: prevToDay } : null;

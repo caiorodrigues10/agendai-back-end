@@ -8,6 +8,7 @@ import {
   isPrefetch,
   isPrivacyOptOut,
   normalizeOriginHost,
+  referrerHostFromValue,
 } from "../../domain/trafficExclusions";
 import { spDayKey, spHour } from "../../domain/periodWindows";
 import { incrementRedisUnavailableDrop } from "../../lossCounters";
@@ -19,7 +20,7 @@ export const TRAFFIC_COUNTER = "TrafficCounter";
 export interface RecordVisitRequest {
   /** Raw front route path (query string allowed — never persisted). */
   path: string;
-  /** `document.referrer` sent by the browser (may contain a token — dropped). */
+  /** Referrer hostname (or legacy absolute URL) sent by the browser. */
   referrer: string | undefined;
   ip: string;
   userAgent: string | undefined;
@@ -68,7 +69,7 @@ export class RecordVisitUseCase {
     }
 
     // Referrer host (path/query dropped by construction) — never local/test.
-    const referrerHost = normalizeOriginHost(hostFromUrl(request.referrer));
+    const referrerHost = normalizeOriginHost(referrerHostFromValue(request.referrer));
     const requestHost = hostFromUrl(request.origin);
     if (isIgnoredHost(referrerHost, request.ignoreHosts) || isIgnoredHost(requestHost, request.ignoreHosts)) {
       return { counted: false, reason: "excluded" };

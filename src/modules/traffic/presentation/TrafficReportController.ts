@@ -1,7 +1,14 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { container } from "tsyringe";
-import { GetTrafficReportUseCase, type TrafficReportPayload } from "../application/useCases/GetTrafficReportUseCase";
-import { trafficReportQuerySchema } from "../schemas/trafficSchemas";
+import {
+  GetTrafficReportUseCase,
+  type TrafficReportPayload,
+  type TrafficReportQuery,
+} from "../application/useCases/GetTrafficReportUseCase";
+import {
+  trafficReportQuerySchema,
+  type TrafficReportQueryInput,
+} from "../schemas/trafficSchemas";
 
 /**
  * Presentation for the master-admin traffic report (`/admin/traffic*`).
@@ -14,11 +21,7 @@ export class TrafficReportController {
   async report(request: FastifyRequest, reply: FastifyReply) {
     const query = trafficReportQuerySchema.parse(request.query);
     const useCase = container.resolve(GetTrafficReportUseCase);
-    const payload = await useCase.execute({
-      period: query.period,
-      area: query.area,
-      userRole: query.userRole,
-    });
+    const payload = await useCase.execute(toTrafficReportQuery(query));
     return reply.status(200).send({ success: true, data: payload });
   }
 
@@ -26,11 +29,7 @@ export class TrafficReportController {
   async export(request: FastifyRequest, reply: FastifyReply) {
     const query = trafficReportQuerySchema.parse(request.query);
     const useCase = container.resolve(GetTrafficReportUseCase);
-    const payload = await useCase.execute({
-      period: query.period,
-      area: query.area,
-      userRole: query.userRole,
-    });
+    const payload = await useCase.execute(toTrafficReportQuery(query));
 
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     return reply
@@ -39,6 +38,16 @@ export class TrafficReportController {
       .header("Content-Disposition", `attachment; filename="site-traffic-${stamp}.csv"`)
       .send(buildTrafficCsv(payload));
   }
+}
+
+/** Normalize the two public anchors into one internal civil-day anchor. */
+export function toTrafficReportQuery(query: TrafficReportQueryInput): TrafficReportQuery {
+  return {
+    period: query.period,
+    area: query.area,
+    userRole: query.userRole,
+    referenceDay: query.date ?? (query.month ? `${query.month}-01` : undefined),
+  };
 }
 
 /** Header row uses the same pt-BR labels as the screen catalog. */

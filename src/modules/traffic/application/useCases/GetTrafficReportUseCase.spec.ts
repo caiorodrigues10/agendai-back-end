@@ -58,6 +58,172 @@ describe("GetTrafficReportUseCase", () => {
     expect(payload.period.dataFrom).toBe("2026-05-01");
     expect(payload.totals.visitors).toBe(7);
     expect(payload.totals.visitorsBasis).toBe("daily_distinct");
+    expect(payload.period).toMatchObject({
+      fromDay: "2026-11-15",
+      toDay: "2026-11-15",
+      prevFromDay: "2026-11-14",
+      prevToDay: "2026-11-14",
+    });
+    expect(payload.series.filter((point) => point.partial)).toEqual([
+      expect.objectContaining({ bucketStart: "2026-11-15T09" }),
+    ]);
+  });
+
+  it("usa o dia selecionado nos buckets, totais e comparação", async () => {
+    const repo = repositoryMock();
+    vi.mocked(repo.findDaily).mockImplementation(async (from, _to, area) => {
+      if (area !== "all") return [];
+      if (from === "2026-11-10") {
+        return [
+          {
+            day: "2026-11-10",
+            area: "all",
+            visits: 10,
+            visitors: 7,
+            sessions: 6,
+            lostUpdates: 0,
+          },
+        ];
+      }
+      if (from === "2026-11-09") {
+        return [
+          {
+            day: "2026-11-09",
+            area: "all",
+            visits: 5,
+            visitors: 4,
+            sessions: 3,
+            lostUpdates: 0,
+          },
+        ];
+      }
+      return [];
+    });
+    vi.mocked(repo.findHourly).mockImplementation(async (_days, area) =>
+      area === "all"
+        ? [
+            {
+              day: "2026-11-10",
+              hour: 9,
+              area: "all",
+              visits: 4,
+              visitors: 3,
+            },
+          ]
+        : [],
+    );
+
+    const useCase = new GetTrafficReportUseCase(repo);
+    const payload = await useCase.execute(
+      { period: "day", area: "all", referenceDay: "2026-11-10" },
+      new Date("2026-11-15T12:00:00.000Z"),
+    );
+
+    expect(payload.period).toMatchObject({
+      granularity: "hour",
+      fromDay: "2026-11-10",
+      toDay: "2026-11-10",
+      prevFromDay: "2026-11-09",
+      prevToDay: "2026-11-09",
+    });
+    expect(payload.series).toHaveLength(24);
+    expect(payload.series.every((point) => point.partial === false)).toBe(true);
+    expect(payload.series.find((point) => point.bucketStart === "2026-11-10T09"))
+      .toMatchObject({ visits: 4, visitors: 3 });
+    expect(payload.totals).toMatchObject({ visits: 10, visitors: 7, sessions: 6 });
+    expect(payload.prevTotals).toMatchObject({ visits: 5, visitors: 4, sessions: 3 });
+    expect(payload.deltaPct).toMatchObject({ visits: 100, visitors: 75, sessions: 100 });
+    expect(repo.findDaily).toHaveBeenCalledWith("2026-11-10", "2026-11-10", "all");
+    expect(repo.findDaily).toHaveBeenCalledWith("2026-11-09", "2026-11-09", "all");
+    expect(repo.findHourly).toHaveBeenCalledWith(["2026-11-10"], "all");
+  });
+
+  it("usa o mês histórico selecionado e o mês anterior completo", async () => {
+    const repo = repositoryMock();
+    vi.mocked(repo.findDaily).mockImplementation(async (from, _to, area) => {
+      if (area !== "all") return [];
+      if (from === "2026-10-01") {
+        return [
+          {
+            day: "2026-10-15",
+            area: "all",
+            visits: 20,
+            visitors: 10,
+            sessions: 8,
+            lostUpdates: 0,
+          },
+        ];
+      }
+      if (from === "2026-09-01") {
+        return [
+          {
+            day: "2026-09-15",
+            area: "all",
+            visits: 10,
+            visitors: 8,
+            sessions: 6,
+            lostUpdates: 0,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const useCase = new GetTrafficReportUseCase(repo);
+    const payload = await useCase.execute(
+      { period: "month", area: "all", referenceDay: "2026-10-01" },
+      new Date("2026-11-15T12:00:00.000Z"),
+    );
+
+    expect(payload.period).toMatchObject({
+      granularity: "day",
+      fromDay: "2026-10-01",
+      toDay: "2026-10-31",
+      prevFromDay: "2026-09-01",
+      prevToDay: "2026-09-30",
+    });
+    expect(payload.series).toHaveLength(31);
+    expect(payload.series.every((point) => point.partial === false)).toBe(true);
+    expect(payload.series.find((point) => point.bucketStart === "2026-10-15"))
+      .toMatchObject({ visits: 20, visitors: 10, sessions: 8 });
+    expect(payload.totals).toMatchObject({
+      visits: 20,
+      visitors: 10,
+      sessions: 8,
+      visitorsBasis: "sum_of_daily_distinct",
+    });
+    expect(payload.prevTotals).toMatchObject({
+      visits: 10,
+      visitors: 8,
+      sessions: 6,
+      visitorsBasis: "sum_of_daily_distinct",
+    });
+    expect(payload.deltaPct).toMatchObject({
+      visits: 100,
+      visitors: 25,
+      sessions: 33.33,
+    });
+    expect(repo.findDaily).toHaveBeenCalledWith("2026-10-01", "2026-10-31", "all");
+    expect(repo.findDaily).toHaveBeenCalledWith("2026-09-01", "2026-09-30", "all");
+  });
+
+  it("preserva a janela do mês corrente sem âncora", async () => {
+    const repo = repositoryMock();
+    const useCase = new GetTrafficReportUseCase(repo);
+    const payload = await useCase.execute(
+      { period: "month", area: "all" },
+      new Date("2026-11-15T12:00:00.000Z"),
+    );
+
+    expect(payload.period).toMatchObject({
+      fromDay: "2026-11-01",
+      toDay: "2026-11-15",
+      prevFromDay: "2026-10-01",
+      prevToDay: "2026-10-15",
+    });
+    expect(payload.series.filter((point) => point.partial)).toEqual([
+      expect.objectContaining({ bucketStart: "2026-11-15" }),
+    ]);
   });
 
   it("consolida novos usuários e removidos no total e na série", async () => {
