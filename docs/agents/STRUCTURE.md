@@ -31,15 +31,17 @@ agendai-back-end/
 
 ## Módulos (`src/modules/`)
 
-Há **62** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
+Há **63** pastas em disco. `docs:check` falha se alguma não estiver listada aqui.
 
-`addons`, `admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cases`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `dataImport`, `dataExport`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `monitoring`, `notifications`, `nps`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `productReservations`, `products`, `profit`, `purchasing`, `quality`, `queue`, `recurringPackages`, `referrals`, `reputation`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `support`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`, `whatsappOwnerBot`.
+`addons`, `admin`, `analytics`, `appointments`, `auth`, `barbershops`, `cases`, `cash`, `catalog`, `clientPortal`, `clients`, `commissions`, `contact`, `copilot`, `corporate`, `crm`, `dataImport`, `dataExport`, `deposits`, `email`, `equipment`, `expenses`, `feed`, `fiado`, `financial`, `fiscal`, `forms`, `goals`, `integrations`, `loyalty`, `monitoring`, `notifications`, `nps`, `organizations`, `packages`, `payments`, `plans`, `posts`, `pricing`, `productReservations`, `products`, `profit`, `purchasing`, `quality`, `queue`, `recurringPackages`, `referrals`, `reputation`, `serviceCategories`, `services`, `shared`, `showcase`, `staff`, `subscriptions`, `support`, `traffic`, `users`, `visits`, `vouchers`, `waitlist`, `wallet`, `whatsappAi`, `whatsappOwnerBot`.
 
 Módulos que escaparam a varredura A1–A11 e agora entram na matriz de STATUS: **pricing**, **catalog** (avançado), **purchasing** (receive → estoque), **corporate** (admin com `setRlsContext`), **dataImport** (assistente de importação de planilhas — dono-only, `setRlsContext`, fila própria `data-import`), **addons** (catálogo de adicionais, Clean Architecture domain/application/infrastructure/presentation — feature `adicionais` FASE 2).
 
 ## Rotas HTTP (`shared/infra/http/routes/`)
 
 Registradas via `api.ts` / `index.ts`. Inclui: auth, users, services, barbershops, queue, appointments, admin, adminFinancial, payments, webhooks, plans, fiado, expenses, barbershopFinancial, categories, feed, posts, notifications, contact, referrals, clients, packages, products, commissions, crm, ws, support (módulo próprio, `modules/support/support.routes`), productReservations (módulo próprio, vitrine pública + painel de reservas) e cases (módulo próprio, `modules/cases/routes/cases.routes` — gestão de processos do escritório, feature `caseManagement`) e caseBacklog (`modules/cases/routes/caseBacklog.routes` — contratos/assinaturas, timesheet, êxito, intimações, NFS-e, alertas e transferências).
+
+O módulo `traffic` expõe o beacon anônimo neutro `POST /api/ping` (registrado fora do child scope de CORS para que uma origem não permitida ainda receba 204) e o relatório master `GET /api/admin/traffic` + `GET /api/admin/traffic/export` (`MASTER_ADMIN` + `internal:traffic:read`). Os contadores ficam no Redis e são consolidados no PostgreSQL por um cron horário.
 
 O assistente de importação de planilhas tem rotas próprias em
 `modules/dataImport/dataImport.routes.ts` (`/barbershops/:barbershopId/imports*`,

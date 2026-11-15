@@ -5,6 +5,7 @@ import { googleLoginSchema } from "../../schemas/authSchemas";
 import { GoogleLoginUseCase } from "./GoogleLoginUseCase";
 import { AppError } from "@/shared/errors/AppError";
 import { logAccess } from "@/shared/services/accessLogService";
+import { recordUserActivity } from "@/modules/traffic/infra/userActivity";
 
 export const validateGoogleLogin = validateSchema(googleLoginSchema);
 
@@ -24,6 +25,8 @@ export class GoogleLoginController {
         userAgent: request.headers["user-agent"],
         success: true,
       });
+      // Contagem de "usuários logados distintos" (1 upsert/usuário/dia).
+      await recordUserActivity((result as { user?: { id?: string } })?.user?.id);
       return reply.status(200).send(result);
     } catch (err) {
       // Conta bloqueada (423): igual ao LoginController — o bloqueio não é uma

@@ -29,6 +29,7 @@ import { scheduleOwnerBotPush } from "@/shared/infra/cron/ownerBotPush.cron";
 import { scheduleDeadlineAlerts } from "@/shared/infra/cron/deadlineAlerts.cron";
 import { scheduleDataImportCleanup } from "@/shared/infra/cron/dataImportCleanup.cron";
 import { scheduleDataExportCleanup } from "@/shared/infra/cron/dataExportCleanup.cron";
+import { scheduleTrafficConsolidation } from "@/modules/traffic/infra/trafficConsolidation.cron";
 import {
   startWhatsAppWorker,
   startEmailWorker,
@@ -319,6 +320,7 @@ function registerCrons(log: CronLog): void {
     ['alertas de vencimento de prazo', () => scheduleDeadlineAlerts(log)],
     ['limpeza de importações', () => scheduleDataImportCleanup(log)],
     ['limpeza de exportações', () => scheduleDataExportCleanup(log)],
+    ['consolidação de tráfego', () => scheduleTrafficConsolidation(log)],
   ] as const;
 
   for (const [name, startJob] of jobs) {

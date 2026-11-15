@@ -5,6 +5,7 @@ import { loginSchema } from "../../schemas/authSchemas";
 import { LoginUseCase } from "./LoginUseCase";
 import { logAccess } from "@/shared/services/accessLogService";
 import { checkLock, recordFailure, resetAttempts } from "@/shared/services/bruteForceProtection";
+import { recordUserActivity } from "@/modules/traffic/infra/userActivity";
 import { AppError } from "@/shared/errors/AppError";
 
 export const validateLogin = validateSchema(loginSchema);
@@ -30,12 +31,15 @@ export class LoginController {
       });
       await resetAttempts(email, ip);
       logAccess({
+        userId: (result as { user?: { id?: string } })?.user?.id,
         email,
         action: "LOGIN",
         ipAddress: ip,
         userAgent: request.headers["user-agent"],
         success: true,
       });
+      // Contagem de "usuários logados distintos" (1 upsert/usuário/dia).
+      await recordUserActivity((result as { user?: { id?: string } })?.user?.id);
       return reply.status(200).send(result);
     } catch (err) {
       if (err instanceof AppError && err.statusCode === 401) {

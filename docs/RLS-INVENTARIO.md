@@ -1,9 +1,9 @@
 # RLS — Inventário de policies e decisão por rota
 
-- **Data:** 2026-09-29 (inventário completo) — atualizado em 2026-10-29 com as 3 tabelas do assistente de importação
+- **Data:** 2026-09-29 (base do inventário) — atualizado em 2026-10-29 (assistente de importação) e 2026-11-15 (tráfego do site)
 - **Escopo:** `agendai-back-end` (Prisma + Postgres/Supabase)
-- **Método:** leitura estática de `prisma/schema.prisma` (143 models na data original) cruzada com grep em `prisma/migrations/**/migration.sql` por `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`. **Nenhuma consulta ao banco de dados foi feita para este documento.**
-- **Atualização 2026-10-29:** as 3 tabelas do assistente de importação (`import_batches`, `import_row_results`, `import_created_entities`) foram adicionadas ao inventário com a evidência da migration `20261029120000_data_import`. A contagem de models do schema já é **178** (o resto do inventário, com 143 models, foi escrito em 2026-09-29 e não foi revisado model a model nesta atualização — a revisão completa fica para o próximo ciclo do inventário).
+- **Método:** leitura estática de `prisma/schema.prisma` (143 models na base original) cruzada com grep em `prisma/migrations/**/migration.sql` por `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`. **Nenhuma consulta ao banco de dados foi feita para a base original.**
+- **Atualização 2026-11-15:** as 4 tabelas de plataforma do tráfego (`site_traffic_daily`, `site_traffic_hourly`, `site_traffic_origin_daily`, `user_activity_daily`) foram adicionadas. O schema atual contém **187 models**; este inventário não foi reconciliado model a model desde a base de 143 + acréscimos posteriores, portanto a tabela abaixo é uma **base histórica com acréscimos documentados**, não uma contagem atual completa de policies.
 - **Arquivo de contexto:** `src/libs/prismaExtensions.ts` (extensão que grava o GUC `app.current_barbershop_id`), `src/shared/infra/http/middlewares/setRlsContext.ts`, `src/shared/infra/http/middlewares/authenticateClient.ts`.
 
 ---
@@ -18,6 +18,9 @@
 
 | `ownerBot.routes.ts` — `POST /webhooks/evolution/platform` (sem `preHandler`; autenticado por `EVOLUTION_WEBHOOK_SECRET`) (`src/modules/whatsappOwnerBot/ownerBot.routes.ts:20`) | `owner_bot_link_codes`, `owner_bot_links`, `owner_bot_action_logs` (`src/modules/whatsappOwnerBot/ownerBotRepository.ts`) | **sim** para as três (`20261027120000_owner_bot_assistant`) | tenant | **não adicionar** `setRlsContext` | A rota não tem sessão de staff: o GUC fica `''` e as policies liberam a escrita — que é o comportamento desejado, porque o webhook resolve o tenant pelo próprio vínculo (`normalizedPhone`) e pelo código de vínculo (hash). O `where` do repositório (`barbershopId` do vínculo) é a contenção real; o RLS aqui é rede de segurança, não o controle primário. As rotas do painel (`/barbershops/:id/owner-bot/*`) usam `setRlsContext` normalmente. |
 
+| `trafficBeacon.routes.ts` — `POST /api/ping` (público, sem sessão) | Redis `traffic:*`; nenhuma tabela tenant | **não se aplica** | anônimo | **não adicionar** `setRlsContext` | É um agregado de plataforma sem `barbershopId`. Com `TRAFFIC_BEACON_ENABLED=false`, nem Redis é tocado. A rota responde 204 e o controller não persiste path/query/referrer completo. |
+| `admin.routes.ts` — `GET /api/admin/traffic` e `GET /api/admin/traffic/export` | `site_traffic_daily`, `site_traffic_hourly`, `site_traffic_origin_daily`, `user_activity_daily`; leitura de `users`/`barbershops` para cadastros | **não** para as 4 tabelas de tráfego | plataforma/admin | **não adicionar** `setRlsContext` | São agregados globais, sem `barbershopId`; RLS por tenant não se aplica. A fronteira real é `MASTER_ADMIN` + `internal:traffic:read`. A migration também revoga `PUBLIC`, `anon` e `authenticated` como defesa em profundidade. |
+
 ### Pontos-chave que sustentam a decisão
 
 1. **`setRlsContext.ts:12-18` não lança erro.** Se `request.user?.barbershopId` estiver ausente, a função apenas chama `done()` — o request segue normalmente, sem contexto RLS e sem qualquer log/erro. Falha aqui é silenciosa por projeto.
@@ -28,13 +31,13 @@
 
 ---
 
-## Seção 2 — Inventário completo de models (143)
+## Seção 2 — Inventário de models (base 143 + acréscimos posteriores)
 
 **Critérios de classificação**
 
 - **tenant** — dado pertence a um salão, ao seu staff ou aos seus clientes: coluna `barbershopId` direta, ou FK em cadeia para tabela de tenant (ex.: `invoices`→`subscriptions`, `fiado_payments`→`fiados`, `service_variations`→`services`, `form_fields`→`custom_forms`, `voucher_usages`→`vouchers`, `review_responses`→`client_reviews`, `feedbacks`→`users`, `digital_wallets`→`client_identities`). Inclui `barbershops` (a própria entidade tenant).
 - **público** — catálogo/preço de plataforma, lido sem sessão de tenant: `plans`, `corporate_plans`.
-- **admin** — operação interna da plataforma (staff interno): `admin_notifications`, `audit_logs`, `access_logs`, `error_logs`, `internal_invitations`, `tickets`/`tasks` (coluna de comentário/histórico).
+- **admin** — operação interna da plataforma (staff interno): `admin_notifications`, `audit_logs`, `access_logs`, `error_logs`, `internal_invitations`, `tickets`/`tasks` (coluna de comentário/histórico) e os agregados globais de tráfego (`site_traffic_*`, `user_activity_daily`).
 - **sistema** — auth/infra/rotina automática: tokens, sessões e OTP do portal, `cron_runs`, `idempotency_records`, `email_deliveries`, pipeline de notificação (`notification_outbox/attempts/provider_events`).
 
 **Evidência:** `migration-diretório:linha` do `CREATE POLICY` que vigia (ou, para as 12 tabelas do loop, a linha do array no `20260903010000_products_inventory_retail`, cujo policy é criado pelo `FOREACH` em `migration.sql:262-273`). `—` = nenhuma `CREATE POLICY` encontrada nas migrations.
@@ -70,6 +73,10 @@
 | `admin_notifications` | não | admin | — |
 | `audit_logs` | não | admin | — |
 | `access_logs` | não | admin | — |
+| `site_traffic_daily` | não | admin (plataforma) | — |
+| `site_traffic_hourly` | não | admin (plataforma) | — |
+| `site_traffic_origin_daily` | não | admin (plataforma) | — |
+| `user_activity_daily` | não | admin (plataforma) | — |
 | `error_logs` | não | admin | — |
 | `service_categories` | sim | tenant | 20260827190000_fix_rls_unset_guc:114 |
 | `expense_categories` | sim | tenant | 20260827190000_fix_rls_unset_guc:122 |
@@ -198,6 +205,7 @@
 - **12 policies criadas por loop** em `20260903010000_products_inventory_retail:262-273` (`FOREACH ... ARRAY[...]` com `format(...)`), por isso a evidência aponta a linha do array.
 - **`referrals`** não tem coluna `barbershopId`, mas sim `referrerBarbershopId`/`refereeBarbershopId` — é tenant mesmo assim.
 - **Assistente de importação (2026-10-29):** `import_batches`, `import_row_results` e `import_created_entities` nasceram com RLS `ENABLE` + `FORCE` e policy `tenant_isolation` no mesmo padrão de `client_cases` (`20261029120000_data_import/migration.sql:128-144`). As três tabelas têm coluna `barbershopId` e as rotas do assistente usam `setRlsContext` (`src/modules/dataImport/dataImport.routes.ts:17`), então o contexto de tenant é sempre o do salão da sessão.
+- **Tráfego do site (2026-11-15):** as quatro tabelas `site_traffic_*`/`user_activity_daily` são de escopo de plataforma, sem `barbershopId`, e portanto **não usam RLS**. A migration `20261115120000_site_traffic_tracking` revoga `ALL` de `PUBLIC`, `anon` e `authenticated`; o acesso da API depende do papel dono da tabela, e o relatório exige `MASTER_ADMIN` + `internal:traffic:read`. Um papel `NOSUPERUSER NOBYPASSRLS` não recebe privilégio automático nessas tabelas (coberto por teste de integração).
 
 ---
 
@@ -205,11 +213,13 @@
 
 | métrica | valor |
 |---|---|
-| models no `schema.prisma` | 143 (2026-09-29) / **178** (2026-10-29, contagem atual do schema) |
-| com policy (`CREATE POLICY` nas migrations) | **59** (2026-09-29) / **86** (2026-10-29, apurado no banco local `agendai`) |
-| sem policy | **84** (2026-09-29) / **92** (2026-10-29) |
+| models no `schema.prisma` | 143 (2026-09-29) / 178 (2026-10-29) / **187** (2026-11-15, contagem atual) |
+| linhas de model na tabela da Seção 2 | **153** (base + acréscimos documentados; não é catálogo completo atual) |
+| models ainda não reconciliados model a model nesta tabela | **34** (pendência do ciclo completo de inventário) |
+| com policy (`CREATE POLICY` nas migrations) | **59** (2026-09-29) / **86** (2026-10-29, apurado no banco local `agendai`; não recontado em 2026-11-15) |
+| tabelas de tráfego com policy | **0** — escopo de plataforma; `REVOKE ALL` de `PUBLIC`/`anon`/`authenticated` |
 | das sem policy, classificadas **tenant** | **64** (2026-09-29) |
-| classificação total | tenant 120 / sistema 12 / admin 9 / público 2 (2026-09-29) |
+| classificação total | tenant 120 / sistema 12 / admin 9 / público 2 (2026-09-29; base histórica) |
 
 ### Riscos identificados
 
@@ -217,7 +227,7 @@
 2. **`wallet.transfer` aceitando `targetWalletId` arbitrário** (`walletRepository.ts:115`): a validação verifica apenas existência da carteira de destino e desigualdade com a origem (`walletRepository.ts:115-120`), sem checar relação com a identidade autenticada. Somado à ausência total de policy em `digital_wallets`/`wallet_entries`, um cliente logado pode transferir saldo para a carteira de outra identidade conhecendo o UUID.
 3. **Rotas públicas** (`POST /contact` e demais endpoints sem sessão): gravam com GUC `''`; a única mitigação é a policy (quando existe) e o rate limit aplicativo (`contact.routes.ts:11-17`). `admin_notifications` — destino do formulário de contato — não tem policy nenhuma.
 4. **`schedule_exceptions` com policy mas sem model no schema** (`20260902220000_shop_manual_status:14-16`): drift entre banco e `schema.prisma` — a tabela existe com RLS, o Prisma não a declara, não há model/query tipada e nenhuma migração futura a acompanha automaticamente.
-5. **Observação:** 9 tabelas classificadas como **admin** e 2 como **público** também estão sem policy (`admin_notifications`, `audit_logs`, `access_logs`, `error_logs`, `internal_invitations`, `ticket_comments`, `ticket_history`, `task_comments`, `task_history`, `plans`, `corporate_plans`); para elas a contenção é integralmente da aplicação.
+5. **Observação:** tabelas classificadas como **admin** e **público** também estão sem policy (`admin_notifications`, `audit_logs`, `access_logs`, `error_logs`, `internal_invitations`, `ticket_comments`, `ticket_history`, `task_comments`, `task_history`, `site_traffic_daily`, `site_traffic_hourly`, `site_traffic_origin_daily`, `user_activity_daily`, `plans`, `corporate_plans`); para elas a contenção é integralmente da aplicação. Nas tabelas de tráfego há ainda o revoke explícito de `PUBLIC`/`anon`/`authenticated`.
 
 ---
 

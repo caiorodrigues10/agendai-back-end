@@ -1082,6 +1082,24 @@
         }
       }
     },
+    "/api/admin/traffic": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/traffic/export": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/users": {
       "get": {
         "responses": {
@@ -10922,6 +10940,15 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/ping": {
+      "post": {
         "responses": {
           "200": {
             "description": "Default Response"

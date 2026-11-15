@@ -22,6 +22,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 const executeMock = vi.fn();
 const logAccessMock = vi.fn();
+const recordUserActivityMock = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("tsyringe", async importOriginal => {
   const actual = await importOriginal<typeof import("tsyringe")>();
@@ -33,6 +34,10 @@ vi.mock("tsyringe", async importOriginal => {
 
 vi.mock("@/shared/services/accessLogService", () => ({
   logAccess: (params: unknown) => logAccessMock(params),
+}));
+
+vi.mock("@/modules/traffic/infra/userActivity", () => ({
+  recordUserActivity: (userId: string) => recordUserActivityMock(userId),
 }));
 
 // O controller só resolve o use case via container (mockado acima), mas o
@@ -79,6 +84,8 @@ describe("GoogleLoginController (auditoria)", () => {
     expect(logAccessMock).toHaveBeenCalledWith(
       expect.objectContaining({ action: "GOOGLE_LOGIN", success: true, userId: "u1" })
     );
+    expect(recordUserActivityMock).toHaveBeenCalledTimes(1);
+    expect(recordUserActivityMock).toHaveBeenCalledWith("u1");
     expect(reply.statusCode).toBe(200);
   });
 

@@ -18,6 +18,18 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - `authorize(roles)` + permissões de employee onde aplicável.
 - `setRlsContext` para isolamento; não assumir que todo endpoint já aplica RLS — verificar rota.
 
+## Tráfego anônimo do site
+
+- O beacon `POST /api/ping` é **desligado por padrão** (`TRAFFIC_BEACON_ENABLED=false`). Desligado, responde **204** e não toca em contador/Redis.
+- Toda resposta do beacon é **204**, inclusive body inválido, bot, DNT/GPC, prefetch, origem não permitida, excesso de cota ou Redis indisponível. Uma origem fora da allowlist nunca vira 403 no ingestion.
+- O path só é classificado em área (`public_site`, `salon_public`, `logged_area`); query, fragment, token, `manageToken` e IDs de rota **nunca** são persistidos ou logados. Do referrer só o **host** é guardado.
+- IP e user-agent nunca são gravados no PostgreSQL. A identidade anônima é um HMAC diário no Redis, com salt aleatório e TTL curto; o salt do rate limit por IP vive apenas no processo.
+- Bots/headless, prefetch/prerender, `DNT: 1`, `Sec-GPC: 1` e o painel `/master` são descartados antes de qualquer escrita.
+- O contador por IP usa o `request.ip` já resolvido pelo Fastify. Em produção atrás de proxy, `TRUST_PROXY` deve ser o número correto de hops/CIDRs: com hops incorretos, todos os clientes compartilham a identidade/cota do proxy.
+- A consolidação horária do dia civil anterior usa `GREATEST(valor_persistido, valor_redis)`: o banco nunca regride após reset do Redis. A primeira regressão observada no dia incrementa `lostUpdates`, expondo a perda; indisponibilidade do Redis no request path também aparece em `redisUnavailableDrops`.
+- “Usuários logados (distintos)” é o número real de `userId` distintos com atividade no período. `user_activity_daily` tem chave `(day, userId)`, sem `barbershopId`; login/Google login/refresh usam `SET NX` para no máximo um upsert por usuário/dia.
+- Relatório e CSV exigem `MASTER_ADMIN` + `internal:traffic:read`. Lista de permissões vazia preserva o acesso default dos admins internos existentes; `internal:all` também concede acesso.
+
 ## Imagens & página pública (Cloudinary)
 
 - **Todo upload de imagem é Cloudinary** via DI token `ImageStorageProvider` (logo, capa, avatar, produtos, posts/mídia); token legado `StorageProvider` (GCS→Cloudinary) só cobre **deletes de objects antigos** e vídeo legado. Env obrigatória: `CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET` (sem ela, upload → 503).

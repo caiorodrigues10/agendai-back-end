@@ -4,7 +4,7 @@
 > Autossuficiente sem a pasta externa do monorepo.
 > Codex e OpenCode usam este arquivo como entrada.
 
-**Última revisão documental:** 2026-09-08 (baseada no código atual).
+**Última revisão documental:** 2026-11-15 (baseada no código atual).
 **Prisma:** 6.4.0 — não tratar como 7.x.
 
 ---
@@ -95,42 +95,40 @@ O banco de dev era criado via `db push` (sem `_prisma_migrations`), deixando o h
 
 ## ⚠️ Risco conhecido: migrations com timestamp futuro (ordem de aplicação)
 
-**Números reais (verificados em 2026-11-01):**
+**Números reais (verificados em 2026-11-15, incluindo a migration de tráfego deste PR):**
 
 | medida | valor | como medir |
 |---|---|---|
-| migrations na pasta `prisma/migrations/` | **125** | `ls prisma/migrations \| grep -v migration_lock \| wc -l` |
-| migrations com prefixo **> 20261101** (a série datada 2026-11-05…2026-11-10) | **11** | `ls prisma/migrations \| grep -v migration_lock \| awk -F_ '$1 > "20261101"' \| wc -l` |
-| migrations com prefixo **posterior ao dia em que a pasta foi criada** → **escopo real do rename** | **37** | comparar o prefixo com a data do commit que adicionou a pasta (`git log --diff-filter=A`) |
-| linhas em `_prisma_migrations` do banco `agendai` (dev) | **126** | `select count(*) from _prisma_migrations` |
-| linhas em `_prisma_migrations` do banco `agendai_db` (testes) | **125** | idem |
+| migrations na pasta `prisma/migrations/` | **130** | `find prisma/migrations -mindepth 1 -maxdepth 1 -type d \| wc -l` |
+| migrations com prefixo **> 20261101** | **15** | comparar o prefixo de cada pasta com `20261101` |
+| migrations com prefixo **posterior ao dia em que a pasta foi criada** → **escopo real do rename** | **39** | comparar o prefixo com a data do commit que adicionou a pasta (`git log --diff-filter=A`) |
+| registros ativos em `_prisma_migrations` do banco `agendai_db` (testes) | **130** | contar `rolled_back_at IS NULL` |
+| linhas totais em `_prisma_migrations` do banco `agendai_db` | **131** | há uma tentativa antiga de `20261115120000_site_traffic_tracking` marcada como `rolled_back_at`; ela foi preservada como evidência da falha de SQL corrigida |
 
-As **11 migrations da série 2026-11-05…2026-11-10** — de `20261105120000_data_import_phase2_targets` até `20261110130000_import_file_formats` — têm prefixo de data **posterior ao dia em que foram criadas** (2026-11-01) e **já estão aplicadas** em `agendai` e `agendai_db`. São as 11 que importam para a regra abaixo: enquanto existirem, nenhuma migration nova pode usar a data real de hoje.
+As **13 migrations da série 2026-11-05…2026-11-12** — de `20261105120000_data_import_phase2_targets` até `20261112120000_import_case_fees_target` — têm prefixo de data **posterior ao dia em que foram criadas** e **já estão aplicadas** em `agendai_db`. São 13 das 39 que importam para a regra abaixo.
 
-O escopo de renomeação, porém, é maior: **37 migrations** (as 11 da série + 26 mais antigas com o mesmo defeito) têm prefixo posterior ao dia em que foram criadas. Ver item de dívida técnica abaixo.
-
-O banco `agendai` (dev) tem **1 linha a mais** que a pasta (126 vs 125): `20261027000000_post_media_gallery_default`, aplicada sem pasta correspondente. É a linha excedente conhecida e **não** afeta o `migrate status` ("up to date") nem o `migrate diff` (vazio).
+O escopo de renomeação é **39 migrations** (as 13 da série + 26 mais antigas com o mesmo defeito). As migrations `20261113120000_addons_catalog_domain` e `20261115120000_site_traffic_tracking` usam a data real do dia em que entraram no repositório e não ampliam essa dívida. Ver item de dívida técnica abaixo.
 
 O Prisma ordena migrations pelo **nome da pasta** (timestamp). Uma migration nova com prefixo **≤ o maior prefixo já aplicado** seria aplicada **fora de ordem** em relação às que já estão no banco: o `migrate deploy` aplica a pendente antes das anteriores e sinaliza "migration applied out of order"; no `migrate dev` isso é erro P3009.
 
-**Regra (revista em 2026-11-01, sem contradição):**
+**Regra (revista em 2026-11-15, sem contradição):**
 
-1. **O prefixo de toda migration nova é estritamente maior que o maior prefixo que já existe na pasta `prisma/migrations/`.** Hoje esse teto é **`20261110130000`** — é ele que garante a ordem de aplicação. Este é o único critério mandatório.
-2. O prefixo **não pode ser uma data real** enquanto a série datada em `2026-11-05`…`2026-11-10` não for renomeada: a data real de hoje (2026-11-01) é **menor** que os prefixos já aplicados, e uma migration com essa data entraria fora de ordem. Portanto, enquanto a série existir, o prefixo novo continua na série (2026-11-10+). A regra "prefixo ≤ data real do dia" **vale de novo** quando a série for renomeada.
-3. O prefixo precisa ser **único** e a ordenação precisa ser estável: use `AAAAMMDDHHMMSS` com a hora em UTC, sempre acima do teto do passo 1 (ex.: `20261110130000`).
-4. Renomear as migrations inconsistentes (escopo real: **37**, ver dívida técnica abaixo) ou resolvê-las no banco é **tarefa separada, ainda não autorizada** — até lá, vale o passo 1.
+1. **O prefixo de toda migration nova é estritamente maior que o maior prefixo que já existe na pasta `prisma/migrations/`.** Hoje esse teto é **`20261115120000`** — é ele que garante a ordem de aplicação. Este é o único critério mandatório.
+2. O prefixo pode usar a data real do dia, desde que continue **acima do teto do passo 1**. Não existe exigência de prefixo futuro; a dívida de timestamps anteriores ao dia da criação será corrigida separadamente.
+3. O prefixo precisa ser **único** e a ordenação precisa ser estável: use `AAAAMMDDHHMMSS` com a hora em UTC, sempre acima do teto do passo 1 (ex.: `20261115120000`).
+4. Renomear as migrations inconsistentes (escopo real: **39**, ver dívida técnica abaixo) ou resolvê-las no banco é **tarefa separada, ainda não autorizada** — até lá, vale o passo 1.
 
-Estado verificado em 2026-11-01 (após `20261110130000_import_file_formats`): `prisma migrate status` → "Database schema is up to date!" nos dois bancos; `prisma migrate diff --from-url … --to-schema-datamodel` → **vazio** em `agendai` e `agendai_db`. Detalhes: `docs/agents/SCRIPTS.md` §Observações críticas.
+Estado verificado em 2026-11-15 em `agendai_db` (após `20261115120000_site_traffic_tracking`): `prisma migrate status` → "Database schema is up to date!"; o histórico preserva uma tentativa anterior da migration de tráfego com `rolled_back_at` e um registro concluído com o checksum corrente. O banco local `agendai` (dev) está com apenas **4 registros ativos** e **não** deve ser usado como baseline de migração nesta sessão. Detalhes: `docs/agents/SCRIPTS.md` §Observações críticas.
 
 ### 🔻 Dívida técnica — renomear as migrations com prefixo inconsistente
 
-**Escopo real: 37 migrations** — as 11 da série `20261105`…`20261110` **mais** 26 mais antigas cujo prefixo também é posterior ao dia em que a pasta foi criada (de `20260831000000_seed_default_plans` a `20260912000003_add_client_procedure_records`). Lista completa e recontagem: `docs/RUNBOOK_MIGRATIONS.md`.
+**Escopo real: 39 migrations** — as 13 da série `20261105`…`20261112` **mais** 26 mais antigas cujo prefixo também é posterior ao dia em que a pasta foi criada (de `20260831000000_seed_default_plans` a `20260912000003_add_client_procedure_records`). Lista completa e recontagem: `docs/RUNBOOK_MIGRATIONS.md`.
 
 **Prazo: 2026-12-31** — ou antes de qualquer deploy em ambiente novo que dependa de `migrate deploy` (renomear depois é mais caro).
 
 **Como fazer (quando for autorizado):**
 
-1. `git mv` das 37 pastas, preservando o nome do arquivo interno (`migration.sql`) e a **ordem relativa** dos prefixos.
+1. `git mv` das 39 pastas, preservando o nome do arquivo interno (`migration.sql`) e a **ordem relativa** dos prefixos.
 2. Banco: `prisma migrate resolve --applied <novo_nome>` para cada pasta renomeada **e** resolver a pasta antiga (`--rolled-back` na antiga, se houver linha com o nome antigo). Nunca editar `_prisma_migrations` com `UPDATE` direto sem backup — a coluna `checksum` é conferida no `migrate deploy`.
 3. Separar a linha excedente do `agendai` (`20261027000000_post_media_gallery_default`, aplicada sem pasta): resolver como aplicada criando a pasta correspondente ou marcar como rolled-back após verificar o efeito no schema.
 4. Atualizar `docs/RUNBOOK_MIGRATIONS.md` e a tabela de números acima.
