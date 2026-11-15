@@ -35,12 +35,14 @@ describe('operational emails', () => {
   expect(() => agendaiEmailBase({ title: 'Teste', bodyHtml: '<p>Olá</p>', ctaLabel: 'Abrir', ctaUrl })).toThrow()
  })
 
- it('uses actual application routes and escapes appointment content', () => {
+ it('uses actual application routes, shows total duration and escapes appointment content', () => {
   const digest = buildDailyDigestEmail({
-   ...owner, date: '2026-10-01', appointments: [{ time: '10:00', clientName: '<script>x</script>', serviceName: 'Corte' }],
+   ...owner, date: '2026-10-01', appointments: [{ time: '10:00', clientName: '<script>x</script>', serviceName: 'Corte', durationMinutes: 75 }],
    totalScheduled: 1, cancelledToday: 0,
   })
   expect(digest.html).toContain('/app/appointments')
+  expect(digest.html).toContain('75 min')
+  expect(digest.text).toContain('75 min')
   expect(digest.html).not.toContain('<script>')
   expect(buildPasswordChangedEmail(owner).text).toContain('/esqueci-senha')
  })

@@ -42,6 +42,12 @@ export interface ICreateAppointmentDTO {
   meetingLink?: string | null;
   /** Canal de origem — o assistente do dono no WhatsApp grava WHATSAPP_OWNER_BOT. */
   source?: AppointmentSource;
+  /**
+   * Adicionais escolhidos na criação (FASE 3). O backend valida contra o
+   * catálogo do serviço e grava o snapshot em `appointment_addons` na mesma
+   * transação — o cliente nunca envia preço/duração.
+   */
+  addons?: Array<{ addonId: string; quantity: number }>;
 }
 
 export interface IUpdateAppointmentDTO {
@@ -102,6 +108,22 @@ export interface IAppointmentResponseDTO {
     unitPrice: number;
     imageUrl?: string | null;
   }>;
+  /**
+   * FASE 3 — presentes APENAS quando o agendamento tem adicional (resposta
+   * idêntica à de hoje quando não tem). `addons` é o snapshot imutável;
+   * `totalPrice` (reais) = serviço + Σ adicionais; `totalDurationMinutes` =
+   * duração do serviço + Σ (duração × quantidade).
+   */
+  addons?: Array<{
+    addonId: string;
+    name: string;
+    unitPrice: number;
+    quantity: number;
+    durationMinutes: number;
+    commissionable: boolean;
+  }>;
+  totalPrice?: number;
+  totalDurationMinutes?: number;
 }
 
 /**

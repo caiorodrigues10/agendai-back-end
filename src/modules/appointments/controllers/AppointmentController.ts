@@ -24,6 +24,41 @@ import {
 import { slotsQuerySchema } from "../schemas/appointmentSchemas";
 import { PublicAppointmentManagementUseCase } from "../useCases/publicManagement/PublicAppointmentManagementUseCase";
 import { createPublicAppointmentToken } from "../services/publicAppointmentToken";
+import type { AddonSelectionItem } from "@/modules/addons";
+
+/**
+ * Lê `addonIds` (csv) e `addonQuantities` (csv alinhado) da query de slots —
+ * FASE 3. Sem `addonIds` devolve `undefined` (fluxo idêntico ao de hoje).
+ * A validação de domínio (limite, qty, vínculo) acontece no use case.
+ */
+function parseSlotsAddonParams(
+  addonIds?: string,
+  addonQuantities?: string
+): AddonSelectionItem[] | undefined {
+  if (addonQuantities && !addonIds) {
+    throw new AppError("addonQuantities exige addonIds", 400);
+  }
+  if (!addonIds) return undefined;
+  const ids = addonIds
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (ids.length === 0) return undefined;
+  const quantities = (addonQuantities ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (quantities.length > 0 && quantities.length !== ids.length) {
+    throw new AppError(
+      "addonQuantities deve ter o mesmo número de itens que addonIds",
+      400
+    );
+  }
+  return ids.map((addonId, index) => ({
+    addonId,
+    quantity: quantities[index] ? Number(quantities[index]) : 1,
+  }));
+}
 
 export class AppointmentController {
   async create(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -101,7 +136,14 @@ export class AppointmentController {
   }
 
   async slots(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    let query: { barbershopId: string; date: string; serviceId: string; staffId?: string };
+    let query: {
+      barbershopId: string;
+      date: string;
+      serviceId: string;
+      staffId?: string;
+      addonIds?: string;
+      addonQuantities?: string;
+    };
     try {
       query = slotsQuerySchema.parse(request.query);
     } catch (error) {
@@ -113,7 +155,14 @@ export class AppointmentController {
       }
       throw error;
     }
-    const slots = await new GetAvailableSlotsUseCase().execute(query.barbershopId, query.serviceId, query.date, query.staffId);
+    const addons = parseSlotsAddonParams(query.addonIds, query.addonQuantities);
+    const slots = await new GetAvailableSlotsUseCase().execute(
+      query.barbershopId,
+      query.serviceId,
+      query.date,
+      query.staffId,
+      addons
+    );
     reply.send({ success: true, data: slots });
   }
 

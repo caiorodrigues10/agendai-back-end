@@ -465,6 +465,7 @@ export function buildDailyDigestEmail(input: {
 		clientName: string
 		serviceName: string
 		price?: number | null
+		durationMinutes?: number | null
 		staffName?: string | null
 		notes?: string | null
 	}[]
@@ -481,6 +482,7 @@ export function buildDailyDigestEmail(input: {
 					<td style="padding:10px 4px;border-bottom:1px solid #E2E8E2;">
 						<strong>${esc(a.clientName)}</strong><br/>
 						<span style="font-size:13px;color:#4D5F55;">${esc(a.serviceName)}${a.price != null ? ' — ' + esc(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(a.price)) : ''}</span>
+						${a.durationMinutes != null ? `<br/><span style="font-size:12px;color:#4D5F55;">${esc(a.durationMinutes + ' min')}</span>` : ''}
 						${a.staffName ? `<br/><span style="font-size:12px;color:#4D5F55;">${esc('com ' + a.staffName)}</span>` : ''}
 						${a.notes ? `<br/><span style="font-size:12px;color:#4D5F55;font-style:italic;">${esc(a.notes)}</span>` : ''}
 					</td>
@@ -509,7 +511,7 @@ export function buildDailyDigestEmail(input: {
 			'',
 			`${input.totalScheduled} agendamento${input.totalScheduled === 1 ? '' : 's'} hoje.`,
 			...(input.appointments.map(
-				(a) => `• ${a.time} — ${a.clientName} (${a.serviceName})`
+				(a) => `• ${a.time} — ${a.clientName} (${a.serviceName}${a.durationMinutes != null ? `, ${a.durationMinutes} min` : ''})`
 			)),
 			input.cancelledToday > 0 ? `${input.cancelledToday} cancelado(s).` : '',
 			'',

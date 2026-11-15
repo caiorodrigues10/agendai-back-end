@@ -8,6 +8,11 @@ export * from "./domain/addonTypes";
 export * from "./domain/appointmentAddonTotals";
 export * from "./domain/validateAddonSelection";
 export {
+  resolveAddonSelection,
+  mapAddonSelectionError,
+  type AddonVisibility,
+} from "./application/resolveAddonSelection";
+export {
   AddonCatalogUseCases,
   SALON_ADDON_REPOSITORY,
   SERVICE_ADDON_LINK_REPOSITORY,

@@ -151,6 +151,8 @@ export type EmailJobData = (
         clientName: string;
         serviceName: string;
         price?: number | null;
+        /** Duração total do atendimento (serviço + adicionais). */
+        durationMinutes?: number | null;
         staffName?: string | null;
         notes?: string | null;
       }>;
