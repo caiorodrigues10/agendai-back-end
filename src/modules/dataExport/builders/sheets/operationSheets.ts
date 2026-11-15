@@ -23,6 +23,7 @@ import {
 } from "../sheetHelpers";
 import { anonymizeEmail, anonymizeName, anonymizePhone } from "../../utils/cellSafety";
 import { MAX_ROWS_PER_SHEET } from "../../dataExport.constants";
+import { appointmentDurationMinutes } from "@/modules/appointments/utils/appointmentAddons";
 
 /** ── Agendamentos ─────────────────────────────────────────────────────────── */
 
@@ -95,6 +96,17 @@ export const appointmentsSheet: SheetBuilder = {
             caseName: true,
             service: { select: { name: true, avgTimeMinutes: true } },
             staff: { select: { name: true } },
+            // FASE 3: duração total do atendimento (serviço + adicionais)
+            addons: {
+              select: {
+                addonId: true,
+                nameSnapshot: true,
+                unitPrice: true,
+                quantity: true,
+                durationMinutes: true,
+                commissionable: true,
+              },
+            },
           },
         }),
       500,
@@ -123,7 +135,10 @@ export const appointmentsSheet: SheetBuilder = {
         appointment.finalPrice,
         appointment.paymentMethod,
         MODALITY_LABELS[appointment.modality] ?? appointment.modality,
-        appointment.service?.avgTimeMinutes,
+        appointmentDurationMinutes(
+          appointment.service?.avgTimeMinutes ?? 30,
+          appointment.addons
+        ),
         APPOINTMENT_SOURCE_LABELS[appointment.source] ?? appointment.source,
         appointment.completedAt,
         appointment.cancellationReason,

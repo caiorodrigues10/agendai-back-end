@@ -14,6 +14,11 @@ import { getModuleLogger } from "@/shared/utils/logger";
 import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { spDateKey, withCronLock, type CronLockContext } from "@/shared/infra/redis/cronLock";
 import { withCronCorrelation } from "@/shared/utils/correlationContext";
+import { appointmentTotal, toCents, toReais } from "@/modules/addons";
+import {
+  addonRowToSnapshot,
+  appointmentDurationMinutes,
+} from "@/modules/appointments/utils/appointmentAddons";
 
 const logger = getModuleLogger("cron:email-reminders");
 const TZ = "America/Sao_Paulo";
@@ -129,8 +134,19 @@ async function runDailyDigest(ctx?: CronLockContext): Promise<number> {
         status: "CONFIRMED",
       },
       include: {
-        service: { select: { name: true, price: true } },
+        service: { select: { name: true, price: true, avgTimeMinutes: true } },
         staff: { select: { name: true } },
+        // FASE 3: snapshots no mesmo findMany — o resumo mostra o TOTAL.
+        addons: {
+          select: {
+            addonId: true,
+            nameSnapshot: true,
+            unitPrice: true,
+            quantity: true,
+            durationMinutes: true,
+            commissionable: true,
+          },
+        },
       },
       orderBy: { time: "asc" },
     });
@@ -157,7 +173,17 @@ async function runDailyDigest(ctx?: CronLockContext): Promise<number> {
           time: a.time,
           clientName: a.customerName,
           serviceName: a.service.name,
-          price: a.service.price,
+          // FASE 3: total (base + adicionais) — sem adicional = preço base.
+          price: toReais(
+            appointmentTotal(
+              toCents(Number(a.service.price)),
+              a.addons.map(addonRowToSnapshot)
+            )
+          ),
+          durationMinutes: appointmentDurationMinutes(
+            a.service.avgTimeMinutes,
+            a.addons
+          ),
           staffName: a.staff?.name ?? undefined,
         })),
         totalScheduled: appointments.length,

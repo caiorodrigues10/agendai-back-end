@@ -1483,11 +1483,148 @@
         }
       },
       "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "addons": {
+                    "description": "Adicionais do serviço; preço, duração e quantidade efetiva são validados no servidor.",
+                    "items": {
+                      "properties": {
+                        "addonId": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "quantity": {
+                          "maximum": 100,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "addonId",
+                        "quantity"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 30,
+                    "type": "array"
+                  },
+                  "barbershopId": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "caseId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "clientId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "clientPackageId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "customerName": {
+                    "maxLength": 200,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "meetingLink": {
+                    "format": "uri",
+                    "maxLength": 500,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "modality": {
+                    "enum": [
+                      "IN_PERSON",
+                      "PHONE",
+                      "VIDEO"
+                    ],
+                    "type": "string"
+                  },
+                  "petId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "practiceArea": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "reservedProducts": {
+                    "items": {
+                      "properties": {
+                        "productId": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "quantity": {
+                          "maximum": 10,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "productId",
+                        "quantity"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                  },
+                  "serviceId": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "staffId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string"
+                  },
+                  "whatsapp": {
+                    "minLength": 10,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "barbershopId",
+                  "customerName",
+                  "date",
+                  "serviceId",
+                  "time",
+                  "whatsapp"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "summary": "Criar agendamento da equipe",
+        "tags": [
+          "Appointments"
+        ]
       }
     },
     "/api/appointments/availability": {
@@ -1501,11 +1638,148 @@
     },
     "/api/appointments/public": {
       "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "addons": {
+                    "description": "Adicionais do serviço; preço, duração e quantidade efetiva são validados no servidor.",
+                    "items": {
+                      "properties": {
+                        "addonId": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "quantity": {
+                          "maximum": 100,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "addonId",
+                        "quantity"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 30,
+                    "type": "array"
+                  },
+                  "barbershopId": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "caseId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "clientId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "clientPackageId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "customerName": {
+                    "maxLength": 200,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "meetingLink": {
+                    "format": "uri",
+                    "maxLength": 500,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "modality": {
+                    "enum": [
+                      "IN_PERSON",
+                      "PHONE",
+                      "VIDEO"
+                    ],
+                    "type": "string"
+                  },
+                  "petId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "practiceArea": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "reservedProducts": {
+                    "items": {
+                      "properties": {
+                        "productId": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "quantity": {
+                          "maximum": 10,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "productId",
+                        "quantity"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                  },
+                  "serviceId": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "staffId": {
+                    "format": "uuid",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string"
+                  },
+                  "whatsapp": {
+                    "minLength": 10,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "barbershopId",
+                  "customerName",
+                  "date",
+                  "serviceId",
+                  "time",
+                  "whatsapp"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "summary": "Criar agendamento público",
+        "tags": [
+          "Appointments"
+        ]
       }
     },
     "/api/appointments/public/cancel": {
@@ -1564,11 +1838,72 @@
     },
     "/api/appointments/slots": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "barbershopId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "staffId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IDs de adicionais separados por vírgula.",
+            "in": "query",
+            "name": "addonIds",
+            "required": false,
+            "schema": {
+              "maxLength": 1200,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Quantidades alinhadas posição a posição aos addonIds.",
+            "in": "query",
+            "name": "addonQuantities",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "summary": "Calcular slots livres no servidor",
+        "tags": [
+          "Appointments"
+        ]
       }
     },
     "/api/appointments/waitlist/public": {

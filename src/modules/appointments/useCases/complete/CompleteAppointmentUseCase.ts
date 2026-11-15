@@ -12,6 +12,14 @@ import { ReviewInvitationService } from "@/modules/reputation/reviewInvitationSe
 import { commissionAmount } from "@/modules/financial/ledger/commissionMath";
 import { recordLedgerEntry } from "@/modules/financial/ledger/financialLedger";
 import { recordAppointmentCompletion, recordFiadoCreated } from "@/modules/crm/services/crmLedger";
+import {
+  appointmentTotal,
+  commissionBase,
+  toCents,
+  toReais,
+  type AddonSnapshot,
+} from "@/modules/addons";
+import { addonRowToSnapshot } from "../../utils/appointmentAddons";
 
 interface ProcedureInput {
   title: string;
@@ -58,13 +66,25 @@ export class CompleteAppointmentUseCase {
     if (appointment.status === "COMPLETED") throw new AppError("Este agendamento já foi finalizado", 409);
     if (appointment.status === "CANCELLED") throw new AppError("Não é possível finalizar um agendamento cancelado", 400);
 
+    // FASE 3: snapshots gravados no agendamento (imutáveis) determinam o
+    // preço/comissão — o catálogo atual é irrelevante aqui.
+    const addonSnapshots: AddonSnapshot[] = (appointment.addons ?? []).map(
+      addonRowToSnapshot
+    );
+    const baseReais = appointment.servicePrice ?? 0;
+    const baseCents = toCents(baseReais);
+    // finalPrice padrão = base + Σ adicionais; sem adicional = base (idêntico
+    // ao de hoje — `servicePrice`).
+    const defaultFinalPrice = toReais(appointmentTotal(baseCents, addonSnapshots));
+    const finalPriceInput = request.finalPrice ?? defaultFinalPrice;
+
     // Valida preço/divisão de comissão e resolve o cliente ANTES de gravar qualquer coisa.
     const resolved = await this.completeService.execute({
       barbershopId: request.barbershopId,
       serviceName: appointment.serviceName,
       serviceId: appointment.serviceId,
       staffUserId: request.userId,
-      finalPrice: request.finalPrice ?? appointment.servicePrice ?? undefined,
+      finalPrice: finalPriceInput,
       paymentMethod: request.paymentMethod,
       commissionSplits: request.commissionSplits,
       customerName: appointment.customerName,
@@ -75,13 +95,28 @@ export class CompleteAppointmentUseCase {
       skipSideEffects: true,
     });
 
-    // Sessão paga por pacote não gera receita nova nem comissão (já foi paga na compra).
+    // Sessão paga por pacote: a sessão cobre SÓ a base — receita/comissão
+    // novas vêm apenas da parcela dos adicionais (split à parte).
     const packageSession = Boolean((appointment as { clientPackageId?: string | null }).clientPackageId);
     const isFiado = request.paymentMethod === "fiado";
     const completionPrice = resolved.completionPrice;
     const splits = resolved.resolvedSplits ?? [];
     const completedAt = new Date();
     let createdFiadoId: string | null = null;
+
+    // Parcela dos adicionais (0 sem adicional → comportamento de hoje).
+    // Todo cálculo financeiro usa centavos para evitar diferença de float.
+    const completionPriceCents = toCents(completionPrice);
+    const addonPortionCents = Math.max(0, completionPriceCents - baseCents);
+    const addonPortionReais = toReais(addonPortionCents);
+    // Base de comissão (FASE 3): base + Σ(commissionable). O preço final
+    // explícito pode alterar o total cobrado, mas não torna um adicional
+    // não comissionável comissionável. No pacote, somente a parcela dos
+    // adicionais comissionáveis gera comissão.
+    const commissionBaseCents = packageSession
+      ? commissionBase(0, addonSnapshots)
+      : commissionBase(baseCents, addonSnapshots);
+    const commissionBaseReais = toReais(commissionBaseCents);
 
     // Status + finalPrice/paymentMethod + comissão + ledger (+ fiado) numa única
     // transação: qualquer falha reverte a conclusão inteira.
@@ -108,7 +143,7 @@ export class CompleteAppointmentUseCase {
               serviceId: appointment.serviceId,
               professionalId: split.professionalId,
               percentage: split.percentage,
-              amount: commissionAmount(completionPrice, split.percentage),
+              amount: commissionAmount(commissionBaseReais, split.percentage),
             })),
             skipDuplicates: true,
           });
@@ -143,6 +178,62 @@ export class CompleteAppointmentUseCase {
               paidAmount: 0,
               status: "PENDING",
               notes: `Gerado automaticamente ao finalizar o agendamento (${appointment.id}).`,
+              createdById: request.userId,
+              origin: "SERVICE_COMPLETION",
+            },
+            select: { id: true },
+          });
+          createdFiadoId = fiado.id;
+        }
+      } else if (addonPortionCents > 0) {
+        // PACOTE (FASE 3): a sessão já cobre a base — só a parcela cobrada
+        // além da base gera receita no ledger e fiado, mesmo quando ela vem
+        // apenas de um finalPrice explícito, sem adicional. A comissão usa
+        // exclusivamente o snapshot comissionável dos adicionais.
+        if (splits.length > 0 && commissionBaseCents > 0) {
+          await tx.commissionEntry.createMany({
+            data: splits.map((split) => ({
+              barbershopId: request.barbershopId,
+              appointmentId: appointment.id,
+              serviceId: appointment.serviceId,
+              professionalId: split.professionalId,
+              percentage: split.percentage,
+              amount: commissionAmount(commissionBaseReais, split.percentage),
+            })),
+            skipDuplicates: true,
+          });
+        }
+
+        if (addonPortionCents > 0) {
+          await recordLedgerEntry(tx, {
+            barbershopId: request.barbershopId,
+            kind: "SERVICE_SALE",
+            amount: addonPortionReais,
+            paymentMethod: request.paymentMethod,
+            sourceType: "APPOINTMENT",
+            sourceId: appointment.id,
+            occurredAt: completedAt,
+            professionalId: splits[0]?.professionalId ?? appointment.staffId ?? request.userId,
+            clientId: resolved.clientId ?? null,
+            description: appointment.serviceName
+              ? `Atendimento: ${appointment.serviceName} (adicionais)`
+              : "Atendimento (adicionais)",
+            createdBy: request.userId,
+          });
+        }
+
+        if (isFiado && addonPortionCents > 0) {
+          const fiado = await tx.fiado.create({
+            data: {
+              barbershopId: request.barbershopId,
+              customerName: appointment.customerName,
+              whatsapp: appointment.whatsapp,
+              clientId: resolved.clientId ?? null,
+              description: appointment.serviceName || "Atendimento",
+              originalAmount: addonPortionReais,
+              paidAmount: 0,
+              status: "PENDING",
+              notes: `Gerado automaticamente ao finalizar o agendamento (${appointment.id}) — parcela dos adicionais.`,
               createdById: request.userId,
               origin: "SERVICE_COMPLETION",
             },

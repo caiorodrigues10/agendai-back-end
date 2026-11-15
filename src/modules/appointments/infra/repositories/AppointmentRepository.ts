@@ -15,13 +15,19 @@ import {
 	AppointmentStatus,
 	AppointmentModality,
 } from '../../dtos/IAppointmentDTO'
+import {
+	addonResponseFields,
+	appointmentDurationMinutes,
+	type AppointmentAddonRow,
+} from '../../utils/appointmentAddons'
 
 type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
 	include: {
-		service: { select: { name: true; price: true } }
+		service: { select: { name: true; price: true; avgTimeMinutes: true } }
 		staff: { select: { name: true } }
 		barbershop: { select: { name: true } }
 		productReservations: true
+		addons: true
 	}
 }>
 
@@ -61,14 +67,17 @@ function mapToDTO(record: AppointmentWithRelations): IAppointmentResponseDTO {
 			unitPrice: item.unitPrice,
 			imageUrl: item.imageUrl,
 		})) ?? [],
+		// FASE 3 — aditivo: sem adicional nada é anexado (resposta idêntica).
+		...addonResponseFields(record.service, record.addons),
 	}
 }
 
 const include = {
-	service: { select: { name: true, price: true } },
+	service: { select: { name: true, price: true, avgTimeMinutes: true } },
 	staff: { select: { name: true } },
 	barbershop: { select: { name: true } },
 	productReservations: true,
+	addons: true,
 } as const
 
 /** YYYY-MM-DD no fuso America/Sao_Paulo (mesmo padrão de comparação de date do módulo). */
@@ -195,13 +204,27 @@ export class AppointmentRepository implements IAppointmentRepository {
 				time: true,
 				staffId: true,
 				service: { select: { avgTimeMinutes: true } },
+				// snapshots no MESMO findMany — ocupação com duração total
+				addons: {
+					select: {
+						addonId: true,
+						nameSnapshot: true,
+						unitPrice: true,
+						quantity: true,
+						durationMinutes: true,
+						commissionable: true,
+					},
+				},
 			},
 		})
 
-		return records.map((r: { time: string; staffId: string | null; service: { avgTimeMinutes: number } | null }) => ({
+		return records.map((r: { time: string; staffId: string | null; service: { avgTimeMinutes: number } | null; addons: AppointmentAddonRow[] }) => ({
 			time: r.time,
 			staffId: r.staffId ?? null,
-			durationMinutes: r.service?.avgTimeMinutes ?? 30,
+			durationMinutes: appointmentDurationMinutes(
+				r.service?.avgTimeMinutes ?? 30,
+				r.addons
+			),
 		}))
 	}
 

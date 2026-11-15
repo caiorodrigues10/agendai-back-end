@@ -520,7 +520,9 @@ describe("caracterização — agendamento sem adicional (Postgres real, snapsho
     });
     expect(commissions).toHaveLength(1);
     expect(commissions[0]!.percentage).toBe(10);
-    expect(commissions[0]!.amount).toBeCloseTo(5.5, 2);
+    // FASE 3: override altera total/ledger/fiado, mas não a base de comissão.
+    // Sem adicional, a base é o preço do serviço (R$ 50), não o override (R$ 55).
+    expect(commissions[0]!.amount).toBeCloseTo(5, 2);
   });
 
   it("POST /api/appointments com pacote debita sessão e cria agendamento (201)", async () => {

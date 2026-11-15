@@ -1,6 +1,11 @@
 import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { assertPublicShopOperationalAccess } from "@/shared/utils/assertPublicShopOperationalAccess";
+import { resolveAddonSelection, totalDurationMinutes, type AddonSnapshot } from "@/modules/addons";
+import {
+  appointmentDurationMinutes,
+  type AppointmentAddonRow,
+} from "./appointmentAddons";
 import type { ICreateAppointmentDTO } from "../dtos/IAppointmentDTO";
 
 type DbClient = AppTx;
@@ -35,14 +40,21 @@ export async function countEligibleStaff(
 }
 
 /**
- * Valida integridade de booking (público ou staff) e retorna duração do serviço.
+ * Valida integridade de booking (público ou staff) e retorna duração do
+ * atendimento — base + adicionais (FASE 3: `totalDurationMinutes`).
  * Preferir chamar dentro de `prisma.$transaction`.
+ *
+ * `options.addonSnapshots` (remarcação) usa os snapshots JÁ gravados no
+ * agendamento — imutáveis, não revalida contra o catálogo atual. Sem a
+ * opção, `data.addons` é validado contra o catálogo do serviço (visibilidade
+ * pública só enxerga `availableOnline`) e os snapshots são devolvidos para a
+ * criação gravar na mesma transação.
  */
 export async function assertAppointmentBookable(
   data: ICreateAppointmentDTO,
   db: DbClient = prisma,
-  options?: { excludeAppointmentId?: string }
-): Promise<{ durationMinutes: number }> {
+  options?: { excludeAppointmentId?: string; addonSnapshots?: AddonSnapshot[] }
+): Promise<{ durationMinutes: number; addonSnapshots: AddonSnapshot[] }> {
   await assertPublicShopOperationalAccess(data.barbershopId);
 
   const dateYmd =
@@ -80,6 +92,21 @@ export async function assertAppointmentBookable(
       "SERVICE_NOT_PUBLICLY_BOOKABLE"
     );
   }
+
+  // Snapshots dos adicionais: os da remarcação vêm do próprio agendamento;
+  // os da criação são validados no catálogo agora (mesma tx do conflito).
+  const addonSnapshots =
+    options?.addonSnapshots !== undefined
+      ? options.addonSnapshots
+      : await resolveAddonSelection(db, {
+          barbershopId: data.barbershopId,
+          serviceId: data.serviceId,
+          items: data.addons ?? [],
+          visibility: data.source === "PUBLIC" ? "public" : "staff",
+        });
+
+  // DURAÇÃO ÚNICA do atendimento pedido = serviço + Σ (adicional × qty).
+  const requestDuration = totalDurationMinutes(service.avgTimeMinutes, addonSnapshots);
 
   if (data.staffId) {
     const staff = await db.user.findFirst({
@@ -126,7 +153,7 @@ export async function assertAppointmentBookable(
     const slot = timeToMinutes(data.time);
     const open = timeToMinutes(hours.openTime ?? "00:00");
     const close = timeToMinutes(hours.closeTime ?? "23:59");
-    const ends = slot + service.avgTimeMinutes;
+    const ends = slot + requestDuration;
     if (slot < open || ends > close) {
       throw new AppError("Horário fora da agenda do estabelecimento", 400);
     }
@@ -135,6 +162,8 @@ export async function assertAppointmentBookable(
   const next = new Date(day);
   next.setUTCDate(next.getUTCDate() + 1);
 
+  // appointment_addons no MESMO findMany (sem N+1) — a ocupação dos
+  // existentes inclui os snapshots gravados (duração única).
   const existing = await db.appointment.findMany({
     where: {
       barbershopId: data.barbershopId,
@@ -146,19 +175,34 @@ export async function assertAppointmentBookable(
       time: true,
       staffId: true,
       service: { select: { avgTimeMinutes: true } },
+      addons: {
+        select: {
+          addonId: true,
+          nameSnapshot: true,
+          unitPrice: true,
+          quantity: true,
+          durationMinutes: true,
+          commissionable: true,
+        },
+      },
     },
   });
 
   const requestStart = timeToMinutes(data.time);
-  const requestDuration = service.avgTimeMinutes;
 
-  const overlapping = existing.filter((a: { time: string; staffId: string | null; service: { avgTimeMinutes: number } | null }) =>
-    overlaps(
-      requestStart,
-      requestDuration,
-      timeToMinutes(a.time),
-      a.service?.avgTimeMinutes ?? 30
-    )
+  const overlapping = existing.filter(
+    (a: {
+      time: string;
+      staffId: string | null;
+      service: { avgTimeMinutes: number } | null;
+      addons: AppointmentAddonRow[];
+    }) =>
+      overlaps(
+        requestStart,
+        requestDuration,
+        timeToMinutes(a.time),
+        appointmentDurationMinutes(a.service?.avgTimeMinutes ?? 30, a.addons)
+      )
   );
 
   if (data.staffId) {
@@ -205,5 +249,5 @@ export async function assertAppointmentBookable(
     }
   }
 
-  return { durationMinutes: service.avgTimeMinutes };
+  return { durationMinutes: requestDuration, addonSnapshots };
 }

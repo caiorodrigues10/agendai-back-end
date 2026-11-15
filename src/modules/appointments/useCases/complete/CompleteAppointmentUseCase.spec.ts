@@ -38,6 +38,14 @@ type AppointmentRow = {
   customerName: string;
   whatsapp: string;
   status: string;
+  addons?: Array<{
+    addonId: string;
+    name: string;
+    unitPrice: number;
+    quantity: number;
+    durationMinutes: number;
+    commissionable: boolean;
+  }>;
 };
 
 function makeAppointment(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
@@ -230,5 +238,222 @@ describe("CompleteAppointmentUseCase — conclusão alimenta comissão e ledger"
     expect(tx.commissionEntry.createMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.cashMovement.create).toHaveBeenCalledTimes(1);
     expect(vi.mocked(recordAppointmentCompletion)).toHaveBeenCalledWith("appt-1");
+  });
+
+  describe("tabela de comissão e totals com adicionais", () => {
+    type AddonCase = {
+      name: string;
+      basePrice: number;
+      addons?: NonNullable<AppointmentRow["addons"]>;
+      packageSession?: boolean;
+      percentage: number;
+      expectedFinalPrice: number;
+      expectedLedger?: number;
+      expectedFiado?: number;
+      expectedCommission?: number;
+      finalPriceOverride?: number;
+    };
+
+    const addon = (
+      addonId: string,
+      unitPrice: number,
+      quantity = 1,
+      commissionable = true
+    ): NonNullable<AppointmentRow["addons"]>[number] => ({
+      addonId,
+      name: `Adicional ${addonId}`,
+      unitPrice,
+      quantity,
+      durationMinutes: 30,
+      commissionable,
+    });
+
+    const cases: AddonCase[] = [
+      {
+        name: "misto: comissionável + não comissionável",
+        basePrice: 80,
+        addons: [addon("a", 10), addon("b", 5, 1, false)],
+        percentage: 30,
+        expectedFinalPrice: 95,
+        expectedLedger: 95,
+        expectedFiado: 95,
+        expectedCommission: 27,
+      },
+      {
+        name: "quantidade maior que 1",
+        basePrice: 80,
+        addons: [addon("a", 10, 2)],
+        percentage: 30,
+        expectedFinalPrice: 100,
+        expectedLedger: 100,
+        expectedFiado: 100,
+        expectedCommission: 30,
+      },
+      {
+        name: "adicional com preço zero",
+        basePrice: 80,
+        addons: [addon("a", 0, 2)],
+        percentage: 30,
+        expectedFinalPrice: 80,
+        expectedLedger: 80,
+        expectedFiado: 80,
+        expectedCommission: 24,
+      },
+      {
+        name: "arredondamento em centavos",
+        basePrice: 33.33,
+        addons: [addon("a", 0.01)],
+        percentage: 30,
+        expectedFinalPrice: 33.34,
+        expectedLedger: 33.34,
+        expectedFiado: 33.34,
+        expectedCommission: 10,
+      },
+      {
+        name: "pacote sem adicional permanece idêntico",
+        basePrice: 80,
+        packageSession: true,
+        percentage: 30,
+        expectedFinalPrice: 80,
+      },
+      {
+        name: "override do preço final não altera a base de comissão",
+        basePrice: 80,
+        addons: [addon("a", 10), addon("b", 5, 1, false)],
+        percentage: 30,
+        expectedFinalPrice: 100,
+        expectedLedger: 100,
+        expectedFiado: 100,
+        expectedCommission: 27,
+        finalPriceOverride: 100,
+      },
+      {
+        name: "pacote sem adicional e com override registra só a parcela além da base",
+        basePrice: 80,
+        packageSession: true,
+        percentage: 30,
+        expectedFinalPrice: 90,
+        expectedLedger: 10,
+        expectedFiado: 10,
+        finalPriceOverride: 90,
+      },
+      {
+        name: "pacote com adicional usa override no ledger e snapshot na comissão",
+        basePrice: 80,
+        addons: [addon("a", 10)],
+        packageSession: true,
+        percentage: 30,
+        expectedFinalPrice: 85,
+        expectedLedger: 5,
+        expectedFiado: 5,
+        expectedCommission: 3,
+        finalPriceOverride: 85,
+      },
+      {
+        name: "pacote sem adicional e sem override preserva o resultado legado",
+        basePrice: 80,
+        packageSession: true,
+        percentage: 30,
+        expectedFinalPrice: 80,
+      },
+
+      {
+        name: "pacote com adicional comissionável registra só a parcela do adicional",
+        basePrice: 80,
+        addons: [addon("a", 10)],
+        packageSession: true,
+        percentage: 30,
+        expectedFinalPrice: 90,
+        expectedLedger: 10,
+        expectedFiado: 10,
+        expectedCommission: 3,
+      },
+      {
+        name: "pacote com adicional não comissionável não gera comissão",
+        basePrice: 80,
+        addons: [addon("a", 10, 1, false)],
+        packageSession: true,
+        percentage: 30,
+        expectedFinalPrice: 90,
+        expectedLedger: 10,
+        expectedFiado: 10,
+      },
+      {
+        name: "pacote com adicional não comissionável mantém override no ledger",
+        basePrice: 80,
+        addons: [addon("a", 10, 1, false)],
+        packageSession: true,
+        percentage: 30,
+        expectedFinalPrice: 85,
+        expectedLedger: 5,
+        expectedFiado: 5,
+        finalPriceOverride: 85,
+      },
+    ];
+
+    for (const testCase of cases) {
+      it(testCase.name, async () => {
+        const { useCase, tx, completeService } = setup(
+          makeAppointment({
+            servicePrice: testCase.basePrice,
+            clientPackageId: testCase.packageSession ? "pkg-1" : null,
+            addons: testCase.addons,
+          })
+        );
+        completeService.execute.mockImplementation(async (input) => ({
+          completionPrice: input.finalPrice ?? testCase.basePrice,
+          resolvedSplits: [
+            { professionalId: "pro-1", percentage: testCase.percentage },
+          ],
+          clientId: "client-1",
+        }));
+
+        const result = await useCase.execute({
+          appointmentId: "appt-1",
+          userId: "user-1",
+          userRole: "OWNER",
+          barbershopId: "shop-1",
+          paymentMethod: "fiado",
+          commissionSplits: [
+            { professionalId: "pro-1", percentage: testCase.percentage },
+          ],
+          ...(testCase.finalPriceOverride !== undefined
+            ? { finalPrice: testCase.finalPriceOverride }
+            : {}),
+        });
+
+        expect(result.finalPrice).toBe(testCase.expectedFinalPrice);
+        expect(completeService.execute).toHaveBeenCalledWith(
+          expect.objectContaining({ finalPrice: testCase.expectedFinalPrice })
+        );
+
+        if (testCase.expectedLedger === undefined) {
+          expect(prismaMock.cashMovement.create).not.toHaveBeenCalled();
+        } else {
+          expect(prismaMock.cashMovement.create).toHaveBeenCalledTimes(1);
+          expect(
+            Number(prismaMock.cashMovement.create.mock.calls[0][0].data.amount)
+          ).toBe(testCase.expectedLedger);
+        }
+
+        if (testCase.expectedFiado === undefined) {
+          expect(tx.fiado.create).not.toHaveBeenCalled();
+        } else {
+          expect(tx.fiado.create).toHaveBeenCalledTimes(1);
+          expect(tx.fiado.create.mock.calls[0][0].data.originalAmount).toBe(
+            testCase.expectedFiado
+          );
+        }
+
+        if (testCase.expectedCommission === undefined) {
+          expect(tx.commissionEntry.createMany).not.toHaveBeenCalled();
+        } else {
+          expect(tx.commissionEntry.createMany).toHaveBeenCalledTimes(1);
+          expect(tx.commissionEntry.createMany.mock.calls[0][0].data[0].amount).toBe(
+            testCase.expectedCommission
+          );
+        }
+      });
+    }
   });
 });

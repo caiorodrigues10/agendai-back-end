@@ -27,6 +27,12 @@ const reservedProductSchema = z.object({
 	quantity: z.coerce.number().int().min(1).max(10),
 })
 
+/** Item de adicional enviado na criação (FASE 3) — qty validada no domínio. */
+const addonSelectionSchema = z.object({
+	addonId: z.string().uuid('addonId inválido'),
+	quantity: z.number().int().min(1, 'Quantidade do adicional deve ser no mínimo 1').max(100),
+})
+
 export const createAppointmentSchema = z.object({
 	barbershopId: z.string().uuid('barbershopId inválido'),
 	serviceId: z.string().uuid('serviceId inválido'),
@@ -48,6 +54,12 @@ export const createAppointmentSchema = z.object({
 	/** Link da reunião online (opcional). Entra no lembrete enviado ao cliente. */
 	meetingLink: z.string().url('Link da reunião inválido').max(500).optional().nullable(),
 	reservedProducts: z.array(reservedProductSchema).max(10).optional(),
+	/**
+	 * Adicionais do serviço (FASE 3, aditivo/ opcional). O backend valida
+	 * atividade/vínculo/limite e calcula preço e duração — nunca confia em
+	 * valor enviado pelo cliente. Itens duplicados do mesmo addonId são somados.
+	 */
+	addons: z.array(addonSelectionSchema).max(30).optional(),
 })
 
 export const updateAppointmentSchema = z.object({
@@ -73,6 +85,14 @@ export const availabilityQuerySchema = z.object({
 
 export const slotsQuerySchema = availabilityQuerySchema.extend({
 	serviceId: z.string().uuid('serviceId inválido'),
+	/**
+	 * Adicionais opcionais (FASE 3) — lista separada por vírgula
+	 * (`addonIds=uuid1,uuid2`). O servidor resolve preço/duração no catálogo;
+	 * `addonQuantities` (opcional, alinhada posição a posição) ajusta a qty
+	 * por item; sem ela toda qty é 1.
+	 */
+	addonIds: z.string().max(1200).optional(),
+	addonQuantities: z.string().max(200).optional(),
 })
 
 /** Valores aceitos no filtro de status (enum `AppointmentStatus` do schema.prisma). */

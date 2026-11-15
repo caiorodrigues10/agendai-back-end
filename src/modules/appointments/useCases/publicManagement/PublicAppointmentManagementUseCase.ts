@@ -1,6 +1,12 @@
 import { prisma, type AppTx } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { assertAppointmentBookable } from "../../utils/assertAppointmentBookable";
+import {
+  addonResponseFields,
+  addonRowToSnapshot,
+  type AppointmentAddonRow,
+} from "../../utils/appointmentAddons";
+import type { AddonSnapshot } from "@/modules/addons";
 import { createPublicAppointmentToken, readPublicAppointmentToken } from "../../services/publicAppointmentToken";
 import { publishRealtime } from "@/shared/services/realtimeService";
 import { enqueueEmail } from "@/shared/infra/queue/emailQueue";
@@ -20,6 +26,8 @@ function appointmentInstant(date: string, time: string): Date {
  *
  * `caseId`, `caseName` e `practiceArea` ficam de fora de propósito: dados de
  * caso/processo são internos do escritório e nunca vão para o portal público.
+ * `addons` (FASE 3) entra com select — apresentado só quando não vazio
+ * (`presentPublicAppointment`), mantendo a resposta idêntica sem adicional.
  */
 const publicAppointmentSelect = {
   id: true,
@@ -46,7 +54,41 @@ const publicAppointmentSelect = {
   staff: { select: { name: true } },
   barbershop: { select: { name: true, address: true, city: true } },
   client: { select: { name: true } },
+  addons: {
+    select: {
+      addonId: true,
+      nameSnapshot: true,
+      unitPrice: true,
+      quantity: true,
+      durationMinutes: true,
+      commissionable: true,
+    },
+  },
 } as const;
+
+type PublicAppointmentRow = {
+  service: { name: string; price: number; avgTimeMinutes: number } | null;
+  addons?: AppointmentAddonRow[];
+};
+
+/**
+ * FASE 3 item 7: sem adicional devolve a linha EXATAMENTE como hoje (sem a
+ * chave `addons`); com adicional anexa `addons` + `totalPrice` +
+ * `totalDurationMinutes`.
+ */
+function presentPublicAppointment<T extends PublicAppointmentRow>(row: T) {
+  const { addons, ...rest } = row as T & { addons?: AppointmentAddonRow[] };
+  if (!addons || addons.length === 0) {
+    return rest as Omit<T, "addons">;
+  }
+  return { ...rest, ...addonResponseFields(row.service, addons) };
+}
+
+/** Snapshots já gravados no agendamento (remarcação revalida com eles). */
+function snapshotsOf(row: unknown): AddonSnapshot[] {
+  const addons = (row as { addons?: AppointmentAddonRow[] }).addons;
+  return (addons ?? []).map(addonRowToSnapshot);
+}
 
 async function getAppointment(id: string, barbershopId: string, version: number) {
   const appointment = await prisma.appointment.findFirst({
@@ -64,14 +106,16 @@ export class PublicAppointmentManagementUseCase {
     const payload = readPublicAppointmentToken(token, "manage");
     const appointment = await getAppointment(payload.sub, payload.barbershopId, payload.version);
     return {
-      appointment,
+      appointment: presentPublicAppointment(appointment),
       sessionToken: createPublicAppointmentToken(appointment.id, appointment.barbershopId, appointment.publicAccessVersion, "session"),
     };
   }
 
   async get(sessionToken: string) {
     const payload = readPublicAppointmentToken(sessionToken, "session");
-    return getAppointment(payload.sub, payload.barbershopId, payload.version);
+    return presentPublicAppointment(
+      await getAppointment(payload.sub, payload.barbershopId, payload.version)
+    );
   }
 
   async cancel(sessionToken: string, reason?: string) {
@@ -119,7 +163,7 @@ export class PublicAppointmentManagementUseCase {
         );
     }
 
-    return cancelled;
+    return presentPublicAppointment(cancelled);
   }
 
   async reschedule(sessionToken: string, date: string, time: string) {
@@ -131,7 +175,13 @@ export class PublicAppointmentManagementUseCase {
     }
 
     const updated = await prisma.$transaction(async (tx: AppTx) => {
-      await assertAppointmentBookable({ barbershopId: appointment.barbershopId, serviceId: appointment.serviceId, staffId: appointment.staffId, customerName: appointment.customerName, whatsapp: appointment.whatsapp, date, time }, tx, { excludeAppointmentId: appointment.id });
+      // FASE 3 item 4: revalida com a duração que inclui os snapshots do
+      // PRÓPRIO agendamento (mesmos valores gravados na criação).
+      await assertAppointmentBookable(
+        { barbershopId: appointment.barbershopId, serviceId: appointment.serviceId, staffId: appointment.staffId, customerName: appointment.customerName, whatsapp: appointment.whatsapp, date, time },
+        tx,
+        { excludeAppointmentId: appointment.id, addonSnapshots: snapshotsOf(appointment) }
+      );
       return tx.appointment.update({
         where: { id: appointment.id },
         data: { date: new Date(date), time, publicAccessVersion: { increment: 1 } },
@@ -165,6 +215,6 @@ export class PublicAppointmentManagementUseCase {
         );
     }
 
-    return { appointment: updated, manageToken: createPublicAppointmentToken(updated.id, updated.barbershopId, updated.publicAccessVersion) };
+    return { appointment: presentPublicAppointment(updated), manageToken: createPublicAppointmentToken(updated.id, updated.barbershopId, updated.publicAccessVersion) };
   }
 }

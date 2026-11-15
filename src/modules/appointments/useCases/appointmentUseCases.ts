@@ -20,6 +20,19 @@ import {
   IAvailabilitySlotDTO,
 } from "../dtos/IAppointmentDTO";
 import { assertAppointmentBookable } from "../utils/assertAppointmentBookable";
+import {
+  appointmentDurationMinutes,
+  addonResponseFields,
+  addonRowToSnapshot,
+  type AppointmentAddonRow,
+} from "../utils/appointmentAddons";
+import {
+  resolveAddonSelection,
+  toReais,
+  totalDurationMinutes,
+  type AddonSelectionItem,
+  type AddonSnapshot,
+} from "@/modules/addons";
 import { assertOperationEnabled } from "@/shared/utils/assertOperationEnabled";
 import { publishRealtime } from "@/shared/services/realtimeService";
 import {
@@ -34,8 +47,8 @@ export type AppointmentAtomicDeps = {
   bookable: (
     data: ICreateAppointmentDTO,
     tx: any,
-    options?: { excludeAppointmentId?: string }
-  ) => Promise<{ durationMinutes: number }>;
+    options?: { excludeAppointmentId?: string; addonSnapshots?: AddonSnapshot[] }
+  ) => Promise<{ durationMinutes: number; addonSnapshots?: AddonSnapshot[] }>;
   lock: { acquire: (lockId: number) => Promise<() => Promise<void>> };
   tx: (fn: (tx: any) => Promise<any>) => Promise<any>;
 };
@@ -88,7 +101,7 @@ function mapCreatedAppointment(record: {
   reminderSentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  service?: { name: string; price: number } | null;
+  service?: { name: string; price: number; avgTimeMinutes?: number | null } | null;
   staff?: { name: string } | null;
   barbershop?: { name: string } | null;
   productReservations?: Array<{
@@ -99,6 +112,7 @@ function mapCreatedAppointment(record: {
     unitPrice: number;
     imageUrl: string | null;
   }>;
+  addons?: AppointmentAddonRow[];
 }): IAppointmentResponseDTO {
   // Ordem das chaves alinhada ao mapToDTO do AppointmentRepository — as
   // respostas HTTP (snapshots de caracterização) serializam nessa ordem.
@@ -137,6 +151,8 @@ function mapCreatedAppointment(record: {
       unitPrice: item.unitPrice,
       imageUrl: item.imageUrl,
     })) ?? [],
+    // FASE 3 — aditivo: sem adicional nada é anexado (resposta idêntica).
+    ...addonResponseFields(record.service, record.addons),
   };
 }
 
@@ -235,7 +251,7 @@ async function createAppointmentAtomic(
     const runTx =
       deps?.tx ?? ((fn: (tx: any) => Promise<any>) => prisma.$transaction(fn));
     const created = await runTx(async (tx: any) => {
-      const { durationMinutes } = await bookable(data, tx);
+      const { durationMinutes, addonSnapshots = [] } = await bookable(data, tx);
       let resolvedStaffId = data.staffId ?? null;
 
       // A escolha "qualquer profissional" precisa ser materializada antes do
@@ -256,14 +272,31 @@ async function createAppointmentAtomic(
         next.setUTCDate(next.getUTCDate() + 1);
         const confirmed = await tx.appointment.findMany({
           where: { barbershopId: data.barbershopId, date: { gte: day, lt: next }, status: 'CONFIRMED' },
-          select: { staffId: true, time: true, service: { select: { avgTimeMinutes: true } } },
+          select: {
+            staffId: true,
+            time: true,
+            service: { select: { avgTimeMinutes: true } },
+            addons: {
+              select: {
+                addonId: true,
+                nameSnapshot: true,
+                unitPrice: true,
+                quantity: true,
+                durationMinutes: true,
+                commissionable: true,
+              },
+            },
+          },
         });
         const toMinutes = (value: string) => { const [h, m] = value.split(':').map(Number); return h * 60 + m; };
         const start = toMinutes(data.time);
         const hasConflict = (staffId: string) => confirmed.some((item: any) => {
           if (item.staffId !== staffId && item.staffId !== null) return false;
           const otherStart = toMinutes(item.time);
-          const otherDuration = item.service?.avgTimeMinutes ?? 30;
+          const otherDuration = appointmentDurationMinutes(
+            item.service?.avgTimeMinutes ?? 30,
+            item.addons as AppointmentAddonRow[]
+          );
           return start < otherStart + otherDuration && otherStart < start + durationMinutes;
         });
         const available = eligibleStaff.filter((member: { id: string }) => !hasConflict(member.id));
@@ -316,12 +349,31 @@ async function createAppointmentAtomic(
           source: data.source ?? "APP",
         },
         include: {
-          service: { select: { name: true, price: true } },
+          service: { select: { name: true, price: true, avgTimeMinutes: true } },
           staff: { select: { name: true } },
           barbershop: { select: { name: true } },
           productReservations: true,
+          addons: true,
         },
       });
+
+      // Snapshot dos adicionais na MESMA transação do agendamento (FASE 3) —
+      // valores já validados/effective pelo bookable; nada reativo ao catálogo.
+      if (addonSnapshots.length > 0) {
+        await tx.appointmentAddon.createMany({
+          data: addonSnapshots.map((snap) => ({
+            barbershopId: data.barbershopId,
+            appointmentId: record.id,
+            addonId: snap.addonId,
+            nameSnapshot: snap.name,
+            unitPrice: toReais(snap.unitPriceCents),
+            quantity: snap.quantity,
+            durationMinutes: snap.durationMinutes,
+            commissionable: snap.commissionable,
+          })),
+        });
+      }
+
       await createProductReservationsInTx(tx, {
         barbershopId: data.barbershopId,
         appointmentId: record.id,
@@ -330,10 +382,11 @@ async function createAppointmentAtomic(
       const withReservations = await tx.appointment.findUniqueOrThrow({
         where: { id: record.id },
         include: {
-          service: { select: { name: true, price: true } },
+          service: { select: { name: true, price: true, avgTimeMinutes: true } },
           staff: { select: { name: true } },
           barbershop: { select: { name: true } },
           productReservations: true,
+          addons: true,
         },
       });
       return mapCreatedAppointment(withReservations);
@@ -548,7 +601,12 @@ export class UpdateAppointmentUseCase {
               time: updateData.time ?? appointment.time,
             },
             tx,
-            { excludeAppointmentId: id }
+            {
+              excludeAppointmentId: id,
+              // Remarcação revalida com a duração que inclui os snapshots do
+              // PRÓPRIO agendamento (imutáveis — FASE 3 item 4).
+              addonSnapshots: (appointment.addons ?? []).map(addonRowToSnapshot),
+            }
           );
           await tx.appointment.update({
             where: { id },
@@ -628,7 +686,13 @@ export class GetAvailabilityUseCase {
 /** Retorna horários livres já calculados no backend para o serviço escolhido. */
 @injectable()
 export class GetAvailableSlotsUseCase {
-  async execute(barbershopId: string, serviceId: string, date: string, staffId?: string) {
+  async execute(
+    barbershopId: string,
+    serviceId: string,
+    date: string,
+    staffId?: string,
+    addons?: readonly AddonSelectionItem[]
+  ) {
     await assertOperationEnabled(barbershopId, 'appointments');
     const day = new Date(`${date}T00:00:00Z`);
     const next = new Date(day);
@@ -645,6 +709,18 @@ export class GetAvailableSlotsUseCase {
         'SERVICE_NOT_PUBLICLY_BOOKABLE'
       );
     }
+    // FASE 3: o SERVIDOR resolve os adicionais (visibilidade pública) e
+    // calcula a duração — o cliente nunca envia preço/tempo.
+    const addonSnapshots = await resolveAddonSelection(prisma, {
+      barbershopId,
+      serviceId,
+      items: addons ?? [],
+      visibility: 'public',
+    });
+    const serviceDuration = totalDurationMinutes(
+      service.avgTimeMinutes,
+      addonSnapshots
+    );
     const dateYmd = date.slice(0, 10);
     const { getShopOpenState } = await import("@/modules/barbershops/utils/getShopOpenState");
     const dayState = await getShopOpenState(barbershopId, { dateYmd, forDateOnly: true });
@@ -653,7 +729,25 @@ export class GetAvailableSlotsUseCase {
     if (!staff.length) throw new AppError('Nenhum profissional disponível neste estabelecimento', 409);
     const [shop, appointments, blocks, policy] = await Promise.all([
       prisma.barbershop.findUnique({ where: { id: barbershopId }, select: { timezone: true } }),
-      prisma.appointment.findMany({ where: { barbershopId, date: { gte: day, lt: next }, status: 'CONFIRMED', ...(staffId ? { OR: [{ staffId }, { staffId: null }] } : {}) }, select: { time: true, staffId: true, service: { select: { avgTimeMinutes: true } } } }),
+      prisma.appointment.findMany({
+        where: { barbershopId, date: { gte: day, lt: next }, status: 'CONFIRMED', ...(staffId ? { OR: [{ staffId }, { staffId: null }] } : {}) },
+        select: {
+          time: true,
+          staffId: true,
+          service: { select: { avgTimeMinutes: true } },
+          // ocupação dos existentes inclui snapshots (mesmo findMany, sem N+1)
+          addons: {
+            select: {
+              addonId: true,
+              nameSnapshot: true,
+              unitPrice: true,
+              quantity: true,
+              durationMinutes: true,
+              commissionable: true,
+            },
+          },
+        },
+      }),
       prisma.calendarBlock.findMany({ where: { barbershopId, startAt: { lt: next }, endAt: { gt: day }, ...(staffId ? { OR: [{ staffId }, { staffId: null }] } : {}) }, select: { staffId: true, startAt: true, endAt: true } }),
       prisma.appointmentPolicy.upsert({ where: { barbershopId }, create: { barbershopId }, update: {} }),
     ]);
@@ -666,7 +760,7 @@ export class GetAvailableSlotsUseCase {
       return { start: parts(block.startAt), duration: Math.max(1, parts(block.endAt) - parts(block.startAt)) };
     };
     const start = timeToMinutes(schedule.openTime);
-    const end = timeToMinutes(schedule.closeTime) - service.avgTimeMinutes;
+    const end = timeToMinutes(schedule.closeTime) - serviceDuration;
     const now = Date.now() + policy.bookingNoticeMinutes * 60_000;
     const result: Array<{ time: string; staffId: string | null; durationMinutes: number }> = [];
     for (let minute = start; minute <= end; minute += 30) {
@@ -674,11 +768,19 @@ export class GetAvailableSlotsUseCase {
       const mm = String(minute % 60).padStart(2, '0');
       if (new Date(`${date}T${hh}:${mm}:00-03:00`).getTime() < now) continue;
       const available = staff.find((member: { id: string }) => {
-        const appointmentBusy = appointments.some((item: { staffId: string | null; time: string; service: { avgTimeMinutes: number } | null }) => item.staffId && item.staffId !== member.id ? false : overlap(minute, service.avgTimeMinutes, timeToMinutes(item.time), item.service?.avgTimeMinutes ?? 30));
-        const blockBusy = blocks.some((block: { staffId: string | null; startAt: Date; endAt: Date }) => (!block.staffId || block.staffId === member.id) && overlap(minute, service.avgTimeMinutes, blockedMinutes(block).start, blockedMinutes(block).duration));
+        const appointmentBusy = appointments.some((item: { staffId: string | null; time: string; service: { avgTimeMinutes: number } | null; addons: AppointmentAddonRow[] }) =>
+          item.staffId && item.staffId !== member.id
+            ? false
+            : overlap(
+                minute,
+                serviceDuration,
+                timeToMinutes(item.time),
+                appointmentDurationMinutes(item.service?.avgTimeMinutes ?? 30, item.addons)
+              ));
+        const blockBusy = blocks.some((block: { staffId: string | null; startAt: Date; endAt: Date }) => (!block.staffId || block.staffId === member.id) && overlap(minute, serviceDuration, blockedMinutes(block).start, blockedMinutes(block).duration));
         return !appointmentBusy && !blockBusy;
       });
-      if (available) result.push({ time: `${hh}:${mm}`, staffId: staffId ? available.id : null, durationMinutes: service.avgTimeMinutes });
+      if (available) result.push({ time: `${hh}:${mm}`, staffId: staffId ? available.id : null, durationMinutes: serviceDuration });
     }
     return result;
   }

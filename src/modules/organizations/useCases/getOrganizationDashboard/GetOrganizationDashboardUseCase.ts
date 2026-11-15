@@ -12,6 +12,10 @@ import {
   timeToMinutes,
   addDaysYmd,
 } from "@/modules/barbershops/utils/shopOpenState";
+import {
+  appointmentDurationMinutes,
+  type AppointmentAddonRow,
+} from "@/modules/appointments/utils/appointmentAddons";
 
 export interface OrgDashboardShopDTO {
   barbershopId: string;
@@ -25,7 +29,8 @@ export interface OrgDashboardShopDTO {
   waitingCount: number;
   /**
    * QueueItem.status === "IN_CHAIR" (hoje, no fuso do salão) + Appointment
-   * CONFIRMED dentro da janela start <= agora < start + avgTimeMinutes.
+   * CONFIRMED dentro da janela start <= agora < start + duração total
+   * (serviço + adicionais — FASE 3).
    */
   inServiceCount: number;
   /** Ausente quando accessLevel = OPERATIONAL (faturamento é dado sensível). */
@@ -64,6 +69,7 @@ type LinhaAgenda = {
   date: Date;
   time: string;
   service: { avgTimeMinutes: number } | null;
+  addons: AppointmentAddonRow[];
 };
 type LinhaEscala = {
   barbershopId: string;
@@ -296,6 +302,17 @@ export class GetOrganizationDashboardUseCase {
             date: true,
             time: true,
             service: { select: { avgTimeMinutes: true } },
+            // duração total com snapshots (mesmo findMany, sem N+1)
+            addons: {
+              select: {
+                addonId: true,
+                nameSnapshot: true,
+                unitPrice: true,
+                quantity: true,
+                durationMinutes: true,
+                commissionable: true,
+              },
+            },
           },
         }),
         prisma.schedule.findMany({
@@ -365,11 +382,11 @@ export class GetOrganizationDashboardUseCase {
     //    de duplicata/erro dão throw antes de qualquer escrita. Verificar esse
     //    use case antes de alterar qualquer um dos dois arquivos.
     // 2) "Já começou e ainda não passou do fim previsto" é filtrado abaixo, usando
-    //    time + service.avgTimeMinutes (fallback 30min, mesma convenção do conflito
-    //    de agenda em appointmentUseCases): um CONFIRMED esquecido há horas NÃO
-    //    conta como ao vivo indefinidamente. liveNow é a "verdade ao vivo" dos cards;
-    //    o sinal de "atendimento que deveria ter fechado e não fechou" fica na tela
-    //    de fila/agenda, não aqui.
+    //    time + duração total (serviço + adicionais, fallback 30min — mesma
+    //    convenção do conflito de agenda em appointmentUseCases): um CONFIRMED
+    //    esquecido há horas NÃO conta como ao vivo indefinidamente. liveNow é a
+    //    "verdade ao vivo" dos cards; o sinal de "atendimento que deveria ter
+    //    fechado e não fechou" fica na tela de fila/agenda, não aqui.
     const todayAppointments = (dados.agenda.get(shop.id) ?? []).filter(
       (row) => row.date.getTime() === todayDate.getTime()
     );
@@ -377,7 +394,12 @@ export class GetOrganizationDashboardUseCase {
       queueToday.filter((row) => row.status === "IN_CHAIR").length +
       todayAppointments.filter((appointment) => {
         const start = timeToMinutes(appointment.time);
-        const end = start + (appointment.service?.avgTimeMinutes ?? 30);
+        const end =
+          start +
+          appointmentDurationMinutes(
+            appointment.service?.avgTimeMinutes ?? 30,
+            appointment.addons
+          );
         return start <= nowMinutes && nowMinutes < end;
       }).length;
     const liveNow = waitingCount + inServiceCount;
