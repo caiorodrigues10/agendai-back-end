@@ -190,32 +190,85 @@ A migration é **aditiva** e cria quatro tabelas de plataforma:
 - `site_traffic_origin_daily` — dia civil × **host** de origem;
 - `user_activity_daily` — dia civil × `userId` (chave primária composta, sem `barbershopId`).
 
-O backfill de `user_activity_daily` lê no máximo seis meses de `access_logs`, considera apenas eventos bem-sucedidos (`LOGIN`, `GOOGLE_LOGIN`, `REFRESH`) e resolve o usuário por `userId`; `LOGIN` histórico sem `userId` é resolvido por e-mail normalizado (`lower(email)`). `deletedAt` não remove atividade histórica. A migration também adiciona `internal:traffic:read` às listas explícitas de `MASTER_ADMIN` que ainda não tinham a permissão; lista vazia e `internal:all` preservam o acesso default.
+O backfill de `user_activity_daily` é executado **após o boot**, fora da migration DDL, por `npm run traffic:backfill:user-activity`. O job idempotente lê no máximo seis meses de `access_logs` em seis lotes mensais, cada um em transação própria; considera apenas eventos bem-sucedidos (`LOGIN`, `GOOGLE_LOGIN`, `REFRESH`) e resolve o usuário por `userId`; `LOGIN` histórico sem `userId` é resolvido por e-mail normalizado (`lower(email)`). `deletedAt` não remove atividade histórica. Essa separação evita a transação/long lock do join original com `OR` sobre `access_logs` e permite retomar com segurança após falha em um lote. A migration também adiciona `internal:traffic:read` às listas explícitas de `MASTER_ADMIN` que ainda não tinham a permissão; lista vazia e `internal:all` preservam o acesso default.
+
+> **Migration editada depois de aplicada (checksum).** O arquivo `20261115120000_site_traffic_tracking/migration.sql` foi editado **após** ter sido aplicado em alguns ambientes (o `INSERT … ON CONFLICT DO NOTHING` do backfill saiu do DDL; o resultado de schema é idêntico). Verificado com Prisma 6.4.0: `npx prisma migrate status` e `npx prisma migrate deploy` **não falham** por causa do checksum divergente — o `deploy` só aplica migrations pendentes. Quem já aplicou a migration e roda `npx prisma migrate dev` pode receber o aviso de "migration modified after it was applied"; nesse caso, como o DDL é idempotente (`CREATE TABLE IF NOT EXISTS`, `REVOKE`, `UPDATE` condicional), a saída é `npx prisma migrate resolve --rolled-back 20261115120000_site_traffic_tracking` seguido de `npx prisma migrate deploy`, ou resetar o banco local de testes. O backfill de dados é o job idempotente acima, não a migration.
 
 As quatro tabelas não usam RLS porque são agregados globais sem tenant. Como defesa em profundidade, a migration executa `REVOKE ALL ... FROM PUBLIC` e revoga os papéis `anon`/`authenticated` quando existem. Um papel PostgreSQL `NOSUPERUSER NOBYPASSRLS` não recebe acesso automático; a validação está no teste de integração de privilégios.
 
-**Papel de runtime:** o `REVOKE` não concede acesso ao papel usado pela API. Prefira que a migration e a API usem o mesmo papel PostgreSQL. Se o deploy usa papéis separados, o papel da API precisa de privilégios explícitos nas quatro tabelas (e `USAGE` no schema); conceda-os depois da migration, como owner/administrador:
+**Papel de runtime:** o `REVOKE` não concede acesso ao papel usado pela API. Prefira que a migration e o runtime usem o mesmo papel PostgreSQL. Se API e scheduler compartilham um papel, execute **exatamente** estes privilégios como owner/administrador, depois da migration:
 
 ```sql
 GRANT USAGE ON SCHEMA public TO <api_role>;
+
 GRANT SELECT, INSERT, UPDATE ON TABLE
   public.site_traffic_daily,
   public.site_traffic_hourly,
   public.site_traffic_origin_daily,
   public.user_activity_daily
 TO <api_role>;
+
+GRANT SELECT, INSERT, UPDATE ON TABLE public.cron_runs TO <api_role>;
 ```
 
-Não conceda `DELETE`, `TRUNCATE` ou acesso a `PUBLIC`; o relatório e a consolidação só precisam de leitura, `INSERT` e `UPDATE`. Substitua `<api_role>` pelo identificador real, execute uma vez no banco alvo e valide com `has_table_privilege` antes de ativar a API.
+`cron_runs` é usado pela segunda barreira idempotente de `withCronLock`. Se o
+papel compartilhado já executa os demais crons, esse privilégio provavelmente já
+existe; o comando acima apenas o torna explícito.
+
+Se API e scheduler usam papéis diferentes, use a divisão mínima:
+
+```sql
+GRANT USAGE ON SCHEMA public TO <api_role>, <scheduler_role>;
+
+GRANT SELECT ON TABLE
+  public.site_traffic_daily,
+  public.site_traffic_hourly,
+  public.site_traffic_origin_daily,
+  public.user_activity_daily
+TO <api_role>;
+
+GRANT INSERT, UPDATE ON TABLE public.user_activity_daily TO <api_role>;
+
+GRANT SELECT, INSERT, UPDATE ON TABLE
+  public.site_traffic_daily,
+  public.site_traffic_hourly,
+  public.site_traffic_origin_daily
+TO <scheduler_role>;
+
+GRANT SELECT, INSERT, UPDATE ON TABLE public.cron_runs TO <scheduler_role>;
+```
+
+O scheduler precisa de `cron_runs` para `withCronLock`; a API não precisa desse
+privilégio. Não são necessários `DELETE`, `TRUNCATE`, `REFERENCES`, privilégios
+de sequence ou `BYPASSRLS`: as tabelas de tráfego não têm sequence e o runtime
+não apaga linhas. Substitua os placeholders, execute uma vez no banco alvo e
+valide com `has_schema_privilege`/`has_table_privilege`.
+
+Se o backfill pós-boot rodar em um papel separado da API, ele precisa somente de `USAGE` no schema, `SELECT` em `access_logs`/`users` e `INSERT` em `user_activity_daily`:
+
+```sql
+GRANT USAGE ON SCHEMA public TO <backfill_role>;
+GRANT SELECT ON TABLE public.access_logs, public.users TO <backfill_role>;
+GRANT INSERT ON TABLE public.user_activity_daily TO <backfill_role>;
+```
+
+**Sintoma esperado se faltar um grant:** sem `USAGE` no schema, o PostgreSQL responde `42501 permission denied for schema public`; sem `SELECT`, o relatório/export responde 500; sem `INSERT`/`UPDATE`, o job de atividade ou a consolidação falham com `42501 permission denied for table ...`. A falha de `user_activity_daily` é telemetry best-effort: login por senha, login Google e refresh continuam em 200, o warning é registrado sem `userId`, e-mail, IP, user-agent ou token, mas o dia/usuário pode ficar ausente. A falha de agregados deixa relatório/consolidação vazios ou desatualizados. Sem `SELECT`/`INSERT`/`UPDATE` em `cron_runs`, o tick não executa: `withCronLock` não consegue ler/criar/registrar a barreira idempotente.
 
 **Ordem segura de deploy:**
 
 1. Manter `TRAFFIC_BEACON_ENABLED=false` e `RUN_MIGRATIONS=false` no serviço normal.
-2. Aplicar a migration por uma única instância/job (`RUN_MIGRATIONS=true`) ou por `npx prisma migrate deploy` com `DATABASE_URL` e `DIRECT_URL` no mesmo alvo **e, de preferência, no mesmo papel PostgreSQL usado pela API**. Se o job de migration usar outro papel, o papel da API precisa dos `GRANT` explícitos documentados acima; o `REVOKE` de `PUBLIC` não concede acesso ao runtime por si só.
-3. Confirmar `prisma migrate status`, diff vazio e as quatro tabelas com privilégio apenas do papel da API (incluindo o `GRANT` explícito quando os papéis são separados).
-4. Garantir Redis acessível e o processo `scheduler`/cron ativo.
-5. Validar `TRUST_PROXY` com dois `X-Forwarded-For` distintos atrás do mesmo proxy.
-6. Só então ativar `TRAFFIC_BEACON_ENABLED=true` (ainda sem beacon no frontend, se o PR de frontend não existir).
+2. Aplicar a migration por uma única instância/job (`RUN_MIGRATIONS=true`) ou por `npx prisma migrate deploy` com `DATABASE_URL` e `DIRECT_URL` no mesmo alvo **e, de preferência, no mesmo papel PostgreSQL usado pelo runtime**. Se o job de migration usar outro papel, conceda os privilégios explícitos documentados acima ao papel da API e ao do scheduler; o `REVOKE` de `PUBLIC` não concede acesso ao runtime por si só.
+3. Confirmar `prisma migrate status`, diff vazio e as quatro tabelas com privilégio apenas dos papéis de runtime.
+4. Executar uma única vez o job pós-boot, com o papel que possui `SELECT` em `access_logs`/`users` e `INSERT` em `user_activity_daily`:
+
+   ```bash
+   npm run traffic:backfill:user-activity
+   ```
+
+   O comando processa seis lotes mensais, cada um em transação própria, imprime somente janelas e quantidades e pode ser repetido: `ON CONFLICT DO NOTHING` torna a execução idempotente. O launcher usa o TypeScript no checkout e o bundle `dist/` na imagem de produção.
+5. Garantir Redis acessível e o processo `scheduler`/cron ativo.
+6. Validar `TRUST_PROXY` com dois `X-Forwarded-For` distintos atrás do mesmo proxy.
+7. Nesta entrega e no deploy correspondente, **manter `TRAFFIC_BEACON_ENABLED=false`**. A ativação é uma etapa futura e exige nova aprovação explícita; ainda sem beacon no frontend, se o PR de frontend não existir.
 
 ### Redis, consolidação e perda
 
@@ -239,6 +292,45 @@ O cron `scheduleTrafficConsolidation` roda às `minute=5` de cada hora, com lock
 A persistência usa `GREATEST(valor_persistido, valor_redis)`: se o Redis reiniciar e um contador voltar a zero, o banco não regride e a primeira regressão observada no dia incrementa `site_traffic_daily.lostUpdates`. `loss.counterRegressions` é escopado à linha consultada (`all` ou área local), para não somar a mesma regressão das linhas local e global. O relatório também expõe `loss.redisUnavailableDrops`, contador local da instância para requests descartados por Redis indisponível.
 
 O limite diário de hosts de origem é aplicado por script Lua atômico: até 200 hosts novos por dia são registrados; depois do limite, apenas hosts já registrados continuam contando. A cota por IP usa um salt diário compartilhado no Redis, portanto todas as réplicas da API aplicam a mesma quota para o mesmo IP resolvido por `TRUST_PROXY`.
+
+### Evidência de performance do backfill
+
+Benchmark local reproduzível em PostgreSQL 16, somente com dados sintéticos: 1.000.000 linhas em `access_logs`, 100.000 usuários, 500.000 logs dentro da janela de seis meses, 450.000 candidatos elegíveis e 405.000 linhas `(day,userId)` geradas.
+
+- A consulta original com o join por `OR` excedeu `statement_timeout=60s` (cancelamento em `60.024s`); portanto **não** pode permanecer no caminho de migration.
+- A consulta equivalente com `UNION ALL` (join por `userId` separado do fallback por e-mail normalizado) executou em `4.398s` no `EXPLAIN (ANALYZE, BUFFERS, WAL)` final; uma repetição anterior levou `4.743s`.
+- Os seis lotes mensais da estratégia aplicada executaram em `975ms`, `874ms`, `875ms`, `892ms`, `814ms` e `740ms` na medição SQL, totaling cerca de `5.17s`. A execução real de `npm run traffic:backfill:user-activity` sobre o mesmo volume inseriu `405.000` linhas em `4.448s` de trabalho dos lotes (`totalMs=4448`) e `5.19s` de wall clock, incluindo startup/CLI; o rerun retornou `inserted=0` em todos os seis lotes.
+- Durante o `EXPLAIN (ANALYZE, BUFFERS, WAL)`, `access_logs` e `users` ficaram somente com `AccessShareLock`; o destino ficou com `RowExclusiveLock`. Não houve `AccessExclusiveLock` nem row lock de leitura sobre `access_logs`, portanto não há lock bloqueante longo. No job pós-boot, cada lote ainda fecha sua própria transação antes do próximo.
+
+Trecho do plano final (sintético, volume de 1.000.000 logs):
+
+```text
+Insert on user_activity_daily
+  (actual time=4375.576..4375.581 rows=0 loops=1)
+  Tuples Inserted: 405000
+  Conflicting Tuples: 0
+  WAL: records=1217583 bytes=96801054
+  -> HashAggregate (... actual time=769.844..897.562 rows=405000 loops=1)
+  -> Append (... actual time=70.482..506.529 rows=450000 loops=1)
+     -> Hash Join (... actual time=70.481..274.068 rows=400000 loops=1)
+     -> Merge Join (... actual time=142.409..202.564 rows=50000 loops=1)
+Planning Time: 1.844 ms
+Execution Time: 4398.383 ms
+```
+
+O benchmark é conservador e local; em staging/produção, execute o job por estágios e acompanhe duração/locks. O comando é idempotente e pode ser repetido após falha.
+
+### Falha da atividade de usuário — sem impacto na autenticação
+
+`recordUserActivity` é best-effort. Falhas separadas de Redis (`SET NX`) e PostgreSQL (`upsert`) são capturadas; login por senha, login Google e refresh concluem normalmente em 200. O warning registra somente `dependency` (`redis`/`postgres`), tipo e código sanitizado do erro — nunca `userId`, e-mail, IP, user-agent, token ou a mensagem bruta. Uma linha já existente não é regravada (`update: {}`).
+
+Se o `SET NX` funciona e o upsert falha, não existe linha para aquele dia/usuário. O marcador Redis é removido em modo best-effort, permitindo que um login/refresh posterior do mesmo dia civil conclua o registro. Se o marker não puder ser removido ou não houver nova autenticação, o dia permanece ausente; para reparar, execute novamente `npm run traffic:backfill:user-activity`, que relê os `AccessLog` bem-sucedidos dos últimos seis meses e usa `ON CONFLICT DO NOTHING` (não regrava dias já existentes).
+
+### Cron de consolidação e réplicas
+
+O cron de tráfego é registrado apenas quando `shouldRunCrons(PROCESS_ROLE)` é verdadeiro: `PROCESS_ROLE=scheduler` ou `all`. Em produção, use `scheduler`; processos `api` e `worker` não registram crons. O entrypoint do container aceita `api|worker|scheduler`, portanto o processo efetivo que agenda a consolidação é o `scheduler`.
+
+O callback roda sob `withCronLock` com `jobName="traffic-consolidation"` e a mesma chave horária `spSlotKey(60, now)` em todas as réplicas. O lock Redis (`SET ... NX`, lease renovável) permite que apenas uma réplica execute o tick; `CronRun` é a segunda barreira idempotente por `(jobName, scheduledKey)`. A persistência com `GREATEST` evita regressão mesmo se uma repetição ocorrer.
 
 **Diagnóstico de reset/perda:**
 

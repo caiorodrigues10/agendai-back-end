@@ -11,7 +11,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/libs/prismaClient";
 import { getApiRedisConnection } from "@/shared/infra/queue/redisConnection";
+import { withCronLock } from "@/shared/infra/redis/cronLock";
 import { recordUserActivity } from "@/modules/traffic/infra/userActivity";
+import { backfillUserActivityDaily } from "@/modules/traffic/infra/backfillUserActivity";
 import { PrismaTrafficConsolidationRepository } from "@/modules/traffic/infra/trafficConsolidationRepository";
 import { PrismaTrafficReportRepository } from "@/modules/traffic/infra/trafficReportRepository";
 import { RedisTrafficConsolidationSource } from "@/modules/traffic/infra/redisTrafficConsolidationSource";
@@ -313,7 +315,7 @@ describe("persistência de tráfego — Postgres + Redis", () => {
     expect(await repo.getFirstActivityDay()).toBe("1990-01-01");
   });
 
-  it("faz o backfill da migration por userId ou e-mail normalizado, limitado a seis meses", async () => {
+  it("faz o backfill pós-boot por userId ou e-mail normalizado, limitado a seis meses", async () => {
     const recent = new Date(Date.now() - 60 * 60 * 1000);
     const old = new Date();
     old.setUTCMonth(old.getUTCMonth() - 7);
@@ -424,8 +426,30 @@ describe("persistência de tráfego — Postgres + Redis", () => {
       },
     });
 
-    const backfill = migrationStatement('INSERT INTO "user_activity_daily"');
-    await prisma.$executeRawUnsafe(backfill);
+    const backfillResults = await backfillUserActivityDaily(new Date());
+    expect(backfillResults).toHaveLength(6);
+
+    const targetUserIds = [
+      passwordUser.id,
+      googleUser.id,
+      refreshUser.id,
+      failedUser.id,
+      oldUser.id,
+    ];
+    const rowsAfterFirstRun = await prisma.userActivityDaily.findMany({
+      where: { userId: { in: targetUserIds } },
+      orderBy: { userId: "asc" },
+    });
+    const rerunResults = await backfillUserActivityDaily(new Date());
+    expect(rerunResults).toHaveLength(6);
+    expect(rerunResults.every((result) => result.inserted === 0)).toBe(true);
+    const rowsAfterRerun = await prisma.userActivityDaily.findMany({
+      where: { userId: { in: targetUserIds } },
+      orderBy: { userId: "asc" },
+    });
+    expect(rowsAfterRerun.map((row) => row.createdAt.toISOString())).toEqual(
+      rowsAfterFirstRun.map((row) => row.createdAt.toISOString()),
+    );
 
     const expectedDay = new Date(`${spDayKey(recent)}T00:00:00.000Z`);
     const activity = await prisma.userActivityDaily.findMany({
@@ -564,6 +588,36 @@ describe("persistência de tráfego — Postgres + Redis", () => {
     expect(usersOnDay).toEqual([{ day: PREVIOUS_TEST_DAY, total: 2, removed: 1 }]);
     expect(usersOnPreviousDay).toEqual([{ day: "2098-12-08", total: 1, removed: 0 }]);
     expect(shopsOnDay).toEqual([{ day: PREVIOUS_TEST_DAY, total: 2 }]);
+  });
+
+  it("withCronLock executa o tick uma única vez em N réplicas", async () => {
+    const redis = getApiRedisConnection();
+    const jobName = `traffic-lock-proof-${randomUUID()}`;
+    const scheduledKey = "2026-11-15-12-00";
+    let executions = 0;
+
+    try {
+      await Promise.all(
+        Array.from({ length: 5 }, () =>
+          withCronLock(
+            redis,
+            { jobName, scheduledKey },
+            async () => {
+              executions += 1;
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            },
+          ),
+        ),
+      );
+
+      expect(executions).toBe(1);
+      const run = await prisma.cronRun.findUnique({
+        where: { jobName_scheduledKey: { jobName, scheduledKey } },
+      });
+      expect(run?.status).toBe("COMPLETED");
+    } finally {
+      await prisma.cronRun.deleteMany({ where: { jobName, scheduledKey } });
+    }
   });
 
   it("não concede privilégios a papel NOSUPERUSER/NOBYPASSRLS", async () => {

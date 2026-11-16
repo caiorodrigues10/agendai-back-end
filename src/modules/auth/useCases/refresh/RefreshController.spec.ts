@@ -65,15 +65,73 @@ describe("RefreshController rotation", () => {
     };
   }
 
-  async function loadRefreshController(prismaMock: unknown) {
+  type ActivityFailure =
+    | "postgres-permission-denied"
+    | "postgres-unavailable"
+    | "redis";
+
+  async function loadRefreshController(
+    prismaMock: unknown,
+    options: { activityFailure?: ActivityFailure } = {},
+  ) {
     vi.resetModules();
     const recordUserActivity = vi.fn().mockResolvedValue(undefined);
+    const activityRedisSet = vi.fn();
+    const activityRedisDel = vi.fn();
+    const activityUpsert = vi.fn();
+    const activityLoggerWarn = vi.fn();
+
+    vi.doUnmock("@/modules/traffic/infra/userActivity");
+    if (
+      options.activityFailure === "postgres-permission-denied" ||
+      options.activityFailure === "postgres-unavailable"
+    ) {
+      activityRedisSet.mockResolvedValue("OK");
+      activityRedisDel.mockResolvedValue(1);
+      const postgresError =
+        options.activityFailure === "postgres-permission-denied"
+          ? Object.assign(
+              new Error("permission denied for table user_activity_daily"),
+              { code: "P2010" },
+            )
+          : Object.assign(new Error("database connection failed"), {
+              name: "PrismaClientInitializationError",
+              code: "P1001",
+            });
+      activityUpsert.mockRejectedValue(postgresError);
+    } else if (options.activityFailure === "redis") {
+      const redisError = Object.assign(new Error("Redis unavailable"), {
+        name: "ConnectionError",
+      });
+      activityRedisSet.mockRejectedValue(redisError);
+      activityRedisDel.mockRejectedValue(redisError);
+    }
+
     vi.doMock("@/shared/services/accessLogService", () => ({
       logAccess: vi.fn().mockResolvedValue(undefined),
     }));
-    vi.doMock("@/modules/traffic/infra/userActivity", () => ({
-      recordUserActivity,
-    }));
+    if (options.activityFailure) {
+      (prismaMock as { userActivityDaily?: unknown }).userActivityDaily = {
+        upsert: activityUpsert,
+      };
+      vi.doMock("@/shared/infra/queue/redisConnection", () => ({
+        getApiRedisConnection: () => ({
+          set: activityRedisSet,
+          del: activityRedisDel,
+        }),
+      }));
+      vi.doMock("@/shared/utils/logger", () => ({
+        getModuleLogger: () => ({
+          warn: activityLoggerWarn,
+          info: vi.fn(),
+          error: vi.fn(),
+        }),
+      }));
+    } else {
+      vi.doMock("@/modules/traffic/infra/userActivity", () => ({
+        recordUserActivity,
+      }));
+    }
     vi.doMock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
     vi.doMock("tsyringe", () => ({
       container: {
@@ -93,7 +151,16 @@ describe("RefreshController rotation", () => {
       },
     }));
     const { RefreshController } = await import("./RefreshController");
-    return { controller: new RefreshController(), recordUserActivity };
+    return {
+      controller: new RefreshController(),
+      recordUserActivity,
+      activity: {
+        redisSet: activityRedisSet,
+        redisDel: activityRedisDel,
+        upsert: activityUpsert,
+        loggerWarn: activityLoggerWarn,
+      },
+    };
   }
 
   it("rotates refresh and allows reuse of the previous token within the grace window", async () => {
@@ -131,6 +198,62 @@ describe("RefreshController rotation", () => {
     vi.restoreAllMocks();
     vi.resetModules();
   });
+
+  it.each([
+    "postgres-permission-denied",
+    "postgres-unavailable",
+    "redis",
+  ] as const)(
+    "mantém o refresh concluído quando a atividade falha no %s",
+    async (failure) => {
+      const refreshToken = sign({ sub: userId }, auth.refreshSecret, { expiresIn: "7d" });
+      const { store, prisma: prismaMock } = tokenStore({
+        token: refreshToken,
+        userId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 60_000),
+      });
+
+      const { controller, activity } = await loadRefreshController(prismaMock, {
+        activityFailure: failure,
+      });
+      const { reply, state } = replyCapture();
+
+      await controller.handle(
+        {
+          cookies: { refresh_token: refreshToken },
+          ip: "203.0.113.62",
+          headers: { "user-agent": "test-browser" },
+        } as any,
+        reply as any,
+      );
+
+      expect(state.statusCode).toBe(200);
+      expect(state.body?.accessToken).toBeTypeOf("string");
+      expect(activity.loggerWarn).toHaveBeenCalledTimes(1);
+      expect(activity.loggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dependency: failure === "redis" ? "redis" : "postgres",
+        }),
+        "failed to record daily user activity",
+      );
+      expect(activity.redisSet).toHaveBeenCalledTimes(1);
+      if (failure === "redis") {
+        expect(activity.upsert).not.toHaveBeenCalled();
+      } else {
+        expect(activity.upsert).toHaveBeenCalledTimes(1);
+      }
+
+      const logged = JSON.stringify(activity.loggerWarn.mock.calls);
+      expect(logged).not.toContain(userId);
+      expect(logged).not.toContain("owner@example.test");
+      expect(logged).not.toContain("203.0.113.62");
+      expect(logged).not.toContain(refreshToken);
+      expect(logged).not.toContain("permission denied for table user_activity_daily");
+      expect(logged).not.toContain("database connection failed");
+      expect(logged).not.toContain("Redis unavailable");
+    },
+  );
 
   it("rejects reuse of the previous token after the grace window", async () => {
     const refreshToken = sign({ sub: userId }, auth.refreshSecret, { expiresIn: "7d" });

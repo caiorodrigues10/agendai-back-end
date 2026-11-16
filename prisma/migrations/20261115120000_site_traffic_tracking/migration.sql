@@ -18,12 +18,12 @@
 -- daily HMAC visitor hashes live in Redis (TTL 24–48h) and are never written
 -- to this database.
 --
--- Backfill: user_activity_daily is seeded from access_logs (6-month retention)
--- for successful LOGIN / GOOGLE_LOGIN / REFRESH events. Password LOGIN rows
--- historically have email but no userId, so they are joined by normalized
--- email; rows that cannot be mapped to a user are intentionally ignored.
--- `deletedAt` is irrelevant here: activity is counted by event day, regardless
--- of later account removal.
+-- Backfill: intentionally executed after boot by the idempotent, monthly
+-- `npm run traffic:backfill:user-activity` job. Keeping the data load out of
+-- this DDL migration avoids a long transaction/lock over `access_logs` on
+-- large installations. The job reads successful LOGIN / GOOGLE_LOGIN /
+-- REFRESH events from the last six months; password LOGIN rows without
+-- `userId` are joined by normalized email.
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- ─── Tables ──────────────────────────────────────────────────────────────────
@@ -59,29 +59,6 @@ CREATE TABLE IF NOT EXISTS "user_activity_daily" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "user_activity_daily_pkey" PRIMARY KEY ("day", "userId")
 );
-
--- ─── Backfill: logged-user activity from access_logs (up to 6 months) ───────
--- `createdAt` is stored in UTC without timezone; convert UTC → São Paulo
--- before taking the civil date. ON CONFLICT keeps the migration re-runnable.
-INSERT INTO "user_activity_daily" ("day", "userId")
-SELECT DISTINCT
-  (((al."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo')::date),
-  u."id"
-FROM "access_logs" al
-JOIN "users" u
-  ON (
-    al."userId" IS NOT NULL
-    AND u."id" = al."userId"
-  )
-  OR (
-    al."userId" IS NULL
-    AND al."action" = 'LOGIN'
-    AND lower(u."email") = lower(al."email")
-  )
-WHERE al."success" = true
-  AND al."action" IN ('LOGIN', 'GOOGLE_LOGIN', 'REFRESH')
-  AND al."createdAt" >= NOW() - INTERVAL '6 months'
-ON CONFLICT ("day", "userId") DO NOTHING;
 
 -- ─── Grants: no PUBLIC access (platform tables, defense in depth) ───────────
 -- The API connects with the migration/owner role; PUBLIC/anon/authenticated

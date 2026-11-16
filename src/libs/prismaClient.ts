@@ -55,4 +55,18 @@ export type AppTx = Omit<
 >;
 
 export const prisma: AppPrisma = aplicarGuardAtomico(createPrisma(clienteBase));
+
+/**
+ * Fecha o cliente Prisma e o pool `pg` externo.
+ *
+ * O `PrismaPg` 6.x não encerra um `Pool` fornecido pelo chamador em
+ * `$disconnect()`. Em CLI, o timer de idle do pool manteria o processo vivo por
+ * ~30 s mesmo depois de todo o trabalho concluído. O servidor encerra o
+ * processo explicitamente e continua usando `prisma.$disconnect()`.
+ */
+export async function disconnectPrisma(): Promise<void> {
+  await prisma.$disconnect();
+  await pool.end();
+}
+
 export { Prisma };

@@ -31,6 +31,7 @@
     "prisma:seed:perf-fixture": "tsx scripts/seed-perf-fixture.ts",
     "prisma:seed:qa-fixture": "tsx scripts/seed-qa-fixture.ts",
     "prisma:seed:last-account": "tsx scripts/seed-last-account.ts",
+    "traffic:backfill:user-activity": "node scripts/backfillUserActivity.cjs",
     "segments:parity": "tsx scripts/generateSegmentParity.ts",
     "security:audit-logs": "tsx scripts/remediateSensitiveAuditLogs.ts",
     "ledger:backfill": "tsx scripts/backfillFinancialLedger.ts",

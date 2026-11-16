@@ -21,8 +21,10 @@ export async function recordUserActivity(userId: string | undefined, now: Date =
   if (!userId) return;
 
   const dayKey = spDayKey(now);
+  let dependency: "redis" | "postgres" | "unknown" = "unknown";
   try {
     const client = getApiRedisConnection();
+    dependency = "redis";
     // SET NX: only the first request of the day proceeds to the upsert.
     const firstOfToday = await client.set(
       userActivityDedupeKey(dayKey, userId),
@@ -33,16 +35,23 @@ export async function recordUserActivity(userId: string | undefined, now: Date =
     );
     if (firstOfToday !== "OK") return;
 
+    dependency = "postgres";
     await prisma.userActivityDaily.upsert({
       where: { day_userId: { day: dayKeyToDate(dayKey), userId } },
       create: { day: dayKeyToDate(dayKey), userId },
-      // Nothing to update — the row is the presence marker itself.
+      // Nothing to update — an existing day/user row is never rewritten.
       update: {},
     });
   } catch (error) {
-    // Best-effort: drop the dedupe marker so a later attempt can retry.
+    // Best-effort: drop the dedupe marker so a later attempt can retry the same
+    // civil day. If Redis is unavailable, the marker expires and a later
+    // successful authentication can still fill the missing day.
     logger.warn(
-      { err: (error as Error)?.message },
+      {
+        dependency,
+        errorType: error instanceof Error ? error.name : "UnknownError",
+        errorCode: safeErrorCode(error),
+      },
       "failed to record daily user activity",
     );
     try {
@@ -51,6 +60,19 @@ export async function recordUserActivity(userId: string | undefined, now: Date =
       /* marker expiry will retry naturally */
     }
   }
+}
+
+/**
+ * Keep only a short, non-personal error identifier in logs.
+ *
+ * The raw Prisma/Redis message may contain connection details and is not
+ * needed to distinguish the two dependencies. User id, email, IP, user-agent
+ * and token are never passed to this logger.
+ */
+function safeErrorCode(error: unknown): string | undefined {
+  const code = (error as { code?: unknown })?.code;
+  if (typeof code !== "string") return undefined;
+  return /^[A-Z0-9_.-]{1,64}$/.test(code) ? code : undefined;
 }
 
 /** `YYYY-MM-DD` → UTC-midnight Date (the `@db.Date` round-trip). */

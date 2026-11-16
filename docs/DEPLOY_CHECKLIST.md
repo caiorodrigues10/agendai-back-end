@@ -207,13 +207,14 @@ Regras de rollback:
 - [ ] Migration `20261115120000_site_traffic_tracking` revisada: é aditiva,
       cria `site_traffic_daily` (incluindo a linha agregada `all`),
       `site_traffic_hourly`, `site_traffic_origin_daily` e
-      `user_activity_daily`, executa o backfill de até seis meses e revoga
-      `ALL` de `PUBLIC`/papéis anônimos.
+      `user_activity_daily`, e revoga `ALL` de `PUBLIC`/papéis anônimos. O
+      backfill de seis meses roda no job pós-boot, não dentro da migration.
 - [ ] `internal:traffic:read` aplicada aos perfis internos existentes; perfil
       legado sem lista explícita e `internal:all` continuam com acesso default.
 - [ ] Redis acessível pelo processo API e pelo processo `scheduler`.
-- [ ] Exatamente um processo com `PROCESS_ROLE=scheduler` executa a
-      consolidação horária; processos API/worker não duplicam o cron.
+- [ ] O processo `scheduler` registra o cron horário; processos API/worker não
+      registram crons. Réplicas do scheduler usam Redis e PostgreSQL
+      compartilhados, e `withCronLock` + `CronRun` impedem execução duplicada.
 - [ ] Backup do banco e plano de rollback aprovados (rollback operacional em
       §9.5; **não** usar `prisma migrate down`).
 
@@ -234,13 +235,116 @@ Regras de rollback:
       `RUN_MIGRATIONS=false`.
 - [ ] Aplicar a migration por uma única instância/job:
       `npx prisma migrate deploy` com `DATABASE_URL` e `DIRECT_URL` no mesmo
-      alvo **e, de preferência, no mesmo papel PostgreSQL da API**. Se usar um
-      papel separado, conceder ao **papel da API** (não ao job de migration)
-      `USAGE` no schema e `SELECT/INSERT/UPDATE` nas quatro tabelas, conforme
-      o bloco `GRANT` do [RUNBOOK_MIGRATIONS.md](RUNBOOK_MIGRATIONS.md).
-      Depois executar `npx prisma migrate status` e o
+      alvo **e, de preferência, no mesmo papel PostgreSQL do runtime**. Se o
+      papel de migration for diferente, executar os `GRANT` abaixo como
+      owner/administrador **depois** da migration.
+- [ ] Se API e scheduler compartilham `<api_role>`, conceder exatamente:
+
+  ```sql
+  GRANT USAGE ON SCHEMA public TO <api_role>;
+
+  GRANT SELECT, INSERT, UPDATE ON TABLE
+    public.site_traffic_daily,
+    public.site_traffic_hourly,
+    public.site_traffic_origin_daily,
+    public.user_activity_daily
+  TO <api_role>;
+
+  GRANT SELECT, INSERT, UPDATE ON TABLE public.cron_runs TO <api_role>;
+  ```
+
+- [ ] Se API e scheduler usam papéis diferentes, conceder a divisão mínima:
+
+  ```sql
+  GRANT USAGE ON SCHEMA public TO <api_role>, <scheduler_role>;
+
+  GRANT SELECT ON TABLE
+    public.site_traffic_daily,
+    public.site_traffic_hourly,
+    public.site_traffic_origin_daily,
+    public.user_activity_daily
+  TO <api_role>;
+
+  GRANT INSERT, UPDATE ON TABLE public.user_activity_daily TO <api_role>;
+
+  GRANT SELECT, INSERT, UPDATE ON TABLE
+    public.site_traffic_daily,
+    public.site_traffic_hourly,
+    public.site_traffic_origin_daily
+  TO <scheduler_role>;
+
+  GRANT SELECT, INSERT, UPDATE ON TABLE public.cron_runs TO <scheduler_role>;
+  ```
+
+  `cron_runs` é necessário para a segunda barreira de `withCronLock`; um papel de
+  scheduler já usado pelos demais crons normalmente já possui esse privilégio.
+
+  Não conceder `DELETE`, `TRUNCATE`, `REFERENCES`, sequences ou `BYPASSRLS`:
+  o runtime não usa nenhum deles e as tabelas não possuem sequence.
+
+- [ ] Validar os privilégios efetivos antes do boot:
+
+  ```sql
+  SELECT role_name,
+         has_schema_privilege(role_name, 'public', 'USAGE') AS can_use_public
+  FROM (VALUES
+    ('<api_role>'),
+    ('<scheduler_role>')
+  ) AS roles(role_name);
+
+  SELECT role_name,
+         table_name,
+         privilege,
+         has_table_privilege(
+           role_name,
+           format('%I.%I', 'public', table_name),
+           privilege
+         ) AS granted
+  FROM (VALUES
+    ('<api_role>', 'site_traffic_daily', 'SELECT'),
+    ('<api_role>', 'site_traffic_hourly', 'SELECT'),
+    ('<api_role>', 'site_traffic_origin_daily', 'SELECT'),
+    ('<api_role>', 'user_activity_daily', 'SELECT'),
+    ('<api_role>', 'user_activity_daily', 'INSERT'),
+    ('<api_role>', 'user_activity_daily', 'UPDATE'),
+    ('<scheduler_role>', 'site_traffic_daily', 'SELECT'),
+    ('<scheduler_role>', 'site_traffic_daily', 'INSERT'),
+    ('<scheduler_role>', 'site_traffic_daily', 'UPDATE'),
+    ('<scheduler_role>', 'site_traffic_hourly', 'SELECT'),
+    ('<scheduler_role>', 'site_traffic_hourly', 'INSERT'),
+    ('<scheduler_role>', 'site_traffic_hourly', 'UPDATE'),
+    ('<scheduler_role>', 'site_traffic_origin_daily', 'SELECT'),
+    ('<scheduler_role>', 'site_traffic_origin_daily', 'INSERT'),
+    ('<scheduler_role>', 'site_traffic_origin_daily', 'UPDATE'),
+    ('<scheduler_role>', 'cron_runs', 'SELECT'),
+    ('<scheduler_role>', 'cron_runs', 'INSERT'),
+    ('<scheduler_role>', 'cron_runs', 'UPDATE')
+  ) AS required(role_name, table_name, privilege);
+  ```
+
+  Se API e scheduler compartilham o mesmo papel, use `<api_role>` nos dois
+  blocos. Resultado esperado: `can_use_public=true` e `granted=true` em todas
+  as linhas. Sem `USAGE`: `42501 permission denied for schema public`. Sem
+  `SELECT`: relatório/export 500. Sem `INSERT`/`UPDATE`: atividade ou
+  consolidação falham com `42501 permission denied for table ...`; no caso de
+  `user_activity_daily`, os logins e refresh continuam 200 e somente o dia/usuário
+  da métrica pode ficar ausente. Sem privilégio em `cron_runs`, o tick não
+  executa porque `withCronLock` não consegue ler/criar/registrar a barreira
+  idempotente.
+- [ ] Depois dos `GRANT`, executar `npx prisma migrate status` e o
       `prisma migrate diff --from-url … --to-schema-datamodel --exit-code`
       do [RUNBOOK_MIGRATIONS.md](RUNBOOK_MIGRATIONS.md); drift deve sair vazio.
+- [ ] Executar uma única vez o backfill pós-boot antes de usar a métrica de
+      usuários distintos:
+
+  ```bash
+  npm run traffic:backfill:user-activity
+  ```
+
+  O job usa seis lotes mensais, cada um em transação própria, e é idempotente.
+  O launcher usa o TypeScript no checkout e o bundle `dist/` na imagem de
+  produção. Se falhar, corrigir a causa e repetir o comando; ele não regrava
+  dias já existentes.
 - [ ] Confirmar no log de boot que o cron de tráfego foi agendado no processo
       `scheduler` e que o Redis está acessível. O tick horário deve consolidar
       o dia anterior e o dia corrente parcial; o relatório `period=day` precisa
@@ -285,10 +389,12 @@ Regras de rollback:
       investigação antes de ampliar o tráfego. O contador de regressões é
       escopado à linha `all`/área consultada, para não contar a mesma perda
       duas vezes.
-- [ ] Só depois dos testes acima, definir `TRAFFIC_BEACON_ENABLED=true` e
-      reiniciar as instâncias API. Manter `RUN_MIGRATIONS=false` nelas.
+- [ ] **Nesta entrega e no deploy correspondente, manter
+      `TRAFFIC_BEACON_ENABLED=false` e `RUN_MIGRATIONS=false`; não ativar o
+      beacon.** Uma ativação futura exige nova aprovação explícita depois dos
+      testes acima.
 
-### 9.4 Ativação do beacon no frontend
+### 9.4 Ativação futura do beacon no frontend
 
 - [ ] O PR do frontend envia `POST /api/ping` com `Content-Type: text/plain`,
       sem token, cookie, payload identificável, query string ou ID de rota.
