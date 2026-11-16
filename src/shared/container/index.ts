@@ -185,3 +185,22 @@ import { PrismaServiceAddonLinkRepository } from '@/modules/addons/infrastructur
 container.registerSingleton(SALON_ADDON_REPOSITORY, PrismaSalonAddonRepository)
 container.registerSingleton(SERVICE_ADDON_LINK_REPOSITORY, PrismaServiceAddonLinkRepository)
 container.registerSingleton(AddonCatalogUseCases)
+
+import { TRAFFIC_COUNTER } from '@/modules/traffic/application/useCases/RecordVisitUseCase'
+import { TRAFFIC_REPORT_REPOSITORY } from '@/modules/traffic/application/useCases/GetTrafficReportUseCase'
+import {
+  ConsolidateTrafficUseCase,
+  TRAFFIC_CONSOLIDATION_REPOSITORY,
+  TRAFFIC_CONSOLIDATION_SOURCE,
+} from '@/modules/traffic/application/useCases/ConsolidateTrafficUseCase'
+import { RedisTrafficCounter } from '@/modules/traffic/infra/redisTrafficCounter'
+import { RedisTrafficConsolidationSource } from '@/modules/traffic/infra/redisTrafficConsolidationSource'
+import { PrismaTrafficConsolidationRepository } from '@/modules/traffic/infra/trafficConsolidationRepository'
+import { PrismaTrafficReportRepository } from '@/modules/traffic/infra/trafficReportRepository'
+
+// Tráfego anônimo do site (beacon + relatório do painel master).
+container.registerSingleton(TRAFFIC_COUNTER, RedisTrafficCounter)
+container.registerSingleton(TRAFFIC_REPORT_REPOSITORY, PrismaTrafficReportRepository)
+container.registerSingleton(TRAFFIC_CONSOLIDATION_SOURCE, RedisTrafficConsolidationSource)
+container.registerSingleton(TRAFFIC_CONSOLIDATION_REPOSITORY, PrismaTrafficConsolidationRepository)
+container.registerSingleton(ConsolidateTrafficUseCase)

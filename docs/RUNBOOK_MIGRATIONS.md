@@ -17,12 +17,19 @@ propósito como evidência do incidente e para impedir que um `migrate deploy`
 futuro recrie a tabela. `migrate status` não reporta o caso. Histórico completo
 em `EVOLUCAO-BACKEND-2026-09-29.md` §10.
 
-### Registro a mais no banco local `agendai` (branch lateral de posts)
+### Registro histórico a mais no banco local `agendai` (branch lateral de posts)
 
-O `_prisma_migrations` do banco local `agendai` (dev) tem **126 linhas**; a pasta
-`prisma/migrations/` e o banco `agendai_db` (testes) têm **125**. A linha a mais
-é `20261027000000_post_media_gallery_default` — aplicada em 2026-10-27T03:35:52Z
+**Snapshot de 2026-11-01:** o `_prisma_migrations` do banco local `agendai` (dev)
+tinha **126 linhas**; a pasta `prisma/migrations/` e o banco `agendai_db`
+(testes) tinham **125**. A linha a mais era
+`20261027000000_post_media_gallery_default` — aplicada em 2026-10-27T03:35:52Z
 (`applied_steps_count=1`, sem logs).
+
+**Estado de 2026-11-15:** a pasta tem **130** migrations; `agendai_db` tem **131
+linhas totais**, das quais **130 estão ativas** e uma é a tentativa antiga de
+`20261115120000_site_traffic_tracking` marcada como `rolled_back_at`. O banco
+local `agendai` está com apenas **4 registros ativos** e não deve ser usado como
+baseline de migrations; use `agendai_db` para validar esta entrega.
 
 **Origem:** commit `bc33f9d` ("feat(posts): upload de mídia sempre entra na
 galeria do perfil"), que existe **apenas na branch lateral
@@ -66,7 +73,7 @@ foi apagado (nenhum `DELETE` em `_prisma_migrations`).
 
 ## Dívida técnica: renomear as migrations com prefixo inconsistente (prazo 2026-12-31)
 
-**Escopo real: 37 migrations.** O prefixo de data delas é **posterior ao dia em
+**Escopo real: 39 migrations.** O prefixo de data delas é **posterior ao dia em
 que a pasta foi criada** (medido pelo commit que adicionou cada pasta,
 `git log --diff-filter=A`). Isso quebra a leitura temporal do histórico: uma
 migration "de 2026-11-05" que entrou no git em 2026-10-30.
@@ -75,9 +82,9 @@ Divisão do escopo:
 
 | grupo | quantidade | situação |
 |---|---|---|
-| série `20261105`…`20261110` (prefixo > 2026-11-01) | **11** | já aplicadas em `agendai` e `agendai_db`; 2 delas (`20261110120000`, `20261110130000`) ainda **untracked** |
+| série `20261105`…`20261112` (prefixo > 2026-11-01) | **13** | já aplicadas em `agendai_db` |
 | migrations de `20260831`…`20260912` com o mesmo defeito | **26** | já aplicadas; podem ser renomeadas junto |
-| linha excedente em `_prisma_migrations` do `agendai` | **1** | `20261027000000_post_media_gallery_default` (aplicada sem pasta) — ver §"Registro a mais no banco local `agendai`" |
+| linha excedente em `_prisma_migrations` do `agendai` | **1** | `20261027000000_post_media_gallery_default` (aplicada sem pasta) — ver §"Registro histórico a mais no banco local `agendai`" |
 
 Lista completa (prefixo | dia em que a pasta entrou no git):
 
@@ -117,8 +124,10 @@ Lista completa (prefixo | dia em que a pasta entrou no git):
 20261107120000_whatsapp_ai_realtime|2026-10-31
 20261108120000_platform_whatsapp_settings|2026-10-31
 20261109120000_crm_backfill_run_scope|2026-11-01
-20261110120000_import_batch_source|(untracked)
-20261110130000_import_file_formats|(untracked)
+20261110120000_import_batch_source|2026-11-02
+20261110130000_import_file_formats|2026-11-02
+20261111120000_import_cases_target|2026-11-02
+20261112120000_import_case_fees_target|2026-11-02
 ```
 
 **Renomear para o dia real preserva a ordem relativa dos prefixos** — é
@@ -169,6 +178,80 @@ novo > maior prefixo da pasta). Nada trava — é higiene de histórico.
   A pasta só pode ser removida se a migration correspondente **ainda não** estiver
   no `_prisma_migrations` do alvo.
 - Mudanças destrutivas exigem expand/contract e rollback de aplicação compatível.
+
+## Tráfego do site — migration e operação (PR1)
+
+### Migration `20261115120000_site_traffic_tracking`
+
+A migration é **aditiva** e cria quatro tabelas de plataforma:
+
+- `site_traffic_daily` — dia civil (`America/Sao_Paulo`) × área; a linha `all` é o agregado global do site (visitantes/sessões distintos entre áreas);
+- `site_traffic_hourly` — hora civil × área (inclui `all` para a série global);
+- `site_traffic_origin_daily` — dia civil × **host** de origem;
+- `user_activity_daily` — dia civil × `userId` (chave primária composta, sem `barbershopId`).
+
+O backfill de `user_activity_daily` lê no máximo seis meses de `access_logs`, considera apenas eventos bem-sucedidos (`LOGIN`, `GOOGLE_LOGIN`, `REFRESH`) e resolve o usuário por `userId`; `LOGIN` histórico sem `userId` é resolvido por e-mail normalizado (`lower(email)`). `deletedAt` não remove atividade histórica. A migration também adiciona `internal:traffic:read` às listas explícitas de `MASTER_ADMIN` que ainda não tinham a permissão; lista vazia e `internal:all` preservam o acesso default.
+
+As quatro tabelas não usam RLS porque são agregados globais sem tenant. Como defesa em profundidade, a migration executa `REVOKE ALL ... FROM PUBLIC` e revoga os papéis `anon`/`authenticated` quando existem. Um papel PostgreSQL `NOSUPERUSER NOBYPASSRLS` não recebe acesso automático; a validação está no teste de integração de privilégios.
+
+**Papel de runtime:** o `REVOKE` não concede acesso ao papel usado pela API. Prefira que a migration e a API usem o mesmo papel PostgreSQL. Se o deploy usa papéis separados, o papel da API precisa de privilégios explícitos nas quatro tabelas (e `USAGE` no schema); conceda-os depois da migration, como owner/administrador:
+
+```sql
+GRANT USAGE ON SCHEMA public TO <api_role>;
+GRANT SELECT, INSERT, UPDATE ON TABLE
+  public.site_traffic_daily,
+  public.site_traffic_hourly,
+  public.site_traffic_origin_daily,
+  public.user_activity_daily
+TO <api_role>;
+```
+
+Não conceda `DELETE`, `TRUNCATE` ou acesso a `PUBLIC`; o relatório e a consolidação só precisam de leitura, `INSERT` e `UPDATE`. Substitua `<api_role>` pelo identificador real, execute uma vez no banco alvo e valide com `has_table_privilege` antes de ativar a API.
+
+**Ordem segura de deploy:**
+
+1. Manter `TRAFFIC_BEACON_ENABLED=false` e `RUN_MIGRATIONS=false` no serviço normal.
+2. Aplicar a migration por uma única instância/job (`RUN_MIGRATIONS=true`) ou por `npx prisma migrate deploy` com `DATABASE_URL` e `DIRECT_URL` no mesmo alvo **e, de preferência, no mesmo papel PostgreSQL usado pela API**. Se o job de migration usar outro papel, o papel da API precisa dos `GRANT` explícitos documentados acima; o `REVOKE` de `PUBLIC` não concede acesso ao runtime por si só.
+3. Confirmar `prisma migrate status`, diff vazio e as quatro tabelas com privilégio apenas do papel da API (incluindo o `GRANT` explícito quando os papéis são separados).
+4. Garantir Redis acessível e o processo `scheduler`/cron ativo.
+5. Validar `TRUST_PROXY` com dois `X-Forwarded-For` distintos atrás do mesmo proxy.
+6. Só então ativar `TRAFFIC_BEACON_ENABLED=true` (ainda sem beacon no frontend, se o PR de frontend não existir).
+
+### Redis, consolidação e perda
+
+As chaves são efêmeras e documentadas em `src/modules/traffic/infra/trafficKeys.ts`:
+
+| família | conteúdo | TTL |
+|---|---|---|
+| `traffic:v:{day}:{area}` | visitas do dia | 4 dias |
+| `traffic:h:{day}:{area}` | HyperLogLog de visitantes | 4 dias |
+| `traffic:vh:{day}:{hour}:{area}` / `traffic:hh:*` | visitas/visitantes por hora | 4 dias |
+| `traffic:sc:{day}:{area}` | sessões do dia | 7 dias |
+| `traffic:sm:{day}:{area}:{hmac}` | marcador de sessão (30 min) | 30 min |
+| `traffic:salt:{day}` | salt HMAC diário da identidade de visitante | 48 h |
+| `traffic:rl-salt:{day}` | salt HMAC diário compartilhado da cota por IP | 48 h |
+| `traffic:or:{day}` / `traffic:o:{day}:{host}` | hosts de origem | 4 dias |
+| `traffic:ua:{day}:{userId}` | dedupe de atividade | 24 h |
+| `traffic:rl:{minute}:{hmac}` | cota por IP (mesma quota entre réplicas) | 2 min |
+
+O cron `scheduleTrafficConsolidation` roda às `minute=5` de cada hora, com lock distribuído, e consolida o **dia civil anterior e o dia civil corrente parcial**. Assim o relatório `period=day` já mostra os hits do dia em andamento; a consolidação repetida continua segura. A linha `all` é persistida separadamente das três linhas locais: em `area=all`, visitantes e sessões vêm da linha global (uma pessoa que naviga entre áreas não é contada duas vezes), enquanto o breakdown por área usa as linhas locais.
+
+A persistência usa `GREATEST(valor_persistido, valor_redis)`: se o Redis reiniciar e um contador voltar a zero, o banco não regride e a primeira regressão observada no dia incrementa `site_traffic_daily.lostUpdates`. `loss.counterRegressions` é escopado à linha consultada (`all` ou área local), para não somar a mesma regressão das linhas local e global. O relatório também expõe `loss.redisUnavailableDrops`, contador local da instância para requests descartados por Redis indisponível.
+
+O limite diário de hosts de origem é aplicado por script Lua atômico: até 200 hosts novos por dia são registrados; depois do limite, apenas hosts já registrados continuam contando. A cota por IP usa um salt diário compartilhado no Redis, portanto todas as réplicas da API aplicam a mesma quota para o mesmo IP resolvido por `TRUST_PROXY`.
+
+**Diagnóstico de reset/perda:**
+
+- `loss.counterRegressions > 0`: houve Redis inferior ao valor já persistido (reset, expiração ou buffer perdido);
+- `loss.redisUnavailableDrops > 0`: a instância atual descartou hits porque o Redis estava indisponível;
+- conferir TTL/chaves `traffic:*` e saúde do Redis antes de reprocessar;
+- reexecutar a consolidação é seguro/idempotente por causa do `GREATEST`.
+
+O serializer de requisições do Fastify reduz `POST /api/ping` ao método HTTP: URL, host, IP e porta do beacon não entram no log nativo. O contrato OpenAPI declara `204` e `text/plain`; qualquer body inválido ou content type inesperado ainda responde `204`, sem criar contador.
+
+### Rollback operacional
+
+O rollback do ingestion é o kill switch: definir `TRAFFIC_BEACON_ENABLED=false` e reiniciar/recarregar a API. A rota continua respondendo 204, sem contagem. **Não** remover tabelas nem usar `prisma migrate down`; a migration é aditiva e as permissões/linhas podem ser preservadas para Investigação. Se o problema for identidade por proxy, corrigir `TRUST_PROXY` (hops/CIDRs) e **não** desligá-lo: sem trust correto, todos os clientes compartilham o IP do proxy.
 
 ## Fluxo de deploy
 

@@ -27,11 +27,15 @@ import { buildSafeAuditDetails, sanitizeSensitiveText } from "@/shared/utils/sec
 import { formatZodIssues, isZodError } from "@/shared/utils/zodValidation";
 import { isPrismaInvalidUuidError } from "@/shared/utils/prismaErrors";
 import { getModuleLogger } from "@/shared/utils/logger";
+import { trafficBeaconRoutes } from "@/modules/traffic/routes/trafficBeacon.routes";
+import { trafficRequestSerializer } from "./trafficRequestLogger";
 
 const logger = getModuleLogger("http-app");
 
 const RATE_LIMIT_ALLOWED_PATHS = new Set([
   "/api/ws",
+  // Beacon anônimo: rate limit próprio por IP no handler (descarte silencioso).
+  "/api/ping",
   "/health",
   "/live",
   "/ready",
@@ -103,7 +107,14 @@ export async function buildApp() {
   const app = fastify({
     // Silencia logs nos testes de inject (NODE_ENV=test). Fora disso, o nível
     // segue o LOG_LEVEL já documentado no .env.example (default: info).
-    logger: process.env.NODE_ENV !== "test" ? { level: process.env.LOG_LEVEL || "info" } : false,
+    logger:
+      process.env.NODE_ENV !== "test"
+        ? {
+            level: process.env.LOG_LEVEL || "info",
+            // The beacon must not expose request metadata in Fastify logs.
+            serializers: { req: trafficRequestSerializer },
+          }
+        : false,
     // Fastify 5 removeu `number` do tipo de trustProxy e passou a ignorar
     // (fail-closed) valores numéricos. Convertemos a contagem de saltos para a
     // forma função equivalente: confia nos N saltos da cadeia (hop 0 = peer
@@ -221,6 +232,10 @@ export async function buildApp() {
   // Páginas públicas fora do prefixo /api (o crawler lê HTML): /s/salon/:id
   await app.register(shareRoutes);
   await app.register(apiRoutes, { prefix: "/api" });
+  // Beacon fora do child scope de CORS: uma origem não permitida deve ser
+  // descartada silenciosamente pela própria rota (204), nunca virar 403/500.
+  // O prefixo continua /api/ping e text/plain é uma simple request (sem preflight).
+  await app.register(trafficBeaconRoutes, { prefix: "/api" });
 
   if (!process.env.VITEST) {
     await realtimeHub.start();

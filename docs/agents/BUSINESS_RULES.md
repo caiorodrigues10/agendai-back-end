@@ -18,6 +18,20 @@ Invariantes confirmadas no código/testes. Divergências com regra de produto ap
 - `authorize(roles)` + permissões de employee onde aplicável.
 - `setRlsContext` para isolamento; não assumir que todo endpoint já aplica RLS — verificar rota.
 
+## Tráfego anônimo do site
+
+- O beacon `POST /api/ping` é **desligado por padrão** (`TRAFFIC_BEACON_ENABLED=false`). Desligado, responde **204** e não toca em contador/Redis.
+- Toda resposta do beacon é **204**, inclusive body inválido, bot, DNT/GPC, prefetch, origem não permitida, excesso de cota ou Redis indisponível. Uma origem fora da allowlist nunca vira 403 no ingestion.
+- O path só é classificado em área (`public_site`, `salon_public`, `logged_area`); query, fragment, token, `manageToken` e IDs de rota **nunca** são persistidos ou logados. O padrão privado literal `/agendamento/:token` é reconhecido como página pública de salão sem admitir `/agendamento/*` arbitrário. O referrer pode chegar como hostname puro (contrato atual do front) ou URL absoluta legada; em ambos os casos só o **host** é guardado.
+- IP e user-agent nunca são gravados no PostgreSQL. A identidade anônima é um HMAC diário no Redis, com salt aleatório e TTL curto; o salt do rate limit por IP é **diário e compartilhado no Redis**, separado do salt de visitante, para que todas as réplicas apliquem a mesma quota.
+- Bots/headless, prefetch/prerender (inclusive `Purpose: prerender` isolado), `DNT: 1`, `Sec-GPC: 1` e o painel `/master` são descartados antes de qualquer escrita.
+- O serializer de logs do Fastify reduz `POST /api/ping` ao método: URL, host, IP e porta do beacon não são registrados. O contrato OpenAPI declara `204` e `text/plain`.
+- O contador por IP usa o `request.ip` já resolvido pelo Fastify. Em produção atrás de proxy, `TRUST_PROXY` deve ser o número correto de hops/CIDRs: com hops incorretos, todos os clientes compartilham a identidade/cota do proxy.
+- A consolidação horária usa `GREATEST(valor_persistido, valor_redis)` para o dia anterior e o dia corrente parcial: o banco nunca regride após reset do Redis. A primeira regressão observada no dia incrementa `lostUpdates`, expondo a perda; indisponibilidade do Redis no request path também aparece em `redisUnavailableDrops`. O relatório `area=all` usa a linha agregada global (visitantes/sessões distintos entre áreas); o breakdown continua usando as linhas locais, e a métrica de regressão é escopada à linha consultada.
+- O relatório aceita âncoras históricas somente em `period=day&date=YYYY-MM-DD` ou `period=month&month=YYYY-MM`; elas são mutuamente exclusivas e não podem selecionar datas/meses futuros. Um dia selecionado compara com o dia anterior; um mês histórico completo compara com o mês anterior completo, enquanto o mês corrente compara até o dia correspondente do mês anterior.
+- “Usuários logados (distintos)” é o número real de `userId` distintos com atividade no período. `user_activity_daily` tem chave `(day, userId)`, sem `barbershopId`; login/Google login/refresh usam `SET NX` para no máximo um upsert por usuário/dia.
+- Relatório e CSV exigem `MASTER_ADMIN` + `internal:traffic:read`. Lista de permissões vazia preserva o acesso default dos admins internos existentes; `internal:all` também concede acesso.
+
 ## Imagens & página pública (Cloudinary)
 
 - **Todo upload de imagem é Cloudinary** via DI token `ImageStorageProvider` (logo, capa, avatar, produtos, posts/mídia); token legado `StorageProvider` (GCS→Cloudinary) só cobre **deletes de objects antigos** e vídeo legado. Env obrigatória: `CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET` (sem ela, upload → 503).

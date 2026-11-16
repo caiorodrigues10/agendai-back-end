@@ -2151,6 +2151,61 @@ model AccessLog {
   @@map("access_logs")
 }
 
+/// Anonymous site-traffic aggregate per civil day (America/Sao_Paulo) × area.
+/// The `all` row is the site-wide aggregate used by area=all; the other rows
+/// are the three local display areas. Platform scope: no barbershopId, no RLS
+/// — see docs/RLS-INVENTARIO.md.
+/// `lostUpdates` counts detected Redis counter regressions (e.g. a Redis
+/// restart zeroing a counter); consolidation keeps GREATEST(persisted, redis)
+/// and records the event here instead of undercounting.
+model SiteTrafficDaily {
+  day         DateTime @db.Date
+  area        String   @db.VarChar(32)
+  visits      Int      @default(0)
+  visitors    Int      @default(0)
+  sessions    Int      @default(0)
+  lostUpdates Int      @default(0)
+
+  @@id([day, area])
+  @@map("site_traffic_daily")
+}
+
+/// Hour bucket inside a civil day × area (visits/visitors only — sessions are
+/// deduplicated per day, see `sess:count:{day}:{area}` in Redis). The `all`
+/// area is the site-wide aggregate; the other areas are local breakdowns.
+model SiteTrafficHourly {
+  day      DateTime @db.Date
+  hour     Int
+  area     String   @db.VarChar(32)
+  visits   Int      @default(0)
+  visitors Int      @default(0)
+
+  @@id([day, hour, area])
+  @@map("site_traffic_hourly")
+}
+
+/// Referrer host per civil day — HOST ONLY, never the referrer path/query.
+model SiteTrafficOriginDaily {
+  day    DateTime @db.Date
+  origin String   @db.VarChar(255)
+  visits Int      @default(0)
+
+  @@id([day, origin])
+  @@map("site_traffic_origin_daily")
+}
+
+/// Distinct logged users per civil day (login/session refresh), deduplicated
+/// in Redis (`traffic:ua:{day}:{userId}`, TTL 24h) before the upsert.
+/// No barbershopId, no RLS — platform scope. Seeded from access_logs.
+model UserActivityDaily {
+  day       DateTime @db.Date
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@id([day, userId])
+  @@map("user_activity_daily")
+}
+
 model ErrorLog {
   id         String   @id @default(uuid()) @db.Uuid
   userId     String?  @db.Uuid

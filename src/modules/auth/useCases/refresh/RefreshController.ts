@@ -13,6 +13,7 @@ import { getAuthCookieSecurityOptions } from "../../utils/authCookieOptions";
 import { getModuleLogger } from "@/shared/utils/logger";
 import { findUsableRefreshToken } from "../../services/refreshTokenUtils";
 import { resolveActiveSession } from "../../services/activeShopSession";
+import { recordUserActivity } from "@/modules/traffic/infra/userActivity";
 
 const log = getModuleLogger("auth-refresh");
 
@@ -135,6 +136,10 @@ export class RefreshController {
         userAgent: request.headers["user-agent"],
         success: true,
       });
+
+      // Sessão ativa conta como "usuário logado distinto" do dia — o SET NX
+      // no Redis garante no máximo um upsert por usuário/dia.
+      await recordUserActivity(user.id);
 
       reply.setCookie('refresh_token', cookieToken, {
         ...getAuthCookieSecurityOptions(),

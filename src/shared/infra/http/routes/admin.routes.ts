@@ -17,6 +17,8 @@ import { AdminProductController } from "@/modules/admin/controllers/AdminProduct
 import { AdminEngagementController } from "@/modules/admin/controllers/AdminEngagementController";
 import { AdminNpsController } from "@/modules/nps/controllers/AdminNpsController";
 import { AdminSessionController } from "@/modules/admin/controllers/AdminSessionController";
+import { TrafficReportController } from "@/modules/traffic/presentation/TrafficReportController";
+import { trafficReportQuerySchema } from "@/modules/traffic/schemas/trafficSchemas";
 import { authenticate } from "../middlewares/authenticate";
 import { authorize } from "../middlewares/authorize";
 import { setRlsContext } from "../middlewares/setRlsContext";
@@ -75,6 +77,7 @@ const productController = new AdminProductController();
 const engagementController = new AdminEngagementController();
 const npsController = new AdminNpsController();
 const sessionController = new AdminSessionController();
+const trafficController = new TrafficReportController();
 
 export async function adminRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, authorize(["MASTER_ADMIN"]), verifyInternalAdmin, setRlsContext];
@@ -88,6 +91,7 @@ export async function adminRoutes(app: FastifyInstance) {
   const referralsRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.REFERRALS_READ)];
   const accountsManage = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.ACCOUNTS_MANAGE)];
   const accountsImpersonate = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.ACCOUNTS_IMPERSONATE)];
+  const trafficRead = [...preHandler, requireInternalPermission(INTERNAL_PERMISSIONS.TRAFFIC_READ)];
 
   // ─── Dashboard ───────────────────────────────────────────────────────────
   app.get("/admin/dashboard", { preHandler: dashboardRead }, dashboardController.getDashboard.bind(dashboardController));
@@ -180,6 +184,14 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/audit-logs/export", {
     preHandler: [...auditRead, validateSchema(adminAuditLogQuerySchema, "query")],
   }, auditLogController.export.bind(auditLogController));
+
+  // ─── Tráfego do site (beacon anônimo) ─────────────────────────────────────
+  app.get("/admin/traffic", {
+    preHandler: [...trafficRead, validateSchema(trafficReportQuerySchema, "query")],
+  }, trafficController.report.bind(trafficController));
+  app.get("/admin/traffic/export", {
+    preHandler: [...trafficRead, validateSchema(trafficReportQuerySchema, "query")],
+  }, trafficController.export.bind(trafficController));
 
   // ─── Entidades Bloqueadas ─────────────────────────────────────────────────
   app.get("/admin/blocked-entities", { preHandler: operationsRead }, blockedEntityController.list.bind(blockedEntityController));

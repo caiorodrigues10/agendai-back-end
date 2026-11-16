@@ -67,8 +67,12 @@ describe("RefreshController rotation", () => {
 
   async function loadRefreshController(prismaMock: unknown) {
     vi.resetModules();
+    const recordUserActivity = vi.fn().mockResolvedValue(undefined);
     vi.doMock("@/shared/services/accessLogService", () => ({
       logAccess: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock("@/modules/traffic/infra/userActivity", () => ({
+      recordUserActivity,
     }));
     vi.doMock("@/libs/prismaClient", () => ({ prisma: prismaMock }));
     vi.doMock("tsyringe", () => ({
@@ -89,7 +93,7 @@ describe("RefreshController rotation", () => {
       },
     }));
     const { RefreshController } = await import("./RefreshController");
-    return new RefreshController();
+    return { controller: new RefreshController(), recordUserActivity };
   }
 
   it("rotates refresh and allows reuse of the previous token within the grace window", async () => {
@@ -101,7 +105,7 @@ describe("RefreshController rotation", () => {
       createdAt: new Date(Date.now() - 60_000),
     });
 
-    const controller = await loadRefreshController(prismaMock);
+    const { controller, recordUserActivity } = await loadRefreshController(prismaMock);
 
     const first = replyCapture();
     await controller.handle(
@@ -111,6 +115,8 @@ describe("RefreshController rotation", () => {
     expect(first.state.statusCode).toBe(200);
     expect(first.state.body?.accessToken).toBeTypeOf("string");
     expect(store.has(refreshToken)).toBe(false);
+    expect(recordUserActivity).toHaveBeenCalledTimes(1);
+    expect(recordUserActivity).toHaveBeenCalledWith(userId);
 
     const reuse = replyCapture();
     await controller.handle(
@@ -120,6 +126,7 @@ describe("RefreshController rotation", () => {
     expect(reuse.state.statusCode).toBe(200);
     expect(reuse.state.body?.accessToken).toBeTypeOf("string");
     expect(reuse.state.cookies?.refresh_token).toBe(first.state.cookies?.refresh_token);
+    expect(recordUserActivity).toHaveBeenCalledTimes(2);
 
     vi.restoreAllMocks();
     vi.resetModules();
@@ -134,7 +141,7 @@ describe("RefreshController rotation", () => {
       createdAt: new Date(Date.now() - 60_000),
     });
 
-    const controller = await loadRefreshController(prismaMock);
+    const { controller, recordUserActivity } = await loadRefreshController(prismaMock);
 
     const first = replyCapture();
     await controller.handle(
@@ -167,7 +174,7 @@ describe("RefreshController rotation", () => {
       createdAt: new Date(),
     });
 
-    const controller = await loadRefreshController(prismaMock);
+    const { controller, recordUserActivity } = await loadRefreshController(prismaMock);
     const requestWithStartToken = () =>
       ({ cookies: { refresh_token: startToken }, ip: "127.0.0.1", headers: { "user-agent": "test" } }) as any;
 
