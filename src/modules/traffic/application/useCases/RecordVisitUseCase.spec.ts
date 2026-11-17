@@ -33,6 +33,7 @@ describe("RecordVisitUseCase", () => {
     counter = {
       consumeRateLimit: vi.fn().mockResolvedValue(true),
       recordVisit: vi.fn().mockResolvedValue(undefined),
+      recordSalonVisit: vi.fn().mockResolvedValue(undefined),
     };
     useCase = new RecordVisitUseCase(counter);
   });

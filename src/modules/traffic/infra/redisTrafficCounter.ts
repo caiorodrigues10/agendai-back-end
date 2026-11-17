@@ -6,7 +6,7 @@ import { rateLimitHash, visitorHash } from "../domain/visitorIdentity";
 import { spDayKey } from "../domain/periodWindows";
 import { TRAFFIC_TOTAL_AREA } from "../domain/trafficAreas";
 import { trafficRateLimitMax } from "../trafficConfig";
-import type { ITrafficCounter, RecordVisitInput } from "../application/ports/ITrafficCounter";
+import type { ITrafficCounter, RecordSalonVisitInput, RecordVisitInput } from "../application/ports/ITrafficCounter";
 import * as keys from "./trafficKeys";
 
 function assertNoPipelineError(results: [Error | null, unknown][] | null): void {
@@ -143,6 +143,96 @@ export class RedisTrafficCounter implements ITrafficCounter {
         2,
         keys.originRegistryKey(input.dayKey),
         keys.originKey(input.dayKey, input.originHost),
+        input.originHost,
+        String(keys.MAX_ORIGINS_PER_DAY),
+        String(keys.COUNT_TTL_SECONDS),
+      );
+    }
+  }
+
+  /**
+   * Ping de página pública de salão.
+   *
+   * `kind:"visit"` alimenta visitas/visitantes (dia + hora) e a origem;
+   * `kind:"tab"` alimenta SOMENTE a quebra por seção. Em ambos os casos a
+   * identidade gravada é o hash HMAC diário de IP+UA — IP/UA em claro nunca
+   * chegam ao Redis.
+   */
+  async recordSalonVisit(input: RecordSalonVisitInput): Promise<void> {
+    const client = getApiRedisConnection();
+    const salt = await this.resolveDailySalt(
+      client,
+      keys.saltKey(input.dayKey),
+      keys.SALT_TTL_SECONDS,
+    );
+    const identity = visitorHash(salt, input.ip, input.userAgent);
+
+    const pipeline = client.pipeline();
+
+    // Registro de alvos do dia — a consolidação precisa saber quais
+    // salões/organizações tiveram ping para ler as chaves certas.
+    pipeline.sadd(keys.salonRegistryKey(input.dayKey), input.target);
+    pipeline.expire(keys.salonRegistryKey(input.dayKey), keys.COUNT_TTL_SECONDS);
+
+    if (input.kind === "visit") {
+      pipeline.incr(keys.salonVisitsKey(input.dayKey, input.target));
+      pipeline.expire(
+        keys.salonVisitsKey(input.dayKey, input.target),
+        keys.COUNT_TTL_SECONDS,
+      );
+
+      pipeline.pfadd(keys.salonVisitorsKey(input.dayKey, input.target), identity);
+      pipeline.expire(
+        keys.salonVisitorsKey(input.dayKey, input.target),
+        keys.SALON_HASH_TTL_SECONDS,
+      );
+
+      pipeline.incr(
+        keys.salonHourlyVisitsKey(input.dayKey, input.hour, input.target),
+      );
+      pipeline.expire(
+        keys.salonHourlyVisitsKey(input.dayKey, input.hour, input.target),
+        keys.COUNT_TTL_SECONDS,
+      );
+
+      pipeline.pfadd(
+        keys.salonHourlyVisitorsKey(input.dayKey, input.hour, input.target),
+        identity,
+      );
+      pipeline.expire(
+        keys.salonHourlyVisitorsKey(input.dayKey, input.hour, input.target),
+        keys.SALON_HASH_TTL_SECONDS,
+      );
+    }
+
+    // Seções: a quebra da página pública (visitas + abas).
+    pipeline.incr(
+      keys.salonSectionVisitsKey(input.dayKey, input.target, input.section),
+    );
+    pipeline.expire(
+      keys.salonSectionVisitsKey(input.dayKey, input.target, input.section),
+      keys.COUNT_TTL_SECONDS,
+    );
+
+    pipeline.pfadd(
+      keys.salonSectionVisitorsKey(input.dayKey, input.target, input.section),
+      identity,
+    );
+    pipeline.expire(
+      keys.salonSectionVisitorsKey(input.dayKey, input.target, input.section),
+      keys.SALON_HASH_TTL_SECONDS,
+    );
+
+    const results = await pipeline.exec();
+    assertNoPipelineError(results);
+
+    if (input.kind === "visit" && input.originHost) {
+      // Atomic cap + membership + increment (mesmo script do beacon global).
+      await client.eval(
+        REGISTER_ORIGIN_SCRIPT,
+        2,
+        keys.salonOriginRegistryKey(input.dayKey, input.target),
+        keys.salonOriginKey(input.dayKey, input.target, input.originHost),
         input.originHost,
         String(keys.MAX_ORIGINS_PER_DAY),
         String(keys.COUNT_TTL_SECONDS),

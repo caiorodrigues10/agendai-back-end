@@ -1,9 +1,15 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { container } from "tsyringe";
 import { RecordVisitUseCase } from "../application/useCases/RecordVisitUseCase";
+import { RecordSalonTrafficUseCase } from "../application/useCases/RecordSalonTrafficUseCase";
 import { trafficBeaconEnabled, trafficExtraIgnoreHosts } from "../trafficConfig";
 import { DEFAULT_IGNORED_HOSTS } from "../domain/trafficExclusions";
-import { trafficBeaconBodySchema } from "../schemas/trafficSchemas";
+import {
+  hasSalonAttribution,
+  trafficBeaconBodySchema,
+  type TrafficBeaconBody,
+} from "../schemas/trafficSchemas";
+import type { SalonTrafficRoute } from "../domain/salonTraffic";
 
 /**
  * Presentation for the anonymous beacon (`POST /api/ping`).
@@ -11,10 +17,16 @@ import { trafficBeaconBodySchema } from "../schemas/trafficSchemas";
  * Privacy contract:
  *   - the answer is ALWAYS 204, whatever happens (disabled, excluded, Redis
  *     down, malformed body) — a beacon must never surface an error page;
+ *   - the answer is the same for an existing and a non-existing salon — no
+ *     enumeration of public ids;
  *   - no request data (path, referrer, IP, UA) is ever logged: the only
  *     observability is the reason enum returned for metrics;
  *   - query strings / fragments / route ids are dropped during area
  *     classification and never reach a counter or the database.
+ *
+ * Two payload paths:
+ *   - global (marketing/intention): `{p, r?}`;
+ *   - salon (public salon pages): `{p, salon, salonType, kind, tab?, r?}`.
  */
 export class TrafficBeaconController {
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
@@ -28,13 +40,13 @@ export class TrafficBeaconController {
 
   /** Extract + classify. Exposed separately for tests. */
   private async record(request: FastifyRequest): Promise<
-    { counted: true; area: string } | { counted: false; reason: string }
+    | { counted: true; area: string }
+    | { counted: false; reason: string }
   > {
     const body = parseBeaconBody(request.body);
     if (!body) return { counted: false, reason: "excluded" };
 
-    const useCase = container.resolve(RecordVisitUseCase);
-    return useCase.execute({
+    const metadata = {
       path: body.p ?? "/",
       referrer: body.r,
       ip: request.ip,
@@ -44,7 +56,26 @@ export class TrafficBeaconController {
       allowedOrigins: allowedOriginList(),
       ignoreHosts: [...DEFAULT_IGNORED_HOSTS, ...trafficExtraIgnoreHosts()],
       enabled: trafficBeaconEnabled(),
-    });
+    };
+
+    if (hasSalonAttribution(body)) {
+      // O schema já garantiu a coerência (salon/salonType/kind + rota) e
+      // sanitizeu `tab` (fora da allowlist → ausente).
+      const useCase = container.resolve(RecordSalonTrafficUseCase);
+      return useCase.execute({
+        ...metadata,
+        salon: {
+          route: body.p as SalonTrafficRoute,
+          salon: body.salon as string,
+          salonType: body.salonType as "id" | "slug",
+          kind: body.kind as "visit" | "tab",
+          tab: body.tab,
+        },
+      });
+    }
+
+    const useCase = container.resolve(RecordVisitUseCase);
+    return useCase.execute(metadata);
   }
 }
 
@@ -68,12 +99,14 @@ function allowedOriginList(): string[] {
  * The beacon ships `Content-Type: text/plain` to skip the CORS preflight, so
  * the body arrives as a raw string. Both accepted shapes (JSON and
  * `p=…&r=…` pairs) are parsed here; anything else is dropped.
+ *
+ * The parsed (and stripped) payload is returned — unknown fields are removed
+ * by zod and never reach a counter.
  */
-function parseBeaconBody(raw: unknown): { p?: string; r?: string } | null {
+function parseBeaconBody(raw: unknown): TrafficBeaconBody | null {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    return trafficBeaconBodySchema.safeParse(raw).success
-      ? (raw as { p?: string; r?: string })
-      : null;
+    const result = trafficBeaconBodySchema.safeParse(raw);
+    return result.success ? result.data : null;
   }
   if (typeof raw !== "string" || raw.trim() === "") return null;
 
@@ -89,7 +122,14 @@ function parseBeaconBody(raw: unknown): { p?: string; r?: string } | null {
   }
 
   const params = new URLSearchParams(text);
-  const candidate = { p: params.get("p") ?? undefined, r: params.get("r") ?? undefined };
+  const candidate = {
+    p: params.get("p") ?? undefined,
+    r: params.get("r") ?? undefined,
+    salon: params.get("salon") ?? undefined,
+    salonType: params.get("salonType") ?? undefined,
+    kind: params.get("kind") ?? undefined,
+    tab: params.get("tab") ?? undefined,
+  };
   const result = trafficBeaconBodySchema.safeParse(candidate);
   return result.success ? result.data : null;
 }

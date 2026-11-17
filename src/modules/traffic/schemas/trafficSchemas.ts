@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { spDayKey, TRAFFIC_PERIODS } from "../domain/periodWindows";
 import { TRAFFIC_AREAS } from "../domain/trafficAreas";
+import {
+  SALON_IDENTIFIER_MAX_LENGTH,
+  SALON_TRAFFIC_IDENTIFIER_TYPES,
+  SALON_TRAFFIC_KINDS,
+  SALON_TRAFFIC_ROUTES,
+  matchesSalonIdentifierType,
+  sanitizeSalonTrafficTab,
+  type SalonTrafficIdentifierType,
+} from "../domain/salonTraffic";
+import { SALON_TRAFFIC_PERIODS } from "../domain/salonPeriodWindows";
 
 const CIVIL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CIVIL_MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -137,17 +147,138 @@ export const trafficReportQuerySchema = z
 
 export type TrafficReportQueryInput = z.infer<typeof trafficReportQuerySchema>;
 
+/** Charset do identificador público do salão (contrato). */
+const SALON_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+$/;
+
+/** Padrões de rota que exigem atribuição de salão. */
+const SALON_ONLY_ROUTES = ["/queue/:id", "/queue/:id/produtos/:productId"] as const;
+
 /**
  * Beacon payload. Accepted as `text/plain` (no CORS preflight) and parsed
- * either as JSON or as `p=…&r=…` form pairs. Only two fields ever leave the
- * browser: the front route path and the document referrer — both are
- * reduced to a classification / host server-side and never persisted raw.
+ * either as JSON or as `p=…&r=…` form pairs.
+ *
+ * Two payload paths share the endpoint:
+ *   - global (marketing/intention): `{p, r?}` — only two fields ever leave the
+ *     browser: the front route path and the document referrer — both are
+ *     reduced to a classification / host server-side and never persisted raw;
+ *   - salon (public salon pages): `{p, salon, salonType, kind, tab?, r?}`.
+ *
+ * The object is NOT strict: unknown fields are stripped by zod (never
+ * persisted, never a 4xx). A malformed payload is discarded silently — the
+ * endpoint always answers 204.
  */
-export const trafficBeaconBodySchema = z.object({
-  /** Front route path (may contain a `?token=` — dropped before storage). */
-  p: z.string().max(2048).optional(),
-  /** `document.referrer` hostname (legacy absolute URL also accepted). */
-  r: z.string().max(2048).optional(),
-});
+export const trafficBeaconBodySchema = z
+  .object({
+    /** Front route path (may contain a `?token=` — dropped before storage). */
+    p: z.string().max(2048).optional(),
+    /** `document.referrer` hostname (legacy absolute URL also accepted). */
+    r: z.string().max(2048).optional(),
+    /** Public salon id (UUID) or slug — format validated before any lookup. */
+    salon: z
+      .string()
+      .min(1)
+      .max(SALON_IDENTIFIER_MAX_LENGTH)
+      .regex(SALON_IDENTIFIER_PATTERN)
+      .optional(),
+    /** Shape of `salon` — must match the shape of the value itself. */
+    salonType: z.enum(SALON_TRAFFIC_IDENTIFIER_TYPES).optional(),
+    /** Event kind — required for salon pings (visit = page load, tab = switch). */
+    kind: z.enum(SALON_TRAFFIC_KINDS).optional(),
+    /** Visible tab — a value outside the allowlist becomes absent. */
+    tab: z.unknown().transform(sanitizeSalonTrafficTab),
+  })
+  .superRefine((body, ctx) => {
+    const hasSalonSignal =
+      body.salon !== undefined ||
+      body.salonType !== undefined ||
+      body.kind !== undefined ||
+      body.tab !== undefined;
+    const isSalonRoute =
+      body.p !== undefined &&
+      (SALON_TRAFFIC_ROUTES as readonly string[]).includes(body.p);
+
+    if (hasSalonSignal) {
+      if (body.salon === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["salon"],
+          message: "salon é obrigatório no ping de salão",
+        });
+      }
+      if (body.salonType === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["salonType"],
+          message: "salonType é obrigatório no ping de salão",
+        });
+      }
+      if (body.kind === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["kind"],
+          message: "kind é obrigatório no ping de salão",
+        });
+      }
+      if (!isSalonRoute) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["p"],
+          message: "rota de salão inválida",
+        });
+      }
+      // `salonType` nunca é "adivinhado": a forma do valor tem de bater com o
+      // tipo declarado, senão o ping inteiro é descartado.
+      if (
+        body.salon !== undefined &&
+        body.salonType !== undefined &&
+        !matchesSalonIdentifierType(
+          body.salon,
+          body.salonType as SalonTrafficIdentifierType,
+        )
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["salon"],
+          message: "salon não corresponde ao salonType declarado",
+        });
+      }
+      return;
+    }
+
+    // `/queue/*` só existe como página pública de salão: sem atribuição o
+    // ping é incoerente e é descartado. `/s/:slug` sem `salon` continua
+    // valendo como ping anônimo (compatibilidade com o contrato).
+    if (body.p !== undefined && (SALON_ONLY_ROUTES as readonly string[]).includes(body.p)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["p"],
+        message: "rota de salão exige salon, salonType e kind",
+      });
+    }
+  });
 
 export type TrafficBeaconBody = z.infer<typeof trafficBeaconBodySchema>;
+
+/**
+ * Query do relatório do dono do salão.
+ *
+ * A query tem APENAS `period` (janelas móveis calculadas no servidor) —
+ * qualquer outro parâmetro é rejeitado para não abrir uma brecha de filtro.
+ */
+export const salonTrafficQuerySchema = z
+  .object({
+    period: z.enum(SALON_TRAFFIC_PERIODS),
+  })
+  .strict();
+
+export type SalonTrafficQueryInput = z.infer<typeof salonTrafficQuerySchema>;
+
+/** true quando o payload carrega sinal de atribuição de salão. */
+export function hasSalonAttribution(body: TrafficBeaconBody): boolean {
+  return (
+    body.salon !== undefined ||
+    body.salonType !== undefined ||
+    body.kind !== undefined ||
+    body.tab !== undefined
+  );
+}

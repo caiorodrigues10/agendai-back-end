@@ -150,7 +150,7 @@ function endOfMonth(dayKey: string): string {
   return `${monthStart.slice(0, 7)}-${pad2(daysInMonth(monthStart))}`;
 }
 
-function dayBucket(dayKey: string, today: string, fromDay: string, toDay: string): ReportBucket {
+export function dayBucket(dayKey: string, today: string, fromDay: string, toDay: string): ReportBucket {
   const [y, m, d] = dayKey.split("-").map(Number);
   return {
     start: dayKey,
@@ -160,7 +160,7 @@ function dayBucket(dayKey: string, today: string, fromDay: string, toDay: string
   };
 }
 
-function hourBuckets(dayKey: string, today: string, now: Date): ReportBucket[] {
+export function hourBuckets(dayKey: string, today: string, now: Date): ReportBucket[] {
   const currentHour = dayKey === today ? spHour(now) : -1;
   return Array.from({ length: 24 }, (_, hour) => ({
     start: `${dayKey}T${pad2(hour)}`,
@@ -172,7 +172,7 @@ function hourBuckets(dayKey: string, today: string, now: Date): ReportBucket[] {
   }));
 }
 
-function weekBuckets(fromDay: string, toDay: string, today: string): ReportBucket[] {
+export function weekBuckets(fromDay: string, toDay: string, today: string): ReportBucket[] {
   const buckets: ReportBucket[] = [];
   let cursor = startOfWeek(fromDay);
   while (cursor <= toDay) {
@@ -194,7 +194,7 @@ function weekBuckets(fromDay: string, toDay: string, today: string): ReportBucke
   return buckets;
 }
 
-function monthBuckets(fromDay: string, toDay: string, today: string): ReportBucket[] {
+export function monthBuckets(fromDay: string, toDay: string, today: string): ReportBucket[] {
   const buckets: ReportBucket[] = [];
   let cursor = startOfMonth(fromDay);
   while (cursor <= toDay) {
