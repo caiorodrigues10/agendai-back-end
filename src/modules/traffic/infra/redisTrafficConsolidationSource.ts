@@ -4,12 +4,14 @@ import {
   TRAFFIC_AGGREGATE_AREAS,
   type TrafficAggregateArea,
 } from "../domain/trafficAreas";
+import { SALON_TRAFFIC_SECTIONS } from "../domain/salonTraffic";
 import type {
   ITrafficConsolidationSource,
   TrafficAreaSnapshot,
   TrafficDaySnapshot,
   TrafficHourSnapshot,
   TrafficOriginSnapshot,
+  TrafficSalonSnapshot,
 } from "../application/ports/ITrafficConsolidationSource";
 import * as keys from "./trafficKeys";
 
@@ -71,8 +73,95 @@ export class RedisTrafficConsolidationSource implements ITrafficConsolidationSou
     }
 
     const origins = await this.readOrigins(client, dayKey);
+    const salons = await this.readSalons(client, dayKey);
 
-    return { day: dayKey, areas, hours, origins };
+    return { day: dayKey, areas, hours, origins, salons };
+  }
+
+  /**
+   * Lê os contadores de salão/organização do dia.
+   *
+   * O registro `traffic:s:reg:{day}` diz quais alvos tiveram ping; cada alvo
+   * tem visitas/visitantes (dia + hora), seções e hosts de origem. Nada de
+   * IP/UA é lido aqui — só contadores e HLLs de hash diário.
+   */
+  private async readSalons(
+    client: ReturnType<typeof getApiRedisConnection>,
+    dayKey: string,
+  ): Promise<TrafficSalonSnapshot[]> {
+    const targets = await client.smembers(keys.salonRegistryKey(dayKey));
+    if (targets.length === 0) return [];
+
+    const snapshots: TrafficSalonSnapshot[] = [];
+    for (const target of targets) {
+      const [visits, visitors] = await Promise.all([
+        client.get(keys.salonVisitsKey(dayKey, target)),
+        client.pfcount(keys.salonVisitorsKey(dayKey, target)),
+      ]);
+
+      const sections = await Promise.all(
+        SALON_TRAFFIC_SECTIONS.map(async (section) => {
+          const [sectionVisits, sectionVisitors] = await Promise.all([
+            client.get(keys.salonSectionVisitsKey(dayKey, target, section)),
+            client.pfcount(keys.salonSectionVisitorsKey(dayKey, target, section)),
+          ]);
+          return {
+            section,
+            visits: nonNegativeInteger(sectionVisits),
+            visitors: nonNegativeInteger(String(sectionVisitors)),
+          };
+        }),
+      );
+
+      const hours: TrafficSalonSnapshot["hours"] = [];
+      const hourPipeline = client.pipeline();
+      for (let hour = 0; hour < 24; hour += 1) {
+        hourPipeline.get(keys.salonHourlyVisitsKey(dayKey, hour, target));
+        hourPipeline.pfcount(keys.salonHourlyVisitorsKey(dayKey, hour, target));
+      }
+      const hourResults = await hourPipeline.exec();
+      let resultIndex = 0;
+      for (let hour = 0; hour < 24; hour += 1) {
+        const hourVisits = nonNegativeInteger(pipelineValue(hourResults?.[resultIndex]));
+        const hourVisitors = nonNegativeInteger(
+          String(pipelineValue(hourResults?.[resultIndex + 1])),
+        );
+        resultIndex += 2;
+        if (hourVisits > 0 || hourVisitors > 0) {
+          hours.push({ hour, visits: hourVisits, visitors: hourVisitors });
+        }
+      }
+
+      const origins = await this.readSalonOrigins(client, dayKey, target);
+
+      snapshots.push({
+        target,
+        visits: nonNegativeInteger(visits),
+        visitors: nonNegativeInteger(String(visitors)),
+        sections,
+        hours,
+        origins,
+      });
+    }
+    return snapshots;
+  }
+
+  private async readSalonOrigins(
+    client: ReturnType<typeof getApiRedisConnection>,
+    dayKey: string,
+    target: string,
+  ): Promise<TrafficOriginSnapshot[]> {
+    const hosts = await client.smembers(keys.salonOriginRegistryKey(dayKey, target));
+    if (hosts.length === 0) return [];
+
+    const values = await client.mget(
+      ...hosts.map((host) => keys.salonOriginKey(dayKey, target, host)),
+    );
+
+    return hosts.map((origin, index) => ({
+      origin,
+      visits: nonNegativeInteger(values[index] ?? null),
+    }));
   }
 
   private async readOrigins(

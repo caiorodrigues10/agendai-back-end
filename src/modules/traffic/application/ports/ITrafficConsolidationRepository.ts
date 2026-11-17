@@ -6,6 +6,8 @@ export interface TrafficConsolidationResult {
   areas: number;
   hours: number;
   origins: number;
+  /** Alvos de salão/organização consolidados no dia. */
+  salons: number;
 }
 
 /**
@@ -16,4 +18,9 @@ export interface TrafficConsolidationResult {
  */
 export interface ITrafficConsolidationRepository {
   persistDay(snapshot: TrafficDaySnapshot): Promise<TrafficConsolidationResult>;
+  /**
+   * Apaga agregados anteriores ao dia civil informado (retenção).
+   * @returns quantidade de linhas removidas.
+   */
+  purgeOlderThan(cutoffDayKey: string): Promise<number>;
 }

@@ -3,12 +3,14 @@
 const cronSchedule = vi.fn();
 const withCronLock = vi.fn();
 const execute = vi.fn(async (day: string) => ({ day }));
+const purgeRetention = vi.fn(async (_cutoff: string) => 0);
 
 async function loadCron() {
   vi.resetModules();
   cronSchedule.mockReset();
   withCronLock.mockReset();
   execute.mockClear();
+  purgeRetention.mockClear();
 
   vi.doMock("node-cron", () => ({
     default: { schedule: cronSchedule },
@@ -27,7 +29,7 @@ async function loadCron() {
     const actual = await importOriginal<typeof import("tsyringe")>();
     return {
       ...actual,
-      container: { resolve: () => ({ execute }) },
+      container: { resolve: () => ({ execute, purgeRetention }) },
     };
   });
 
@@ -76,6 +78,19 @@ describe("cron de consolidação de tráfego", () => {
     );
     expect(execute).toHaveBeenNthCalledWith(1, "2026-11-14");
     expect(execute).toHaveBeenNthCalledWith(2, "2026-11-15");
+    // Retenção: agregados de salão com mais de 13 meses são apagados.
+    expect(purgeRetention).toHaveBeenCalledTimes(1);
+    expect(purgeRetention).toHaveBeenCalledWith("2025-10-15");
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it("não derruba a consolidação quando a limpeza de retenção falha", async () => {
+    const { consolidateTrafficDays } = await loadCron();
+    purgeRetention.mockRejectedValueOnce(new Error("db down"));
+
+    await expect(consolidateTrafficDays(new Date("2026-11-15T12:00:00.000Z"))).resolves.toEqual([
+      "2026-11-14",
+      "2026-11-15",
+    ]);
   });
 });

@@ -25,4 +25,9 @@ export class ConsolidateTrafficUseCase {
     const snapshot = await this.source.readDay(dayKey);
     return this.repository.persistDay(snapshot);
   }
+
+  /** Limpeza de retenção (agregados de salão com mais de 13 meses). */
+  async purgeRetention(cutoffDayKey: string): Promise<number> {
+    return this.repository.purgeOlderThan(cutoffDayKey);
+  }
 }

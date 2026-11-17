@@ -72,6 +72,62 @@ export class PrismaTrafficConsolidationRepository implements ITrafficConsolidati
       );
     }
 
+    // Tráfego por salão/organização (chave de atribuição `b:`/`o:`).
+    for (const salon of snapshot.salons) {
+      statements.push(
+        prisma.$executeRaw`
+          INSERT INTO "salon_traffic_daily"
+            ("day", "target", "visits", "visitors")
+          VALUES
+            (${day}, ${salon.target}, ${salon.visits}, ${salon.visitors})
+          ON CONFLICT ("day", "target") DO UPDATE SET
+            "visits" = GREATEST("salon_traffic_daily"."visits", EXCLUDED."visits"),
+            "visitors" = GREATEST("salon_traffic_daily"."visitors", EXCLUDED."visitors")
+        `,
+      );
+
+      for (const section of salon.sections) {
+        statements.push(
+          prisma.$executeRaw`
+            INSERT INTO "salon_traffic_section_daily"
+              ("day", "target", "section", "visits", "visitors")
+            VALUES
+              (${day}, ${salon.target}, ${section.section}, ${section.visits}, ${section.visitors})
+            ON CONFLICT ("day", "target", "section") DO UPDATE SET
+              "visits" = GREATEST("salon_traffic_section_daily"."visits", EXCLUDED."visits"),
+              "visitors" = GREATEST("salon_traffic_section_daily"."visitors", EXCLUDED."visitors")
+          `,
+        );
+      }
+
+      for (const hour of salon.hours) {
+        statements.push(
+          prisma.$executeRaw`
+            INSERT INTO "salon_traffic_hourly"
+              ("day", "hour", "target", "visits", "visitors")
+            VALUES
+              (${day}, ${hour.hour}, ${salon.target}, ${hour.visits}, ${hour.visitors})
+            ON CONFLICT ("day", "hour", "target") DO UPDATE SET
+              "visits" = GREATEST("salon_traffic_hourly"."visits", EXCLUDED."visits"),
+              "visitors" = GREATEST("salon_traffic_hourly"."visitors", EXCLUDED."visitors")
+          `,
+        );
+      }
+
+      for (const origin of salon.origins) {
+        statements.push(
+          prisma.$executeRaw`
+            INSERT INTO "salon_traffic_origin_daily"
+              ("day", "target", "origin", "visits")
+            VALUES
+              (${day}, ${salon.target}, ${origin.origin}, ${origin.visits})
+            ON CONFLICT ("day", "target", "origin") DO UPDATE SET
+              "visits" = GREATEST("salon_traffic_origin_daily"."visits", EXCLUDED."visits")
+          `,
+        );
+      }
+    }
+
     if (statements.length > 0) {
       await prisma.$transaction(statements);
     }
@@ -81,6 +137,26 @@ export class PrismaTrafficConsolidationRepository implements ITrafficConsolidati
       areas: snapshot.areas.length,
       hours: snapshot.hours.length,
       origins: snapshot.origins.length,
+      salons: snapshot.salons.length,
     };
+  }
+
+  /**
+   * Limpeza de retenção: apaga agregados de salão com mais de 13 meses.
+   *
+   * O contrato pede 13 meses de agregados (permite comparar com o mesmo
+   * período do ano anterior). As tabelas do beacon global (`site_traffic_*`)
+   * mantêm a retenção preexistente — esta limpeza só toca no tráfego de
+   * salão.
+   */
+  async purgeOlderThan(cutoffDayKey: string): Promise<number> {
+    const cutoff = civilDayToDate(cutoffDayKey);
+    const removed = await prisma.$transaction([
+      prisma.salonTrafficDaily.deleteMany({ where: { day: { lt: cutoff } } }),
+      prisma.salonTrafficHourly.deleteMany({ where: { day: { lt: cutoff } } }),
+      prisma.salonTrafficSectionDaily.deleteMany({ where: { day: { lt: cutoff } } }),
+      prisma.salonTrafficOriginDaily.deleteMany({ where: { day: { lt: cutoff } } }),
+    ]);
+    return removed.reduce((total, result) => total + result.count, 0);
   }
 }

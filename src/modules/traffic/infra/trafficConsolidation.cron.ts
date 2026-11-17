@@ -4,13 +4,16 @@ import { getRedisConnection } from "@/shared/infra/queue/redisConnection";
 import { spSlotKey, withCronLock } from "@/shared/infra/redis/cronLock";
 import { withCronCorrelation } from "@/shared/utils/correlationContext";
 import { getModuleLogger } from "@/shared/utils/logger";
-import { addDays, spDayKey } from "../domain/periodWindows";
+import { addDays, addMonths, spDayKey } from "../domain/periodWindows";
 import {
   ConsolidateTrafficUseCase,
   TRAFFIC_CONSOLIDATION_SOURCE,
 } from "../application/useCases/ConsolidateTrafficUseCase";
 
 const logger = getModuleLogger("cron:traffic-consolidation");
+
+/** Retenção dos agregados de tráfego de salão (contrato: 13 meses). */
+export const SALON_TRAFFIC_RETENTION_MONTHS = 13;
 
 /**
  * Consolida o dia civil anterior e o dia civil corrente (parcial).
@@ -19,6 +22,9 @@ const logger = getModuleLogger("cron:traffic-consolidation");
  * indisponível em uma janela e mantém o dia corrente visível no relatório.
  * O lock distribuído impede duplicidade entre réplicas; a persistência usa
  * GREATEST, portanto repetir a consolidação é seguro.
+ *
+ * Ao final aplica a retenção: agregados de salão com mais de 13 meses são
+ * apagados (o beacon global mantém a retenção preexistente).
  */
 export async function consolidateTrafficDays(now: Date = new Date()): Promise<string[]> {
   const today = spDayKey(now);
@@ -37,6 +43,17 @@ export async function consolidateTrafficDays(now: Date = new Date()): Promise<st
       // recupera o dia ausente sem esconder a falha do cron.
       firstError ??= error;
     }
+  }
+
+  try {
+    const cutoff = addMonths(today, -SALON_TRAFFIC_RETENTION_MONTHS);
+    const removed = await useCase.purgeRetention(cutoff);
+    if (removed > 0) {
+      logger.info({ removed, cutoff }, "Retenção de tráfego de salão aplicada");
+    }
+  } catch (error) {
+    // A limpeza é best-effort: falhar nela não pode derrubar a consolidação.
+    logger.warn({ err: error }, "Falha ao aplicar a retenção de tráfego de salão");
   }
 
   if (firstError) throw firstError;

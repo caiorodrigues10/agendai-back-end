@@ -2206,6 +2206,58 @@ model UserActivityDaily {
   @@map("user_activity_daily")
 }
 
+/// Aggregate diário do tráfego das páginas públicas de um salão.
+/// `target` é a chave de atribuição: `b:<barbershopId>` (visita atribuída ao
+/// salão) ou `o:<organizationId>` (visita atribuída à organização, via slug).
+/// Sem IP/UA/hash: só contagens. Escopo plataforma, sem RLS — a
+/// autorização é resolvida na aplicação antes da query.
+model SalonTrafficDaily {
+  day      DateTime @db.Date
+  target   String   @db.VarChar(48)
+  visits   Int      @default(0)
+  visitors Int      @default(0)
+
+  @@id([day, target])
+  @@map("salon_traffic_daily")
+}
+
+/// Bucket por hora civil (0–23) do mesmo escopo — alimenta a série de
+/// `period=day` (24 pontos, rótulos pt-BR).
+model SalonTrafficHourly {
+  day      DateTime @db.Date
+  hour     Int
+  target   String   @db.VarChar(48)
+  visits   Int      @default(0)
+  visitors Int      @default(0)
+
+  @@id([day, hour, target])
+  @@map("salon_traffic_hourly")
+}
+
+/// Quebra por seção da página pública (profile/queue/appointments/products/
+/// other). `visits` soma as visitas da seção e as abas (`kind:"tab"`).
+model SalonTrafficSectionDaily {
+  day      DateTime @db.Date
+  target   String   @db.VarChar(48)
+  section  String   @db.VarChar(16)
+  visits   Int      @default(0)
+  visitors Int      @default(0)
+
+  @@id([day, target, section])
+  @@map("salon_traffic_section_daily")
+}
+
+/// Referrer host por dia e alvo — HOST ONLY (nunca path/query/fragmento).
+model SalonTrafficOriginDaily {
+  day    DateTime @db.Date
+  target String   @db.VarChar(48)
+  origin String   @db.VarChar(255)
+  visits Int      @default(0)
+
+  @@id([day, target, origin])
+  @@map("salon_traffic_origin_daily")
+}
+
 model ErrorLog {
   id         String   @id @default(uuid()) @db.Uuid
   userId     String?  @db.Uuid
