@@ -16,7 +16,7 @@ o tráfego das páginas públicas de um salão (`/queue/:id`, `/queue/:id/produt
 |---|---|
 | Ingestão | `POST /api/ping` (mesmo endpoint do beacon global) |
 | Leitura | `GET /api/barbershops/:id/traffic?period=day\|week\|month\|3m\|year` |
-| Autorização da leitura | dono do salão (`OWNER`) ou `MASTER_ADMIN`; `EMPLOYEE` → 403 |
+| Autorização da leitura | dono do salão (`OWNER`) ou `MASTER_ADMIN` **com `internal:traffic:read`**; `EMPLOYEE` → 403 |
 | Contagem por dia civil | `America/Sao_Paulo` |
 | Identidade do visitante | HMAC-SHA256 diário de `IP + User-Agent`, TTL 24h, nunca persistido no banco |
 | Retenção dos agregados | 13 meses (limpeza no cron de consolidação) |
@@ -178,13 +178,24 @@ Tabelas novas (escopo plataforma, **sem RLS** — ver `docs/RLS-INVENTARIO.md`):
 ### 5.1 Guardas
 
 `authenticate` → `authorize(["MASTER_ADMIN","OWNER"])` → vínculo com o salão da
-rota (403 para quem não é o dono) → `validateSchema(salonTrafficQuerySchema, "query")`
+rota (403 para quem não é o dono) → `internalTrafficGuard` (só para
+`MASTER_ADMIN`) → `validateSchema(salonTrafficQuerySchema, "query")`
 → `checkSubscription` → `setRlsContext`.
 
 - Anônimo → **401**.
 - `EMPLOYEE` (mesmo com permissão de relatórios) → **403**.
 - Dono de **outro** salão → **403**.
-- `MASTER_ADMIN` → **200**.
+- `MASTER_ADMIN` → **200**, mas só com `internal:traffic:read` (mesma guarda de
+  `GET /admin/traffic`): admin interno escopado **sem** essa permissão → **403**
+  ("Você não tem permissão para acessar esta área interna").
+- `MASTER_ADMIN` com `internal:all`, com `internal:traffic:read` ou sem
+  permissões explícitas (acesso total) → **200**.
+
+O `internalTrafficGuard` (`src/shared/infra/http/middlewares/internalTrafficGuard.ts`)
+é **condicional**: para `MASTER_ADMIN` roda `verifyInternalAdmin` (que carrega
+`permissions` do banco) e depois `requireInternalPermission(internal:traffic:read)`,
+na mesma ordem de `admin.routes.ts`; para qualquer outro papel não faz nada — o
+acesso do `OWNER` continua definido só por `assertOwnShop` + `checkSubscription`.
 
 ### 5.2 Query
 
@@ -269,6 +280,7 @@ Regras:
 | Infra | `infra/redisTrafficCounter.ts`, `infra/trafficKeys.ts`, `infra/redisTrafficConsolidationSource.ts`, `infra/trafficConsolidationRepository.ts`, `infra/trafficConsolidation.cron.ts`, `infra/prismaSalonAttributionResolver.ts`, `infra/prismaSalonTrafficReportRepository.ts` |
 | Apresentação | `presentation/TrafficBeaconController.ts`, `presentation/SalonTrafficReportController.ts` |
 | Rotas | `shared/infra/http/routes/barbershops.routes.ts` |
+| Middlewares | `shared/infra/http/middlewares/internalTrafficGuard.ts` (permissão interna de tráfego, só para `MASTER_ADMIN`) |
 | Banco | `prisma/schema.prisma` + `prisma/migrations/20261117120000_salon_traffic_attribution/` |
 
 ---

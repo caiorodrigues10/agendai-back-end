@@ -54,6 +54,9 @@ describe("beacon de salão e relatório do dono — HTTP real", () => {
   let otherOwner: UserFixture;
   let employee: UserFixture;
   let master: UserFixture;
+  let masterScoped: UserFixture;
+  let masterTraffic: UserFixture;
+  let masterAll: UserFixture;
   let organizationId: string;
   let organizationSlug: string;
 
@@ -137,6 +140,45 @@ describe("beacon de salão e relatório do dono — HTTP real", () => {
       select: { id: true, role: true },
     });
     createdUserIds.push(master.id);
+
+    // Admin interno escopado: vê o painel master, mas NÃO tem leitura de tráfego.
+    masterScoped = await prisma.user.create({
+      data: {
+        name: "Master Escopado do Beacon QA",
+        email: `salon-master-scoped-${randomUUID()}@example.test`,
+        password: "not-a-real-password",
+        role: "MASTER_ADMIN",
+        permissions: ["internal:dashboard:read"],
+      },
+      select: { id: true, role: true },
+    });
+    createdUserIds.push(masterScoped.id);
+
+    // Admin interno com a permissão de leitura de tráfego.
+    masterTraffic = await prisma.user.create({
+      data: {
+        name: "Master de Tráfego do Beacon QA",
+        email: `salon-master-traffic-${randomUUID()}@example.test`,
+        password: "not-a-real-password",
+        role: "MASTER_ADMIN",
+        permissions: ["internal:traffic:read"],
+      },
+      select: { id: true, role: true },
+    });
+    createdUserIds.push(masterTraffic.id);
+
+    // Admin interno com acesso total.
+    masterAll = await prisma.user.create({
+      data: {
+        name: "Master Total do Beacon QA",
+        email: `salon-master-all-${randomUUID()}@example.test`,
+        password: "not-a-real-password",
+        role: "MASTER_ADMIN",
+        permissions: ["internal:all"],
+      },
+      select: { id: true, role: true },
+    });
+    createdUserIds.push(masterAll.id);
 
     organizationSlug = `salon-org-${randomUUID().replace(/-/g, "").slice(0, 16)}`;
     const organization = await prisma.organization.create({
@@ -557,6 +599,54 @@ describe("beacon de salão e relatório do dono — HTTP real", () => {
 
     const masterResponse = await report(master, shop.id);
     expect(masterResponse.statusCode).toBe(200);
+  });
+
+  it("exige internal:traffic:read para o MASTER_ADMIN ler o relatório de um salão", async () => {
+    // Admin interno escopado (sem leitura de tráfego): bloqueado na rota do
+    // salão, igual à tela /master/traffic.
+    const scoped = await report(masterScoped, shop.id);
+    expect(scoped.statusCode).toBe(403);
+    expect(scoped.json().message).toBe(
+      "Você não tem permissão para acessar esta área interna",
+    );
+
+    // Com a permissão explícita, com internal:all e sem permissões explícitas
+    // (acesso total), a leitura do master continua funcionando.
+    const withTrafficRead = await report(masterTraffic, shop.id);
+    expect(withTrafficRead.statusCode).toBe(200);
+
+    const withAll = await report(masterAll, shop.id);
+    expect(withAll.statusCode).toBe(200);
+
+    const withoutExplicitPermissions = await report(master, shop.id);
+    expect(withoutExplicitPermissions.statusCode).toBe(200);
+  });
+
+  it("mantém o acesso do OWNER independente de permissões internas", async () => {
+    // O dono do próprio salão lê o relatório (200) e NÃO passa por
+    // verifyInternalAdmin — se passasse, o guard interno recusaria um
+    // non-MASTER_ADMIN com 403.
+    const ownShop = await report(owner, shop.id);
+    expect(ownShop.statusCode).toBe(200);
+
+    // Regressão do assertOwnShop: dono de outro salão → 403.
+    // (o token precisa carregar o salão REAL do dono, senão ele "seria"
+    // dono do salão da rota e passaria.)
+    const crossShop = await app.inject({
+      method: "GET",
+      url: `/api/barbershops/${shop.id}/traffic?period=day`,
+      headers: {
+        authorization: `Bearer ${tokenFor(otherOwner, otherShop.id)}`,
+      },
+    });
+    expect(crossShop.statusCode).toBe(403);
+
+    //EMPLOYEE → 403 e anônimo → 401.
+    const employeeResponse = await report(employee, shop.id);
+    expect(employeeResponse.statusCode).toBe(403);
+
+    const anonymous = await report(null, shop.id);
+    expect(anonymous.statusCode).toBe(401);
   });
 
   it("rejeita período inválido ou parâmetro extra na query", async () => {

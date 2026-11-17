@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { authenticate }       from "../middlewares/authenticate";
 import { authorize }          from "../middlewares/authorize";
 import { checkSubscription }  from "../middlewares/checkSubscription";
+import { internalTrafficGuard } from "../middlewares/internalTrafficGuard";
 import { setRlsContext }      from "../middlewares/setRlsContext";
 import { validateSchema }     from "../middlewares/validateSchema";
 import { listBarbershopsQuerySchema } from "@/modules/barbershops/schemas/barbershopSchemas";
@@ -78,6 +79,8 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   //   - autenticado (bearer): anônimo → 401;
   //   - apenas o OWNER daquele salão (e o MASTER_ADMIN): outros donos e
   //     EMPLOYEE → 403;
+  //   - MASTER_ADMIN precisa de `internal:traffic:read` (mesma guarda de
+  //     `/admin/traffic`): admin interno escopado sem essa permissão → 403;
   //   - a query tem APENAS `period`: qualquer outro valor/parâmetro → 400.
   app.get(
     "/barbershops/:id/traffic",
@@ -89,6 +92,8 @@ export async function barbershopsRoutes(app: FastifyInstance) {
           const { id } = request.params as { id: string };
           assertOwnShop(request, id);
         },
+        // Só o MASTER_ADMIN é afetado: o OWNER não passa por verifyInternalAdmin.
+        internalTrafficGuard,
         validateSchema(salonTrafficQuerySchema, "query"),
         checkSubscription,
         setRlsContext,
