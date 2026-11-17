@@ -8317,6 +8317,55 @@
         }
       }
     },
+    "/api/barbershops/{id}/traffic": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Janela móvel calculada no servidor (fuso America/Sao_Paulo): day (hoje), week (7 dias), month (30 dias), 3m (90 dias) ou year (365 dias). Obrigatório.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Relatório de tráfego do salão",
+                  "properties": {
+                    "data": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Relatório de tráfego do salão"
+          }
+        },
+        "summary": "Relatório de tráfego das páginas públicas do salão (leitura do dono)",
+        "tags": [
+          "Barbershops"
+        ]
+      }
+    },
     "/api/barbershops/{id}/uploads/sign": {
       "post": {
         "parameters": [

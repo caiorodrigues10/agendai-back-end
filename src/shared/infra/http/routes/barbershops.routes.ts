@@ -20,6 +20,8 @@ import { WhatsAppConnectionController } from "@/modules/barbershops/useCases/wha
 import { ChangeOperationModeController } from "@/modules/barbershops/useCases/changeOperationMode/ChangeOperationModeController";
 import { ShopStatusController } from "@/modules/barbershops/useCases/shopStatus/ShopStatusController";
 import { GetWeatherForecastController } from "@/modules/barbershops/useCases/getWeatherForecast/GetWeatherForecastController";
+import { SalonTrafficReportController } from "@/modules/traffic/presentation/SalonTrafficReportController";
+import { salonTrafficQuerySchema } from "@/modules/traffic/schemas/trafficSchemas";
 import { prisma } from "@/libs/prismaClient";
 import { AppError } from "@/shared/errors/AppError";
 import { z } from "zod";
@@ -40,6 +42,7 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   const changeMode     = new ChangeOperationModeController();
   const shopStatus     = new ShopStatusController();
   const weatherForecast = new GetWeatherForecastController();
+  const salonTraffic = new SalonTrafficReportController();
   const assertOwnShop = (request: { user?: { role?: string; barbershopId?: string } }, id: string) => {
     if (request.user?.role !== "MASTER_ADMIN" && request.user?.barbershopId !== id) throw new AppError("Acesso negado", 403);
   };
@@ -68,6 +71,61 @@ export async function barbershopsRoutes(app: FastifyInstance) {
   ];
   app.get("/barbershops/:id/whatsapp", { preHandler: ownerWhatsAppGuard }, whatsapp.status.bind(whatsapp));
   app.get("/barbershops/:id/weather", { preHandler: ownerWhatsAppGuard }, weatherForecast.handle.bind(weatherForecast));
+
+  // ─── Tráfego das páginas públicas do salão (leitura do dono) ───────────────
+  //
+  // GET /barbershops/:id/traffic?period=day|week|month|3m|year
+  //   - autenticado (bearer): anônimo → 401;
+  //   - apenas o OWNER daquele salão (e o MASTER_ADMIN): outros donos e
+  //     EMPLOYEE → 403;
+  //   - a query tem APENAS `period`: qualquer outro valor/parâmetro → 400.
+  app.get(
+    "/barbershops/:id/traffic",
+    {
+      preHandler: [
+        authenticate,
+        authorize(["MASTER_ADMIN", "OWNER"]),
+        async (request) => {
+          const { id } = request.params as { id: string };
+          assertOwnShop(request, id);
+        },
+        validateSchema(salonTrafficQuerySchema, "query"),
+        checkSubscription,
+        setRlsContext,
+      ],
+      schema: {
+        tags: ["Barbershops"],
+        summary: "Relatório de tráfego das páginas públicas do salão (leitura do dono)",
+        // O schema aqui é DESCRITIVO: a validação (e o formato do erro 400)
+        // ficam por conta do `validateSchema(salonTrafficQuerySchema, "query")`.
+        // Declarar `enum`/`required` aqui faria o Fastify responder 400 antes
+        // do zod, com outro formato de erro.
+        querystring: {
+          type: "object",
+          properties: {
+            period: {
+              type: "string",
+              description:
+                "Janela móvel calculada no servidor (fuso America/Sao_Paulo): day (hoje), week (7 dias), month (30 dias), 3m (90 dias) ou year (365 dias). Obrigatório.",
+            },
+          },
+        },
+        response: {
+          200: {
+            description: "Relatório de tráfego do salão",
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+              // `additionalProperties: true` — sem isso o serializador do
+              // Fastify (fast-json-stringify) esvaziaria o objeto `data`.
+              data: { type: "object", additionalProperties: true },
+            },
+          },
+        },
+      },
+    },
+    salonTraffic.handle.bind(salonTraffic),
+  );
   app.post("/barbershops/:id/whatsapp/connect", { preHandler: ownerWhatsAppGuard }, whatsapp.connect.bind(whatsapp));
   app.post("/barbershops/:id/whatsapp/disconnect", { preHandler: ownerWhatsAppGuard }, whatsapp.disconnect.bind(whatsapp));
 

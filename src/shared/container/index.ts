@@ -201,7 +201,12 @@ import {
   SALON_TRAFFIC_ATTRIBUTION_RESOLVER,
   RecordSalonTrafficUseCase,
 } from '@/modules/traffic/application/useCases/RecordSalonTrafficUseCase'
+import {
+  SALON_TRAFFIC_REPORT_REPOSITORY,
+  GetSalonTrafficReportUseCase,
+} from '@/modules/traffic/application/useCases/GetSalonTrafficReportUseCase'
 import { PrismaSalonAttributionResolver } from '@/modules/traffic/infra/prismaSalonAttributionResolver'
+import { PrismaSalonTrafficReportRepository } from '@/modules/traffic/infra/prismaSalonTrafficReportRepository'
 
 // Tráfego anônimo do site (beacon + relatório do painel master).
 container.registerSingleton(TRAFFIC_COUNTER, RedisTrafficCounter)
@@ -213,3 +218,7 @@ container.registerSingleton(ConsolidateTrafficUseCase)
 // Beacon de página pública de salão (atribuição + contagem).
 container.registerSingleton(SALON_TRAFFIC_ATTRIBUTION_RESOLVER, PrismaSalonAttributionResolver)
 container.registerSingleton(RecordSalonTrafficUseCase)
+
+// Relatório de tráfego do salão (leitura do dono).
+container.registerSingleton(SALON_TRAFFIC_REPORT_REPOSITORY, PrismaSalonTrafficReportRepository)
+container.registerSingleton(GetSalonTrafficReportUseCase)
