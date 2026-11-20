@@ -4,6 +4,9 @@ import { PrismaClient, Role } from "@prisma/client";
 import { BcryptHashProvider } from "../src/shared/container/providers/HashProvider/implementations/BcryptHashProvider";
 import type { IHashProvider } from "../src/shared/container/providers/HashProvider/IHashProvider";
 import { seedBarbershopDefaults } from "../src/shared/utils/seedBarbershopDefaults";
+import { looksLikeProductionEnvironment } from "../src/shared/utils/productionEnvironment";
+
+export { looksLikeProductionEnvironment } from "../src/shared/utils/productionEnvironment";
 
 export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 export const SYSTEM_USER_EMAIL = "system@agendai.internal";
@@ -151,22 +154,6 @@ export function resolveSeedProfile(cliProfile?: string): SeedProfile {
 		return raw
 	}
 	throw new Error(`SEED_PROFILE inválido: ${raw} (esperado base|demo|all)`)
-}
-
-export function looksLikeProductionEnvironment(
-	env: NodeJS.ProcessEnv = process.env,
-	databaseUrl: string = env.DATABASE_URL ?? '',
-): boolean {
-	if (env.NODE_ENV === 'production') return true
-	try {
-		const url = new URL(databaseUrl)
-		const dbName = url.pathname.replace(/^\//, '')
-		if (/prod/i.test(dbName)) return true
-		if (/prod/i.test(url.hostname)) return true
-	} catch {
-		// URL inválida: não conclusivo, não bloqueia por aqui.
-	}
-	return false
 }
 
 export async function seedSystemUser(client: any, hashProvider: IHashProvider) {
